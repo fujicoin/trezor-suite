@@ -146,7 +146,7 @@ export const dashTest: Network = {
 };
 
 export const fujicoin: Network = {
-    messagePrefix: '\x19Fujicoin Signed Message:\n',
+    messagePrefix: '\x19FujiCoin Signed Message:\n',
     bech32: 'fc',
     bip32: {
         public: 0x0488b21e,
