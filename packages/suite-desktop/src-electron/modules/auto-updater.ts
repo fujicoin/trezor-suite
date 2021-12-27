@@ -24,6 +24,8 @@ const disableUpdater = app.commandLine.hasSwitch('disable-updater');
 const preReleaseFlag = app.commandLine.hasSwitch('pre-release');
 
 const init: Module = ({ mainWindow, store }) => {
+    return;
+
     const { logger } = global;
     if (!isEnabled('DESKTOP_AUTO_UPDATER') && !enableUpdater) {
         logger.info('auto-updater', 'Disabled via feature flag');
