@@ -22,6 +22,7 @@ describe('Coin Settings', () => {
             'dash',
             'dgb',
             'doge',
+            'fjc',
             'nmc',
             'vtc',
             'zec',
