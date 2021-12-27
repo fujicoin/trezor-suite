@@ -31,8 +31,8 @@
         "test:unit": "jest"
     },
     "build": {
-        "appId": "io.trezor.TrezorSuite",
-        "productName": "Trezor Suite",
+        "appId": "fujicoin.org.TrezorSuite",
+        "productName": "Fujicoin Trezor Suite",
         "copyright": "Copyright © ${author}",
         "asar": true,
         "electronVersion": "15.3.0",
@@ -120,7 +120,7 @@
                 }
             ],
             "icon": "build/static/images/icons/512x512.icns",
-            "artifactName": "Trezor-Suite-${version}-mac-${arch}.${ext}",
+            "artifactName": "Fujicoin-Trezor-Suite-${version}-mac-${arch}.${ext}",
             "hardenedRuntime": true,
             "gatekeeperAssess": false,
             "darkModeSupport": true,
@@ -143,7 +143,7 @@
                 }
             ],
             "icon": "build/static/images/icons/512x512.png",
-            "artifactName": "Trezor-Suite-${version}-win-${arch}.${ext}",
+            "artifactName": "Fujicoin-Trezor-Suite-${version}-win-${arch}.${ext}",
             "target": [
                 "nsis"
             ],
@@ -165,8 +165,8 @@
                 }
             ],
             "icon": "build/static/images/icons/512x512.png",
-            "artifactName": "Trezor-Suite-${version}-linux-${arch}.${ext}",
-            "executableName": "trezor-suite",
+            "artifactName": "Fujicoin-Trezor-Suite-${version}-linux-${arch}.${ext}",
+            "executableName": "fujicoin-trezor-suite",
             "category": "Utility",
             "target": [
                 "AppImage"
