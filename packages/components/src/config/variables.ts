@@ -70,6 +70,7 @@ export const COINS: CoinType[] = [
     'doge',
     'etc',
     'eth',
+    'fjc',
     'ltc',
     'nmc',
     'trop',
