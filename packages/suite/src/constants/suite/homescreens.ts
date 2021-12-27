@@ -57,6 +57,7 @@ export const homescreensT1 = [
 export const homescreensT2 = [
     'default',
     'btc',
+    'fjc',
     'ltc',
     'eth',
     'doge',
