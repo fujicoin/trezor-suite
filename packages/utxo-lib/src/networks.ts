@@ -154,7 +154,7 @@ export const fujicoin: Network = {
     },
     pubKeyHash: 0x36,
     scriptHash: 0x16,
-    wif: 0x80,
+    wif: 0xa4,
 };
 
 export const zcash: Network = {
