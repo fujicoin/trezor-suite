@@ -220,6 +220,19 @@ const networks = [
         },
         features: ['sign-verify'],
     },
+    // Fujicoin
+    {
+        name: 'Fujicoin',
+        networkType: 'bitcoin',
+        symbol: 'fjc',
+        bip43Path: "m/84'/75'/i'",
+        decimals: 8,
+        explorer: {
+            tx: 'https://explorer.fujicoin.org/tx/',
+            account: 'https://explorer.fujicoin.org/xpub/',
+        },
+        features: ['sign-verify'],
+    },
     {
         name: 'Namecoin',
         networkType: 'bitcoin',
