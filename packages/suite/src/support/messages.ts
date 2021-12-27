@@ -2507,6 +2507,10 @@ export default defineMessages({
         defaultMessage: 'Zcash',
         id: 'TR_NETWORK_ZCASH',
     },
+    TR_NETWORK_FUJICOIN: {
+        defaultMessage: 'Fujicoin',
+        id: 'TR_NETWORK_FUJICOIN',
+    },
     TR_NEW_COMMUNICATION_TOOL: {
         defaultMessage:
             'New communication tool to facilitate the connection between your Trezor and your internet browser.',

@@ -145,6 +145,18 @@ export const dashTest: Network = {
     wif: 0xef, // https://github.com/dashpay/godashutil/blob/master/wif.go#L72
 };
 
+export const fujicoin: Network = {
+    messagePrefix: '\x18Fujicoin Signed Message:\n',
+    bech32: 'fc',
+    bip32: {
+        public: 0x0488b21e,
+        private: 0x0488ade4,
+    },
+    pubKeyHash: 0x36,
+    scriptHash: 0x16,
+    wif: 0x80,
+};
+
 export const zcash: Network = {
     messagePrefix: '\x18ZCash Signed Message:\n',
     bech32: '',

@@ -234,6 +234,19 @@ const networks = [
         features: ['sign-verify'],
     },
     {
+        name: 'Fujicoin (Legacy)',
+        networkType: 'bitcoin',
+        accountType: 'legacy',
+        symbol: 'fjc',
+        bip43Path: "m/44'/75'/i'",
+        decimals: 8,
+        explorer: {
+            tx: 'https://explorer.fujicoin.org/tx/',
+            account: 'https://explorer.fujicoin.org/xpub/',
+        },
+        features: ['sign-verify'],
+    },
+    {
         name: 'Namecoin',
         networkType: 'bitcoin',
         symbol: 'nmc',

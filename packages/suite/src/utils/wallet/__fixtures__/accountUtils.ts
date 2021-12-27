@@ -314,6 +314,7 @@ export const accountTitleFixture = [
     { symbol: 'trop', title: 'TR_NETWORK_ETHEREUM_TESTNET' },
     { symbol: 'dgb', title: 'TR_NETWORK_DIGIBYTE' },
     { symbol: 'doge', title: 'TR_NETWORK_DOGECOIN' },
+    { symbol: 'fjc', title: 'TR_NETWORK_FUJICOIN' },
     { symbol: 'ltc', title: 'TR_NETWORK_LITECOIN' },
     { symbol: 'nmc', title: 'TR_NETWORK_NAMECOIN' },
     { symbol: 'vtc', title: 'TR_NETWORK_VERTCOIN' },
