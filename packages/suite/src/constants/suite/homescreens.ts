@@ -57,6 +57,7 @@ export const homescreensBW64x128 = [
 export const homescreensColor128x128 = [
     'default',
     'btc',
+    'fjc',
     'ltc',
     'eth',
     'doge',
