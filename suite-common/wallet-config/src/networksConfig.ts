@@ -44,7 +44,7 @@ export const networks = {
             account: 'https://explorer.fujicoin.org/xpub/',
         },
         features: ['rbf', 'sign-verify'],
-        customBackends: ['blockbook'],
+        customBackends: ['blockbook', 'electrum'],
         accountTypes: {
             taproot: {
                 name: 'Fujicoin (Taproot)',
