@@ -153,6 +153,8 @@ export const getTitleForNetwork = (symbol: NetworkSymbol) => {
             return 'TR_NETWORK_ETHEREUM';
         case 'bsc':
             return 'TR_NETWORK_BSC';
+        case 'fjc':
+            return 'TR_NETWORK_FUJICOIN';
         case 'tsep':
             return 'TR_NETWORK_ETHEREUM_SEPOLIA';
         case 'thol':

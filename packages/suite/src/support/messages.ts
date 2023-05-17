@@ -3223,6 +3223,10 @@ export default defineMessages({
         defaultMessage: 'BNB Smart Chain',
         id: 'TR_NETWORK_BSC',
     },
+    TR_NETWORK_FUJICOIN: {
+        defaultMessage: 'Fujicoin',
+        id: 'TR_NETWORK_FUJICOIN',
+    },
     TR_NETWORK_LITECOIN: {
         defaultMessage: 'Litecoin',
         id: 'TR_NETWORK_LITECOIN',
