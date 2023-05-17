@@ -2802,6 +2802,10 @@ export default defineMessages({
         defaultMessage: 'Base',
         id: 'TR_NETWORK_BASE',
     },
+    TR_NETWORK_FUJICOIN: {
+        defaultMessage: 'Fujicoin',
+        id: 'TR_NETWORK_FUJICOIN',
+    },
     TR_NETWORK_OP: {
         defaultMessage: 'Optimism',
         id: 'TR_NETWORK_OP',
