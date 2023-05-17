@@ -2945,6 +2945,10 @@ export default defineMessages({
         defaultMessage: 'Ethereum Holesky',
         id: 'TR_NETWORK_ETHEREUM_HOLESKY',
     },
+    TR_NETWORK_FUJICOIN: {
+        defaultMessage: 'Fujicoin',
+        id: 'TR_NETWORK_FUJICOIN',
+    },
     TR_NETWORK_LITECOIN: {
         defaultMessage: 'Litecoin',
         id: 'TR_NETWORK_LITECOIN',

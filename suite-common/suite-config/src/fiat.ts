@@ -67,6 +67,7 @@ export const FIAT = {
         { symbol: 'dash', coingeckoId: 'dash' },
         { symbol: 'dgb', coingeckoId: 'digibyte' },
         { symbol: 'doge', coingeckoId: 'dogecoin' },
+        { symbol: 'fjc', coingeckoId: 'fujicoin' },
         { symbol: 'vtc', coingeckoId: 'vertcoin' },
         { symbol: 'nmc', coingeckoId: 'namecoin' },
         { symbol: 'zec', coingeckoId: 'zcash' },
