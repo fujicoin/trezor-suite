@@ -11,6 +11,7 @@ export const COINS = {
     dsol: require('../../../images/coins/dsol.svg'),
     etc: require('../../../images/coins/etc.svg'),
     eth: require('../../../images/coins/eth.svg'),
+    fjc: require('../../../images/coins/fjc.svg'),
     ltc: require('../../../images/coins/ltc.svg'),
     nmc: require('../../../images/coins/nmc.svg'),
     tada: require('../../../images/coins/tada.svg'),
