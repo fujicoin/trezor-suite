@@ -1077,7 +1077,10 @@
             "bech32_prefix": "fc",
             "blockchain_link": {
                 "type": "blockbook",
-                "url": ["https://explorer.fujicoin.org"]
+                "url": [
+                    "https://explorer.fujicoin.org",
+                    "https://explorer2.fujicoin.org"
+                ]
             },
             "blocktime_seconds": 60,
             "cashaddr_prefix": null,
