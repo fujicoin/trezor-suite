@@ -63,6 +63,7 @@ export const accountTitleFixture = [
     { symbol: 'zec', title: 'TR_NETWORK_ZCASH' },
     { symbol: 'eth', title: 'TR_NETWORK_ETHEREUM' },
     { symbol: 'etc', title: 'TR_NETWORK_ETHEREUM_CLASSIC' },
+    { symbol: 'fjc', title: 'TR_NETWORK_FUJICOIN' },
     { symbol: 'xem', title: 'TR_NETWORK_NEM' },
     { symbol: 'xlm', title: 'TR_NETWORK_STELLAR' },
     { symbol: 'ada', title: 'TR_NETWORK_CARDANO' },
