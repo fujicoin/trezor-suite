@@ -3,6 +3,7 @@ import { NetworkSymbol } from '@suite-common/wallet-config';
 export enum PROTOCOL_SCHEME {
     BITCOIN = 'bitcoin',
     LITECOIN = 'litecoin',
+    FUJICOIN = 'fujicoin',
     BITCOIN_CASH = 'bitcoincash',
     BITCOIN_GOLD = 'bitcoingold',
     DASH = 'dash',
