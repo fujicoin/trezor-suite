@@ -41,6 +41,38 @@ export const networks = {
         coingeckoId: 'bitcoin',
         coingeckoNativeId: 'bitcoin',
     },
+    fjc: {
+        symbol: 'fjc',
+        name: 'Fujicoin',
+        networkType: 'bitcoin',
+        bip43Path: "m/84'/75'/i'",
+        decimals: 8,
+        testnet: false,
+        explorer: {
+            tx: 'https://explorer.fujicoin.org/tx/',
+            account: 'https://explorer.fujicoin.org/xpub/',
+            address: 'https://explorer.fujicoin.org/address/',
+        },
+        features: ['rbf', 'sign-verify'],
+        customBackends: ['blockbook', 'electrum'],
+        accountTypes: {
+            taproot: {
+                accountType: 'taproot',
+                bip43Path: "m/86'/75'/i'",
+                features: ['rbf'],
+            },
+            segwit: {
+                accountType: 'segwit',
+                bip43Path: "m/49'/75'/i'",
+            },
+            legacy: {
+                accountType: 'legacy',
+                bip43Path: "m/44'/75'/i'",
+            },
+        },
+        coingeckoId: 'fujicoin',
+        coingeckoNativeId: 'fujicoin',
+    },
     eth: {
         symbol: 'eth',
         name: 'Ethereum',

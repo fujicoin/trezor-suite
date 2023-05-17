@@ -3,6 +3,7 @@ import { NetworkSymbol } from '@suite-common/wallet-config';
 export enum PROTOCOL_SCHEME {
     BITCOIN = 'bitcoin',
     LITECOIN = 'litecoin',
+    FUJICOIN = 'fujicoin',
     BITCOIN_CASH = 'bitcoincash',
     BITCOIN_GOLD = 'bitcoingold',
     DASH = 'dash',
@@ -23,6 +24,7 @@ export const PROTOCOL_TO_NETWORK: Partial<{
 }> = {
     [PROTOCOL_SCHEME.BITCOIN]: 'btc',
     [PROTOCOL_SCHEME.LITECOIN]: 'ltc',
+    [PROTOCOL_SCHEME.FUJICOIN]: 'fjc',
     [PROTOCOL_SCHEME.BITCOIN_CASH]: 'bch',
     [PROTOCOL_SCHEME.BITCOIN_GOLD]: 'btg',
     [PROTOCOL_SCHEME.DASH]: 'dash',
