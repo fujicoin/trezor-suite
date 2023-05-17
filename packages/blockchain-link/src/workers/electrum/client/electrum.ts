@@ -17,6 +17,8 @@ type ElectrumClientOptions = JsonRpcClientOptions & {
 
 const selectNetwork = (shortcut?: string) => {
     switch (shortcut) {
+        case 'FJC':
+            return networks.fujicoin;
         case 'REGTEST':
             return networks.regtest;
         case 'TEST':
