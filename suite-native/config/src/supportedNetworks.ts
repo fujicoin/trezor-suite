@@ -22,7 +22,7 @@ const discoveryBlacklist: NetworkSymbol[] = ['op', 'base', 'arb'];
 
 // All supported coins for device discovery
 export const networkSymbolsWhitelistMap: Record<'mainnet' | 'testnet', readonly NetworkSymbol[]> = {
-    mainnet: ['btc', 'eth', 'pol', 'sol', 'bsc', 'ltc', 'etc', 'ada', 'xrp', 'bch', 'doge', 'zec'],
+    mainnet: ['btc', 'fjc', 'eth', 'pol', 'sol', 'bsc', 'ltc', 'etc', 'ada', 'xrp', 'bch', 'doge', 'zec'],
     testnet: ['test', 'regtest', 'tsep', 'thol', 'dsol', 'tada', 'txrp'],
 };
 
