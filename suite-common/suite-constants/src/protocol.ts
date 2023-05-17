@@ -4,6 +4,7 @@ export type Protocol =
     | 'bitcoin'
     | 'btc'
     | 'litecoin'
+    | 'fujicoin'
     | 'bitcoincash'
     | 'bitcoingold'
     | 'dash'
@@ -24,6 +25,7 @@ export type Protocol =
     | 'test'
     | 'regtest'
     | 'ltc'
+    | 'fjc'
     | 'bch'
     | 'bsc'
     | 'btg'
@@ -51,6 +53,7 @@ export type Protocol =
 export const NETWORK_TO_PROTOCOLS: { [key in NetworkSymbol]: Protocol[] } = {
     btc: ['bitcoin', 'btc'],
     ltc: ['litecoin', 'ltc'],
+    fjc: ['fujicoin', 'fjc'],
     bch: ['bitcoincash', 'bch'],
     btg: ['bitcoingold', 'btg'],
     dash: ['dash'],
