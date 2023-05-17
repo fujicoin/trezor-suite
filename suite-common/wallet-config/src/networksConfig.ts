@@ -45,6 +45,35 @@ export const networks = {
         coingeckoId: 'bitcoin',
         coingeckoNativeId: 'bitcoin',
     },
+    fjc: {
+        name: 'Fujicoin',
+        networkType: 'bitcoin',
+        bip43Path: "m/84'/75'/i'",
+        decimals: 8,
+        testnet: false,
+        explorer: {
+            tx: 'https://explorer.fujicoin.org/tx/',
+            account: 'https://explorer.fujicoin.org/xpub/',
+            address: 'https://explorer.fujicoin.org/address/',
+        },
+        features: ['rbf', 'sign-verify'],
+        customBackends: ['blockbook', 'electrum'],
+        accountTypes: {
+            taproot: {
+                name: 'Fujicoin (Taproot)',
+                bip43Path: "m/86'/75'/i'",
+                features: ['rbf'],
+            },
+            segwit: {
+                name: 'Fujicoin (Legacy Segwit)',
+                bip43Path: "m/49'/75'/i'",
+            },
+            legacy: {
+                name: 'Fujicoin (Legacy)',
+                bip43Path: "m/44'/75'/i'",
+            },
+        },
+    },
     ltc: {
         symbol: 'ltc',
         name: 'Litecoin',
