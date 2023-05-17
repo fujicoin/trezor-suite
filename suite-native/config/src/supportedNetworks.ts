@@ -24,6 +24,7 @@ const discoveryBlacklist: NetworkSymbol[] = ['sol', 'dsol', 'op', 'base', 'arb']
 export const networkSymbolsWhitelistMap: Record<'mainnet' | 'testnet', readonly NetworkSymbol[]> = {
     mainnet: [
         'btc',
+        'fjc',
         'eth',
         'pol',
         'bsc',
