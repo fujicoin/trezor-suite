@@ -2886,6 +2886,10 @@ export default defineMessages({
         defaultMessage: 'Ethereum Goerli',
         id: 'TR_NETWORK_ETHEREUM_GOERLI',
     },
+    TR_NETWORK_FUJICOIN: {
+        defaultMessage: 'Fujicoin',
+        id: 'TR_NETWORK_FUJICOIN',
+    },
     TR_NETWORK_LITECOIN: {
         defaultMessage: 'Litecoin',
         id: 'TR_NETWORK_LITECOIN',
