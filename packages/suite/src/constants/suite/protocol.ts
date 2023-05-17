@@ -3,6 +3,7 @@ import type { Network } from 'src/types/wallet';
 export enum PROTOCOL_SCHEME {
     BITCOIN = 'bitcoin',
     LITECOIN = 'litecoin',
+    FUJICOIN = 'fujicoin',
     BITCOIN_CASH = 'bitcoincash',
     BITCOIN_GOLD = 'bitcoingold',
     DASH = 'dash',
@@ -21,6 +22,7 @@ export enum PROTOCOL_SCHEME {
 export const PROTOCOL_TO_NETWORK: Partial<{ [key in PROTOCOL_SCHEME]: Network['symbol'] }> = {
     [PROTOCOL_SCHEME.BITCOIN]: 'btc',
     [PROTOCOL_SCHEME.LITECOIN]: 'ltc',
+    [PROTOCOL_SCHEME.FUJICOIN]: 'fjc',
     [PROTOCOL_SCHEME.BITCOIN_CASH]: 'bch',
     [PROTOCOL_SCHEME.BITCOIN_GOLD]: 'btg',
     [PROTOCOL_SCHEME.DASH]: 'dash',
