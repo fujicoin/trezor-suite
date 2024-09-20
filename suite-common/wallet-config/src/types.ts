@@ -2,6 +2,7 @@ import { DeviceModelInternal } from '@trezor/connect';
 
 export type NetworkSymbol =
     | 'btc'
+    | 'fjc'
     | 'ltc'
     | 'eth'
     | 'etc'
