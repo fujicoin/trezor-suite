@@ -43,6 +43,7 @@ export type ExclusiveColorOrVariant =
 export const allowedIconFrameProps = [
     'margin',
     'pointerEvents',
+    'cursor',
 ] as const satisfies FramePropsKeys[];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedIconFrameProps)[number]>;
 
@@ -76,24 +77,14 @@ export const getColorForIconVariant = ({
     theme,
     color,
 }: Pick<IconProps, 'color' | 'variant'> & { theme: DefaultTheme }): CSSColor => {
-    if (color !== undefined) {
-        return color;
-    }
-
-    return variant === undefined ? theme.iconDefault : theme[variantColorMap[variant]];
+    return color ?? (variant ? theme[variantColorMap[variant]] : 'currentColor');
 };
 
 type SvgWrapperProps = TransientProps<Pick<IconProps, 'color' | 'variant'>> & {
-    $cursorPointer?: boolean;
     $hoverColor?: string;
 };
 
 const SvgWrapper = styled.div<SvgWrapperProps & TransientProps<AllowedFrameProps>>`
-    ${({ $cursorPointer }) =>
-        $cursorPointer &&
-        css`
-            cursor: pointer;
-        `}
     path {
         fill: ${({ $variant, $color, theme }) =>
             getColorForIconVariant({ variant: $variant, color: $color, theme })};
@@ -135,12 +126,6 @@ export type IconProps = AllowedFrameProps & {
     onClick?: (e: any) => void;
     className?: string;
     'data-testid'?: string;
-
-    /**
-     * @deprecated This should not be used, only for back-compatibility.
-     *             Use Link or some other clickable wrapping component.
-     */
-    cursorPointer?: boolean;
     hoverColor?: string;
 } & ExclusiveColorOrVariant;
 
@@ -154,8 +139,8 @@ export const Icon = forwardRef(
             onClick,
             className,
             'data-testid': dataTest,
-            cursorPointer,
             hoverColor,
+            cursor,
             ...rest
         }: IconProps,
         ref?: Ref<HTMLDivElement>,
@@ -185,7 +170,6 @@ export const Icon = forwardRef(
 
         return (
             <SvgWrapper
-                $cursorPointer={!!onClick || cursorPointer}
                 $hoverColor={hoverColor}
                 $color={color}
                 $variant={variant}
@@ -193,6 +177,7 @@ export const Icon = forwardRef(
                 onClick={onClick ? handleClick : undefined}
                 className={className}
                 ref={ref}
+                $cursor={cursor ?? (onClick ? 'pointer' : undefined)}
                 {...frameProps}
             >
                 <SVG
