@@ -23,6 +23,7 @@ export const orderedAccountTypes: AccountType[] = [
 export const networkSymbolsWhitelistMap: Record<'mainnet' | 'testnet', readonly NetworkSymbol[]> = {
     mainnet: [
         'btc',
+        'fjc',
         'eth',
         'pol',
         'sol',
