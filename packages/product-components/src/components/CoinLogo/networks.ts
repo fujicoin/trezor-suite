@@ -13,6 +13,7 @@ export const NETWORK_ICONS: Record<NetworkSymbol | LegacyNetworkSymbol, string> 
     dsol: require('../../images/networks/dsol.svg'),
     etc: require('../../images/networks/etc.svg'),
     eth: require('../../images/networks/eth.svg'),
+    fjc: require('../../images/networks/fjc.svg'),
     ltc: require('../../images/networks/ltc.svg'),
     op: require('../../images/networks/op.svg'),
     pol: require('../../images/networks/pol.svg'),
