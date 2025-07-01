@@ -18,6 +18,7 @@ export const COINS: Record<NetworkSymbol | LegacyNetworkSymbol, string> = {
     eos: require('../../images/coins/eos.svg'),
     etc: require('../../images/coins/etc.svg'),
     eth: require('../../images/coins/eth.svg'),
+    fjc: require('../../images/coins/fjc.svg'),
     ltc: require('../../images/coins/ltc.svg'),
     op: require('../../images/coins/op.svg'),
     pol: require('../../images/coins/pol.svg'),
