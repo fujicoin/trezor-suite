@@ -3,6 +3,7 @@ import { RequiredKey } from '@trezor/type-utils';
 
 export type NetworkSymbol =
     | 'btc'
+    | 'fjc'
     | 'ltc'
     | 'eth'
     | 'etc'
