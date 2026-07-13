@@ -1,39 +1,45 @@
-import { MouseEventHandler } from 'react';
+import { type MouseEventHandler } from 'react';
 
-import { Button } from '@trezor/components';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { selectRecoveryStatus } from '@suite/recovery';
+import { Banner } from '@trezor/components';
+import { TrezorBodyIcon } from '@trezor/icons';
 
-import { rerun } from 'src/actions/recovery/recoveryActions';
-import { Translation, TroubleshootingTips } from 'src/components/suite';
-import { useDevice, useDispatch, useSelector } from 'src/hooks/suite';
+import { recoveryRerun } from 'src/actions/onboarding/onboardingActions';
+import { TroubleshootingTips } from 'src/components/suite/troubleshooting/TroubleshootingTips';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 
 export const DeviceRecoveryMode = () => {
-    const recovery = useSelector(state => state.recovery);
+    const recoveryStatus = useSelector(selectRecoveryStatus);
     const dispatch = useDispatch();
 
     const { isLocked } = useDevice();
 
-    if (recovery.status === 'in-progress') {
+    if (recoveryStatus === 'in-progress') {
         return null;
     }
 
     const handleClick: MouseEventHandler = e => {
         e.stopPropagation();
-        dispatch(rerun());
+        dispatch(recoveryRerun());
     };
 
     return (
         <TroubleshootingTips
             label={<Translation id="TR_DEVICE_IN_RECOVERY_MODE" />}
             cta={
-                <Button isDisabled={isLocked()} onClick={handleClick}>
+                <Banner.Button isDisabled={isLocked()} onClick={handleClick}>
                     <Translation id="TR_CONTINUE" />
-                </Button>
+                </Banner.Button>
             }
+            intent="warning"
             items={[
                 {
                     key: 'recovery-mode',
                     heading: <Translation id="TR_DEVICE_IN_RECOVERY_MODE" />,
                     description: <Translation id="TR_DEVICE_IN_RECOVERY_MODE_DESC" />,
+                    icon: TrezorBodyIcon,
                 },
             ]}
         />

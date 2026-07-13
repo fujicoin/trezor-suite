@@ -1,22 +1,27 @@
-import { testMocks } from '@suite-common/test-utils';
-import { DEVICE, UI } from '@trezor/connect';
+import {
+    MODAL_CLOSE,
+    MODAL_CONTEXT_DEVICE,
+    MODAL_CONTEXT_DEVICE_CONFIRMATION,
+    MODAL_CONTEXT_NONE,
+    MODAL_CONTEXT_USER,
+    MODAL_OPEN_USER_CONTEXT,
+} from '@suite/modal';
+import { mockConnectDevice, mockSuiteDevice } from '@suite-common/suite-types/mocks';
+import { DEVICE, UI_REQUEST } from '@trezor/connect';
 
-import { MODAL } from 'src/actions/suite/constants';
-
-const { getConnectDevice, getSuiteDevice } = testMocks;
 // Default devices
-const CONNECT_DEVICE = getConnectDevice({
+const CONNECT_DEVICE = mockConnectDevice({
     path: '1',
 });
-const SUITE_DEVICE = getSuiteDevice({
+const SUITE_DEVICE = mockSuiteDevice({
     path: '1',
 });
 
 const initialState = {
-    context: MODAL.CONTEXT_NONE,
+    context: MODAL_CONTEXT_NONE,
 };
 const deviceContextState = {
-    context: MODAL.CONTEXT_DEVICE,
+    context: MODAL_CONTEXT_DEVICE,
     device: SUITE_DEVICE,
 };
 
@@ -46,7 +51,7 @@ export default [
     {
         description: 'Disconnect device, modal is opened (user context) and should be closed',
         initialState: {
-            context: MODAL.CONTEXT_USER,
+            context: MODAL_CONTEXT_USER,
             payload: {
                 type: 'application-log',
             },
@@ -62,8 +67,8 @@ export default [
     {
         description: 'Disconnect device, modal is opened and should not be closed',
         initialState: {
-            context: MODAL.CONTEXT_DEVICE,
-            device: getConnectDevice({
+            context: MODAL_CONTEXT_DEVICE,
+            device: mockConnectDevice({
                 path: '2',
             }),
         },
@@ -74,18 +79,18 @@ export default [
             },
         ],
         result: {
-            context: MODAL.CONTEXT_DEVICE,
-            device: getConnectDevice({
+            context: MODAL_CONTEXT_DEVICE,
+            device: mockConnectDevice({
                 path: '2',
             }),
         },
     },
     {
-        description: 'UI.REQUEST_PIN',
+        description: 'UI_REQUEST.REQUEST_PIN',
         initialState,
         actions: [
             {
-                type: UI.REQUEST_PIN,
+                type: UI_REQUEST.REQUEST_PIN,
                 payload: {
                     device: CONNECT_DEVICE,
                 },
@@ -94,15 +99,15 @@ export default [
         result: {
             ...deviceContextState,
             device: CONNECT_DEVICE,
-            windowType: UI.REQUEST_PIN,
+            windowType: UI_REQUEST.REQUEST_PIN,
         },
     },
     {
-        description: 'UI.INVALID_PIN',
+        description: 'UI_REQUEST.INVALID_PIN',
         initialState,
         actions: [
             {
-                type: UI.INVALID_PIN,
+                type: UI_REQUEST.INVALID_PIN,
                 payload: {
                     device: CONNECT_DEVICE,
                 },
@@ -111,15 +116,15 @@ export default [
         result: {
             ...deviceContextState,
             device: CONNECT_DEVICE,
-            windowType: UI.INVALID_PIN,
+            windowType: UI_REQUEST.INVALID_PIN,
         },
     },
     {
-        description: 'UI.REQUEST_PASSPHRASE',
+        description: 'UI_REQUEST.REQUEST_PASSPHRASE',
         initialState,
         actions: [
             {
-                type: UI.REQUEST_PASSPHRASE,
+                type: UI_REQUEST.REQUEST_PASSPHRASE,
                 payload: {
                     device: CONNECT_DEVICE,
                 },
@@ -128,15 +133,15 @@ export default [
         result: {
             ...deviceContextState,
             device: CONNECT_DEVICE,
-            windowType: UI.REQUEST_PASSPHRASE,
+            windowType: UI_REQUEST.REQUEST_PASSPHRASE,
         },
     },
     {
-        description: 'UI.REQUEST_BUTTON',
+        description: 'UI_REQUEST.REQUEST_BUTTON',
         initialState,
         actions: [
             {
-                type: UI.REQUEST_BUTTON,
+                type: UI_REQUEST.REQUEST_BUTTON,
                 payload: {
                     device: CONNECT_DEVICE,
                     code: 'ButtonRequest_SignTx',
@@ -150,11 +155,11 @@ export default [
         },
     },
     {
-        description: 'UI.REQUEST_WORD',
+        description: 'UI_REQUEST.REQUEST_WORD',
         initialState: undefined,
         actions: [
             {
-                type: UI.REQUEST_WORD,
+                type: UI_REQUEST.REQUEST_WORD,
                 payload: {
                     device: CONNECT_DEVICE,
                     type: 'WordRequestType_Plain',
@@ -162,60 +167,108 @@ export default [
             },
         ],
         result: {
-            context: MODAL.CONTEXT_DEVICE,
+            context: MODAL_CONTEXT_DEVICE,
             device: CONNECT_DEVICE,
             windowType: 'WordRequestType_Plain',
         },
     },
     {
-        description: 'UI.REQUEST_CONFIRMATION',
+        description: 'UI_REQUEST.REQUEST_CONFIRMATION',
         initialState,
         actions: [
             {
-                type: UI.REQUEST_CONFIRMATION,
+                type: UI_REQUEST.REQUEST_CONFIRMATION,
                 payload: {
                     view: 'no-backup',
                 },
             },
         ],
         result: {
-            context: MODAL.CONTEXT_DEVICE_CONFIRMATION,
+            context: MODAL_CONTEXT_DEVICE_CONFIRMATION,
             windowType: 'no-backup',
         },
     },
     {
-        description: 'UI.CLOSE_UI_WINDOW',
+        description: 'UI_REQUEST.CLOSE_UI_WINDOW',
         initialState: deviceContextState,
         actions: [
             {
-                type: UI.CLOSE_UI_WINDOW,
+                type: UI_REQUEST.CLOSE_UI_WINDOW,
             },
         ],
         result: initialState,
     },
     {
-        description: 'MODAL.CLOSE',
+        description:
+            'UI_REQUEST.CLOSE_UI_WINDOW with preserve=true keeps device context modal open (preserve cleared)',
+        initialState: { ...deviceContextState, preserve: true },
+        actions: [
+            {
+                type: UI_REQUEST.CLOSE_UI_WINDOW,
+            },
+        ],
+        result: { ...deviceContextState, preserve: false },
+    },
+    {
+        description:
+            'UI_REQUEST.CLOSE_UI_WINDOW with preserve=true keeps device confirmation context modal open (preserve cleared)',
+        initialState: {
+            context: MODAL_CONTEXT_DEVICE_CONFIRMATION,
+            windowType: 'no-backup' as const,
+            preserve: true,
+        },
+        actions: [
+            {
+                type: UI_REQUEST.CLOSE_UI_WINDOW,
+            },
+        ],
+        result: {
+            context: MODAL_CONTEXT_DEVICE_CONFIRMATION,
+            windowType: 'no-backup',
+            preserve: false,
+        },
+    },
+    {
+        description: 'UI_REQUEST.CLOSE_UI_WINDOW with preserve=true keeps user context modal open',
+        initialState: {
+            context: MODAL_CONTEXT_USER,
+            payload: { type: 'application-log' as const },
+            preserve: true,
+        },
+        actions: [
+            {
+                type: UI_REQUEST.CLOSE_UI_WINDOW,
+            },
+        ],
+        result: {
+            context: MODAL_CONTEXT_USER,
+            payload: { type: 'application-log' },
+            preserve: true,
+        },
+    },
+    {
+        description: 'MODAL_CLOSE',
         initialState: deviceContextState,
         actions: [
             {
-                type: MODAL.CLOSE,
+                type: MODAL_CLOSE,
             },
         ],
         result: initialState,
     },
     {
-        description: 'MODAL.OPEN_USER_CONTEXT',
+        description: 'MODAL_OPEN_USER_CONTEXT',
         initialState: undefined,
         actions: [
             {
-                type: MODAL.OPEN_USER_CONTEXT,
+                type: MODAL_OPEN_USER_CONTEXT,
                 payload: {
                     type: 'application-log',
                 },
             },
         ],
         result: {
-            context: MODAL.CONTEXT_USER,
+            context: MODAL_CONTEXT_USER,
             payload: {
                 type: 'application-log',
             },

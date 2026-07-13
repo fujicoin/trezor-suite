@@ -1,6 +1,5 @@
+import { TOKEN_PROGRAM_PUBLIC_KEY } from '@trezor/coins-solana/constants';
 import { BigNumber } from '@trezor/utils/src/bigNumber';
-
-import { TOKEN_PROGRAM_PUBLIC_KEY } from '../../solana';
 
 const instructions = {
     transfer: {
@@ -272,6 +271,7 @@ const tokenAccountInfo = [
             lamports: 2039280n,
             owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
             rentEpoch: 0n,
+            space: 165n,
         },
         pubkey: 'ETxHeBBcuw9Yu4dGuP3oXrD12V5RECvmi8ogQ9PkjyVF',
     },
@@ -303,6 +303,7 @@ const tokenAccountInfoWithDuplicateTokenAccount = [
             lamports: 2039280n,
             owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
             rentEpoch: 0n,
+            space: 165n,
         },
         pubkey: 'ETxHeBBcuw9Yu4dGuP3oXrD12V5RECvmi8ogQ9PkjyVF',
     },
@@ -331,6 +332,7 @@ const tokenAccountInfoWithDuplicateTokenAccount = [
             lamports: 2039280n,
             owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
             rentEpoch: 0n,
+            space: 165n,
         },
         pubkey: 'CR6QfobBidQTSYdR6jihKTfMnHkRUtw8cLDCxENDVYmd',
     },
@@ -417,7 +419,7 @@ export const fixtures = {
     ],
     getTxType: [
         {
-            description: 'should return "failed" if the transaction has an error',
+            description: 'should return error if the transaction has an error',
             input: {
                 transaction: {
                     meta: {
@@ -775,7 +777,7 @@ export const fixtures = {
                     contract: 'So11111111111111111111111111111111111115555',
                     decimals: 1,
                     name: 'So11111111111111111111111111111111111115555',
-                    symbol: 'SO11111...',
+                    symbol: 'So11111111111111111111111111111111111115555',
                     amount: '1534951700',
                 },
             ],
@@ -804,7 +806,7 @@ export const fixtures = {
                     contract: 'DH1nKg3QZStnVh4bjm8kyWfsRJkiweXcnL4j7Ug3PfYA',
                     decimals: 1,
                     name: 'DH1nKg3QZStnVh4bjm8kyWfsRJkiweXcnL4j7Ug3PfYA',
-                    symbol: 'DH1NKG3...',
+                    symbol: 'DH1nKg3QZStnVh4bjm8kyWfsRJkiweXcnL4j7Ug3PfYA',
                     amount: '2',
                 },
             ],
@@ -876,7 +878,7 @@ export const fixtures = {
                     contract: 'DH1nKg3QZStnVh4bjm8kyWfsRJkiweXcnL4j7Ug3PfYA',
                     decimals: 1,
                     name: 'DH1nKg3QZStnVh4bjm8kyWfsRJkiweXcnL4j7Ug3PfYA',
-                    symbol: 'DH1NKG3...',
+                    symbol: 'DH1nKg3QZStnVh4bjm8kyWfsRJkiweXcnL4j7Ug3PfYA',
                     amount: '2',
                 },
             ],
@@ -952,7 +954,7 @@ export const fixtures = {
             },
             expectedOutput: {
                 name: 'AQoKYV7tYpTrFZN6P5oUufbQKAUr9mNYGe1TTJC5wajM',
-                symbol: 'AQOKYV7...',
+                symbol: 'AQoKYV7tYpTrFZN6P5oUufbQKAUr9mNYGe1TTJC5wajM',
             },
         },
         {
@@ -976,7 +978,6 @@ export const fixtures = {
             },
             expectedOutput: [
                 {
-                    type: 'SPL',
                     standard: 'SPL',
                     contract: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R',
                     balance: '2000000',
@@ -1001,7 +1002,6 @@ export const fixtures = {
             },
             expectedOutput: [
                 {
-                    type: 'SPL',
                     standard: 'SPL',
                     contract: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R',
                     balance: '3000000',

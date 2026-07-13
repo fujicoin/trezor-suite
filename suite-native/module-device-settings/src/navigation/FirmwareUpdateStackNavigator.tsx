@@ -1,7 +1,11 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import {
-    FirmwareUpdateStackParamList,
+    DeviceConnectionGuardScreen,
+    useDeviceConnectionGuard,
+} from '@suite-native/device-authorization';
+import {
+    type FirmwareUpdateStackParamList,
     FirmwareUpdateStackRoutes,
     stackNavigationOptionsConfig,
 } from '@suite-native/navigation';
@@ -12,22 +16,29 @@ import { ThpConfirmationScreen } from '../screens/ThpConfirmationScreen';
 
 const FirmwareUpdateStack = createNativeStackNavigator<FirmwareUpdateStackParamList>();
 
-export const FirmwareUpdateStackNavigator = () => (
-    <FirmwareUpdateStack.Navigator
-        initialRouteName={FirmwareUpdateStackRoutes.ConfirmFirmwareUpdate}
-        screenOptions={{ ...stackNavigationOptionsConfig }}
-    >
-        <FirmwareUpdateStack.Screen
-            name={FirmwareUpdateStackRoutes.ConfirmFirmwareUpdate}
-            component={ConfirmFirmwareUpdateScreen}
-        />
-        <FirmwareUpdateStack.Screen
-            name={FirmwareUpdateStackRoutes.FirmwareInstallation}
-            component={FirmwareInstallationScreen}
-        />
-        <FirmwareUpdateStack.Screen
-            name={FirmwareUpdateStackRoutes.ThpConfirmation}
-            component={ThpConfirmationScreen}
-        />
-    </FirmwareUpdateStack.Navigator>
-);
+export const FirmwareUpdateStackNavigator = () => {
+    const { isDeviceConnectionGuardVisible } = useDeviceConnectionGuard();
+
+    return (
+        <FirmwareUpdateStack.Navigator screenOptions={stackNavigationOptionsConfig}>
+            {isDeviceConnectionGuardVisible && (
+                <FirmwareUpdateStack.Screen
+                    name={FirmwareUpdateStackRoutes.DeviceConnectionGuard}
+                    component={DeviceConnectionGuardScreen}
+                />
+            )}
+            <FirmwareUpdateStack.Screen
+                name={FirmwareUpdateStackRoutes.ConfirmFirmwareUpdate}
+                component={ConfirmFirmwareUpdateScreen}
+            />
+            <FirmwareUpdateStack.Screen
+                name={FirmwareUpdateStackRoutes.FirmwareInstallation}
+                component={FirmwareInstallationScreen}
+            />
+            <FirmwareUpdateStack.Screen
+                name={FirmwareUpdateStackRoutes.ThpConfirmation}
+                component={ThpConfirmationScreen}
+            />
+        </FirmwareUpdateStack.Navigator>
+    );
+};

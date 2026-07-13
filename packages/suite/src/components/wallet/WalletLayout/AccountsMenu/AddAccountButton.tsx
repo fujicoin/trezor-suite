@@ -1,60 +1,35 @@
-import { Button, ButtonProps, TOOLTIP_DELAY_NORMAL, TextButton, Tooltip } from '@trezor/components';
+import { Translation } from '@suite/intl';
+import { openModal } from '@suite/modal';
+import { Icon, Row, ShortcutBadge, TOOLTIP_DELAY_NORMAL, Tooltip } from '@trezor/components';
+import { PlusIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { openModal } from 'src/actions/suite/modalActions';
-import { Translation } from 'src/components/suite';
 import { useDiscovery, useDispatch } from 'src/hooks/suite';
-import { TrezorDevice } from 'src/types/suite';
-
-import { useIsSidebarCollapsed } from '../../../suite/layouts/SuiteLayout/Sidebar/utils';
+import { type TrezorDevice } from 'src/types/suite';
 
 const getExplanationMessage = (device: TrezorDevice | undefined, discoveryIsRunning: boolean) => {
-    let message;
     if (device && !device.connected) {
-        message = <Translation id="TR_TO_ADD_NEW_ACCOUNT_PLEASE_CONNECT" />;
+        return <Translation id="TR_TO_ADD_NEW_ACCOUNT_PLEASE_CONNECT" />;
     } else if (discoveryIsRunning) {
-        message = <Translation id="TR_TO_ADD_NEW_ACCOUNT_WAIT_FOR_DISCOVERY" />;
+        return <Translation id="TR_TO_ADD_NEW_ACCOUNT_WAIT_FOR_DISCOVERY" />;
     }
-
-    return message;
 };
 
-interface AddAccountButtonProps extends Omit<ButtonProps, 'children'> {
+type AddAccountButtonProps = {
     device: TrezorDevice | undefined;
-    closeMenu?: () => void;
-    isDisabled?: boolean;
-    isFullWidth?: boolean;
-    isIconOnly?: boolean;
-    customModalOpen?: (payload: { device: TrezorDevice }) => void;
-}
+};
 
-export const AddAccountButton = ({
-    device,
-    isDisabled,
-    closeMenu,
-    isFullWidth,
-    isIconOnly,
-    customModalOpen,
-    ...rest
-}: AddAccountButtonProps) => {
+export const AddAccountButton = ({ device }: AddAccountButtonProps) => {
     const { isDiscoveryRunning } = useDiscovery();
     const dispatch = useDispatch();
-    const isSidebarCollapsed = useIsSidebarCollapsed();
-    // TODO: add more cases when adding account is not possible
-    const addAccountDisabled = isDiscoveryRunning || !device || !device.connected;
 
+    // TODO: add more cases when adding account is not possible
+    const addAccountDisabled = isDiscoveryRunning || !device?.connected;
     const tooltipMessage = getExplanationMessage(device, isDiscoveryRunning);
+    const dataTestId = '@account-menu/add-account';
 
     const handleOnClick = () => {
         if (!device) {
-            return;
-        }
-
-        if (customModalOpen) {
-            customModalOpen({
-                device,
-            });
-
             return;
         }
 
@@ -64,49 +39,40 @@ export const AddAccountButton = ({
                 device,
             }),
         );
-        if (closeMenu) closeMenu();
     };
 
-    const ButtonComponent = isIconOnly ? (
-        <Tooltip isActive={!tooltipMessage} content={<Translation id="TR_ADD_ACCOUNT" />}>
-            <TextButton
+    const ButtonComponent = (
+        <Tooltip
+            isActive={!tooltipMessage}
+            content={
+                <Row gap={spacings.sm}>
+                    <Translation id="TR_ADD_ACCOUNT" />
+                    <ShortcutBadge shortcut={['ALT', 'KEY_A']} />
+                </Row>
+            }
+        >
+            <Icon
                 onClick={device ? handleOnClick : undefined}
-                icon="plus"
-                isDisabled={addAccountDisabled || isDisabled}
-                size="small"
-                variant="tertiary"
-                margin={{ right: isSidebarCollapsed ? 0 : spacings.xs }}
-                {...rest}
+                as={PlusIcon}
+                size={16}
+                {...(addAccountDisabled
+                    ? { isDisabled: true }
+                    : { intent: 'neutral', priority: 'secondary' })}
+                data-testid={dataTestId}
             />
         </Tooltip>
-    ) : (
-        <Button
-            onClick={device ? handleOnClick : undefined}
-            icon="plus"
-            isDisabled={addAccountDisabled || isDisabled}
-            size="small"
-            variant="tertiary"
-            isFullWidth={isFullWidth}
-            {...rest}
-        >
-            <Translation id="TR_ADD_ACCOUNT" />
-        </Button>
     );
 
-    if (tooltipMessage) {
-        return (
-            <Tooltip
-                isFullWidth={isFullWidth}
-                maxWidth={200}
-                content={tooltipMessage}
-                placement="bottom"
-                cursor="not-allowed"
-                delayShow={TOOLTIP_DELAY_NORMAL}
-            >
-                {ButtonComponent}
-            </Tooltip>
-        );
-    }
-
-    return ButtonComponent;
+    return (
+        <Tooltip
+            isActive={!!tooltipMessage}
+            tooltipMaxWidth={200}
+            content={tooltipMessage}
+            placement="bottom"
+            cursor="not-allowed"
+            delayShow={TOOLTIP_DELAY_NORMAL}
+        >
+            {ButtonComponent}
+        </Tooltip>
+    );
 };

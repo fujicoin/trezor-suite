@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { TouchableOpacity } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
@@ -11,14 +10,15 @@ import {
     CheckBox,
     ErrorMessage,
     HStack,
+    PressableOpacity,
     Text,
     TextDivider,
     TitleHeader,
     VStack,
 } from '@suite-native/atoms';
-import { Icon } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
 
+import { GroupedPermissionsList } from './GroupedPermissionsList';
 import { ConnectAppIcon } from '../components/ConnectAppIcon';
 
 export const PermissionConfirmation = () => {
@@ -42,7 +42,7 @@ export const PermissionConfirmation = () => {
         if (isRemembered) {
             dispatch(
                 connectPopupActions.rememberAppPermissions({
-                    types: popupCall.methodInfo.permissionTypes,
+                    allowedPermissions: popupCall.methodInfo.permissionTypes,
                     ...popupCall.source,
                 }),
             );
@@ -72,47 +72,40 @@ export const PermissionConfirmation = () => {
                     <VStack flex={1} spacing="sp4">
                         <Text>{popupCall.source.manifest?.appName ?? popupCall.source.origin}</Text>
                         {popupCall.source.manifest?.appName && (
-                            <Text color="textSubdued">{popupCall.source.origin}</Text>
+                            <Text color="contentSecondary">{popupCall.source.origin}</Text>
                         )}
                     </VStack>
                 </HStack>
 
                 <TextDivider title="moduleConnectPopup.permissions.title" />
 
-                <VStack spacing="sp8" padding="sp8">
-                    {popupCall.methodInfo.permissionTypes.map(permission => (
-                        <HStack key={permission} alignItems="center" spacing="sp8">
-                            <Icon name="checkCircle" color="iconPrimaryDefault" />
-                            <Text color="textSubdued" variant="hint">
-                                <Translation id={`moduleConnectPopup.permissions.${permission}`} />
-                            </Text>
-                        </HStack>
-                    ))}
-                </VStack>
+                <GroupedPermissionsList permissions={popupCall.methodInfo.permissionTypes} />
 
                 <TextDivider title="moduleConnectPopup.optional" />
 
-                <TouchableOpacity onPress={() => setIsRemembered(!isRemembered)}>
+                <PressableOpacity onPress={() => setIsRemembered(!isRemembered)}>
                     <HStack spacing="sp16" padding="sp8" alignItems="center">
                         <CheckBox
                             isChecked={isRemembered}
                             onChange={() => setIsRemembered(!isRemembered)}
                         />
-                        <Text color="textSubdued" variant="hint">
+                        <Text color="contentSecondary" variant="body-sm">
                             <Translation id="moduleConnectPopup.alwaysAllow" />
                         </Text>
                     </HStack>
-                </TouchableOpacity>
+                </PressableOpacity>
             </Card>
 
-            <Button testID="@popup/call-device" onPress={onConfirm}>
-                {popupCall.methodInfo.confirmLabel || (
-                    <Translation id="moduleConnectPopup.confirm" />
-                )}
-            </Button>
-            <Button colorScheme="tertiaryElevation0" onPress={onClose}>
-                <Translation id="generic.buttons.close" />
-            </Button>
+            <VStack spacing="sp12">
+                <Button testID="@popup/call-device" onPress={onConfirm}>
+                    {popupCall.methodInfo.confirmLabel || (
+                        <Translation id="moduleConnectPopup.confirm" />
+                    )}
+                </Button>
+                <Button intent="neutral" priority="secondary" onPress={onClose}>
+                    <Translation id="generic.buttons.close" />
+                </Button>
+            </VStack>
         </VStack>
     );
 };

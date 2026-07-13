@@ -1,3 +1,76 @@
+# 10.0.0-alpha.1
+
+Part of the Connect 10 ecosystem release.
+
+Breaking changes:
+
+- `BridgeTransport` `DEFAULT_PORT` changed from `21325` to `21328`. The legacy standalone `trezord-go` Bridge (port 21325) is no longer supported. Consumers running on a setup with the old standalone Bridge must migrate to the node-bridge bundled with Suite Desktop.
+- Removed `isOutdated` flag on `AbstractTransport` / `BridgeTransport`. Detection of the legacy Bridge is now done outside of the transport layer.
+- Removed internal `useProtocolMessages` fallback; `BridgeTransport` always uses the modern message protocols (`bridge` / `v1` / `v2`).
+
+# 1.6.1
+
+- npm-prerelease: @trezor/transport 1.6.1-beta.1 (08e1bf9846)
+
+# 1.6.0
+
+- fix(transport): wrap errors from `receive` utility (8702dc753a)
+- npm-prerelease: @trezor/transport 1.6.0-beta.2 (9a35d5c97d)
+- refactor(connect): new replace-imports.sh script using babel (2128d273f3)
+- chore(protocol): distinguish DeviceThpState and ThpChannelState (780e5327f4)
+- npm-prerelease: @trezor/transport 1.6.0-beta.1 (68d0660362)
+- chore: change fail in test names to error to find fails easier (2393763310)
+- refactor(protocol): encode ThpAck **only** from ThpState (a43bdb2945)
+- chore(transport): readWithExpectedHeaders using ThpState (1fb9c1b001)
+- chore: improve Result<T, Err> Types (8201108523)
+- chore: bump babel packages (09afb8370d)
+- fix(transport): reuse unaborted transportIn (8ee516be8d)
+- Revert fix(transport): allow skipping ThpAck from device (37cd1c6ba1)
+- npm-prerelease: @trezor/transport 1.5.5-beta.1 (552305ffbb)
+- fix(transport): allow skipping ThpAck from device (118327a6ba)
+- fix(transport): fix usb/udp loop with node-bridge (5f96b11e4f)
+- docs(packages): remove link to non-existing document (9291fe7872)
+
+# 1.5.4
+
+- npm-prerelease: @trezor/transport 1.5.4-beta.1 (18949fe103)
+- refactor(connect): random thp code polish (bdd7b7bb61)
+- fix(transport): fix broken usb synchronziation after page reload (6464476043)
+- chore(transport): all non version 3+ bridge backends are now considered outdated (387fbea4fa)
+- chore(transport): bridge 2.0.27 is now considered outdated (844aa9cafc)
+- fix(transport): apiType and id should be part of ApiLevelDescriptor type (2a53b8cf38)
+- feat: expose api type and id on descriptor (ed650e35c0)
+- chore(transport): move api type to api from transport (abcebd96fd)
+- feat(transport): add descriptor id (709b41af52)
+- chore(transport): add missing native Bluetooth transport name (26f4610d71)
+- fix(transport): remove NotificationData (514746add1)
+- feat(transport): NotificationData to trezor-push-notification (dde69a8a1c)
+- fix(transport): DEVICE_TYPE circular dependencies (c97a16f221)
+- feat(transport): add subscribe method (e10c73f44e)
+- test(connect): adjust unit tests (1b3c43a7c4)
+- fix(transport): thp ack deadline increased (b135ae8c4a)
+- fix(transport): adjust udp timeout (dd8e2e5925)
+- fix(transport): better sendThp signal propagation (21a291c800)
+
+# 1.5.3
+
+- fix: re-add removed packages, that are used, but not direcly imported (067db47640)
+- fix: add TON of missing dependecies in package.json (7027213e3f)
+- fix: remove all dependenices that are unused (found by added depcheck script to package.json) (ecae55a2ea)
+- fix: missing deptchecks in packages (0d4633e159)
+- feat(transport): open/close with params (channel) (7a17f4b93a)
+- test(transport): unit tests adjusted (30f1d4f445)
+- fix(transport): readWithExpectedHeaders not graceful in node-bridge (144131c45a)
+- npm-prerelease: @trezor/transport 1.5.3-beta.2 (7be47ea7df)
+- feat(transport): bridge pinging in worker (31a0ca702b)
+- npm-prerelease: @trezor/transport 1.5.3-beta.1 (ecf8e2ab29)
+- fix(transport): call/send/receive use `graceful` param (bd9a178e5a)
+- feat(transport): bridge client to prioritize 21328 (e30b50c7b1)
+- fix(protocol): ignore unexpected chunks in ThpAck after send (30e20f7096)
+- fix(connect): THP cancel and update sync bit (0789c96862)
+- feat(connect): cancel `THP` workflow (de01a0302e)
+- chore(suite): bump @babel/\* (baa2ef81b5)
+
 # 1.5.2
 
 - npm-prerelease: @trezor/transport 1.5.2-beta.2 (9cd10b17a9)

@@ -1,5 +1,3 @@
-import { ReactNode } from 'react';
-
 import type {
     BuyCryptoPaymentMethod,
     BuyProviderInfo,
@@ -19,23 +17,26 @@ import type {
     WatchSellTradeResponse,
 } from 'invity-api';
 
-import { CountryCode } from '@suite-common/geolocation';
-import { ExtendedMessageDescriptor } from '@suite-common/intl-types';
-import { AccountType, Network, NetworkSymbolExtended } from '@suite-common/wallet-config';
-import type { AccountsRootState, DeviceRootState } from '@suite-common/wallet-core';
+import { type CountryCode } from '@suite-common/geolocation';
 import {
-    Account,
-    BaseCurrencyOption,
-    FormState,
-    GeneralPrecomposedTransactionFinal,
-    SelectedAccountStatus,
+    type Network,
+    type NetworkConfig,
+    type NetworkDisplaySymbol,
+    type NetworkSymbol,
+} from '@suite-common/wallet-config';
+import {
+    type Account,
+    type AccountKey,
+    type BaseCurrencyOption,
+    type FormState,
+    type GeneralPrecomposedTransactionFinal,
+    type TokenAddress,
 } from '@suite-common/wallet-types';
-import { PROTO, Success, Unsuccessful } from '@trezor/connect';
-import { Timer } from '@trezor/react-utils';
-import { PrimitiveType } from '@trezor/type-utils';
+import { type PROTO } from '@trezor/connect';
+import { type SerializedError } from '@trezor/connect-common/src/constants/errors';
+import { type Err, type Ok, type PrimitiveType } from '@trezor/type-utils';
 
-import * as constants from './constants';
-import { TradingState } from './reducers/tradingReducer';
+import type * as constants from './constants';
 
 export type InvityServerEnvironment = 'production' | 'staging' | 'dev' | 'localhost';
 export type InvityServers = Record<InvityServerEnvironment, string>;
@@ -44,10 +45,39 @@ export type TradingBuyType = 'buy';
 export type TradingSellType = 'sell';
 export type TradingExchangeType = 'exchange';
 export type TradingType = TradingBuyType | TradingSellType | TradingExchangeType;
+export type TradingTypeWithConcierge = TradingType | 'concierge';
 
 export type TradingTradeBuySellType = Exclude<TradingType, TradingExchangeType>;
 export type TradingTradeBuyExchangeType = Exclude<TradingType, TradingSellType>;
 export type TradingTradeSellExchangeType = Exclude<TradingType, TradingBuyType>;
+
+type TradingAssetOptionBase = {
+    id: CryptoId;
+    coingeckoId: NonNullable<NetworkConfig['coingeckoId']>;
+    networkName: NetworkConfig['name'];
+    networkSymbol: NetworkSymbol;
+    displaySymbolName?: string;
+};
+
+export type TradingAssetOptionNativeToken = TradingAssetOptionBase & {
+    isNativeToken: true;
+    name: NetworkConfig['name'];
+    symbol: NetworkSymbol;
+    displaySymbol: NetworkDisplaySymbol;
+    contractAddress: null | typeof constants.CONTRACT_ADDRESS_FOR_NATIVE_TOKEN;
+};
+
+export type TradingAssetOptionWithContractAddress = TradingAssetOptionBase & {
+    isNativeToken: false;
+    name: string;
+    symbol: string;
+    displaySymbol: string;
+    contractAddress: string;
+};
+
+export type TradingAssetOption =
+    | TradingAssetOptionNativeToken
+    | TradingAssetOptionWithContractAddress;
 
 // information about created trade
 export type TradingTradeType = BuyTrade | SellFiatTrade | ExchangeTrade;
@@ -76,11 +106,13 @@ export type TradingUtilsProvidersProps = {
 
 export type TradingParsedCryptoIdProps = {
     networkId: CryptoId;
-    contractAddress: string | undefined;
+    contractAddress: TokenAddress | undefined;
 };
 
 export type TradingFiatCurrenciesProps = Map<FiatCurrencyCode, string>;
-export type TradingPaymentMethodProps = BuyCryptoPaymentMethod | '';
+export type TradingBuyPaymentMethodProps = BuyCryptoPaymentMethod | '';
+export type TradingSellPaymentMethodProps = SellCryptoPaymentMethod | '';
+export type TradingPaymentMethodProps = TradingPaymentMethodType | '';
 export type TradingPaymentMethodListProps = {
     value: TradingPaymentMethodProps;
     label: string;
@@ -114,46 +146,11 @@ export type TradingTransaction =
 
 export type TradingTransactionStatus = TradingTransaction['data']['status'];
 
-export type TradingCryptoSelectItemProps = {
-    badge?: ReactNode;
-    symbol: NetworkSymbolExtended;
-    cryptoName?: string;
-    coingeckoId?: string;
-    contractAddress: string | null;
-    shouldTryToFetch?: boolean;
-    value: CryptoId;
-    label: string;
-    ticker?: string;
-    type: 'currency';
-    balance?: string;
-    networkName?: string;
-};
-
 export interface TradingSelectAssetOptionGroupProps {
     type: 'group';
     label: string;
     networkName?: string;
     coingeckoId?: string;
-}
-
-export type TradingCryptoSelectOptionProps =
-    | TradingCryptoSelectItemProps
-    | TradingSelectAssetOptionGroupProps;
-
-export interface TradingInfoProps {
-    cryptoIdToPlatformName: (cryptoId: CryptoId) => string | undefined;
-    cryptoIdToCoinName: (cryptoId: CryptoId) => string | undefined;
-    cryptoIdToCoinSymbol: (cryptoId: CryptoId) => string | undefined;
-    cryptoIdToNativeCoinSymbol: (cryptoId: CryptoId) => string | undefined;
-    cryptoIdToSymbolAndContractAddress: (cryptoId: CryptoId | undefined) => {
-        coinSymbol: NetworkSymbolExtended | undefined;
-        contractAddress: string | undefined;
-    };
-    buildCryptoOptions: (
-        cryptoIds: Set<CryptoId>,
-        excludedCryptoIds?: Set<CryptoId>,
-    ) => TradingCryptoSelectOptionProps[];
-    buildDefaultCryptoOption: (cryptoId?: CryptoId | null) => TradingCryptoSelectItemProps;
 }
 
 export type TradingFiatCurrencyOption = {
@@ -166,36 +163,42 @@ export type TradingCountryCode = CountryCode | 'unknown';
 export type TradingCountryOption = {
     value: TradingCountryCode;
     label: string;
+    shortLabel: string;
+    codeAlpha3: string;
+    flag: string;
+    name: string;
+};
+
+export type TradingCountrySubdivisionOption = {
+    value: string;
+    label: string;
+    name: string;
 };
 
 export type TradingBuyFormProps = {
     [constants.TRADING_FORM_FIAT_INPUT]?: string;
     [constants.TRADING_FORM_CRYPTO_INPUT]?: string;
     [constants.TRADING_FORM_FIAT_CURRENCY_SELECT]: TradingFiatCurrencyOption;
-    [constants.TRADING_FORM_CRYPTO_CURRENCY_SELECT]: TradingCryptoSelectItemProps;
+    [constants.TRADING_FORM_CRYPTO_CURRENCY_SELECT]: TradingAssetOption;
     [constants.TRADING_FORM_COUNTRY_SELECT]: TradingCountryOption;
+    [constants.TRADING_FORM_COUNTRY_SUBDIVISION_SELECT]?: TradingCountrySubdivisionOption;
     [constants.TRADING_FORM_PAYMENT_METHOD_SELECT]?: TradingPaymentMethodListProps;
+    [constants.TRADING_FORM_PROVIDER_SELECT]?: string;
     [constants.TRADING_FORM_AMOUNT_IN_CRYPTO]: boolean;
+    [constants.TRADING_BUY_RECEIVE_ADDRESS]?: string;
 };
 
-export interface TradingAccountOptionsGroupOptionProps {
-    value: CryptoId;
-    label: string; // token shortcut
-    cryptoName: string | undefined; // full name
-    balance: string;
-    descriptor: string;
-    decimals: number;
-    contractAddress?: string;
-    accountType?: AccountType;
-}
-
-export interface OTCLink {
+export type OtcProviderType = {
     name: string;
     url: string;
+};
+
+export type OTCLink = OtcProviderType & {
     allowedCountries: string[];
-}
+};
 
 export type TradingOTC = {
+    country: CountryCode;
     minFiatLimits: Record<FiatCurrencyCode, number>;
     links: OTCLink[];
 };
@@ -234,31 +237,38 @@ export type TradingExchangeRateFilter =
     | typeof constants.TRADING_EXCHANGE_COMPARATOR_RATE_FILTER_FLOATING_CEX
     | typeof constants.TRADING_EXCHANGE_COMPARATOR_RATE_FILTER_DEX;
 
+export type TradingAssetSellOption = TradingAssetOption & {
+    accountKey: AccountKey;
+};
+
 export interface TradingExchangeFormProps extends FormState {
-    [constants.TRADING_FORM_RECEIVE_CRYPTO_CURRENCY_SELECT]: TradingCryptoSelectItemProps | null;
-    [constants.TRADING_FORM_SEND_CRYPTO_CURRENCY_SELECT]:
-        | TradingAccountOptionsGroupOptionProps
-        | undefined;
+    [constants.TRADING_FORM_RECEIVE_CRYPTO_CURRENCY_SELECT]: TradingAssetOption | null;
+    [constants.TRADING_FORM_SEND_CRYPTO_CURRENCY_SELECT]: TradingAssetSellOption | undefined;
     [constants.TRADING_FORM_AMOUNT_IN_CRYPTO]: boolean;
     [constants.TRADING_EXCHANGE_RATE]: TradingExchangeRateType;
     [constants.TRADING_EXCHANGE_FORM]: TradingExchangeFormType;
     [constants.TRADING_EXCHANGE_COMPARATOR_KYC_FILTER]: TradingExchangeKycFilter;
     [constants.TRADING_EXCHANGE_COMPARATOR_RATE_FILTER]: TradingExchangeRateFilter;
+    [constants.TRADING_EXCHANGE_FROM_ADDRESS]?: string | undefined;
+    [constants.TRADING_FORM_PROVIDER_SELECT]?: string;
 }
 
 export type MinimalExchangeFormProps = {
     outputs: { amount?: string }[];
-    receiveCryptoSelect?: { value: CryptoId } | null;
-    sendCryptoSelect?: { value: CryptoId } | null;
+    receiveCryptoSelect?: Pick<TradingAssetOption, 'id'> | null;
+    sendCryptoSelect?: Pick<TradingAssetSellOption, 'id'> | null;
     setMaxOutputId?: number;
+    receiveAddress?: string;
+    fromAddress?: string;
+    receiveAccountKey?: AccountKey;
 };
 
 export type TradingExchangeStepType = 'RECEIVING_ADDRESS' | 'SEND_TRANSACTION' | 'SIGN_DATA';
 
-export type TradingSendRejectedProps = {
+export type TradingSendRejectedProps<TranslationKey extends string = string> = {
     type: 'error' | 'sign-tx-error' | 'sign-transaction-timeout';
     error: {
-        id: ExtendedMessageDescriptor['id'];
+        id: TranslationKey;
         values?: Record<string, PrimitiveType>;
     };
 };
@@ -280,18 +290,19 @@ export type TradingSignAndPushSendFormTransactionProps = {
 export type TradingSellStepType = 'BANK_ACCOUNT' | 'SEND_TRANSACTION';
 
 export interface TradingSellFormProps extends FormState {
-    [constants.TRADING_FORM_SEND_CRYPTO_CURRENCY_SELECT]:
-        | TradingAccountOptionsGroupOptionProps
-        | undefined;
+    [constants.TRADING_FORM_SEND_CRYPTO_CURRENCY_SELECT]: TradingAssetSellOption | undefined;
     [constants.TRADING_FORM_PAYMENT_METHOD_SELECT]?: TradingPaymentMethodListProps;
     [constants.TRADING_FORM_COUNTRY_SELECT]: TradingCountryOption;
+    [constants.TRADING_FORM_COUNTRY_SUBDIVISION_SELECT]?: TradingCountrySubdivisionOption;
     [constants.TRADING_FORM_AMOUNT_IN_CRYPTO]: boolean;
+    [constants.TRADING_FORM_PROVIDER_SELECT]?: string;
 }
 
 export type MinimalSellFormProps = {
     outputs: { amount?: string; fiat?: string; currency: Pick<BaseCurrencyOption, 'value'> }[];
-    sendCryptoSelect: { value: CryptoId } | undefined;
+    sendCryptoSelect: Pick<TradingAssetSellOption, 'id'> | undefined;
     countrySelect: TradingCountryOption;
+    countrySubdivisionSelect?: TradingCountrySubdivisionOption;
     amountInCrypto: boolean;
     setMaxOutputId?: number;
 };
@@ -304,14 +315,12 @@ export type TradingSellUserConsentProps = {
 export type HandleBuyRequestThunkProps = {
     formValues: TradingBuyFormProps;
     network: Network;
-    timer: Timer;
     shouldSendInSats: boolean | undefined;
 };
 
 export type HandleExchangeRequestThunkProps = {
     formValues: MinimalExchangeFormProps;
     network: Network;
-    timer: Timer;
     shouldSendInSats: boolean | undefined;
     composeRequestCallback: () => void;
 };
@@ -319,7 +328,6 @@ export type HandleExchangeRequestThunkProps = {
 export type HandleSellRequestThunkProps = {
     formValues: MinimalSellFormProps;
     network: Network;
-    timer: Timer;
     shouldSendInSats: boolean | undefined;
     composeRequestCallback: () => void;
 };
@@ -332,21 +340,4 @@ export type TradingVerifiedAddress =
       }
     | undefined;
 
-export type TradingRootState = {
-    wallet: {
-        tradingNew: TradingState; // TODO: trading - tradingNew is temporary
-    };
-};
-
-type SelectedAccountRootState = {
-    wallet: {
-        selectedAccount: SelectedAccountStatus;
-    };
-};
-
-export type TradingRootStateWithDeviceAndAccounts = TradingRootState &
-    DeviceRootState &
-    AccountsRootState &
-    SelectedAccountRootState;
-
-export type TradingFulfillValue = Success<{ txid: string }> | Unsuccessful | undefined;
+export type TradingFulfillValue = Ok<{ txid: string }> | Err<SerializedError> | undefined;

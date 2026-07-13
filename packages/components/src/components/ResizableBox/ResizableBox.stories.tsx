@@ -1,7 +1,7 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 import styled from 'styled-components';
 
-import { ResizableBox as ResizableBoxComponent, ResizableBoxProps } from './ResizableBox';
+import { ResizableBox as ResizableBoxComponent, type ResizableBoxProps } from './ResizableBox';
 
 const Container = styled.div`
     position: relative;
@@ -17,10 +17,10 @@ const Content = styled.div`
     height: 100%;
 `;
 
-const meta: Meta = {
+const meta: Meta<typeof ResizableBoxComponent> = {
     title: 'ResizableBox',
     component: ResizableBoxComponent,
-} as Meta;
+};
 export default meta;
 
 export const ResizableBox: StoryObj<ResizableBoxProps> = {

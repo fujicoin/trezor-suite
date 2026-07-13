@@ -1,26 +1,26 @@
 import { useSelector } from 'react-redux';
 
-import { selectIsNoPhysicalDeviceConnected } from '@suite-common/wallet-core';
+import { selectIsNoPhysicalDeviceConnected } from '@suite-common/device';
 import { Button, IconListTextItem, TitleHeader, VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import { useOpenLink } from '@suite-native/link';
 import {
     AppTabsRoutes,
-    DeviceOnboardingStackParamList,
-    DeviceOnboardingStackRoutes,
-    DeviceSuspicionCause,
+    type DeviceOnboardingStackParamList,
+    type DeviceOnboardingStackRoutes,
+    type DeviceSuspicionCause,
     HomeStackRoutes,
-    RootStackParamList,
+    type RootStackParamList,
     RootStackRoutes,
     Screen,
     ScreenHeader,
-    StackToStackCompositeScreenProps,
+    type StackToStackCompositeScreenProps,
 } from '@suite-native/navigation';
 import {
     TREZOR_SUPPORT_DIFFERENT_PACKAGING,
     TREZOR_SUPPORT_FW_ALREADY_INSTALLED,
     TREZOR_SUPPORT_IS_MY_DEVICE_SAFE,
-    Url,
+    type Url,
 } from '@trezor/urls';
 
 const causeToLinkMap = {
@@ -70,7 +70,7 @@ export const SuspiciousDeviceScreen = ({
             <VStack justifyContent="space-between" flex={1} paddingTop="sp16">
                 <VStack spacing="sp32">
                     <TitleHeader
-                        titleVariant="titleMedium"
+                        titleVariant="headline-md"
                         title={
                             <Translation id="moduleDeviceOnboarding.suspiciousDeviceScreen.title" />
                         }
@@ -82,7 +82,7 @@ export const SuspiciousDeviceScreen = ({
                         <IconListTextItem
                             iconSize="large"
                             variant="yellow"
-                            textVariant="highlight"
+                            textVariant="body-md-strong"
                             icon="plugs"
                         >
                             <Translation id="moduleDeviceOnboarding.suspiciousDeviceScreen.bullet1" />
@@ -90,7 +90,7 @@ export const SuspiciousDeviceScreen = ({
                         <IconListTextItem
                             iconSize="large"
                             variant="yellow"
-                            textVariant="highlight"
+                            textVariant="body-md-strong"
                             icon="handPalm"
                         >
                             <Translation id="moduleDeviceOnboarding.suspiciousDeviceScreen.bullet2" />
@@ -98,7 +98,7 @@ export const SuspiciousDeviceScreen = ({
                         <IconListTextItem
                             iconSize="large"
                             variant="yellow"
-                            textVariant="highlight"
+                            textVariant="body-md-strong"
                             icon="chatCircle"
                         >
                             <Translation id="moduleDeviceOnboarding.suspiciousDeviceScreen.bullet3" />
@@ -107,7 +107,8 @@ export const SuspiciousDeviceScreen = ({
                 </VStack>
                 <Button
                     testID="@deviceOnboarding/SuspiciousDeviceScreen/contactSupportBtn"
-                    colorScheme="yellowBold"
+                    intent="warning"
+                    priority="primary"
                     onPress={handleContactSupportButtonPress}
                 >
                     <Translation id="moduleDeviceOnboarding.suspiciousDeviceScreen.contactSupportButton" />

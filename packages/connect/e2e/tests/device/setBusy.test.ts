@@ -1,4 +1,6 @@
-import TrezorConnect from '../../../src';
+// eslint-disable-next-line import/no-extraneous-dependencies
+import TrezorConnect from '@trezor/connect';
+
 import { conditionalTest, getController, initTrezorConnect, setup } from '../../common.setup';
 
 const controller = getController();
@@ -31,7 +33,7 @@ describe('TrezorConnect.setBusy', () => {
             expiry_ms: 3000,
             keepSession: true, // keep session
         });
-        if (!setBusy.success) throw new Error(setBusy.payload.error);
+        if (!setBusy.success) throw new Error(setBusy.error.message);
 
         expect(busy).toBe(true);
 
@@ -39,7 +41,7 @@ describe('TrezorConnect.setBusy', () => {
         await new Promise(resolve => setTimeout(resolve, 3000));
 
         const features = await TrezorConnect.getFeatures();
-        if (!features.success) throw new Error(features.payload.error);
+        if (!features.success) throw new Error(features.error.message);
         expect(features.payload.busy).toBe(false);
     });
 
@@ -47,19 +49,19 @@ describe('TrezorConnect.setBusy', () => {
         const busy = await TrezorConnect.setBusy({
             expiry_ms: 5000,
         });
-        if (!busy.success) throw new Error(busy.payload.error);
+        if (!busy.success) throw new Error(busy.error.message);
 
         let features: Awaited<ReturnType<typeof TrezorConnect.getFeatures>>;
 
         features = await TrezorConnect.getFeatures();
-        if (!features.success) throw new Error(features.payload.error);
+        if (!features.success) throw new Error(features.error.message);
         expect(features.payload.busy).toBe(true);
 
         // reset expiry
         await TrezorConnect.setBusy({});
 
         features = await TrezorConnect.getFeatures();
-        if (!features.success) throw new Error(features.payload.error);
+        if (!features.success) throw new Error(features.error.message);
         // not busy
         expect(features.payload.busy).toBe(false);
     });
@@ -78,7 +80,7 @@ describe('TrezorConnect.setBusy', () => {
             expiry_ms: 15000,
             keepSession: true, // keep session
         });
-        if (!setBusy.success) throw new Error(setBusy.payload.error);
+        if (!setBusy.success) throw new Error(setBusy.error.message);
 
         expect(busy).toBe(true);
 

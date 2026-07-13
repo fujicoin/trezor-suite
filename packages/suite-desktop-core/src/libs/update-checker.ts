@@ -11,30 +11,26 @@ if (signingKey === undefined) {
     throw new Error('APP_PUBKEY is undefined.');
 }
 
-type GetSignatureFileProps = { feedURL: string; filename: string };
+type GetSignatureFileProps = { feedURL: string; downloadedFile: string };
 
-const getSignatureFile = async ({ filename, feedURL }: GetSignatureFileProps) => {
-    /**
-     * Signature files are available next to installation files.
-     */
-    const signatureFileURL = `${removeTrailingSlashes(feedURL)}/${filename}.asc`;
+/**
+ * Get signature files, which are available next to installation files.
+ */
+export const getSignatureFile = async ({ downloadedFile, feedURL }: GetSignatureFileProps) => {
+    try {
+        const filename = path.basename(downloadedFile);
+        const signatureFileURL = `${removeTrailingSlashes(feedURL)}/${filename}.asc`;
+        const signatureFile = await fetch(signatureFileURL);
 
-    const signatureFile = await fetch(signatureFileURL);
-
-    return signatureFile.text();
+        return signatureFile.text();
+    } catch {
+        return null;
+    }
 };
 
-type VerifySignatureProps = { feedURL: string; downloadedFile: string };
+type VerifySignatureProps = { downloadedFile: string; signatureFile: string };
 
-export const verifySignature = async ({ downloadedFile, feedURL }: VerifySignatureProps) => {
-    // Find the right signature for the downloaded file
-    const filename = path.basename(downloadedFile);
-
-    const signatureFile = await getSignatureFile({
-        filename,
-        feedURL,
-    });
-
+export const verifySignature = async ({ downloadedFile, signatureFile }: VerifySignatureProps) => {
     // Read downloaded file and create message to verify
     const file = await fs.promises.readFile(downloadedFile);
     const message = await createMessage({ binary: file });
@@ -54,7 +50,11 @@ export const verifySignature = async ({ downloadedFile, feedURL }: VerifySignatu
     });
 
     // Get result (validity of the signature)
-    const valid = await verified.signatures[0].verified;
+    const firstSignature = verified.signatures[0];
+    if (!firstSignature) {
+        throw new Error('No signatures found.');
+    }
+    const valid = await firstSignature.verified;
     if (!valid) {
         throw new Error('Invalid signature.');
     }

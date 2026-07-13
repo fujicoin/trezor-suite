@@ -1,10 +1,13 @@
-import { UI } from '@trezor/connect';
+import { mockSuiteDevice } from '@suite-common/suite-types/mocks';
+import { UI_REQUEST } from '@trezor/connect';
 
 import {
-    DeviceAuthorizationState,
+    type DeviceAuthorizationState,
+    DeviceAuthorizationStep,
     deviceAuthorizationInitialState,
     deviceAuthorizationReducer,
 } from '../deviceAuthorizationSlice';
+import { flowEndingButtonRequests, pinButtonRequestCodes } from '../utils';
 
 describe('deviceAuthorizationSlice', () => {
     const getDeviceAuthorizationState = (
@@ -14,114 +17,133 @@ describe('deviceAuthorizationSlice', () => {
     describe('initial state', () => {
         it('should have correct initial state', () => {
             expect(deviceAuthorizationReducer(undefined, { type: 'unknown' })).toEqual({
-                hasDeviceRequestedPin: false,
-                hasDeviceRequestedPassphrase: false,
-                checkPassphraseOnDevice: false,
-                inputPassphraseOnDevice: false,
+                deviceAuthorizationStep: DeviceAuthorizationStep.Idle,
             });
         });
     });
 
-    describe('UI.REQUEST_PIN', () => {
-        it('should set `hasDeviceRequestedPin`', () => {
-            expect(deviceAuthorizationReducer(undefined, { type: UI.REQUEST_PIN })).toEqual({
-                hasDeviceRequestedPin: true,
-                hasDeviceRequestedPassphrase: false,
-                checkPassphraseOnDevice: false,
-                inputPassphraseOnDevice: false,
-            });
-        });
-    });
-    describe('UI.REQUEST_PASSPHRASE', () => {
-        it('should set hasDeviceRequestedPassphrase', () => {
-            const prevState = getDeviceAuthorizationState({ hasDeviceRequestedPin: true });
-
-            const state = deviceAuthorizationReducer(prevState, { type: UI.REQUEST_PASSPHRASE });
+    describe('UI_REQUEST.REQUEST_PIN', () => {
+        it('should set deviceAuthorizationStep to PinRequested', () => {
+            const state = deviceAuthorizationReducer(undefined, { type: UI_REQUEST.REQUEST_PIN });
 
             expect(state).toEqual({
-                hasDeviceRequestedPin: false,
-                hasDeviceRequestedPassphrase: true,
-                checkPassphraseOnDevice: false,
-                inputPassphraseOnDevice: false,
+                deviceAuthorizationStep: DeviceAuthorizationStep.PinRequested,
             });
         });
     });
 
-    describe('UI.REQUEST_BUTTON', () => {
-        it('should react to code `ButtonRequest_PinEntry`', () => {
-            const prevState = getDeviceAuthorizationState({
-                hasDeviceRequestedPin: true,
-                hasDeviceRequestedPassphrase: true,
+    describe('UI_REQUEST.REQUEST_PASSPHRASE', () => {
+        it('should set deviceAuthorizationStep to PassphraseRequested when device has staticSessionId', () => {
+            const state = deviceAuthorizationReducer(undefined, {
+                type: UI_REQUEST.REQUEST_PASSPHRASE,
+                payload: {
+                    device: mockSuiteDevice({
+                        state: { staticSessionId: 'testWallet@testDevice:0' },
+                    }),
+                },
             });
-            const action = { type: UI.REQUEST_BUTTON, payload: { code: 'ButtonRequest_PinEntry' } };
-
-            const state = deviceAuthorizationReducer(prevState, action);
 
             expect(state).toEqual({
-                hasDeviceRequestedPin: true,
-                hasDeviceRequestedPassphrase: false,
-                checkPassphraseOnDevice: false,
-                inputPassphraseOnDevice: false,
+                deviceAuthorizationStep: DeviceAuthorizationStep.PassphraseRequested,
             });
         });
 
-        it('should react to code  `PinMatrixRequestType_Current`', () => {
+        // Note: This case can happen if you try to create a new passphrase wallet but your device is locked.
+        // We will unlock the device for feature (discovery of hidden wallet), but that's the end of device authorization.
+        // Passphrase request is than handled by passphrase flow.
+        it('should set deviceAuthorizationStep to Idle when device does not have staticSessionId', () => {
             const prevState = getDeviceAuthorizationState({
-                hasDeviceRequestedPin: true,
-                hasDeviceRequestedPassphrase: true,
+                deviceAuthorizationStep: DeviceAuthorizationStep.PinRequested,
             });
-            const action = {
-                type: UI.REQUEST_BUTTON,
-                payload: { code: 'PinMatrixRequestType_Current' },
-            };
 
-            const state = deviceAuthorizationReducer(prevState, action);
+            const state = deviceAuthorizationReducer(prevState, {
+                type: UI_REQUEST.REQUEST_PASSPHRASE,
+            });
 
             expect(state).toEqual({
-                hasDeviceRequestedPin: true,
-                hasDeviceRequestedPassphrase: false,
-                checkPassphraseOnDevice: false,
-                inputPassphraseOnDevice: false,
+                deviceAuthorizationStep: DeviceAuthorizationStep.Idle,
             });
         });
 
-        it('should react to code `ButtonRequest_Other`', () => {
-            const prevState = getDeviceAuthorizationState({
-                hasDeviceRequestedPin: true,
-                hasDeviceRequestedPassphrase: true,
+        it('should set deviceAuthorizationStep to Idle when device staticSessionId from connect is undefined', () => {
+            const state = deviceAuthorizationReducer(undefined, {
+                type: UI_REQUEST.REQUEST_PASSPHRASE,
+                payload: {
+                    device: { ...mockSuiteDevice(), state: { staticSessionId: undefined } },
+                },
             });
-            const action = {
-                type: UI.REQUEST_BUTTON,
-                payload: { code: 'ButtonRequest_Other' },
-            };
-
-            const state = deviceAuthorizationReducer(prevState, action);
 
             expect(state).toEqual({
-                hasDeviceRequestedPin: false,
-                hasDeviceRequestedPassphrase: true,
-                checkPassphraseOnDevice: true,
-                inputPassphraseOnDevice: false,
+                deviceAuthorizationStep: DeviceAuthorizationStep.Idle,
             });
         });
     });
 
-    describe('UI.CLOSE_UI_WINDOW', () => {
-        it('should set correct state', () => {
+    describe('UI_REQUEST.CLOSE_UI_WINDOW', () => {
+        it('should reset deviceAuthorizationStep to Idle from any state', () => {
             const prevState = getDeviceAuthorizationState({
-                hasDeviceRequestedPin: true,
-                hasDeviceRequestedPassphrase: true,
-                checkPassphraseOnDevice: true,
-                inputPassphraseOnDevice: true,
+                deviceAuthorizationStep: DeviceAuthorizationStep.PassphraseRequested,
             });
-            const action = { type: UI.CLOSE_UI_WINDOW };
 
-            expect(deviceAuthorizationReducer(prevState, action)).toEqual({
-                hasDeviceRequestedPin: false,
-                hasDeviceRequestedPassphrase: false,
-                checkPassphraseOnDevice: false,
-                inputPassphraseOnDevice: false,
+            const state = deviceAuthorizationReducer(prevState, {
+                type: UI_REQUEST.CLOSE_UI_WINDOW,
+            });
+
+            expect(state).toEqual({
+                deviceAuthorizationStep: DeviceAuthorizationStep.Idle,
             });
         });
+    });
+
+    describe('isPinButtonRequestCode matcher', () => {
+        it.each(pinButtonRequestCodes)(
+            'should set deviceAuthorizationStep to PinRequested for %s code',
+            code => {
+                const state = deviceAuthorizationReducer(undefined, {
+                    type: UI_REQUEST.REQUEST_BUTTON,
+                    payload: { code },
+                });
+
+                expect(state).toEqual({
+                    deviceAuthorizationStep: DeviceAuthorizationStep.PinRequested,
+                });
+            },
+        );
+    });
+
+    describe('isFlowEndingButtonRequest matcher', () => {
+        it.each(flowEndingButtonRequests)(
+            'should reset deviceAuthorizationStep to Idle for %s',
+            code => {
+                const prevState = getDeviceAuthorizationState({
+                    deviceAuthorizationStep: DeviceAuthorizationStep.PassphraseRequested,
+                });
+
+                const state = deviceAuthorizationReducer(prevState, {
+                    type: UI_REQUEST.REQUEST_BUTTON,
+                    payload: { code },
+                });
+
+                expect(state).toEqual({
+                    deviceAuthorizationStep: DeviceAuthorizationStep.Idle,
+                });
+            },
+        );
+    });
+
+    describe('isSuiteSyncButtonRequest matcher', () => {
+        it.each(['suite_sync', 'secure_sync'])(
+            'should set deviceAuthorizationStep to ContinueOnTrezorRequested for %s button request',
+            name => {
+                const state = deviceAuthorizationReducer(undefined, {
+                    type: UI_REQUEST.REQUEST_BUTTON,
+                    payload: { name },
+                });
+
+                expect(state).toEqual({
+                    deviceAuthorizationStep: DeviceAuthorizationStep.ContinueOnTrezorRequested,
+                });
+            },
+        );
     });
 });

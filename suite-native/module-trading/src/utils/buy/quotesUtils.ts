@@ -1,15 +1,22 @@
-import { CoinInfo } from 'invity-api';
+import type { BuyTrade, CoinInfo, PlatformsInfo } from 'invity-api';
 
 import { invariant } from '@suite-common/suite-utils';
 import {
-    TradingBuyFormProps,
-    TradingCountryOption,
-    TradingPaymentMethodListProps,
-    toCryptoOption,
+    type TradingBuyFormProps,
+    type TradingPaymentMethodListProps,
+    createAssetOption,
+    cryptoIdToNetwork,
+    getCurrencyLabel,
 } from '@suite-common/trading';
+import { coinInfoToTradeableAsset } from '@suite-native/trading-atoms';
+import type { BuyFormType } from '@suite-native/trading-types';
 
-import { supportedFiatCurrenciesMap } from '../../consts/general/supportedFiatCurrencies';
-import { BuyFormType } from '../../types/buy';
+import { getReceiveAccountAddressText } from '../general/receiveAccountUtils';
+
+export type GetAnalyticsTradingBuyPayloadProps = {
+    quote: BuyTrade | undefined;
+    coinInfo: CoinInfo | undefined;
+};
 
 export const getPaymentMethodFromBuyForm = (
     form: BuyFormType,
@@ -29,20 +36,34 @@ export const getPaymentMethodFromBuyForm = (
 export const tradingBuyFormToTradingBuyFormProps = (
     form: BuyFormType,
     coinInfo: CoinInfo | undefined,
+    platformInfo: PlatformsInfo | undefined,
 ): TradingBuyFormProps => {
-    const [asset, fiatCurrency, fiatValue, cryptoValue, amountInCrypto, country] = form.getValues([
+    const [
+        asset,
+        fiatCurrency,
+        fiatValue,
+        cryptoValue,
+        amountInCrypto,
+        country,
+        countrySubdivision,
+        receiveAccount,
+    ] = form.getValues([
         'asset',
         'fiatCurrency',
         'fiatValue',
         'cryptoValue',
         'amountInCrypto',
         'country',
+        'countrySubdivision',
+        'receiveAccount',
     ]);
-    const currencyName = supportedFiatCurrenciesMap[fiatCurrency]?.label;
+    const currencyName = getCurrencyLabel(fiatCurrency);
 
     invariant(currencyName, 'Currency is required');
     invariant(asset, 'Asset is required');
     invariant(coinInfo, 'CoinInfo is required');
+
+    const receiveAddress = getReceiveAccountAddressText(receiveAccount);
 
     return {
         fiatInput: fiatValue,
@@ -51,9 +72,36 @@ export const tradingBuyFormToTradingBuyFormProps = (
             value: fiatCurrency,
             label: currencyName,
         },
-        cryptoSelect: toCryptoOption(asset.cryptoId, coinInfo),
-        countrySelect: country as TradingCountryOption,
+        cryptoSelect: createAssetOption({ cryptoId: asset.cryptoId, coinInfo, platformInfo })!,
+        countrySelect: country,
+        countrySubdivisionSelect: countrySubdivision,
         paymentMethod: getPaymentMethodFromBuyForm(form),
         amountInCrypto,
+        receiveAddress,
+    };
+};
+
+export const getAnalyticsTradingBuyPayload = ({
+    quote,
+    coinInfo,
+}: GetAnalyticsTradingBuyPayloadProps) => {
+    if (!coinInfo || !quote?.receiveCurrency) {
+        return null;
+    }
+
+    const tradeableAsset = coinInfoToTradeableAsset(quote.receiveCurrency, coinInfo);
+    const symbol = cryptoIdToNetwork(quote.receiveCurrency)?.symbol;
+
+    if (!tradeableAsset) {
+        return null;
+    }
+
+    return {
+        cryptoLabel: tradeableAsset.symbol,
+        cryptoNetworkSymbol: symbol,
+        cryptoContractAddress: tradeableAsset.contractAddress,
+        paymentMethod: quote.paymentMethod,
+        countryOfResidence: quote.country,
+        exchangeName: quote.exchange,
     };
 };

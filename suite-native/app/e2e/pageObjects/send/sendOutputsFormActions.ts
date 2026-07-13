@@ -1,8 +1,10 @@
 import { expect as detoxExpect } from 'detox';
 
+import { waitForVisible } from '../../support/utils';
+
 class SendOutputsFormActions {
     async waitForScreen() {
-        await waitFor(element(by.id('@screen/SendOutputs'))).toBeVisible();
+        await waitForVisible(by.id('@screen/SendOutputs'));
     }
 
     async fillForm(values: { address?: string; amount?: string }[]) {
@@ -11,10 +13,14 @@ class SendOutputsFormActions {
         for (const [index, value] of values.entries()) {
             const { address, amount } = value;
             if (address) {
-                await element(by.id(`outputs.${index}.address`)).replaceText(address);
+                await element(by.id(`outputs.${index}.address`)).typeText(address);
+                // Dismiss keyboard so it doesn't cover the amount input below.
+                await device.pressBack();
             }
             if (amount) {
-                await element(by.id(`outputs.${index}.amount`)).replaceText(amount);
+                await element(by.id(`outputs.${index}.amount`)).typeText(amount);
+                // Dismiss keyboard so it doesn't cover the amount input below.
+                await device.pressBack();
             }
         }
     }
@@ -25,6 +31,7 @@ class SendOutputsFormActions {
     }
 
     async submitForm() {
+        await element(by.id('@screen/mainScrollView')).scrollTo('bottom');
         await element(by.id('@send/form-submit-button')).tap();
     }
 }

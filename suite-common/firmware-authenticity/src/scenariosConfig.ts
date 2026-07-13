@@ -1,12 +1,12 @@
 import {
-    FirmwareHashCheckError,
-    FirmwareHashCheckTimeouts,
-    FirmwareRevisionCheckError,
+    type FirmwareHashCheckError,
+    type FirmwareHashCheckTimeouts,
+    type FirmwareRevisionCheckError,
 } from '@trezor/connect';
 import { DeviceModelInternal } from '@trezor/device-utils';
 
 /*
- * Various scenarios how firmware authenticity check errors are handled in Suite and Suite Lite
+ * Various scenarios how firmware authenticity check errors are handled in Suite and Suite Mobile
  */
 
 type BehaviorBaseType = {
@@ -36,6 +36,12 @@ export const revisionCheckErrorScenarios = {
         isConclusive: true,
     },
     'firmware-version-unknown': {
+        type: 'hardModal',
+        shouldReport: true,
+        shouldNotify: false,
+        isConclusive: true,
+    },
+    'bootloader-hash-mismatch': {
         type: 'hardModal',
         shouldReport: true,
         shouldNotify: false,

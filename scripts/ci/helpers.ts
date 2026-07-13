@@ -1,18 +1,12 @@
-import fs from 'fs';
-import path from 'path';
-import semver from 'semver';
 import fetch from 'cross-fetch';
-import { promisify } from 'util';
-import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
+import { ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import semver from 'semver';
 
-import { getLocalAndRemoteChecksums } from './check-npm-and-local';
-
-const readFile = promisify(fs.readFile);
-
-const ROOT = path.join(__dirname, '..', '..');
+const ROOT = path.join(import.meta.dirname, '..', '..');
 
 const updateNeeded: string[] = [];
-const errors: string[] = [];
 
 export const gettingNpmDistributionTags = async (packageName: string) => {
     const npmRegistryUrl = `https://registry.npmjs.org/${packageName}`;
@@ -30,9 +24,9 @@ export const getNpmRemoteGreatestVersion = async (moduleName: string) => {
         const distributionTags = await gettingNpmDistributionTags(moduleName);
 
         const versionArray: string[] = Object.values(distributionTags);
-        const greatestVersion = versionArray.reduce((max, current) => {
-            return semver.gt(current, max) ? current : max;
-        });
+        const greatestVersion = versionArray.reduce((max, current) =>
+            semver.gt(current, max) ? current : max,
+        );
 
         return greatestVersion;
     } catch (error) {
@@ -41,124 +35,59 @@ export const getNpmRemoteGreatestVersion = async (moduleName: string) => {
     }
 };
 
-export const getPackagesAndDependenciesRequireUpdate = async (packages: string[]) => {
-    let packagesRequireUpdate = [];
-    let dependenciesRequireUpdate = [];
-    for (const packageName of packages) {
-        const response = await getLocalAndRemoteChecksums(packageName);
+export const getTrezorPackageDir = (packageName: string) =>
+    path.join(ROOT, packageName.startsWith('coins-') ? 'coins' : 'packages', packageName);
 
-        if (!response.success) {
-            console.error('Error when getting local and remote checksums');
-        } else {
-            const { localChecksum, remoteChecksum, distributionTags } = response.data;
-            console.info('localChecksum', localChecksum);
-            console.info('remoteChecksum', remoteChecksum);
-            console.info('distributionTags', distributionTags);
-            if (localChecksum !== remoteChecksum) {
-                packagesRequireUpdate.push(packageName);
-            }
-        }
-    }
+export const getTrezorDependencies = async (packageNameWithoutTrezorPrefix: string) => {
+    const packageJsonPath = path.join(
+        getTrezorPackageDir(packageNameWithoutTrezorPrefix),
+        'package.json',
+    );
+    const packageJsonContent = await fs.promises.readFile(packageJsonPath, 'utf-8');
+    const packageJson = JSON.parse(packageJsonContent);
+    // We should ignore devDependencies.
+    const dependencies = packageJson.dependencies ? Object.keys(packageJson.dependencies) : [];
 
-    for (const packageName of packagesRequireUpdate) {
-        const checkResult: { update: string[]; errors: string[] } = await checkPackageDependencies(
-            packageName.replace('@trezor/', ''),
-            'stable',
-        );
-        console.info('checkResult', checkResult);
-        if (checkResult.update) {
-            console.info('checkResult.update', checkResult.update);
-            dependenciesRequireUpdate.push(...checkResult.update);
-        }
-    }
-
-    console.info('packagesRequireUpdate', packagesRequireUpdate);
-    console.info('dependenciesRequireUpdate', dependenciesRequireUpdate);
-
-    return [...packagesRequireUpdate, ...dependenciesRequireUpdate];
+    return dependencies
+        .filter(dep => dep.startsWith('@trezor/'))
+        .map(dep => dep.replace('@trezor/', ''));
 };
 
-export const checkPackageDependencies = async (
-    packageName: string,
-    deploymentType: 'stable' | 'canary',
-): Promise<{ update: string[]; errors: string[] }> => {
-    console.info('######################################################');
-    console.info(`Checking package ${packageName}`);
-    const rawPackageJSON = await readFile(
-        path.join(ROOT, 'packages', packageName, 'package.json'),
-        'utf-8',
-    );
+/**
+ * This functions recursively checks the @trezor dependencies of a given package
+ * @param packageNameWithoutTrezorPrefix (string) - package name without the @trezor/ prefix
+ * @returns
+ */
+export const getPackageDependencies = async (
+    packageNameWithoutTrezorPrefix: string,
+): Promise<{ update: string[] }> => {
+    console.info('-------------------------------------------------------------------------');
+    console.info(`Getting @trezor dependencies of package ${packageNameWithoutTrezorPrefix}`);
 
-    const packageJSON = JSON.parse(rawPackageJSON);
-    const {
-        dependencies,
-        // devDependencies // We should ignore devDependencies.
-    } = packageJSON;
+    const trezorDependencies = await getTrezorDependencies(packageNameWithoutTrezorPrefix);
+    console.info(`Trezor dependencies: ${trezorDependencies.join(', ')}`);
 
-    if (!dependencies || !Object.keys(dependencies)) {
-        return { errors, update: updateNeeded };
-    }
+    for await (const trezorDependencyNameWithoutPrefix of trezorDependencies) {
+        // trezorDependencyNameWithoutPrefix is like 'connect', 'suite', etc.
 
-    // eslint-disable-next-line no-restricted-syntax
-    for await (const [dependency, _version] of Object.entries(dependencies)) {
-        // is not a dependency released from monorepo. we don't care
-        if (!dependency.startsWith('@trezor')) {
-            // eslint-disable-next-line no-continue
-            continue;
+        // if the checked dependency is already in the array, remove it and push it to the end of array
+        // this way, the final array should be sorted in order in which that dependencies listed there
+        // should be released from the last to the first.
+        const index = updateNeeded.indexOf(trezorDependencyNameWithoutPrefix);
+        if (index > -1) {
+            updateNeeded.splice(index, 1);
         }
-        const [_prefix, name] = dependency.split('/');
-        const response = await getLocalAndRemoteChecksums(dependency);
-        if (!response.success) {
-            // If the package was not found it might be it has not been release yet or other issue, so we include it in errors.
-            const index = errors.findIndex(lib => lib === dependency);
-            console.info('index', index);
-            if (index > -1) {
-                errors.splice(index, 1);
-            }
+        updateNeeded.push(trezorDependencyNameWithoutPrefix);
 
-            errors.push(dependency);
-        } else {
-            const { localChecksum, remoteChecksum, distributionTags } = response.data;
-            console.info('distributionTags', distributionTags);
-
-            if (localChecksum !== remoteChecksum) {
-                // if the checked dependency is already in the array, remove it and push it to the end of array
-                // this way, the final array should be sorted in order in which that dependencies listed there
-                // should be released from the last to the first.
-                const index = updateNeeded.indexOf(dependency);
-                if (index > -1) {
-                    updateNeeded.splice(index, 1);
-                }
-                updateNeeded.push(dependency);
-            } else if (
-                deploymentType === 'stable' &&
-                distributionTags.beta &&
-                distributionTags.latest &&
-                semver.gt(distributionTags.beta, distributionTags.latest)
-            ) {
-                // If this is an stable release and last release was beta,
-                // meaning the beta version number is greatest than the latest one, then we include it to be released.
-                const index = updateNeeded.indexOf(dependency);
-                if (index > -1) {
-                    updateNeeded.splice(index, 1);
-                }
-                updateNeeded.push(dependency);
-            }
-
-            await checkPackageDependencies(name, deploymentType);
-        }
+        await getPackageDependencies(trezorDependencyNameWithoutPrefix);
     }
 
     return {
         update: updateNeeded,
-        errors,
     };
 };
 
-export const exec = async (
-    cmd: string,
-    params: any[],
-): Promise<{ stdout: string; stderr: string }> => {
+export const exec = (cmd: string, params: any[]): Promise<{ stdout: string; stderr: string }> => {
     console.info(cmd, ...params);
 
     const res: ChildProcessWithoutNullStreams = spawn(cmd, params, {
@@ -210,10 +139,11 @@ export const comment = async ({ prNumber, body }: { prNumber: string; body: stri
 };
 
 export const getLocalVersion = (packageName: string) => {
-    const packageJsonPath = path.join(ROOT, 'packages', packageName, 'package.json');
+    const packageJsonPath = path.join(getTrezorPackageDir(packageName), 'package.json');
     if (!fs.existsSync(packageJsonPath)) {
         throw new Error(`package.json not found for package: ${packageName}`);
     }
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+
     return packageJson.version;
 };

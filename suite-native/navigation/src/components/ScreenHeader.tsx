@@ -1,28 +1,26 @@
-import { ComponentProps, ReactElement, ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import { RequireOneOrNone } from 'type-fest';
+import { type RequireOneOrNone } from 'type-fest';
 
 import { Box } from '@suite-native/atoms';
-import { Translation } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { GoBackIcon } from './GoBackIcon';
-import { CloseActionType } from '../navigators';
-import { ScreenHeaderContent } from './ScreenHeaderContent';
+import { type CloseActionType } from '../navigators';
+import { ScreenHeaderContent, type ScreenHeaderContentProps } from './ScreenHeaderContent';
 
-export type ScreenHeaderProps = RequireOneOrNone<
-    {
-        title?: ReactElement<ComponentProps<typeof Translation>> | string;
-        customContent?: ReactNode;
-        leftIcon?: ReactNode;
-        closeActionType?: CloseActionType;
-        rightIcon?: ReactNode;
-        closeAction?: () => void;
-    },
-    'leftIcon' | 'closeActionType'
->;
+export type ScreenHeaderProps = ScreenHeaderContentProps &
+    RequireOneOrNone<
+        {
+            leftIcon?: ReactNode;
+            closeActionType?: CloseActionType;
+            rightIcon?: ReactNode;
+            closeAction?: () => void;
+        },
+        'leftIcon' | 'closeActionType'
+    >;
 
-const ICON_SIZE = 48;
+const ICON_SIZE = 40;
 
 const headerStyle = prepareNativeStyle(utils => ({
     flexDirection: 'row',
@@ -31,7 +29,7 @@ const headerStyle = prepareNativeStyle(utils => ({
     paddingTop: utils.spacings.sp8,
     paddingHorizontal: utils.spacings.sp16,
     paddingBottom: utils.spacings.sp16,
-    backgroundColor: utils.colors.backgroundSurfaceElevation0,
+    backgroundColor: utils.colors.surfaceFillPage,
     minHeight: ICON_SIZE,
 }));
 
@@ -56,7 +54,11 @@ export const ScreenHeader = ({
                 {leftIcon !== undefined ? (
                     leftIcon
                 ) : (
-                    <GoBackIcon closeActionType={closeActionType} closeAction={closeAction} />
+                    <GoBackIcon
+                        closeActionType={closeActionType}
+                        closeAction={closeAction}
+                        testID="@screen/sub-header/go-back-button"
+                    />
                 )}
             </Box>
             <ScreenHeaderContent title={title} customContent={customContent} />

@@ -4,7 +4,7 @@ import { db } from 'src/storage';
 // This function should be called before first render
 // PreloadedState will be used in redux store creation
 export const preloadStore = async () => {
-    if (!(await db.isSupported())) return;
+    if (!db.isSupported()) return;
 
     // check if db is blocked/blocking before preloading start
     const dbError = await new Promise<'blocked' | 'blocking' | undefined>(resolve => {
@@ -24,88 +24,124 @@ export const preloadStore = async () => {
         } as const;
     }
 
-    // Load state from database in parallel using Promise.all
-    const [
-        suiteSettings,
-        devices,
-        thp,
-        bluetooth,
-        accounts,
-        walletSettings,
-        tradingTrades,
-        historicRates,
-        graph,
-        analytics,
-        metadata,
-        txs,
-        messageSystem,
-        backendSettings,
-        sendFormDrafts,
-        formDrafts,
-        coinjoinAccounts,
-        coinjoinDebugSettings,
-        tokenManagement,
-        security,
-        connect,
-        explorer,
-        bioAuth,
-        firmware,
-    ] = await Promise.all([
-        db.getItemByPK('suiteSettings', 'suite'),
-        db.getItemsExtended('devices'),
-        db.getItemByPK('thp', 'value'),
-        db.getItemByPK('bluetooth', 'value'),
-        db.getItemsExtended('accounts'),
-        db.getItemByPK('walletSettings', 'wallet'),
-        db.getItemsExtended('tradingTrades'),
-        db.getItemsWithKeys('historicRates'),
-        db.getItemsExtended('graph'),
-        db.getItemByPK('analytics', 'suite'),
-        db.getItemByPK('metadata', 'state'),
-        db.getItemsExtended('txs', 'order'),
-        db.getItemByPK('messageSystem', 'suite'),
-        db.getItemsWithKeys('backendSettings'),
-        db.getItemsWithKeys('sendFormDrafts'),
-        db.getItemsWithKeys('formDrafts'),
-        db.getItemsExtended('coinjoinAccounts'),
-        db.getItemByPK('coinjoinDebugSettings', 'debug'),
-        db.getItemsWithKeys('tokenManagement'),
-        db.getItemByPK('security', 'security'),
-        db.getItemByPK('connect', 'connect'),
-        db.getItemsExtended('explorer'),
-        db.getItemByPK('bioAuth', 'bioAuth'),
-        db.getItemByPK('firmware', 'firmware'),
-    ]);
-
-    return {
-        type: STORAGE.LOAD,
-        payload: {
+    try {
+        // Load state from database in parallel using Promise.all
+        const [
             suiteSettings,
-            walletSettings,
             devices,
             thp,
             bluetooth,
             accounts,
-            txs,
-            graph,
+            walletSettings,
             tradingTrades,
             historicRates,
-            sendFormDrafts,
-            formDrafts,
+            graph,
             analytics,
             metadata,
+            txs,
+            phishing,
+            phishingMetadata,
             messageSystem,
             backendSettings,
+            sendFormDrafts,
+            receive,
+            formDrafts,
             coinjoinAccounts,
             coinjoinDebugSettings,
             tokenManagement,
-            security,
-            bioAuth,
+            persistentDeviceData,
             connect,
             explorer,
+            bioAuth,
             firmware,
-        },
-    } as const;
+            suiteSyncSettings,
+            suiteSyncOwners,
+            suiteSyncQuotaManager,
+            featureFeedback,
+            discreetMode,
+            debug,
+        ] = await Promise.all([
+            db.getItemByPK('suiteSettings', 'suite'),
+            db.getItemsExtended('devices'),
+            db.getItemByPK('thp', 'value'),
+            db.getItemByPK('bluetooth', 'value'),
+            db.getItemsExtended('accounts'),
+            db.getItemByPK('walletSettings', 'wallet'),
+            db.getItemsExtended('tradingTrades'),
+            db.getItemsWithKeys('historicRates'),
+            db.getItemsExtended('graph'),
+            db.getItemByPK('analytics', 'suite'),
+            db.getItemByPK('metadata', 'state'),
+            db.getItemsExtended('txs', 'order'),
+            db.getItemsWithKeys('phishing'),
+            db.getItemByPK('phishingMetadata', 'phishingMetadata'),
+            db.getItemByPK('messageSystem', 'suite'),
+            db.getItemsWithKeys('backendSettings'),
+            db.getItemsWithKeys('sendFormDrafts'),
+            db.getItemsWithKeys('receive'),
+            db.getItemsWithKeys('formDrafts'),
+            db.getItemsExtended('coinjoinAccounts'),
+            db.getItemByPK('coinjoinDebugSettings', 'debug'),
+            db.getItemsWithKeys('tokenManagement'),
+            db.getItemByPK('persistentDeviceData', 'persistentDeviceData'),
+            db.getItemByPK('connect', 'connect'),
+            db.getItemsExtended('explorer'),
+            db.getItemByPK('bioAuth', 'bioAuth'),
+            db.getItemByPK('firmware', 'firmware'),
+            db.getItemByPK('suiteSyncSettings', 'suiteSyncSettings'),
+            db.getItemsWithKeys('suiteSyncOwners'),
+            db.getItemByPK('suiteSyncQuotaManager', 'suiteSyncQuotaManager'),
+            db.getItemByPK('featureFeedback', 'featureFeedback'),
+            db.getItemByPK('discreetMode', 'discreetMode'),
+            db.getItemByPK('debug', 'debug'),
+        ]);
+
+        return {
+            type: STORAGE.LOAD,
+            payload: {
+                suiteSettings,
+                walletSettings,
+                devices,
+                thp,
+                bluetooth,
+                accounts,
+                txs,
+                phishing,
+                phishingMetadata,
+                graph,
+                tradingTrades,
+                historicRates,
+                sendFormDrafts,
+                receive,
+                formDrafts,
+                analytics,
+                metadata,
+                messageSystem,
+                backendSettings,
+                coinjoinAccounts,
+                coinjoinDebugSettings,
+                tokenManagement,
+                persistentDeviceData,
+                bioAuth,
+                connect,
+                explorer,
+                firmware,
+                suiteSyncSettings,
+                suiteSyncOwners,
+                suiteSyncQuotaManager,
+                featureFeedback,
+                discreetMode,
+                debug,
+            },
+        } as const;
+    } catch (error) {
+        console.error(error); // Report the error to sentry instead of silently failing
+
+        return {
+            type: STORAGE.CORRUPTED,
+            payload: error.message,
+        } as const;
+    }
 };
 
 export type PreloadStoreAction = Awaited<ReturnType<typeof preloadStore>>;

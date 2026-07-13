@@ -1,24 +1,25 @@
 import styled from 'styled-components';
 
+import { HiddenPlaceholder } from '@suite/discreet-mode';
 import type { NetworkSymbol } from '@suite-common/wallet-config';
 import type { TokenAddress } from '@suite-common/wallet-types';
 import { typography } from '@trezor/theme';
 
-import { BaseCurrencyValue } from 'src/components/suite';
+import { BaseCurrencyValue } from 'src/components/suite/BaseCurrencyValue';
 
 import { LastUpdateTooltip } from './LastUpdateTooltip';
 import { NoRatesTooltip } from './NoRatesTooltip';
 
 const FiatRateWrapper = styled.span`
-    ${typography.callout}
+    ${typography['body-sm-strong']}
     display: flex;
     align-items: center;
-    color: ${({ theme }) => theme.textDefault};
+    color: ${({ theme }) => theme.contentPrimary};
 `;
 
 const Empty = styled.div`
-    ${typography.callout}
-    color: ${({ theme }) => theme.textSubdued};
+    ${typography['body-sm-strong']}
+    color: ${({ theme }) => theme.contentSecondary};
 `;
 
 interface PriceTickerProps {
@@ -37,25 +38,27 @@ export const PriceTicker = ({
     const emptyStateComponent = noEmptyStateTooltip ? <Empty>—</Empty> : <NoRatesTooltip />;
 
     return (
-        <BaseCurrencyValue
-            amount="1"
-            symbol={symbol}
-            tokenAddress={contractAddress}
-            showLoadingSkeleton={showLoadingSkeleton}
-            fiatRateFormatterOptions={{
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 4,
-            }}
-        >
-            {({ rate, timestamp }) =>
-                rate && timestamp ? (
-                    <LastUpdateTooltip timestamp={timestamp}>
-                        <FiatRateWrapper>{rate}</FiatRateWrapper>
-                    </LastUpdateTooltip>
-                ) : (
-                    emptyStateComponent
-                )
-            }
-        </BaseCurrencyValue>
+        <HiddenPlaceholder>
+            <BaseCurrencyValue
+                amount="1"
+                symbol={symbol}
+                tokenAddress={contractAddress}
+                showLoadingSkeleton={showLoadingSkeleton}
+                fiatRateFormatterOptions={{
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 4,
+                }}
+            >
+                {({ rate, timestamp }) =>
+                    rate && timestamp ? (
+                        <LastUpdateTooltip timestamp={timestamp}>
+                            <FiatRateWrapper>{rate}</FiatRateWrapper>
+                        </LastUpdateTooltip>
+                    ) : (
+                        emptyStateComponent
+                    )
+                }
+            </BaseCurrencyValue>
+        </HiddenPlaceholder>
     );
 };

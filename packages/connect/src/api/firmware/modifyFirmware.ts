@@ -1,6 +1,6 @@
+import type { Features } from '@trezor/connect-common';
+import { getFirmwareOrBootloaderVersionArray } from '@trezor/device-utils';
 import { versionUtils } from '@trezor/utils';
-
-import type { Features } from '../../types';
 
 /**
  * Returns whether TRZR header should be stripped from the firmware binary
@@ -17,10 +17,7 @@ export const shouldStripFwHeaders = (features: Features) => {
     // -----------------------
 
     // any version installed on bootloader 1.8.0 must be sliced of the first 256 bytes (containing old firmware header)
-    return versionUtils.isNewerOrEqual(
-        [features.major_version, features.minor_version, features.patch_version],
-        [1, 8, 0],
-    );
+    return versionUtils.isNewerOrEqual(getFirmwareOrBootloaderVersionArray(features), [1, 8, 0]);
 };
 
 /**

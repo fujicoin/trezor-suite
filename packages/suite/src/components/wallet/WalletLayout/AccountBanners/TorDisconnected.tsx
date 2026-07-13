@@ -1,11 +1,11 @@
+import { selectSelectedAccount } from '@suite/account';
+import { Translation } from '@suite/intl';
+import { selectModalType } from '@suite/modal';
+import { selectTorState } from '@suite/tor';
 import { Banner } from '@trezor/components';
 
 import { toggleTor } from 'src/actions/suite/suiteActions';
-import { Translation } from 'src/components/suite';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectModalType } from 'src/reducers/suite/modalReducer';
-import { selectSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
-import { selectTorState } from 'src/selectors/suite/suiteSelectors';
 
 export const TorDisconnected = () => {
     const account = useSelector(selectSelectedAccount);
@@ -19,7 +19,7 @@ export const TorDisconnected = () => {
 
     return (
         <Banner
-            variant="warning"
+            intent="warning"
             rightContent={
                 <Banner.Button onClick={handleButtonClick} isLoading={isTorLoading}>
                     {isTorLoading ? (
@@ -29,13 +29,14 @@ export const TorDisconnected = () => {
                     )}
                 </Banner.Button>
             }
-        >
-            <Translation
-                id="TR_TOR_REQUEST_ENABLE_FOR_COIN_JOIN_TITLE"
-                values={{
-                    b: chunks => <b>{chunks}</b>,
-                }}
-            />
-        </Banner>
+            description={
+                <Translation
+                    id="TR_TOR_REQUEST_ENABLE_FOR_COIN_JOIN_TITLE"
+                    values={{
+                        b: chunks => <b>{chunks}</b>,
+                    }}
+                />
+            }
+        />
     );
 };

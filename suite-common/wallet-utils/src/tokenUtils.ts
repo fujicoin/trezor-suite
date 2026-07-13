@@ -1,35 +1,67 @@
 import {
     type Explorer,
+    type NetworkSymbol,
     type NetworkSymbolExtended,
     type NetworkType,
     getExplorerUrl,
+    getNetworkType,
 } from '@suite-common/wallet-config';
-import { TokenInfo } from '@trezor/blockchain-link-types';
+import {
+    type EthereumSpecific,
+    type TokenInfo,
+    type TokenStandard,
+    type TokenTransfer,
+} from '@trezor/blockchain-link-types';
 import { parseAsset } from '@trezor/blockchain-link-utils/src/blockfrost';
+import stellar from '@trezor/coins-stellar/runtime';
 
 export const getContractAddressForNetworkSymbol = (
-    symbol: NetworkSymbolExtended, // unknown symbols will result to lowerCase
+    symbol: NetworkSymbolExtended,
     contractAddress: string,
 ) => {
-    switch (symbol) {
-        case 'eth':
-            // Specifying most common network as first case improves performance little bit
+    const networkType = getNetworkType(symbol.toLowerCase() as NetworkSymbol);
+
+    switch (networkType) {
+        case 'ethereum':
             return contractAddress.toLowerCase();
-        case 'sol':
-        case 'dsol':
-            return contractAddress;
-        case 'ada':
-        case 'tada': {
+        case 'cardano': {
             const { policyId } = parseAsset(contractAddress);
 
             return policyId.toLowerCase();
         }
-        case 'xlm':
-        case 'txlm':
-            return contractAddress;
         default:
-            return contractAddress.toLowerCase();
+            return contractAddress;
     }
+};
+
+export const getAssetLogoContractAddresses = async (
+    symbol: NetworkSymbolExtended | undefined,
+    contract: string | null | undefined,
+) => {
+    if (!contract || !symbol) return undefined;
+
+    if (symbol === 'ada') {
+        const policyId = getContractAddressForNetworkSymbol(symbol, contract);
+
+        return [policyId, contract];
+    }
+
+    // CoinGecko is gradually migrating Stellar token ids from the classic
+    // `CODE-ISSUER` form used at runtime to Soroban contract addresses. Once a
+    // token is migrated, its icon on the CDN is stored under the Soroban
+    // filename. Fall back to the locally-derived Soroban asset contract id so
+    // the icon is still reachable.
+    if (symbol === 'xlm') {
+        const { computeSorobanAssetContractId } = await stellar();
+        const { sorobanAssetContractId } = computeSorobanAssetContractId(contract);
+
+        // Keep the classic contract first until CoinGecko finishes the Stellar
+        // migration. Once Soroban ids become the primary CDN key, flip the
+        // order to reduce retries.
+        return [contract, sorobanAssetContractId];
+    }
+
+    return [getContractAddressForNetworkSymbol(symbol, contract)];
 };
 
 export const getTokenExplorerUrl = (
@@ -37,7 +69,7 @@ export const getTokenExplorerUrl = (
     networkType: NetworkType,
     token: Pick<TokenInfo, 'contract' | 'fingerprint'>,
 ) => {
-    const suffix = networkType === 'cardano' || networkType === 'stellar' ? 'token' : 'account';
+    const suffix = networkType === 'cardano' || networkType === 'stellar' ? 'token' : 'address';
     const explorerUrl = getExplorerUrl(explorer, suffix);
     const contractAddress = networkType === 'cardano' ? token.fingerprint : token.contract;
     const queryString = explorer.queryString ?? '';
@@ -54,9 +86,56 @@ export const getNftExplorerUrl = (explorer: Explorer, nft: TokenInfo, id: string
 };
 
 export const getNftContractExplorerUrl = (explorer: Explorer, nft: TokenInfo) => {
-    const explorerUrl = getExplorerUrl(explorer, 'account');
+    const explorerUrl = getExplorerUrl(explorer, 'address');
     const contractAddress = nft.contract;
     const queryString = explorer.queryString ?? '';
 
     return `${explorerUrl}${contractAddress}${queryString}`;
 };
+
+export const isTokenMatchesSearch = (token: TokenInfo, rawSearch: string) => {
+    const search = rawSearch.toLowerCase();
+
+    return (
+        token.symbol?.toLowerCase().includes(search) ||
+        token.name?.toLowerCase().includes(search) ||
+        token.contract.toLowerCase().includes(search) ||
+        token.fingerprint?.toLowerCase().includes(search) ||
+        token.policyId?.toLowerCase().includes(search)
+    );
+};
+
+export const isTokenTransferMatchesSearch = (token: TokenTransfer, search: string) =>
+    token.symbol?.toLowerCase().includes(search) ||
+    token.name?.toLowerCase().includes(search) ||
+    token.contract.toLowerCase().includes(search);
+
+export const isNftMatchesSearch = (token: TokenInfo, search: string) =>
+    token.symbol?.toLowerCase().includes(search) ||
+    token.name?.toLowerCase().includes(search) ||
+    token.contract?.toLowerCase().includes(search);
+
+export const isFunctionSelectorMatchesSearch = (evmSpecific: EthereumSpecific, search: string) => {
+    if (evmSpecific?.parsedData?.name.toLowerCase().includes(search.toLowerCase())) return true;
+
+    return false;
+};
+
+const PRESERVE_TOKEN_SYMBOL_CASE_STANDARDS: ReadonlySet<TokenStandard> = new Set([
+    'ERC20',
+    'ERC721',
+    'ERC1155',
+    'BEP20',
+    'BEP721',
+    'BEP1155',
+    'TRC10',
+    'TRC20',
+]);
+
+export const shouldUppercaseTokenSymbol = (token: TokenInfo) =>
+    token.standard ? !PRESERVE_TOKEN_SYMBOL_CASE_STANDARDS.has(token.standard) : true;
+
+export const isErc4626 = (token: TokenInfo) => !!token.protocols?.includes('erc4626');
+
+export const sortTokensByName = (a: Pick<TokenInfo, 'name'>, b: Pick<TokenInfo, 'name'>) =>
+    (a.name ?? '').localeCompare(b.name ?? '');

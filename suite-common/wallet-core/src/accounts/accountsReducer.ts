@@ -1,12 +1,12 @@
 import { isAnyOf } from '@reduxjs/toolkit';
 
+import { deviceActions } from '@suite-common/device';
 import { createReducerWithExtraDeps } from '@suite-common/redux-utils';
 import { networks } from '@suite-common/wallet-config';
-import { Account } from '@suite-common/wallet-types';
-import { accountEqualTo, enhanceHistory } from '@suite-common/wallet-utils';
+import { type Account } from '@suite-common/wallet-types';
+import { accountEqualTo, compareAccountsByCoin, enhanceHistory } from '@suite-common/wallet-utils';
 
 import { accountsActions } from './accountsActions';
-import { deviceActions } from '../device/deviceActions';
 
 export type AccountsState = Account[];
 
@@ -47,7 +47,11 @@ const update = (state: Account[], account: Account) => {
 const remove = (state: Account[], accounts: Account[]) => {
     accounts.forEach(a => {
         const index = state.findIndex(accountEqualTo(a));
-        state.splice(index, 1);
+        // a missing account yields index -1, and splice(-1, 1) would delete the
+        // last, unrelated account instead of being a no-op
+        if (index !== -1) {
+            state.splice(index, 1);
+        }
     });
 };
 
@@ -77,7 +81,16 @@ export const prepareAccountsReducer = createReducerWithExtraDeps(
                     console.warn('Duplicated account found, updating instead: ', account);
                     update(state, account);
                 } else {
-                    state.push(account);
+                    // Keep the state sorted by coin so that consumers get the canonical order for free.
+                    const insertAtIndex = state.findIndex(
+                        existingAccount => compareAccountsByCoin(account, existingAccount) < 0,
+                    );
+
+                    if (insertAtIndex === -1) {
+                        state.push(account);
+                    } else {
+                        state.splice(insertAtIndex, 0, account);
+                    }
                 }
             })
             .addCase(accountsActions.updateAccount, (state, action) => {
@@ -111,7 +124,7 @@ export const prepareAccountsReducer = createReducerWithExtraDeps(
             // Persistence of accounts and transactions in suite-native depends on device.remember state,
             // but redux-persist is not checking for changes in other reducers.
             // This is a workaround to update redux-persist state.
-            .addCase(deviceActions.rememberDevice, state => [...state])
+            .addCase(deviceActions.setRememberDevice, state => [...state])
             .addMatcher(isAnyOf(extra.actions.setAccountAddMetadata), (state, action) => {
                 const { payload } = action;
                 setMetadata(state, payload);

@@ -1,13 +1,11 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { type RouteProp, useRoute } from '@react-navigation/native';
 
-import { TradingType } from '@suite-common/trading';
-import { TradingStackParamList, TradingStackRoutes } from '@suite-native/navigation';
-
-import { tradingActions } from '../../reducers';
-import { selectEnabledTradingTypes } from '../../selectors/commonSelectors';
+import { type TradingTypeWithConcierge } from '@suite-common/trading';
+import { type TradingStackParamList, type TradingStackRoutes } from '@suite-native/navigation';
+import { selectEnabledTradingTypes, tradingActions } from '@suite-native/trading-state';
 
 export const useActiveTradingTypeReaction = () => {
     const dispatch = useDispatch();
@@ -16,12 +14,14 @@ export const useActiveTradingTypeReaction = () => {
     const tradingType = params?.tradingType;
 
     useEffect(() => {
-        let activeTradingType: TradingType = 'buy';
+        let activeTradingType: TradingTypeWithConcierge = 'buy';
 
         if (tradingType && enabledTradingTypes.includes(tradingType)) {
             activeTradingType = tradingType;
         } else if (enabledTradingTypes.length > 0) {
-            activeTradingType = enabledTradingTypes[0];
+            // @ts-expect-error: indexing with noUncheckedIndexedAccess
+            const first: TradingType = enabledTradingTypes[0];
+            activeTradingType = first;
         }
 
         dispatch(tradingActions.setActiveTradingType(activeTradingType));

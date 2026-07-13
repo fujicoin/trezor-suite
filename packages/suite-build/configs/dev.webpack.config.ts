@@ -16,10 +16,11 @@ const config: webpack.Configuration = {
     mode: 'development',
     watch: true,
     devtool: 'eval-source-map',
-    entry: ['webpack-plugin-serve/client'],
+    entry: { main: ['webpack-plugin-serve/client'] },
     output: {
         filename: 'js/[name].js',
-        chunkFilename: 'js/[id].js',
+        chunkFilename: ({ chunk = {} }) =>
+            chunk.id && /node_modules/.test(`${chunk.id}`) ? `js/vendor/[id].js` : 'js/[id].js',
     },
     watchOptions: {
         // reduce number of file watchers; for HMR it is not necessary to watch both source code & node_modules

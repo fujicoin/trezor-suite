@@ -1,14 +1,14 @@
-import { TrezorDevice } from '@suite-common/suite-types';
-import { cancelDiscoveryThunk, startDiscoveryThunk } from '@suite-common/wallet-core';
-import { DiscoveryStatus } from '@suite-common/wallet-types';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { cancelDiscoveryThunk, startAddWalletDiscoveryThunk } from '@suite-common/wallet-core';
+import { type DiscoveryStatus } from '@suite-common/wallet-types';
 import { Button, Column, H3, Text, Tooltip } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
-import { useDevice, useDispatch } from 'src/hooks/suite';
+import { useDispatch } from 'src/hooks/suite';
 import { CardWithDevice } from 'src/views/suite/SwitchDevice/CardWithDevice';
 import { SwitchDeviceModal } from 'src/views/suite/SwitchDevice/SwitchDeviceModal';
-
-import { Translation } from '../../../Translation';
 
 export const PassphraseMismatchModal = ({
     device,
@@ -25,11 +25,10 @@ export const PassphraseMismatchModal = ({
 
     const onStartOver = () => {
         dispatch(cancelDiscoveryThunk(device));
-
         dispatch(
-            startDiscoveryThunk({
+            startAddWalletDiscoveryThunk({
                 device,
-                isAddingHiddenWallet: discovery.isAddingHiddenWallet,
+                isAddingHiddenWallet: true,
                 isAddingExistingWallet: discovery.isAddingExistingWallet,
             }),
         );
@@ -39,10 +38,14 @@ export const PassphraseMismatchModal = ({
         <SwitchDeviceModal data-testid="@passphrase-mismatch">
             <CardWithDevice device={device}>
                 <Column gap={spacings.xs} margin={{ bottom: spacings.lg }}>
-                    <H3>
+                    <H3 data-testid="@passphrase-mismatch-header">
                         <Translation id="TR_PASSPHRASE_MISMATCH" />
                     </H3>
-                    <Text variant="tertiary">
+                    <Text
+                        data-testid="@passphrase-mismatch-description"
+                        intent="neutral"
+                        priority="secondary"
+                    >
                         <Translation id="TR_PASSPHRASE_MISMATCH_DESCRIPTION" />
                     </Text>
                 </Column>
@@ -51,10 +54,10 @@ export const PassphraseMismatchModal = ({
                     content={<Translation id="TR_SETTINGS_DEVICE_BANNER_TITLE_REMEMBERED" />}
                 >
                     <Button
-                        variant="primary"
+                        intent="brand"
                         onClick={onStartOver}
                         isDisabled={isDeviceLocked}
-                        isFullWidth
+                        width="100%"
                         data-testid="@passphrase-mismatch/start-over"
                     >
                         <Translation id="TR_PASSPHRASE_MISMATCH_START_OVER" />

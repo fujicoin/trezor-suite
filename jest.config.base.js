@@ -1,3 +1,5 @@
+const path = require('path');
+
 const babelConfig = {
     presets: [
         ['@babel/preset-env', { targets: { node: 'current' }, modules: 'commonjs' }],
@@ -36,7 +38,7 @@ module.exports = {
         '\\.(js|jsx|ts|tsx)$': ['babel-jest', babelConfig],
     },
 
-    transformIgnorePatterns: ['node_modules/?!(\\@noble)/'],
+    transformIgnorePatterns: ['node_modules/?!(uuid|react-intl|@formatjs/*|intl-messageformat)/'],
 
     // An array of regexp patterns that are matched against all source file paths before re-running tests in watch mode
     watchPathIgnorePatterns: ['libDev', 'lib'],
@@ -45,10 +47,10 @@ module.exports = {
     // to be considered 'visible' to the module loader
     modulePathIgnorePatterns: ['libDev'],
     moduleNameMapper: {
+        '^reselect$': path.resolve(__dirname, 'suite-native/test-utils/src/mocks/reselectMock.ts'),
         // Enforce usage of JS version of bcrypto in tests because on CI we don't build native modules because it's slowing yarn install
         '^bcrypto/lib/(.*)$': 'bcrypto/lib/$1-browser',
-        // Enforce usage of CommonJS version of uuid because ESM version is not working in Jest
-        '^uuid$': require.resolve('uuid'), // https://stackoverflow.com/questions/73203367/jest-syntaxerror-unexpected-token-export-with-uuid-library
         '^uint8array-tools$': require.resolve('uint8array-tools'), // same case as with uuid
+        '^usb$': '<rootDir>../../packages/transport/mocks/usb.js', // "usb" package causes memory leaks
     },
 };

@@ -1,32 +1,41 @@
+import { useEffect } from 'react';
+
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation, useTranslation } from '@suite/intl';
+import { selectLanguage } from '@suite/settings';
+import { useServices } from '@suite-common/dependency-injection';
 import { formInputsMaxLength } from '@suite-common/validators';
 import { getNetworkDisplaySymbol } from '@suite-common/wallet-config';
-import { useDisplayBaseCurrency } from '@suite-common/wallet-core';
-import { Output, TokenAddress } from '@suite-common/wallet-types';
+import { selectIsNetworkReserveEnabled } from '@suite-common/wallet-core';
+import { type Output, type TokenAddress } from '@suite-common/wallet-types';
 import {
     convertAmountUnitsToSubunits,
     findToken,
     formatNetworkAmount,
-    getInputState,
+    getNetworkReserve,
     hasNetworkFeatures,
     isLowAnonymityWarning,
 } from '@suite-common/wallet-utils';
 import type { BaseCurrencyCode } from '@trezor/blockchain-link-types';
 import { Banner, Flex, Icon, Row, Text } from '@trezor/components';
+import { ArrowsDownUpIcon, ArrowsLeftRightIcon } from '@trezor/icons';
 import { NumberInput } from '@trezor/product-components';
 import { spacings } from '@trezor/theme';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { BigNumber } from '@trezor/utils';
 
-import { BaseCurrencyValue, Translation } from 'src/components/suite';
-import { useLayoutSize, useSelector, useTranslation } from 'src/hooks/suite';
+import { BaseCurrencyValue } from 'src/components/suite';
+import { useLayoutSize, useSelector } from 'src/hooks/suite';
 import { useSendFormContext } from 'src/hooks/wallet';
 import { useBitcoinAmountUnit } from 'src/hooks/wallet/useBitcoinAmountUnit';
-import { selectIsDebugModeActive, selectLanguage } from 'src/selectors/suite/suiteSelectors';
 import {
     validateDecimals,
     validateInteger,
     validateMin,
+    validateNetworkReserve,
     validateReserveOrBalance,
 } from 'src/utils/suite/validation';
+import { getFeeInUnits } from 'src/utils/wallet/trading/tradingUtils';
+import { TradingNetworkReserveBanner } from 'src/views/wallet/trading/common/TradingForm/TradingNetworkReserveBanner';
 
 import { BaseCurrencyInput } from './BaseCurrencyInput';
 import { SendMaxSwitch } from './SendMaxSwitch';
@@ -38,34 +47,43 @@ interface AmountProps {
 
 export const Amount = ({ output, outputId }: AmountProps) => {
     const { translationString } = useTranslation();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const {
         account,
         network,
         feeInfo,
         control,
         getDefaultValue,
+        getValues,
         handleAmountChange,
         formState: { errors },
         setMax,
         composeTransaction,
         getCurrentFiatRate,
+        watch,
+        composedLevels,
+        showReserveBanner,
+        setShowReserveBanner,
     } = useSendFormContext();
     const { symbol, tokens } = account;
     const { shouldSendInSats } = useBitcoinAmountUnit(symbol);
     const { isBelowLaptop } = useLayoutSize();
-    const { shallDisplayBaseCurrency } = useDisplayBaseCurrency(symbol);
 
     const locale = useSelector(selectLanguage);
+    const isNetworkReserveEnabled = useSelector(selectIsNetworkReserveEnabled);
 
     const amountName = `outputs.${outputId}.amount` as const;
     const tokenInputName = `outputs.${outputId}.token`;
+    const currencyInputName = `outputs.${outputId}.currency` as const;
     const maxOutputId = getDefaultValue('setMaxOutputId');
-    const isSetMaxActive = maxOutputId === outputId;
+    const isSendMaxActive = maxOutputId === outputId;
     const outputError = errors.outputs ? errors.outputs[outputId] : undefined;
     const error = outputError ? outputError.amount : undefined;
 
+    const selectedBaseCurrency = watch(currencyInputName);
+
     // corner-case: do not display "setMax" button if FormState got ANY error (setMax probably cannot be calculated)
-    const isSetMaxVisible = isSetMaxActive && !error && !Object.keys(errors).length;
+    const isSendMaxVisible = isSendMaxActive && !error && !Object.keys(errors).length;
     const maxSwitchId = `outputs.${outputId}.setMax`;
 
     const amountValue = getDefaultValue(amountName, output.amount || '');
@@ -77,8 +95,8 @@ export const Amount = ({ output, outputId }: AmountProps) => {
         currencyCode: (output.currency?.value ?? '') as BaseCurrencyCode,
     });
 
-    const isWithBaseCurrency =
-        shallDisplayBaseCurrency && (!!currentRate?.rate || !!currentRate?.isLoading);
+    const showBaseCurrency = !!currentRate?.rate || !!currentRate?.isLoading;
+    const showTokenCurrency = selectedBaseCurrency.value !== symbol || !showBaseCurrency; // Show always at least one currency
 
     let decimals: number;
     if (token) {
@@ -89,21 +107,31 @@ export const Amount = ({ output, outputId }: AmountProps) => {
         decimals = network.decimals;
     }
 
-    const isDebugModeActive = useSelector(selectIsDebugModeActive);
-
-    const withTokens = hasNetworkFeatures(account, 'tokens', isDebugModeActive);
+    const withTokens = hasNetworkFeatures(account, 'tokens');
     const displayTicker = shouldSendInSats ? 'sat' : getNetworkDisplaySymbol(symbol);
     const isLowAnonymity = isLowAnonymityWarning(outputError);
-    const inputState = isLowAnonymity ? 'warning' : getInputState(error);
+    const hasError = !!error;
     const bottomText = isLowAnonymity ? undefined : error?.message;
 
     const handleInputChange = (value: string) => handleAmountChange({ outputId, value });
+
+    const feeInUnits = getFeeInUnits({
+        symbol: account.symbol,
+        composedLevels,
+        selectedFee: getValues().selectedFee,
+    });
+
+    const isNetworkReserveError = error?.type === 'networkReserve';
+
+    useEffect(() => {
+        setShowReserveBanner(isNetworkReserveError);
+    }, [isNetworkReserveError, setShowReserveBanner]);
 
     const cryptoAmountRules = {
         required: translationString('AMOUNT_IS_NOT_SET'),
         validate: {
             // allow 0 amount ONLY for ethereum transaction with data
-            min: validateMin(translationString, { except: !!getDefaultValue('ethereumDataHex') }),
+            min: validateMin(translationString, { except: !!getDefaultValue('transactionData') }),
             integer: validateInteger(translationString, { except: !shouldSendInSats }),
             decimals: validateDecimals(translationString, { decimals }),
             dust: (value: string) => {
@@ -130,19 +158,40 @@ export const Amount = ({ output, outputId }: AmountProps) => {
                 areSatsUsed: !!shouldSendInSats,
                 contractAddress: tokenValue,
             }),
+            networkReserve: isNetworkReserveEnabled
+                ? validateNetworkReserve(translationString, {
+                      reserve: getNetworkReserve({
+                          symbol: account.symbol,
+                          contractAddress: tokenValue,
+                          isEnabled: isNetworkReserveEnabled,
+                      }),
+                      balance: account.formattedBalance,
+                      fee: feeInUnits?.toString(),
+                  })
+                : () => undefined,
         },
     };
 
     const onSwitchChange = () => {
+        if (!isSendMaxActive) {
+            analytics.report({
+                type: events.appFormPercentButtonsEvent.name,
+                payload: { type: 'send', value: 'max' },
+            });
+        }
         const clearInput = network.networkType === 'solana';
 
-        setMax(outputId, isSetMaxActive, clearInput);
+        setMax(outputId, isSendMaxActive, clearInput);
         composeTransaction(amountName);
+
+        if (isSendMaxActive) {
+            setShowReserveBanner(false);
+        }
     };
 
     const sendMaxSwitch = (
         <SendMaxSwitch
-            isSetMaxActive={isSetMaxActive}
+            isSendMaxActive={isSendMaxActive}
             data-testid={maxSwitchId}
             onChange={onSwitchChange}
         />
@@ -155,49 +204,63 @@ export const Amount = ({ output, outputId }: AmountProps) => {
                 alignItems={isBelowLaptop ? 'center' : 'normal'}
                 gap={spacings.sm}
             >
-                <NumberInput
-                    inputState={inputState}
-                    locale={locale}
-                    labelHoverRight={
-                        !isSetMaxVisible && (!isWithBaseCurrency || isBelowLaptop) && sendMaxSwitch
-                    }
-                    labelRight={
-                        isSetMaxVisible && (!isWithBaseCurrency || isBelowLaptop) && sendMaxSwitch
-                    }
-                    labelLeft={
-                        <Row>
-                            <Translation id="AMOUNT" />
-                        </Row>
-                    }
-                    bottomText={bottomText || null}
-                    onChange={handleInputChange}
-                    name={amountName}
-                    data-testid={amountName}
-                    defaultValue={amountValue}
-                    maxLength={formInputsMaxLength.amount}
-                    rules={cryptoAmountRules}
-                    control={control}
-                    innerAddon={
-                        <Text variant="tertiary">
-                            {withTokens && token ? token?.symbol?.toUpperCase() : displayTicker}
-                        </Text>
-                    }
-                />
+                {showTokenCurrency && (
+                    <NumberInput
+                        hasError={hasError}
+                        locale={locale}
+                        labelHoverRight={
+                            !isSendMaxVisible &&
+                            (!showBaseCurrency || isBelowLaptop) &&
+                            sendMaxSwitch
+                        }
+                        labelRight={
+                            isSendMaxVisible &&
+                            (!showBaseCurrency || isBelowLaptop) &&
+                            sendMaxSwitch
+                        }
+                        labelLeft={
+                            <Row>
+                                <Translation id="AMOUNT" />
+                            </Row>
+                        }
+                        bottomText={bottomText || null}
+                        onChange={handleInputChange}
+                        name={amountName}
+                        data-testid={amountName}
+                        defaultValue={amountValue}
+                        maxLength={formInputsMaxLength.amount}
+                        rules={cryptoAmountRules}
+                        control={control}
+                        rightContent={
+                            <Text intent="neutral" priority="secondary">
+                                {withTokens && token ? token?.symbol : displayTicker}
+                            </Text>
+                        }
+                    />
+                )}
 
-                {isWithBaseCurrency && (
+                {showBaseCurrency && (
                     <BaseCurrencyValue amount="1" symbol={symbol}>
                         {({ rate }) =>
                             rate && (
                                 <>
-                                    <Icon
-                                        name={isBelowLaptop ? 'arrowsDownUp' : 'arrowsLeftRight'}
-                                        size={20}
-                                        variant="tertiary"
-                                        margin={{ top: isBelowLaptop ? 0 : spacings.xxxxl }}
-                                    />
+                                    {showTokenCurrency && (
+                                        <Icon
+                                            as={
+                                                isBelowLaptop
+                                                    ? ArrowsDownUpIcon
+                                                    : ArrowsLeftRightIcon
+                                            }
+                                            size={20}
+                                            intent="neutral"
+                                            priority="secondary"
+                                            margin={{ top: isBelowLaptop ? 0 : spacings.xxxxl }}
+                                        />
+                                    )}
                                     <BaseCurrencyInput
                                         output={output}
                                         outputId={outputId}
+                                        isSendMaxActive={isSendMaxActive}
                                         // To fix alignment with the other input
                                         labelLeft={isBelowLaptop ? undefined : <>&nbsp;</>}
                                         labelRight={!isBelowLaptop && sendMaxSwitch}
@@ -209,10 +272,19 @@ export const Amount = ({ output, outputId }: AmountProps) => {
                 )}
             </Flex>
 
+            {showReserveBanner && (
+                <TradingNetworkReserveBanner
+                    symbol={network.symbol}
+                    contractAddress={tokenValue ?? undefined}
+                />
+            )}
+
             {isLowAnonymity && (
-                <Banner icon margin={{ top: spacings.sm }}>
-                    <Translation id="TR_NOT_ENOUGH_ANONYMIZED_FUNDS_WARNING" />
-                </Banner>
+                <Banner
+                    icon
+                    margin={{ top: spacings.sm }}
+                    description={<Translation id="TR_NOT_ENOUGH_ANONYMIZED_FUNDS_WARNING" />}
+                />
             )}
         </>
     );

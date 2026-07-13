@@ -1,44 +1,45 @@
 import { useIntl } from 'react-intl';
 
-import { selectSelectedDevice } from '@suite-common/wallet-core';
-import TrezorConnect, { UI } from '@trezor/connect';
+import { selectSelectedAccount } from '@suite/account';
+import { messages } from '@suite/intl';
+import { type MODAL_CONTEXT_DEVICE } from '@suite/modal';
+import { selectSelectedDevice } from '@suite-common/device';
+import TrezorConnect, { UI_REQUEST } from '@trezor/connect';
 
-import { MODAL } from 'src/actions/suite/constants';
-import {
-    ConfirmActionModal,
-    ConfirmAddressModal,
-    ConfirmFingerprintModal,
-    ConfirmXpubModal,
-    PassphraseOnDeviceModal,
-    PinModal,
-    TransactionReviewModal,
-} from 'src/components/suite/modals';
 import { useSelector } from 'src/hooks/suite';
-import { selectSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
-import messages from 'src/support/messages';
 
-import type { ReduxModalProps } from '../ReduxModal';
+import { ConfirmActionModal } from './ConfirmActionModal';
+import { ConfirmFingerprintModal } from './ConfirmFingerprintModal';
+import { ConfirmPassphraseBeforeAction } from './ConfirmPassphraseBeforeAction';
+import { PassphraseOnDeviceModal } from './PassphraseOnDeviceModal';
+import { PinModal } from './PinModal';
 import { SignMessageModal } from './SignMessageModal';
+import { ConfirmAddressModal } from '../ConfirmAddressModal';
+import { ConfirmXpubModal } from '../ConfirmXpubModal';
+import type { ReduxModalProps } from '../ReduxModalProps';
+import { TransactionReviewModal } from '../TransactionReviewModal/TransactionReviewModal';
 
 /** Modals requested by Device from `trezor-connect` */
 export const DeviceContextModal = ({
     windowType,
     data,
-}: ReduxModalProps<typeof MODAL.CONTEXT_DEVICE>) => {
+}: ReduxModalProps<typeof MODAL_CONTEXT_DEVICE>) => {
     const device = useSelector(selectSelectedDevice);
     const intl = useIntl();
     const selectedAccount = useSelector(selectSelectedAccount);
 
     if (!device) return null;
-    const abort = () => TrezorConnect.cancel(intl.formatMessage(messages.TR_CANCELLED));
+    const abort = () => TrezorConnect.cancel({ reason: intl.formatMessage(messages.TR_CANCELLED) });
 
     switch (windowType) {
         // T1B1 firmware
-        case UI.REQUEST_PIN:
-        case UI.INVALID_PIN:
+        case UI_REQUEST.REQUEST_PIN:
+        case UI_REQUEST.INVALID_PIN:
             return <PinModal device={device} />;
+        case UI_REQUEST.REQUEST_PASSPHRASE:
+            return <ConfirmPassphraseBeforeAction />;
         // T2T1 firmware
-        case UI.REQUEST_PASSPHRASE_ON_DEVICE:
+        case UI_REQUEST.REQUEST_PASSPHRASE_ON_DEVICE:
         case 'ButtonRequest_PassphraseEntry':
             return <PassphraseOnDeviceModal device={device} />;
         case 'ButtonRequest_ConfirmOutput':

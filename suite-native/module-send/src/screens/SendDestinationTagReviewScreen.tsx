@@ -1,20 +1,27 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useSelector } from 'react-redux';
 
 import { useFocusEffect } from '@react-navigation/native';
 
-import { AccountsRootState, DeviceRootState, SendRootState } from '@suite-common/wallet-core';
 import { Text, VStack } from '@suite-native/atoms';
-import { ConfirmOnTrezorWrapper } from '@suite-native/device';
+import {
+    ConfirmOnTrezorWrapper,
+    useConfirmOnTrezorController,
+} from '@suite-native/confirm-on-trezor';
 import { Translation } from '@suite-native/intl';
-import { SendStackParamList, SendStackRoutes, StackProps } from '@suite-native/navigation';
+import {
+    type SendStackParamList,
+    SendStackRoutes,
+    type StackProps,
+} from '@suite-native/navigation';
+import {
+    type TransactionReviewOutputsState,
+    selectIsDestinationTagOutputConfirmed,
+    selectIsTransactionReviewInProgress,
+} from '@suite-native/transaction-management';
 
 import { ReviewDestinationTagCard } from '../components/ReviewDestinationTagCard';
 import { useHandleOnDeviceTransactionReview } from '../hooks/useHandleOnDeviceTransactionReview';
-import {
-    selectIsDestinationTagOutputConfirmed,
-    selectIsTransactionReviewInProgress,
-} from '../selectors';
 
 export const SendDestinationTagReviewScreen = ({
     route,
@@ -23,13 +30,13 @@ export const SendDestinationTagReviewScreen = ({
     const { accountKey, tokenContract, destinationTag, transaction } = route.params;
     const [hasReviewAlreadyStarted, setHasReviewAlreadyStarted] = useState(false);
 
-    const isTransactionReviewInProgress = useSelector(
-        (state: AccountsRootState & DeviceRootState & SendRootState) =>
-            selectIsTransactionReviewInProgress(state, accountKey, tokenContract),
+    const { confirmOnTrezorRef, currentHeaderHeight } = useConfirmOnTrezorController();
+
+    const isTransactionReviewInProgress = useSelector((state: TransactionReviewOutputsState) =>
+        selectIsTransactionReviewInProgress(state, 'send', accountKey, tokenContract),
     );
-    const isDestinationTagConfirmed = useSelector(
-        (state: AccountsRootState & DeviceRootState & SendRootState) =>
-            selectIsDestinationTagOutputConfirmed(state, accountKey, tokenContract),
+    const isDestinationTagConfirmed = useSelector((state: TransactionReviewOutputsState) =>
+        selectIsDestinationTagOutputConfirmed(state, 'send', accountKey, tokenContract),
     );
 
     const handleOnDeviceTransactionReview = useHandleOnDeviceTransactionReview({
@@ -51,20 +58,34 @@ export const SendDestinationTagReviewScreen = ({
         ]),
     );
 
-    useEffect(() => {
-        if (isDestinationTagConfirmed) {
-            navigation.navigate(SendStackRoutes.SendAddressReview, {
-                accountKey,
-                tokenContract,
-                transaction,
-            });
-        }
-    }, [isDestinationTagConfirmed, accountKey, navigation, tokenContract, transaction]);
+    useFocusEffect(
+        useCallback(() => {
+            if (isDestinationTagConfirmed) {
+                navigation.navigate(SendStackRoutes.SendAddressReview, {
+                    accountKey,
+                    tokenContract,
+                    transaction,
+                    prevHeaderHeight: currentHeaderHeight,
+                    initialSnapIndex: currentHeaderHeight ? 1 : undefined,
+                });
+            }
+        }, [
+            accountKey,
+            currentHeaderHeight,
+            isDestinationTagConfirmed,
+            navigation,
+            tokenContract,
+            transaction,
+        ]),
+    );
 
     return (
-        <ConfirmOnTrezorWrapper closeActionType={isTransactionReviewInProgress ? 'close' : 'back'}>
+        <ConfirmOnTrezorWrapper
+            controlRef={confirmOnTrezorRef}
+            closeActionType={isTransactionReviewInProgress ? 'close' : 'back'}
+        >
             <VStack flex={1} spacing="sp24" marginTop="sp16">
-                <Text variant="titleSmall">
+                <Text variant="headline-sm">
                     <Translation id="moduleSend.review.destinationTagTitle" />
                 </Text>
                 <ReviewDestinationTagCard destinationTag={destinationTag} />

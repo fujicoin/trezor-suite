@@ -1,4 +1,4 @@
-import { ALGORITHM_IDS } from '../../src/constants/cardano';
+import { ALGORITHM_IDS } from '@trezor/connect-common/src/constants/cardano';
 
 const legacyResults = {
     beforeMessageSigning: {
@@ -23,6 +23,7 @@ const HELLO_TREZOR_86 = '48656c6c6f5472657a6f7221'.repeat(86);
 
 export default {
     method: 'cardanoSignMessage',
+    enabledCoins: ['ada'] as const,
     setup: {
         mnemonic: 'mnemonic_all',
     },

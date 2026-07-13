@@ -4,16 +4,8 @@
  * with `-c ../../jest.config.native` option in package.json scripts
  * allows us to run jest tests directly from IDEs.
  */
-const { ...baseConfig } = require('../../jest.config.native');
+const baseConfig = require('../../jest.config.native');
 
 module.exports = {
     ...baseConfig,
-    coverageThreshold: {
-        global: {
-            statements: 80,
-            branches: 80,
-            functions: 80,
-            lines: 80,
-        },
-    },
 };

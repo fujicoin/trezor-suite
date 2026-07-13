@@ -1,11 +1,14 @@
 import { useCallback, useState } from 'react';
 
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { useServices } from '@suite-common/dependency-injection';
 import { Card, Column, H3, Modal, Paragraph, Tooltip } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { StarFourIcon } from '@trezor/icons';
 import { desktopApi } from '@trezor/suite-desktop-api';
 import { spacings } from '@trezor/theme';
 
-import { CheckItem, Translation } from 'src/components/suite';
+import { CheckItem } from 'src/components/suite';
 
 interface EarlyAccessEnableProps {
     hideWindow: () => void;
@@ -14,24 +17,24 @@ interface EarlyAccessEnableProps {
 export const EarlyAccessEnable = ({ hideWindow }: EarlyAccessEnableProps) => {
     const [understood, setUnderstood] = useState(false);
     const [enabled, setEnabled] = useState(false);
-
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const allowPrerelease = useCallback(() => {
         analytics.report({
-            type: EventType.SettingsGeneralEarlyAccess,
+            type: events.settingsGeneralEarlyAccessEvent.name,
             payload: {
                 allowPrerelease: true,
             },
         });
         desktopApi.allowPrerelease(true);
         setEnabled(true);
-    }, []);
+    }, [analytics]);
 
     const checkForUpdates = useCallback(() => desktopApi.checkForUpdates({ isManual: true }), []);
 
     return enabled ? (
         <Modal
-            iconName="starFour"
-            variant="info"
+            icon={StarFourIcon}
+            intent="info"
             onCancel={hideWindow}
             bottomContent={
                 <>
@@ -40,7 +43,8 @@ export const EarlyAccessEnable = ({ hideWindow }: EarlyAccessEnableProps) => {
                     </Modal.Button>
                     <Modal.Button
                         onClick={hideWindow}
-                        variant="tertiary"
+                        intent="neutral"
+                        priority="secondary"
                         data-testid="@settings/early-access-skip-button"
                     >
                         <Translation id="TR_EARLY_ACCESS_SKIP_CHECK" />
@@ -52,15 +56,15 @@ export const EarlyAccessEnable = ({ hideWindow }: EarlyAccessEnableProps) => {
                 <H3>
                     <Translation id="TR_EARLY_ACCESS_JOINED_TITLE" />
                 </H3>
-                <Paragraph variant="tertiary" typographyStyle="hint">
+                <Paragraph intent="neutral" priority="secondary" typographyStyle="body-sm">
                     <Translation id="TR_EARLY_ACCESS_JOINED_DESCRIPTION" />
                 </Paragraph>
             </Column>
         </Modal>
     ) : (
         <Modal
-            iconName="starFour"
-            variant="info"
+            icon={StarFourIcon}
+            intent="info"
             onCancel={hideWindow}
             bottomContent={
                 <>
@@ -80,7 +84,7 @@ export const EarlyAccessEnable = ({ hideWindow }: EarlyAccessEnableProps) => {
                             <Translation id="TR_EARLY_ACCESS_ENABLE_CONFIRM" />
                         </Modal.Button>
                     </Tooltip>
-                    <Modal.Button variant="tertiary" onClick={hideWindow}>
+                    <Modal.Button intent="neutral" priority="secondary" onClick={hideWindow}>
                         <Translation id="TR_CANCEL" />
                     </Modal.Button>
                 </>
@@ -90,7 +94,7 @@ export const EarlyAccessEnable = ({ hideWindow }: EarlyAccessEnableProps) => {
                 <H3>
                     <Translation id="TR_EARLY_ACCESS" />
                 </H3>
-                <Paragraph variant="tertiary" typographyStyle="hint">
+                <Paragraph intent="neutral" priority="secondary" typographyStyle="body-sm">
                     <Translation id="TR_EARLY_ACCESS_ENABLE_CONFIRM_TITLE" />
                     <br />
                     <Translation id="TR_EARLY_ACCESS_ENABLE_CONFIRM_DESCRIPTION" />

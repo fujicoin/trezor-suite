@@ -1,29 +1,40 @@
+import { closeModal, openDeferredModal, openModal, preserveModal } from '@suite/modal';
+import { selectSelectedDevice } from '@suite-common/device';
+import { selectIsMevProtectionFeatureEnabled } from '@suite-common/mev';
+import { EarnFlow } from '@suite-common/suite-types/src/staking';
 import { notificationsActions } from '@suite-common/toast-notifications';
 import {
-    ComposeActionContext,
+    addFakePendingCardanoTxThunk,
     replaceTransactionThunk,
     selectIsMevProtectionEnabled,
-    selectIsMevProtectionFeatureEnabled,
-    selectSelectedDevice,
     stakeActions,
     syncAccountsWithBlockchainThunk,
 } from '@suite-common/wallet-core';
-import { PrecomposedTransactionFinal, StakeFormState, StakeType } from '@suite-common/wallet-types';
+import {
+    type Account,
+    type ComposeActionContext,
+    type PrecomposedTransactionFinal,
+    type StakeFormState,
+    type StakeType,
+    type WalletAccountTransaction,
+} from '@suite-common/wallet-types';
 import {
     formatNetworkAmount,
     getMevProtectedTxData,
     isRbfBumpFeeTransaction,
+    isSupportedAdaStakingNetworkSymbol,
     isSupportedEthStakingNetworkSymbol,
     isSupportedSolStakingNetworkSymbol,
     tryGetAccountIdentity,
 } from '@suite-common/wallet-utils';
-import TrezorConnect, { Unsuccessful } from '@trezor/connect';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import TrezorConnect from '@trezor/connect';
+import { type SerializedError } from '@trezor/connect-common/src/constants/errors';
+import { type Err } from '@trezor/type-utils';
+import { BigNumber } from '@trezor/utils';
 
-import { Dispatch, GetState } from 'src/types/suite';
+import { type Dispatch, type GetState } from 'src/types/suite';
 
-import * as modalActions from '../suite/modalActions';
-import { openModal } from '../suite/modalActions';
+import * as stakeFormCardanoActions from './stake/stakeFormCardanoActions';
 import * as stakeFormEthereumActions from './stake/stakeFormEthereumActions';
 import * as stakeFormSolanaActions from './stake/stakeFormSolanaActions';
 
@@ -39,28 +50,40 @@ export const composeTransaction =
             return dispatch(stakeFormSolanaActions.composeTransaction(formValues, formState));
         }
 
+        if (isSupportedAdaStakingNetworkSymbol(account.symbol)) {
+            return dispatch(stakeFormCardanoActions.composeTransaction(formValues, formState));
+        }
+
         return Promise.resolve(undefined);
     };
 
 // this could be called at any time during signTransaction or pushTransaction process (from TransactionReviewModal)
-export const cancelSignTx = (isSuccessTx?: boolean) => (dispatch: Dispatch, getState: GetState) => {
-    const { serializedTx, precomposedForm } = getState().wallet.stake;
-    dispatch(stakeActions.requestSignTransaction());
-    dispatch(stakeActions.requestPushTransaction());
-    // if transaction is not signed yet interrupt signing in TrezorConnect
-    if (!serializedTx) {
-        TrezorConnect.cancel('tx-cancelled');
+export const cancelSignTx =
+    (isSuccessTx?: boolean, account?: Account) => (dispatch: Dispatch, getState: GetState) => {
+        const { serializedTx, precomposedForm } = getState().wallet.stake;
+        dispatch(stakeActions.requestSignTransaction());
+        dispatch(stakeActions.requestPushTransaction());
+        // if transaction is not signed yet interrupt signing in TrezorConnect
+        if (!serializedTx) {
+            TrezorConnect.cancel({ reason: 'tx-cancelled' });
 
-        return;
-    }
-    // otherwise just close modal and open stake modal
-    dispatch(modalActions.onCancel());
+            return;
+        }
+        // otherwise just close modal and open stake modal
+        dispatch(closeModal());
 
-    const { stakeType } = precomposedForm ?? {};
-    if (stakeType && !isSuccessTx) {
-        dispatch(openModal({ type: stakeType }));
-    }
-};
+        const { stakeType } = precomposedForm ?? {};
+        if (account && stakeType && !isSuccessTx) {
+            switch (stakeType) {
+                case 'stake':
+                    dispatch(openModal({ type: stakeType, flow: EarnFlow.Stake, account }));
+                    break;
+
+                default:
+                    dispatch(openModal({ type: stakeType, account }));
+            }
+        }
+    };
 
 // private, called from signTransaction only
 const pushTransaction =
@@ -76,8 +99,7 @@ const pushTransaction =
         const txData = getMevProtectedTxData(
             serializedTx.symbol,
             serializedTx.tx,
-            isMevProtectionEnabled,
-            isMevProtectionFeatureEnabled,
+            isMevProtectionEnabled && isMevProtectionFeatureEnabled,
         );
 
         const sentTx = await TrezorConnect.pushTransaction({
@@ -87,7 +109,7 @@ const pushTransaction =
         });
 
         // close modal regardless result
-        dispatch(modalActions.onCancel());
+        dispatch(closeModal());
 
         const spentWithoutFee = new BigNumber(precomposedTx.totalSpent)
             .minus(precomposedTx.fee)
@@ -143,6 +165,35 @@ const pushTransaction =
                 );
             }
 
+            if (account.networkType === 'cardano') {
+                const base = { withdrawal: undefined, deposit: undefined };
+                let cardanoSpecific: WalletAccountTransaction['cardanoSpecific'];
+
+                switch (stakeType) {
+                    case 'stake':
+                        cardanoSpecific = { ...base, subtype: 'stake_registration' };
+                        break;
+                    case 'change-delegate':
+                        cardanoSpecific = { ...base, subtype: 'governance_delegation' };
+                        break;
+                    case 'unstake':
+                        cardanoSpecific = { ...base, subtype: 'stake_deregistration' };
+                        break;
+                    case 'claim':
+                        cardanoSpecific = { ...base, subtype: 'withdrawal' };
+                        break;
+                }
+
+                dispatch(
+                    addFakePendingCardanoTxThunk({
+                        precomposedTransaction: precomposedTx,
+                        txid,
+                        account,
+                        cardanoSpecific,
+                    }),
+                );
+            }
+
             // notification from the backend may be delayed.
             // modify affected account balance.
             // TODO: make it work with ETH accounts
@@ -154,12 +205,12 @@ const pushTransaction =
             dispatch(
                 notificationsActions.addToast({
                     type: 'sign-tx-error',
-                    error: sentTx.payload.error,
+                    error: sentTx.error.message,
                 }),
             );
         }
 
-        dispatch(cancelSignTx(sentTx.success));
+        dispatch(cancelSignTx(sentTx.success, account));
 
         // resolve sign process
         return sentTx;
@@ -187,11 +238,11 @@ export const signTransaction =
 
         // TransactionReviewModal has 2 steps: signing and pushing
         // TrezorConnect emits UI.CLOSE_UI.WINDOW after the signing process
-        // this action is blocked by modalActions.preserve()
-        dispatch(modalActions.preserve());
+        // this action is blocked by preserveModal()
+        dispatch(preserveModal());
 
         // signTransaction by Trezor
-        let serializedTx: undefined | string | Unsuccessful;
+        let serializedTx: undefined | string | Err<SerializedError>;
         if (isSupportedEthStakingNetworkSymbol(account.symbol)) {
             serializedTx = await dispatch(
                 stakeFormEthereumActions.signTransaction(formValues, enhancedTxInfo),
@@ -204,16 +255,29 @@ export const signTransaction =
             );
         }
 
+        if (isSupportedAdaStakingNetworkSymbol(account.symbol)) {
+            serializedTx = await dispatch(
+                stakeFormCardanoActions.signTransaction(formValues, enhancedTxInfo),
+            );
+        }
+
         if (typeof serializedTx !== 'string') {
-            if (serializedTx?.payload?.error === 'tx-timeout') {
+            if (serializedTx?.error?.message === 'tx-timeout') {
                 return;
             }
             // close modal manually since UI.CLOSE_UI.WINDOW was blocked
-            dispatch(modalActions.onCancel());
+            dispatch(closeModal());
 
             const { stakeType } = formValues;
             if (stakeType) {
-                dispatch(openModal({ type: stakeType }));
+                switch (stakeType) {
+                    case 'stake':
+                        dispatch(openModal({ type: stakeType, flow: EarnFlow.Stake, account }));
+                        break;
+
+                    default:
+                        dispatch(openModal({ type: stakeType, account }));
+                }
             }
 
             return;
@@ -227,10 +291,12 @@ export const signTransaction =
             }),
         );
 
+        if (account?.networkType === 'cardano') {
+            return dispatch(pushTransaction(formValues.stakeType));
+        }
+
         // Open a deferred modal and get the decision
-        const decision = await dispatch(
-            modalActions.openDeferredModal({ type: 'review-transaction' }),
-        );
+        const decision = await dispatch(openDeferredModal({ type: 'review-transaction' }));
         if (decision) {
             // push tx to the network
             return dispatch(pushTransaction(formValues.stakeType));

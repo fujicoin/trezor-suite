@@ -1,3 +1,8 @@
+import { type EthValidatorsQueue } from '@suite-common/earn-staking-api';
+import { DAYS_TO_ADD_TO_POOL_DEFAULT } from '@suite-common/wallet-constants';
+
+import { ETH_NETWORK_ADDRESSES } from '../constants/ethereumNetworkAddresses';
+
 export const transformTxFixtures = [
     {
         description:
@@ -6,7 +11,7 @@ export const transformTxFixtures = [
             data: '0x3a29dbae0000000000000000000000000000000000000000000000000000000000000001',
             from: '0xCe66A9577F4e2589c1D1547B75B7A2b0807cE0ed',
             gasLimit: 416102,
-            to: '0xAFA848357154a6a624686b348303EF9a13F63264',
+            to: ETH_NETWORK_ADDRESSES.hoodi.addressContractPool,
             value: '122222000000000000',
         },
         gasPrice: '50',
@@ -18,7 +23,7 @@ export const transformTxFixtures = [
             gasPrice: '0xba43b7400',
             nonce: '0x1a',
             chainId: 1,
-            to: '0xAFA848357154a6a624686b348303EF9a13F63264',
+            to: ETH_NETWORK_ADDRESSES.hoodi.addressContractPool,
             value: '0x1b23842edbce000',
         },
     },
@@ -29,7 +34,7 @@ export const transformTxFixtures = [
             data: '0x3a29dbae0000000000000000000000000000000000000000000000000000000000000001',
             from: '0xCe66A9577F4e2589c1D1547B75B7A2b0807cE0ed',
             gasLimit: 300000,
-            to: '0xAFA848357154a6a624686b348303EF9a13F63264',
+            to: ETH_NETWORK_ADDRESSES.hoodi.addressContractPool,
             value: '10000',
         },
         gasPrice: '1',
@@ -41,7 +46,7 @@ export const transformTxFixtures = [
             gasPrice: '0x3b9aca00',
             nonce: '0x1',
             chainId: 1,
-            to: '0xAFA848357154a6a624686b348303EF9a13F63264',
+            to: ETH_NETWORK_ADDRESSES.hoodi.addressContractPool,
             value: '0x2710',
         },
     },
@@ -66,7 +71,7 @@ export const stakeFixture = [
             data: '0x3a29dbae0000000000000000000000000000000000000000000000000000000000000001',
             from: '0xfB0bc552ab5Fa1971E8530852753c957e29eEEFC',
             gasLimit: 241000, // 21000 + 220000 (reserve)
-            to: '0xD523794C879D9eC028960a231F866758e405bE34',
+            to: ETH_NETWORK_ADDRESSES.mainnet.addressContractPool,
             value: '100000000000000000', // wei
         },
     },
@@ -88,7 +93,7 @@ export const stakeFixture = [
             data: '0x3a29dbae0000000000000000000000000000000000000000000000000000000000000001',
             from: '0xfB0bc552ab5Fa1971E8530852753c957e29eEEFC',
             gasLimit: 220000, // GAS_RESERVE = 220000
-            to: '0xD523794C879D9eC028960a231F866758e405bE34',
+            to: ETH_NETWORK_ADDRESSES.mainnet.addressContractPool,
             value: '100000000000000000', // wei
         },
     },
@@ -109,10 +114,10 @@ export const stakeFailedFixture = [
                 levels: [{ feeLimit: '21000' }],
             },
         },
-        result: 'Min amount 0.1 ETH',
+        result: 'Min amount 0.01 ETH',
     },
     {
-        description: 'should throw an error when fee estimation is failed',
+        description: 'should throw an error when fee estimation is errored',
         args: {
             from: '0xfB0bc552ab5Fa1971E8530852753c957e29eEEFC',
             amount: '0.1',
@@ -121,8 +126,8 @@ export const stakeFailedFixture = [
         },
         estimatedFee: {
             success: false,
-            payload: {
-                error: 'Estimated fee error',
+            error: {
+                message: 'Estimated fee error',
             },
         },
         result: 'Estimated fee error',
@@ -162,7 +167,7 @@ export const unstakeFixture = [
             data: '0x76ec871c000000000000000000000000000000000000000000000000016345785d8a000000000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000001',
             from: '0xfB0bc552ab5Fa1971E8530852753c957e29eEEFC',
             gasLimit: 241000, // 21000 + 220000
-            to: '0xD523794C879D9eC028960a231F866758e405bE34',
+            to: ETH_NETWORK_ADDRESSES.mainnet.addressContractPool,
             value: '0', // wei
         },
     },
@@ -170,7 +175,7 @@ export const unstakeFixture = [
 
 export const unstakeFailedFixture = [
     {
-        description: 'should throw an error when account info is failed',
+        description: 'should throw an error when account info is errored',
         args: {
             from: '0xfB0bc552ab5Fa1971E8530852753c957e29eEEFC',
             amount: '0.1', // eth
@@ -180,8 +185,8 @@ export const unstakeFailedFixture = [
         },
         accountInfo: {
             success: false,
-            payload: {
-                error: 'Account info error',
+            error: {
+                message: 'Account info error',
             },
         },
         estimatedFee: {
@@ -218,7 +223,7 @@ export const unstakeFailedFixture = [
         result: 'Failed to get the autocompound balance',
     },
     {
-        description: 'should throw an error when fee estimation is failed',
+        description: 'should throw an error when fee estimation is errored',
         args: {
             from: '0xfB0bc552ab5Fa1971E8530852753c957e29eEEFC',
             amount: '0.1', // eth
@@ -240,8 +245,8 @@ export const unstakeFailedFixture = [
         },
         estimatedFee: {
             success: false,
-            payload: {
-                error: 'Estimated fee error',
+            error: {
+                message: 'Estimated fee error',
             },
         },
         result: 'Estimated fee error',
@@ -301,7 +306,7 @@ export const claimFixture = [
         result: {
             data: '0x33986ffa', // claim signature
             from: '0xfB0bc552ab5Fa1971E8530852753c957e29eEEFC',
-            to: '0x7a7f0b3c23C23a31cFcb0c44709be70d4D545c6e', // contract accounting address
+            to: ETH_NETWORK_ADDRESSES.mainnet.addressContractAccounting, // contract accounting address
             value: '0', // wei
             gasLimit: 241000, // 21000 + 220000
         },
@@ -310,22 +315,22 @@ export const claimFixture = [
 
 export const claimFailedFixture = [
     {
-        description: 'should throw an error when account info is failed',
+        description: 'should throw an error when account info is errored',
         args: {
             from: '0xfB0bc552ab5Fa1971E8530852753c957e29eEEFC',
-            symbol: 'thol',
+            symbol: 'thod',
             identity: '0',
         },
         accountInfo: {
             success: false,
-            payload: {
-                error: 'Account info error',
+            error: {
+                message: 'Account info error',
             },
         },
         result: 'Account info error',
     },
     {
-        description: 'should throw an error when fee estimation is failed',
+        description: 'should throw an error when fee estimation is errored',
         args: {
             from: '0xfB0bc552ab5Fa1971E8530852753c957e29eEEFC',
             symbol: 'eth',
@@ -346,8 +351,8 @@ export const claimFailedFixture = [
         },
         estimatedFee: {
             success: false,
-            payload: {
-                error: 'Estimated fee error',
+            error: {
+                message: 'Estimated fee error',
             },
         },
         result: 'Estimated fee error',
@@ -424,8 +429,7 @@ export const getStakeFormsDefaultValuesFixture = [
             options: ['broadcast'],
             stakeType: 'stake',
             ethereumNonce: '',
-            ethereumDataAscii: '',
-            ethereumDataHex: '',
+            transactionData: '',
             estimatedFeeLimit: undefined,
             feeLimit: '',
             feePerUnit: '',
@@ -460,8 +464,7 @@ export const getStakeFormsDefaultValuesFixture = [
             options: ['broadcast'],
             stakeType: 'stake',
             ethereumNonce: '',
-            ethereumDataAscii: '',
-            ethereumDataHex: '',
+            transactionData: '',
             estimatedFeeLimit: undefined,
             feeLimit: '',
             feePerUnit: '',
@@ -535,18 +538,24 @@ export const getDaysToAddToPoolFixture = [
         result: undefined,
     },
     {
-        description: 'should return 1 if blockTime is undefined',
+        description: 'should return undefined if blockTime is undefined',
         args: {
             stakeTxs: [{}], // blockTime is undefined
-            validatorsQueue: { validatorAddingDelay: 86400, validatorActivationTime: 86400 },
+            validatorsQueue: {
+                addingDelay: 86400,
+                activationTime: 86400,
+            } satisfies EthValidatorsQueue,
         },
-        result: 1,
+        result: undefined,
     },
     {
         description: 'should return the number of days to wait',
         args: {
             stakeTxs: [{ blockTime: 1721393017 }], // 2024-07-19 (2024-07-10 + 9 days)
-            validatorsQueue: { validatorAddingDelay: 86400, validatorActivationTime: 86400 }, // + 2 days
+            validatorsQueue: {
+                addingDelay: 86400,
+                activationTime: 86400,
+            } satisfies EthValidatorsQueue, // + 2 days
         },
         result: 11, // 9 + 2
     },
@@ -554,7 +563,7 @@ export const getDaysToAddToPoolFixture = [
         description: 'should return 1 if the number of days to wait is less than or equal to 0',
         args: {
             stakeTxs: [{ blockTime: 1720615417 }], // 2024-07-10
-            validatorsQueue: { validatorAddingDelay: 0, validatorActivationTime: 0 },
+            validatorsQueue: { addingDelay: 0, activationTime: 0 } satisfies EthValidatorsQueue,
         },
         result: 1,
     },
@@ -573,7 +582,7 @@ export const getDaysToUnstakeFixture = [
         description: 'should return 1 if blockTime is undefined',
         args: {
             unstakeTxs: [{}], // blockTime is undefined
-            validatorsQueue: { validatorWithdrawTime: 86400 },
+            validatorsQueue: { withdrawTime: 86400 } satisfies EthValidatorsQueue,
         },
         result: 1,
     },
@@ -581,7 +590,7 @@ export const getDaysToUnstakeFixture = [
         description: 'should return the number of days to wait',
         args: {
             unstakeTxs: [{ blockTime: 1721393017 }], // 2024-07-19 (2024-07-10 + 9 days)
-            validatorsQueue: { validatorWithdrawTime: 86400 }, // 1 day
+            validatorsQueue: { withdrawTime: 86400 } satisfies EthValidatorsQueue, // 1 day
         },
         result: 10,
     },
@@ -589,7 +598,7 @@ export const getDaysToUnstakeFixture = [
         description: 'should return 1 if the number of days to wait is less than or equal to 0',
         args: {
             unstakeTxs: [{ blockTime: 1720615417 }], // 2024-07-10
-            validatorsQueue: { validatorWithdrawTime: 0 },
+            validatorsQueue: { withdrawTime: 0 } satisfies EthValidatorsQueue,
         },
         result: 1,
     },
@@ -602,19 +611,22 @@ export const getDaysToAddToPoolInitialFixture = [
         args: {
             validatorsQueue: {}, // validatorAddingDelay and validatorActivationTime are undefined
         },
-        result: undefined,
+        result: DAYS_TO_ADD_TO_POOL_DEFAULT,
     },
     {
         description: 'should return the number of days to wait',
         args: {
-            validatorsQueue: { validatorAddingDelay: 86400, validatorActivationTime: 86400 }, // 2 days
+            validatorsQueue: {
+                addingDelay: 86400,
+                activationTime: 86400,
+            } satisfies EthValidatorsQueue, // 2 days
         },
         result: 2, // replace with expected number of days
     },
     {
         description: 'should return 1 if the number of days to wait is less than or equal to 0',
         args: {
-            validatorsQueue: { validatorAddingDelay: 0, validatorActivationTime: 0 },
+            validatorsQueue: { addingDelay: 0, activationTime: 0 } satisfies EthValidatorsQueue,
         },
         result: 1,
     },
@@ -656,11 +668,11 @@ export const getAdjustedGasLimitConsumptionFixture = [
 
 export const getEthNetworkForWalletSdkFixture = [
     {
-        description: 'should return "holesky" for "thol"',
+        description: 'should return "hoodi" for "thod"',
         args: {
-            symbol: 'thol' as const,
+            symbol: 'thod' as const,
         },
-        result: 'holesky',
+        result: 'hoodi',
     },
     {
         description: 'should return "mainnet" for "eth"',
@@ -670,18 +682,25 @@ export const getEthNetworkForWalletSdkFixture = [
         result: 'mainnet',
     },
     {
-        description: 'should return "mainnet" for undefined',
+        description: 'should return null for undefined',
         args: {
             symbol: undefined,
         },
-        result: 'mainnet',
+        result: null,
     },
     {
-        description: 'should return "mainnet" for an unknown symbol',
+        description: 'should return null for an unknown symbol',
         args: {
             symbol: 'unknown' as const,
         },
-        result: 'mainnet',
+        result: null,
+    },
+    {
+        description: 'should return null for a non-staking network symbol',
+        args: {
+            symbol: 'btc' as const,
+        },
+        result: null,
     },
 ];
 
@@ -690,8 +709,8 @@ export const getInstantStakeTypeFixture = [
         description: 'should return "stake" for valid instant stake transfer (mainnet)',
         args: {
             internalTransfer: {
-                from: '0xD523794C879D9eC028960a231F866758e405bE34',
-                to: '0x19449f0f696703Aa3b1485DfA2d855F33659397a',
+                from: ETH_NETWORK_ADDRESSES.mainnet.addressContractPool,
+                to: ETH_NETWORK_ADDRESSES.mainnet.addressContractWithdrawTreasury,
             },
             address: 'address',
             symbol: 'eth' as const,
@@ -699,14 +718,14 @@ export const getInstantStakeTypeFixture = [
         result: 'stake',
     },
     {
-        description: 'should return "stake" for valid instant stake transfer (hokesky)',
+        description: 'should return "stake" for valid instant stake transfer (hoodi)',
         args: {
             internalTransfer: {
-                from: '0xAFA848357154a6a624686b348303EF9a13F63264',
-                to: '0x66cb3AeD024740164EBcF04e292dB09b5B63A2e1',
+                from: ETH_NETWORK_ADDRESSES.hoodi.addressContractPool,
+                to: ETH_NETWORK_ADDRESSES.hoodi.addressContractWithdrawTreasury,
             },
             address: 'address',
-            symbol: 'thol' as const,
+            symbol: 'thod' as const,
         },
         result: 'stake',
     },
@@ -714,7 +733,7 @@ export const getInstantStakeTypeFixture = [
         description: 'should return "unstake" for valid instant unstake transfer (mainnet)',
         args: {
             internalTransfer: {
-                from: '0xD523794C879D9eC028960a231F866758e405bE34',
+                from: ETH_NETWORK_ADDRESSES.mainnet.addressContractPool,
                 to: 'address',
             },
             address: 'address',
@@ -723,14 +742,14 @@ export const getInstantStakeTypeFixture = [
         result: 'unstake',
     },
     {
-        description: 'should return "unstake" for valid instant unstake transfer (hokesky)',
+        description: 'should return "unstake" for valid instant unstake transfer (hoodi)',
         args: {
             internalTransfer: {
-                from: '0xAFA848357154a6a624686b348303EF9a13F63264',
+                from: ETH_NETWORK_ADDRESSES.hoodi.addressContractPool,
                 to: 'address',
             },
             address: 'address',
-            symbol: 'thol' as const,
+            symbol: 'thod' as const,
         },
         result: 'unstake',
     },
@@ -738,7 +757,7 @@ export const getInstantStakeTypeFixture = [
         description: 'should return "claim" for valid claim transfer (mainnet)',
         args: {
             internalTransfer: {
-                from: '0x19449f0f696703Aa3b1485DfA2d855F33659397a',
+                from: ETH_NETWORK_ADDRESSES.mainnet.addressContractWithdrawTreasury,
                 to: 'address',
             },
             address: 'address',
@@ -747,14 +766,14 @@ export const getInstantStakeTypeFixture = [
         result: 'claim',
     },
     {
-        description: 'should return "claim" for valid claim transfer (hokesky)',
+        description: 'should return "claim" for valid claim transfer (hoodi)',
         args: {
             internalTransfer: {
-                from: '0x66cb3AeD024740164EBcF04e292dB09b5B63A2e1',
+                from: ETH_NETWORK_ADDRESSES.hoodi.addressContractWithdrawTreasury,
                 to: 'address',
             },
             address: 'address',
-            symbol: 'thol' as const,
+            symbol: 'thod' as const,
         },
         result: 'claim',
     },
@@ -767,6 +786,19 @@ export const getInstantStakeTypeFixture = [
             },
             address: 'address',
             symbol: 'eth' as const,
+        },
+        result: null,
+    },
+    {
+        description:
+            'should return null for an unsupported network symbol even if addresses match mainnet contracts',
+        args: {
+            internalTransfer: {
+                from: ETH_NETWORK_ADDRESSES.mainnet.addressContractPool,
+                to: ETH_NETWORK_ADDRESSES.mainnet.addressContractWithdrawTreasury,
+            },
+            address: 'address',
+            symbol: 'pol' as const,
         },
         result: null,
     },
@@ -812,8 +844,8 @@ export const getChangedInternalTxFixture = [
                     txid: '1',
                     internalTransfers: [
                         {
-                            from: '0xD523794C879D9eC028960a231F866758e405bE34',
-                            to: '0x19449f0f696703Aa3b1485DfA2d855F33659397a',
+                            from: ETH_NETWORK_ADDRESSES.mainnet.addressContractPool,
+                            to: ETH_NETWORK_ADDRESSES.mainnet.addressContractWithdrawTreasury,
                             type: 'external',
                             amount: '1',
                         },
@@ -825,8 +857,8 @@ export const getChangedInternalTxFixture = [
             symbol: 'eth' as const,
         },
         result: {
-            from: '0xD523794C879D9eC028960a231F866758e405bE34',
-            to: '0x19449f0f696703Aa3b1485DfA2d855F33659397a',
+            from: ETH_NETWORK_ADDRESSES.mainnet.addressContractPool,
+            to: ETH_NETWORK_ADDRESSES.mainnet.addressContractWithdrawTreasury,
             type: 'external',
             amount: '1',
         },
@@ -849,7 +881,7 @@ export const simulateUnstakeFixture = [
         args: {
             amount: '0.1',
             from: '0xfB0bc552ab5Fa1971E8530852753c957e29eEEFC',
-            to: '0xAFA848357154a6a624686b348303EF9a13F63264',
+            to: ETH_NETWORK_ADDRESSES.hoodi.addressContractPool,
             symbol: 'eth',
         },
         blockchainEvmRpcCallResult: {

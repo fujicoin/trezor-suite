@@ -1,8 +1,12 @@
-import { TranslationKey } from '@suite-common/intl-types';
-import { DesktopAppUpdateState, Protocol } from '@suite-common/suite-constants';
-import { TrezorDevice } from '@suite-common/suite-types';
-import { NetworkSymbol } from '@suite-common/wallet-config';
-import { DEVICE } from '@trezor/connect';
+import { type CSSProperties } from 'react';
+
+import { type DesktopAppUpdateState, type Protocol } from '@suite-common/suite-constants';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { type FormStateTradingExchange } from '@suite-common/wallet-types';
+import { type DEVICE, type TokenInfo } from '@trezor/connect';
+
+export type UnknownTranslationKey = string;
 
 export type NotificationId = number;
 
@@ -10,6 +14,7 @@ export interface NotificationOptions {
     seen?: boolean;
     resolved?: boolean;
     autoClose?: number | false;
+    style?: CSSProperties;
 }
 
 type TransactionNotificationPayload = {
@@ -19,23 +24,37 @@ type TransactionNotificationPayload = {
     symbol: NetworkSymbol;
     txid: string;
 };
+
+type BaseTransactionNotificationPayload = Omit<TransactionNotificationPayload, 'formattedAmount'>;
+
 type SentTransactionNotification = {
     type: 'tx-sent';
+    token?: TokenInfo;
 } & TransactionNotificationPayload;
+
+type RawSentTransactionNotification = {
+    type: 'raw-tx-sent';
+} & BaseTransactionNotificationPayload;
 
 type RevokeTransactionNotification = {
     type: 'tx-revoked';
-    tokenSymbol?: string;
+    token: TokenInfo;
 } & TransactionNotificationPayload;
 
 type ApproveTransactionNotification = {
     type: 'tx-approved';
-    tokenSymbol?: string;
+    token: TokenInfo;
     isInfiniteApproval: boolean;
+} & TransactionNotificationPayload;
+
+type ExchangeTransactionNotification = {
+    type: 'tx-exchange';
+    metadata: FormStateTradingExchange;
 } & TransactionNotificationPayload;
 
 type ReceivedTransactionNotification = {
     type: 'tx-received' | 'tx-confirmed';
+    token?: Pick<TokenInfo, 'contract' | 'name' | 'symbol'>;
 } & TransactionNotificationPayload;
 
 type StakedTransactionNotification = {
@@ -50,7 +69,37 @@ type ClaimedTransactionNotification = {
     type: 'tx-claimed';
 } & TransactionNotificationPayload;
 
-export type ToastPayload = (
+type YieldDepositTransactionNotification = {
+    type: 'tx-yield-deposit';
+} & BaseTransactionNotificationPayload;
+
+type YieldWithdrawTransactionNotification = {
+    type: 'tx-yield-withdraw';
+} & BaseTransactionNotificationPayload;
+
+type YieldClaimTransactionNotification = {
+    type: 'tx-yield-claim';
+} & BaseTransactionNotificationPayload;
+
+export type ErrorToastPayload = {
+    type:
+        | 'error'
+        | 'discovery-error'
+        | 'verify-address-error'
+        | 'verify-xpub-error'
+        | 'sign-message-error'
+        | 'verify-message-error'
+        | 'sign-tx-error'
+        | 'metadata-auth-error'
+        | 'metadata-not-found-error'
+        | 'metadata-unexpected-error'
+        | 'device-authenticity-error'
+        | 'cardano-delegate-error'
+        | 'cardano-withdrawal-error';
+    error: string;
+};
+
+export type ToastPayload<TranslationKey extends UnknownTranslationKey = UnknownTranslationKey> = (
     | {
           type: 'acquire-error';
           error: string;
@@ -67,6 +116,7 @@ export type ToastPayload = (
               | 'wipe-code-changed'
               | 'wipe-code-removed'
               | 'device-wiped'
+              | 'device-forgotten'
               | 'backup-success'
               | 'backup-failed'
               | 'sign-message-success'
@@ -74,6 +124,8 @@ export type ToastPayload = (
               | 'device-authenticity-success'
               | 'clear-storage'
               | 'add-token-success'
+              | 'activate-token-success'
+              | 'deactivate-token-success'
               | 'auto-updater-no-new'
               | 'auto-eject-settings'
               | 'qr-incorrect-address'
@@ -86,31 +138,27 @@ export type ToastPayload = (
               | 'not-enough-funds-error'
               | 'could-not-parse-csv'
               | 'thp-credentials-reset'
-              | 'sign-transaction-timeout';
+              | 'sign-transaction-timeout'
+              | 'suite-sync-keys-error'
+              | 'suite-sync-enabled'
+              | 'bip-329-labels-imported';
+      }
+    | {
+          type: 'legacy-labeling-migration-success';
+          added: number;
+          skipped: number;
       }
     | SentTransactionNotification
     | ApproveTransactionNotification
     | RevokeTransactionNotification
+    | ExchangeTransactionNotification
+    | RawSentTransactionNotification
+    | ErrorToastPayload
     | {
-          type: 'raw-tx-sent';
-          txid: string;
-      }
-    | {
-          type:
-              | 'error'
-              | 'discovery-error'
-              | 'verify-address-error'
-              | 'verify-xpub-error'
-              | 'sign-message-error'
-              | 'verify-message-error'
-              | 'sign-tx-error'
-              | 'metadata-auth-error'
-              | 'metadata-not-found-error'
-              | 'metadata-unexpected-error'
-              | 'device-authenticity-error'
-              | 'cardano-delegate-error'
-              | 'cardano-withdrawal-error';
-          error: string;
+          type: 'trading-error';
+          errorCode: string;
+          values?: Record<string, string | number | boolean | undefined>;
+          message?: string;
       }
     | {
           type: 'auto-updater-error';
@@ -136,7 +184,10 @@ export type ToastPayload = (
           type: 'coin-scheme-protocol';
           scheme: Protocol;
           address: string;
-          amount?: number;
+          amount?: string;
+      }
+    | {
+          type: 'suite-sync-keys-error';
       }
     | {
           type: 'tor-toggle-error';
@@ -153,6 +204,9 @@ export type ToastPayload = (
     | StakedTransactionNotification
     | UnstakedTransactionNotification
     | ClaimedTransactionNotification
+    | YieldDepositTransactionNotification
+    | YieldWithdrawTransactionNotification
+    | YieldClaimTransactionNotification
     | {
           type: 'cannot-open-bluetooth-settings-error';
       }
@@ -184,16 +238,28 @@ export interface CommonNotificationPayload {
     error?: string;
 }
 
-export type ToastNotification = { context: 'toast' } & CommonNotificationPayload & ToastPayload;
-export type EventNotification = { context: 'event' } & CommonNotificationPayload &
+export type ToastNotification<
+    TranslationKey extends UnknownTranslationKey = UnknownTranslationKey,
+> = {
+    context: 'toast';
+} & CommonNotificationPayload &
+    ToastPayload<TranslationKey>;
+type EventNotification = { context: 'event' } & CommonNotificationPayload &
     NotificationEventPayload;
 
-export type NotificationEntry = ToastNotification | EventNotification;
+export type NotificationEntry<TranslationKey extends string = UnknownTranslationKey> =
+    | ToastNotification<TranslationKey>
+    | EventNotification;
 
-export type NotificationsState = NotificationEntry[];
+export type AddNotificationAction<TranslationKey extends string = UnknownTranslationKey> = {
+    payload: NotificationEntry<TranslationKey>;
+};
 
-export type NotificationsRootState = {
-    notifications: NotificationsState;
+export type NotificationsState<TranslationKey extends string = UnknownTranslationKey> =
+    NotificationEntry<TranslationKey>[];
+
+export type NotificationsRootState<TranslationKey extends string = UnknownTranslationKey> = {
+    notifications: NotificationsState<TranslationKey>;
 };
 
 export type TransactionNotification = (

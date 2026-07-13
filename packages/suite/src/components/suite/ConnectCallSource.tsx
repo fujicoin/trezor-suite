@@ -1,3 +1,4 @@
+import { Translation } from '@suite/intl';
 import { selectConnectPopupCall } from '@suite-common/connect-popup';
 import { CALL_SOURCE_WALLETCONNECT } from '@suite-common/connect-popup/src/connectPopupTypes';
 import { Row, Text } from '@trezor/components';
@@ -6,7 +7,6 @@ import { spacings } from '@trezor/theme';
 import { useSelector } from 'src/hooks/suite';
 
 import { ConnectAppIcon } from './ConnectAppIcon';
-import { Translation } from './Translation';
 
 export const ConnectCallSource = () => {
     const connectPopupCall = useSelector(selectConnectPopupCall);
@@ -29,10 +29,10 @@ export const ConnectCallSource = () => {
                         : 'trezorConnect'
                 }
             />
-            <Text typographyStyle="hint" variant="tertiary">
+            <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
                 <Translation id="TR_CONNECTED_TO" />
                 {': '}
-                <Text variant="default">
+                <Text intent="neutral">
                     {connectPopupCall.source?.manifest?.appName || connectPopupCall.source?.origin}
                 </Text>
             </Text>

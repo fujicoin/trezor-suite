@@ -1,13 +1,15 @@
-import { Card, HStack, IconButton, Text, VStack } from '@suite-native/atoms';
+import { Card, HStack, IconButton, Text, TitledSection, VStack } from '@suite-native/atoms';
+import { useCoinLabel } from '@suite-native/device';
 import { Icon } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
 import { useOpenLink } from '@suite-native/link';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-import { Color } from '@trezor/theme';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+import { type Color } from '@trezor/theme';
+import { TREZOR_INSTAGRAM_URL, TREZOR_TIKTOK_URL, TREZOR_X_URL } from '@trezor/urls';
 
 const cardStyle = prepareNativeStyle<{ backgroundColor: Color }>((utils, { backgroundColor }) => ({
     paddingHorizontal: utils.spacings.sp24,
-    paddingVertical: utils.spacings.sp24 * 2,
+    paddingVertical: utils.spacings.sp24,
     backgroundColor: utils.colors[backgroundColor],
 }));
 
@@ -24,84 +26,68 @@ const trezorDescriptionTextStyle = prepareNativeStyle(_ => ({
 export const AboutUsBanners = () => {
     const openLink = useOpenLink();
     const { applyStyle } = useNativeStyles();
+    const coinLabel = useCoinLabel();
 
     return (
-        <VStack spacing="sp20">
-            <Text>
-                <Translation
-                    id="moduleSettings.aboutUs.title"
-                    values={{
-                        grey: chunks => (
-                            <Text variant="titleSmall" color="textOnTertiary">
-                                {chunks}
-                            </Text>
-                        ),
-                        green: chunks => (
-                            <Text variant="titleSmall" color="textSecondaryHighlight">
-                                {chunks}
-                            </Text>
-                        ),
-                    }}
-                />
-            </Text>
+        <TitledSection title={<Translation id="moduleSettings.aboutUs.title" />}>
             <VStack>
-                <Card style={applyStyle(cardStyle, { backgroundColor: 'backgroundNeutralBold' })}>
+                <Card
+                    style={applyStyle(cardStyle, {
+                        backgroundColor: 'legacyBackgroundNeutralBold',
+                    })}
+                >
                     <VStack spacing="sp24" style={applyStyle(stackStyle)}>
-                        <Icon color="iconOnPrimary" name="trezorLogo" />
+                        <Icon color="contentPrimaryInverse" name="trezorLogo" />
                         <Text
                             textAlign="center"
-                            color="textOnPrimary"
-                            variant="titleSmall"
+                            color="contentPrimaryInverse"
+                            variant="headline-sm"
                             style={applyStyle(trezorDescriptionTextStyle)}
                         >
-                            <Translation id="moduleSettings.aboutUs.body" />
+                            <Translation
+                                id="moduleSettings.aboutUs.body"
+                                values={{
+                                    coinLabel,
+                                }}
+                            />
                         </Text>
                     </VStack>
                 </Card>
                 <Card
-                    style={applyStyle(cardStyle, { backgroundColor: 'backgroundSecondaryDefault' })}
+                    style={applyStyle(cardStyle, {
+                        backgroundColor: 'legacyBackgroundSecondaryDefault',
+                    })}
                 >
                     <VStack spacing="sp24" style={applyStyle(stackStyle)}>
-                        <Text color="textDefaultInverted" variant="titleMedium">
+                        <Text color="contentPrimaryInverse" variant="headline-md">
                             <Translation id="moduleSettings.aboutUs.followUs" />
                         </Text>
                         <HStack spacing="sp24">
                             <IconButton
-                                size="large"
-                                colorScheme="tertiaryElevation1"
+                                intent="neutral"
+                                priority="primary"
+                                isInverse={true}
                                 iconName="twitterLogo"
-                                accessibilityRole="link"
-                                accessibilityLabel="X"
-                                onPress={() => openLink('https://x.com/trezor', { enforce: true })}
+                                onPress={() => openLink(TREZOR_X_URL, { enforce: true })}
                             />
                             <IconButton
-                                size="large"
-                                colorScheme="tertiaryElevation1"
+                                intent="neutral"
+                                priority="primary"
+                                isInverse={true}
                                 iconName="tiktokLogo"
-                                accessibilityRole="link"
-                                accessibilityLabel="tiktok"
-                                onPress={() =>
-                                    openLink('https://www.tiktok.com/@trezor.io_official', {
-                                        enforce: true,
-                                    })
-                                }
+                                onPress={() => openLink(TREZOR_TIKTOK_URL, { enforce: true })}
                             />
                             <IconButton
-                                size="large"
-                                colorScheme="tertiaryElevation1"
+                                intent="neutral"
+                                priority="primary"
+                                isInverse={true}
                                 iconName="instagramLogo"
-                                accessibilityRole="link"
-                                accessibilityLabel="instagram"
-                                onPress={() =>
-                                    openLink('https://www.instagram.com/trezor.io/', {
-                                        enforce: true,
-                                    })
-                                }
+                                onPress={() => openLink(TREZOR_INSTAGRAM_URL, { enforce: true })}
                             />
                         </HStack>
                     </VStack>
                 </Card>
             </VStack>
-        </VStack>
+        </TitledSection>
     );
 };

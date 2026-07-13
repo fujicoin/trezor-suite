@@ -1,13 +1,14 @@
 import { combineReducers } from '@reduxjs/toolkit';
 
-import { BluetoothManufacturerData } from '@suite-common/bluetooth';
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
+import { type BluetoothManufacturerData } from '@suite-common/bluetooth';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
+import { asBluetoothDeviceId } from '@trezor/connect';
 import { DeviceModelInternal } from '@trezor/device-utils';
 
-import { DesktopBluetoothDevice } from '../DesktopBluetoothDevice';
+import { type DesktopBluetoothDevice } from '../DesktopBluetoothDevice';
 import {
-    DesktopBluetoothState,
     bluetoothSlice,
+    initialDesktopBluetoothState,
     startConnectingBluetoothDevice,
     stopConnectingBluetoothDevice,
 } from '../desktopBluetoothReducer';
@@ -18,23 +19,11 @@ const manufacturerData: BluetoothManufacturerData = {
     filterPolicy: undefined,
 };
 
-const bluetoothReducer = bluetoothSlice.prepareReducer(extraDependenciesMock);
-
-const initialState: DesktopBluetoothState = {
-    isBluetoothListOpen: false,
-    adapterStatus: 'unknown',
-    scanStatus: 'idle',
-    nearbyDevices: [] as DesktopBluetoothDevice[],
-    knownDevices: [] as DesktopBluetoothDevice[],
-    unpairedDeviceNeedsManualOsRemoval: false,
-    connectingDeviceIds: [],
-    isUnpairingDevice: false,
-};
+const bluetoothReducer = bluetoothSlice.prepareReducer(extraDependenciesCommonMock);
 
 const disconnectedDeviceB: DesktopBluetoothDevice = {
-    connected: false,
+    id: asBluetoothDeviceId('B'),
     macAddress: '',
-    id: 'B',
     manufacturerData,
     name: 'Trezor B',
     lastUpdatedTimestamp: 2,
@@ -47,7 +36,7 @@ describe('desktopBluetoothReducer', () => {
             extra: {},
             reducer: combineReducers({ bluetooth: bluetoothReducer }),
             preloadedState: {
-                bluetooth: { ...initialState, knownDevices: [disconnectedDeviceB] },
+                bluetooth: { ...initialDesktopBluetoothState, knownDevices: [disconnectedDeviceB] },
             },
         });
 

@@ -1,60 +1,69 @@
-import { ButtonGroup, Row } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { selectFullSelectedAccount } from '@suite/account';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { selectRouterParams } from '@suite/router';
+import { Row } from '@trezor/components';
+import { ButtonGroup } from '@trezor/components/src/components/buttons/ButtonGroup/ButtonGroup';
+import { ArrowDownIcon, ArrowUpIcon } from '@trezor/icons';
 
 import { AppNavigationTooltip } from 'src/components/suite/AppNavigation/AppNavigationTooltip';
-import { Translation } from 'src/components/suite/Translation';
 import { HeaderActionButton } from 'src/components/suite/layouts/SuiteLayout/PageHeader/HeaderActionButton';
 import { TradeActions } from 'src/components/suite/layouts/SuiteLayout/PageHeader/TradeActions';
-import { useDevice, useSelector } from 'src/hooks/suite';
-import { selectSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
-import { WalletParams } from 'src/types/wallet';
+import { useSelector } from 'src/hooks/suite';
+import { type WalletParams } from 'src/types/wallet';
 
 import { HeaderDropdown } from './HeaderDropdown';
 import { useGoToWithAnalytics } from './useGoToWithAnalytics';
 
 export const HeaderActions = () => {
     const goToWithAnalytics = useGoToWithAnalytics();
-    const account = useSelector(selectSelectedAccount);
-    const routerParams = useSelector(state => state.router.params) as WalletParams;
-    const selectedAccount = useSelector(state => state.wallet.selectedAccount);
+    const selectedAccount = useSelector(selectFullSelectedAccount);
+    const routerParams = useSelector(selectRouterParams) as WalletParams;
     const { device } = useDevice();
 
-    const accountType = account?.accountType || routerParams?.accountType || '';
+    const accountType = selectedAccount.account?.accountType || routerParams?.accountType || '';
     const isTradingAvailable = !['coinjoin'].includes(accountType);
     const isAccountLoading = selectedAccount.status === 'loading';
     const isDeviceConnected = device?.connected && device?.available;
-    const buttonVariant = isDeviceConnected ? 'primary' : 'tertiary';
 
     return (
-        <Row gap={spacings.xxs} alignItems="center">
+        <Row gap={12} alignItems="center">
             <HeaderDropdown isDisabled={isAccountLoading} showSignAndVerify />
 
             {isTradingAvailable && <TradeActions selectedAccount={selectedAccount} />}
 
             <AppNavigationTooltip>
-                <ButtonGroup size="small" isDisabled={isAccountLoading}>
+                <ButtonGroup
+                    isDisabled={isAccountLoading}
+                    intent={isDeviceConnected ? 'brand' : 'neutral'}
+                    priority={isDeviceConnected ? 'primary' : 'secondary'}
+                >
                     <HeaderActionButton
-                        key="wallet-send"
-                        icon="arrowUp"
+                        key="wallet-receive"
+                        icon={ArrowDownIcon}
                         onClick={() => {
-                            goToWithAnalytics('wallet-send', { preserveParams: true });
+                            goToWithAnalytics({
+                                routeName: 'wallet-receive',
+                                preserveParams: true,
+                            });
                         }}
-                        data-testid="@wallet/menu/wallet-send"
-                        variant={buttonVariant}
+                        data-testid="@wallet/menu/wallet-receive"
                     >
-                        <Translation id="TR_NAV_SEND" />
+                        <Translation id="TR_NAV_RECEIVE" />
                     </HeaderActionButton>
 
                     <HeaderActionButton
-                        key="wallet-receive"
-                        icon="arrowDown"
+                        key="wallet-send"
+                        icon={ArrowUpIcon}
                         onClick={() => {
-                            goToWithAnalytics('wallet-receive', { preserveParams: true });
+                            goToWithAnalytics({
+                                routeName: 'wallet-send',
+                                preserveParams: true,
+                            });
                         }}
-                        data-testid="@wallet/menu/wallet-receive"
-                        variant={buttonVariant}
+                        data-testid="@wallet/menu/wallet-send"
                     >
-                        <Translation id="TR_NAV_RECEIVE" />
+                        <Translation id="TR_NAV_SEND" />
                     </HeaderActionButton>
                 </ButtonGroup>
             </AppNavigationTooltip>

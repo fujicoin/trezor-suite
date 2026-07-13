@@ -1,12 +1,15 @@
-import { Text } from '@suite-native/atoms';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { useSelector } from 'react-redux';
 
-import { ReceiveAccount } from '../../../types/general';
-import { AccountAddress } from '../AccountAddress';
+import { type SuiteSyncDataRootState, selectSuiteSyncAddressLabel } from '@suite-common/suite-sync';
+import { Text } from '@suite-native/atoms';
+import { AddressFormatter } from '@suite-native/formatters';
+import { type ReceiveAccount } from '@suite-native/trading-types';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+
 import { AccountListBaseItem } from './AccountListBaseItem';
 
 const labelTextStyle = prepareNativeStyle(utils => ({
-    color: utils.colors.textSubdued,
+    color: utils.colors.contentSecondary,
     flex: 1,
 }));
 
@@ -22,6 +25,16 @@ export const AccountListAddressItem = ({
     const { applyStyle } = useNativeStyles();
     const { address } = receiveAccount;
 
+    const addressLabel = useSelector((state: SuiteSyncDataRootState) =>
+        address
+            ? selectSuiteSyncAddressLabel(
+                  state,
+                  receiveAccount.account.deviceState,
+                  address.address,
+              )
+            : null,
+    );
+
     if (!address) {
         return null;
     }
@@ -29,10 +42,10 @@ export const AccountListAddressItem = ({
     return (
         <AccountListBaseItem
             receiveAccount={receiveAccount}
-            label={<AccountAddress address={address.address} form="full" />}
+            label={addressLabel ?? <AddressFormatter value={address.address} format="full" />}
             isAddressDetail={true}
             info={
-                <Text variant="hint" style={applyStyle(labelTextStyle)}>
+                <Text variant="body-sm" style={applyStyle(labelTextStyle)}>
                     {address.path}
                 </Text>
             }

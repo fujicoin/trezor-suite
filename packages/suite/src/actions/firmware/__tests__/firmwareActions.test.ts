@@ -1,11 +1,12 @@
+import { suiteSettingsInitialState } from '@suite/settings';
+import type { DeviceReducerState } from '@suite-common/device';
 import { prepareFirmwareReducer } from '@suite-common/firmware';
-import { testMocks } from '@suite-common/test-utils';
-import { DeviceReducerState } from '@suite-common/wallet-core';
+import { filterThunkActionTypes, testMocks } from '@suite-common/test-utils';
 import { DeviceModelInternal } from '@trezor/device-utils';
 
 import suiteReducer from 'src/reducers/suite/suiteReducer';
 import { extraDependencies } from 'src/support/extraDependencies';
-import { configureStore, filterThunkActionTypes } from 'src/support/tests/configureStore';
+import { configureStore } from 'src/support/tests/configureStore';
 
 import { actions, reducerActions } from '../__fixtures__/firmwareActions';
 
@@ -15,24 +16,25 @@ type SuiteState = ReturnType<typeof suiteReducer>;
 type FirmwareState = ReturnType<typeof firmwareReducer>;
 interface InitialState {
     suite?: Partial<SuiteState>;
+    suiteSettings?: Partial<typeof suiteSettingsInitialState>;
     firmware?: Partial<FirmwareState>;
     device?: Partial<DeviceReducerState>;
 }
 
-jest.doMock('@trezor/suite-analytics', () => testMocks.getAnalytics());
-
 const getInitialState = (override?: InitialState): any => {
     const suite = override ? override.suite : undefined;
+    const suiteSettings = override ? override.suiteSettings : undefined;
     const device = override ? override.device : undefined;
 
     return {
         suite: {
-            locks: [],
-            flags: {},
-            settings: {
-                language: 'en',
-            },
+            ...suiteReducer(undefined, { type: 'foo' } as any),
             ...suite,
+        },
+        suiteSettings: {
+            ...suiteSettingsInitialState,
+            language: 'en',
+            ...suiteSettings,
         },
         firmware: firmwareReducer(undefined, { type: 'foo' } as any),
         device: {

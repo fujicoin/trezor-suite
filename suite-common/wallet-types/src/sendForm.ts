@@ -1,19 +1,30 @@
-import { NetworkSymbol } from '@suite-common/wallet-config';
-import { AccountUtxo, FeeLevel } from '@trezor/connect';
+import { type CryptoId } from 'invity-api';
 
-import { Output, RbfTransactionParams } from './transaction';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import type { AccountUtxo, FeeLevel } from '@trezor/connect';
+
+import { type AccountKey } from './account';
+import { type Output, type RbfTransactionParams } from './transaction';
 
 export type FormOptions =
     | 'broadcast'
     | 'utxoSelection'
     | 'bitcoinLocktime'
-    | 'ethereumData'
-    | 'ethereumNonce' // TODO
+    | 'transactionData'
+    | 'ethereumNonce'
     | 'destinationTag';
 
 export type UtxoSorting = 'newestFirst' | 'oldestFirst' | 'smallestFirst' | 'largestFirst';
 
+export type TronStakingFormState =
+    | { kind: 'freeze' | 'unstake'; resource: 'bandwidth' | 'energy' }
+    | { kind: 'vote'; votes: string }
+    | { kind: 'withdraw' }
+    | { kind: 'claim' };
+
 export type FormStateTradingCryptoCurrency = {
+    cryptoId: CryptoId | undefined;
+    accountKey: AccountKey | undefined;
     symbol: NetworkSymbol;
     contractAddress?: string;
     amount: string;
@@ -26,11 +37,13 @@ export type FormStateTradingFiatCurrency = {
 
 type FormStateTradingDefault = {
     activeSection: 'sell' | 'exchange';
+    isSlip24Active: boolean;
 };
 
 type FormStateTradingCommon = {
     recipientName: string;
     send: FormStateTradingCryptoCurrency;
+    isSlip24Active: boolean;
 };
 
 type FormStateTradingSell = {
@@ -38,9 +51,10 @@ type FormStateTradingSell = {
     receive: FormStateTradingFiatCurrency;
 } & FormStateTradingCommon;
 
-type FormStateTradingExchange = {
+export type FormStateTradingExchange = {
     activeSection: 'exchange';
     receive: FormStateTradingCryptoCurrency;
+    receiveAddress?: string;
 } & FormStateTradingCommon;
 
 export type FormStateTrading =
@@ -56,8 +70,8 @@ export interface FormState {
     maxPriorityFeePerGas?: string; // ethereum eip1559 only
     maxFeePerGas?: string; // ethereum eip1559 only
     baseFeePerGas?: string; // ethereum eip1559 only
-    feeLimit: string; // ethereum only (gasLimit)
-    estimatedFeeLimit?: string; // ethereum only (gasLimit)
+    feeLimit: string; // ethereum: gas limit; tron: fee_limit cap in SUN for TRC-20 transfers
+    estimatedFeeLimit?: string; // ethereum: estimated gas limit; tron: estimated fee_limit cap in SUN for TRC-20 transfers
 
     /**
      * Fee that was paid by chained transactions. To perform RBF transaction (bump fee or cancel)
@@ -72,10 +86,10 @@ export interface FormState {
     bitcoinLocktimeBlockHeight?: string;
     bitcoinLocktimeDatetime?: string;
     ethereumNonce?: string; // TODO: ethereum RBF
-    ethereumDataAscii?: string;
-    ethereumDataHex?: string;
     ethereumAdjustGasLimit?: string; // if used, final gas limit = estimated limit * ethereumAdjustGasLimit
-    destinationTag?: string; // For Ripple and Stellar
+    transactionData?: string; // used for solana serialized txn from trading api, ethereum or tron txn hex data
+    destinationTag?: string; // For Ripple, Stellar, Solana, and Tron
+    tronStaking?: TronStakingFormState;
     rbfParams?: RbfTransactionParams;
     isCoinControlEnabled: boolean;
     hasCoinControlBeenOpened: boolean;

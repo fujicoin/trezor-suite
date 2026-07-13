@@ -1,14 +1,10 @@
+import { Translation } from '@suite/intl';
 import type { NetworkSymbol } from '@suite-common/wallet-config';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
 import { Column, Divider, Icon, Row, Text } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { PiggyBankFilledIcon } from '@trezor/icons';
 
-import {
-    BaseCurrencyValue,
-    CoinBalance,
-    HiddenPlaceholder,
-    Translation,
-} from 'src/components/suite';
+import { BaseCurrencyValue, CoinBalance, HiddenPlaceholder } from 'src/components/suite';
 import { TokenIconSetWrapper } from 'src/components/wallet/TokenIconSetWrapper';
 
 type AssetCardTokensAndStakingInfoProps = {
@@ -28,49 +24,52 @@ export const AssetCardTokensAndStakingInfo = ({
     shouldRenderTokens,
     accounts,
 }: AssetCardTokensAndStakingInfoProps) => (
-    <Column>
-        <Divider strokeWidth={1} margin={{ vertical: spacings.xs }} />
+    <Column gap={10}>
+        <Divider strokeWidth={1} margin={0} />
         {shouldRenderStaking && (
-            <Row
-                justifyContent="space-between"
-                margin={{ horizontal: spacings.xs, bottom: spacings.xs }}
-            >
-                <Row gap={spacings.xs}>
-                    <Icon name="piggyBankFilled" variant="tertiary" />
-                    <Text typographyStyle="body" variant="tertiary">
+            <Row justifyContent="space-between" margin={{ horizontal: 8 }}>
+                <Row gap={8}>
+                    <Icon
+                        as={PiggyBankFilledIcon}
+                        size={20}
+                        intent="neutral"
+                        priority="secondary"
+                    />
+                    <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
                         <Translation id="TR_NAV_STAKING" />
                     </Text>
                 </Row>
                 {assetStakingBalance && (
                     <>
                         <HiddenPlaceholder>
-                            <Text typographyStyle="hint" variant="tertiary">
+                            <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
                                 <CoinBalance value={assetStakingBalance} symbol={symbol} />
                             </Text>
                         </HiddenPlaceholder>
                         <HiddenPlaceholder>
-                            <BaseCurrencyValue amount={assetStakingBalance} symbol={symbol} />
+                            <Text typographyStyle="body-sm">
+                                <BaseCurrencyValue amount={assetStakingBalance} symbol={symbol} />
+                            </Text>
                         </HiddenPlaceholder>
                     </>
                 )}
             </Row>
         )}
         {shouldRenderTokens && (
-            <Row
-                justifyContent="space-between"
-                margin={{ horizontal: spacings.xs, bottom: spacings.xs }}
-            >
-                <Row gap={spacings.xs}>
+            <Row justifyContent="space-between" margin={{ horizontal: 8 }}>
+                <Row gap={8}>
                     <TokenIconSetWrapper accounts={accounts} symbol={symbol} />
-                    <Text typographyStyle="body" variant="tertiary">
+                    <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
                         <Translation id="TR_NAV_TOKENS" />
                     </Text>
                 </Row>
-                <BaseCurrencyValue
-                    amount={tokensFiatBalance ?? '0'}
-                    symbol={symbol}
-                    shouldConvert={false}
-                />
+                <Text typographyStyle="body-sm">
+                    <BaseCurrencyValue
+                        amount={tokensFiatBalance ?? '0'}
+                        symbol={symbol}
+                        shouldConvert={false}
+                    />
+                </Text>
             </Row>
         )}
     </Column>

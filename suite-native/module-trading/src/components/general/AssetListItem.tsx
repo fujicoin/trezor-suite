@@ -1,13 +1,13 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Pressable } from 'react-native';
 
-import { NetworkSymbol, NetworkSymbolExtended } from '@suite-common/wallet-config';
-import { TokenAddress } from '@suite-common/wallet-types';
+import { type NetworkSymbol, type NetworkSymbolExtended } from '@suite-common/wallet-config';
+import { type TokenAddress } from '@suite-common/wallet-types';
 import { Box, HStack, Text, VStack } from '@suite-native/atoms';
 import { CryptoIconWithNetwork } from '@suite-native/icons';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { NetworkBadge } from '@suite-native/trading-atoms';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
-import { NetworkBadge } from './NetworkBadge';
 import { NetworkSymbolExtendedFormatter } from './NetworkSymbolExtendedFormatter';
 
 export type AssetListItemProps = {
@@ -19,10 +19,7 @@ export type AssetListItemProps = {
     rightContent?: ReactNode;
 };
 
-export const ASSET_ITEM_HEIGHT = 68;
-
 const vStackStyle = prepareNativeStyle(({ spacings }) => ({
-    height: ASSET_ITEM_HEIGHT,
     justifyContent: 'center',
     flex: 1,
     gap: 0,
@@ -60,7 +57,7 @@ export const AssetListItem = ({
                 </Box>
                 <VStack style={applyStyle(vStackStyle)}>
                     <HStack alignItems="center" justifyContent="space-between">
-                        <Text variant="body" color="textDefault">
+                        <Text variant="body-md" color="contentPrimary">
                             {name}
                         </Text>
                     </HStack>

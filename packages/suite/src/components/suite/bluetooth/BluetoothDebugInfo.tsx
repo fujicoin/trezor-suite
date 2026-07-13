@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 
 import { selectKnownDevices, selectNearbyDevices } from '@suite-common/bluetooth';
-import { Code, Icon, InfoSegments, Text, iconSizes } from '@trezor/components';
+import { Code, Icon, InfoSegments, Text } from '@trezor/components';
+import { CellSignalFullIcon, FloppyDiskBackFilledIcon } from '@trezor/icons';
 
-import { DesktopBluetoothDevice } from '../../../actions/bluetooth/DesktopBluetoothDevice';
-import { useSelector } from '../../../hooks/suite';
+import { type DesktopBluetoothDevice } from 'src/actions/bluetooth/DesktopBluetoothDevice';
+import { useSelector } from 'src/hooks/suite';
 
 const TimeAgo = ({ timestamp }: { timestamp: number }) => {
     const [secAgo, setSecAgo] = useState(0);
@@ -18,7 +19,7 @@ const TimeAgo = ({ timestamp }: { timestamp: number }) => {
 
     return (
         <Text>
-            <Text variant="warning">{secAgo}</Text>&nbsp;s ago
+            <Text intent="warning">{secAgo}</Text>&nbsp;s ago
         </Text>
     );
 };
@@ -40,18 +41,17 @@ export const BluetoothDebugInfo = ({ device }: BluetoothDeviceProps) => {
         <>
             <InfoSegments>
                 {isKnownDevice && (
-                    <Icon
-                        name="floppyDiskBackFilled"
-                        size={iconSizes.medium}
-                        variant="destructive"
-                    />
+                    <Icon as={FloppyDiskBackFilledIcon} size={16} intent="critical" />
                 )}
                 {isNearbyDevice && (
-                    <Icon name="cellSignalFull" size={iconSizes.medium} variant="primary" />
+                    <>
+                        <Icon as={CellSignalFullIcon} size={16} intent="brand" />
+                        {isNearbyDevice.rssi} dBm
+                    </>
                 )}
                 <TimeAgo timestamp={device.lastUpdatedTimestamp} />
             </InfoSegments>
-            <Text typographyStyle="hint" variant="purple">
+            <Text typographyStyle="body-sm" intent="accentViolet">
                 <Code>{device.macAddress}</Code>
             </Text>
         </>

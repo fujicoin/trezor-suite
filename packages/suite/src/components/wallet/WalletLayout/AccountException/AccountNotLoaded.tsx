@@ -1,8 +1,10 @@
-import { restartDiscoveryThunk } from '@suite-common/wallet-core';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { startOrRestartDiscoveryThunk } from '@suite-common/wallet-core';
+import { RepeatIcon, WarningIcon } from '@trezor/icons';
 
-import { Translation } from 'src/components/suite';
 import { AccountExceptionLayout } from 'src/components/wallet';
-import { useDevice, useDispatch } from 'src/hooks/suite';
+import { useDispatch } from 'src/hooks/suite';
 
 /**
  * Handler for 'bundle-exception' in discovery
@@ -14,18 +16,20 @@ export const AccountNotLoaded = () => {
     const dispatch = useDispatch();
     const { isLocked } = useDevice();
 
-    const handleClick = () => dispatch(restartDiscoveryThunk());
+    const handleClick = () => dispatch(startOrRestartDiscoveryThunk());
 
     return (
         <AccountExceptionLayout
+            data-testid="@accounts/account-not-loaded"
             title={<Translation id="TR_ACCOUNT_EXCEPTION_DISCOVERY_ERROR" />}
             description={<Translation id="TR_ACCOUNT_EXCEPTION_DISCOVERY_DESCRIPTION" />}
-            iconName="warning"
+            icon={WarningIcon}
             iconVariant="warning"
             actions={[
                 {
                     key: '1',
-                    icon: 'repeat',
+                    'data-testid': '@accounts/account-not-loaded/retry-button',
+                    iconLeft: RepeatIcon,
                     isLoading: isLocked(),
                     onClick: handleClick,
                     children: <Translation id="TR_RETRY" />,

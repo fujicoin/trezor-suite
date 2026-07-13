@@ -3,7 +3,6 @@ import styled from 'styled-components';
 import { Button } from '@trezor/components';
 
 import * as trezorConnectActions from '../actions/trezorConnectActions';
-import { isBetaOnly } from '../components/BetaOnly';
 import { getField } from '../components/Method';
 import { useActions, useSelector } from '../hooks';
 
@@ -25,11 +24,7 @@ export const ErrorMessage = styled(ConfirmationMessage)`
 `;
 
 export const Settings = () => {
-    const connectOptions = useSelector(state => ({
-        trustedHost: state.connect?.options?.trustedHost,
-        connectSrc: state.connect?.options?.connectSrc,
-        coreMode: state?.connect?.options?.coreMode,
-    }));
+    const coreMode = useSelector(state => state?.connect?.options?.coreMode);
 
     const initError = useSelector(state => state.connect?.initError);
     const isInitSuccess = useSelector(state => state.connect?.isInitSuccess || false);
@@ -42,29 +37,15 @@ export const Settings = () => {
     const submitButton = 'Init Connect';
     const fields = [
         {
-            name: 'trustedHost',
-            type: 'checkbox' as const,
-            key: 'trustedHost',
-            value: connectOptions?.trustedHost || false,
-        },
-        {
             name: 'coreMode',
             type: 'select' as const,
-            key: 'coreMode',
-            value: connectOptions?.coreMode || 'auto',
+            value: coreMode || 'auto',
             data: [
                 { value: 'auto', label: 'Auto' },
-                { value: 'iframe', label: 'Iframe' },
-                { value: 'popup', label: 'Popup' },
-                ...(isBetaOnly ? [{ value: 'deeplink', label: 'Deeplink (mobile)' }] : []),
-                ...(isBetaOnly ? [{ value: 'suite-desktop', label: 'Suite desktop' }] : []),
+                { value: 'deeplink', label: 'Deeplink (mobile)' },
+                { value: 'suite-desktop', label: 'Suite desktop' },
+                { value: 'suite-web', label: 'Suite web' },
             ],
-        },
-        {
-            name: 'connectSrc',
-            type: 'input' as const,
-            key: 'connectSrc',
-            value: connectOptions?.connectSrc || '',
         },
     ];
 

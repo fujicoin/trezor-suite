@@ -1,29 +1,35 @@
 import { useMemo } from 'react';
-import { Platform, Text as RNText, TextProps } from 'react-native';
-import Animated, { SharedValue, useAnimatedStyle } from 'react-native-reanimated';
-
-// @ts-expect-error This is not public RN API but it will make Text noticeable faster https://twitter.com/FernandoTheRojo/status/1707769877493121420
-import { NativeText } from 'react-native/Libraries/Text/TextNativeComponent';
+import { Text, type TextProps } from 'react-native';
+import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 
 import { MOBILE_ICON_FONT_NAME } from '@suite-common/icons';
+// TODO fix deep import
+// eslint-disable-next-line local-rules/no-package-deep-imports
 import codepoints from '@suite-common/icons/iconFontsMobile/TrezorSuiteIcons.json';
-import { useNativeStyles } from '@trezor/styles';
-import { CSSColor, Color, Colors } from '@trezor/theme';
+import { useNativeStyles } from '@trezor/styles-native';
+import { type CSSColor, type Color, type Colors } from '@trezor/theme';
+import { typedObjectKeys } from '@trezor/utils';
 
+export type { CSSColor };
 export type IconColor = Color | CSSColor;
 export type AnimatedIconColor = Color | CSSColor | SharedValue<CSSColor>;
 
 export const icons = codepoints;
 
 // Limit the maximum font size multiplier to 1.5 to prevent layout issues if the user has accessibility font size settings set to maximum.
-const MAX_FONT_SIZE_MULTIPLIER = 1.5;
+export const MAX_FONT_SIZE_MULTIPLIER = 1.5;
 
 /**
  * @description If you need to add a new icon, please follow these steps:
  * 1. Add the icon name to the file `generateIconFont.ts`.
  * 2. Run `yarn generate-icons` to generate the new icon font.
+ * 3. Remove app from sim/device and create new build to see the new icons in the app.
  */
 export type IconName = keyof typeof codepoints;
+export const ICON_NAMES = typedObjectKeys(codepoints);
+
+export const isIconName = (value: unknown): value is IconName =>
+    typeof value === 'string' && value in icons;
 
 export const iconSizes = {
     extraSmall: 8,
@@ -34,17 +40,11 @@ export const iconSizes = {
     extraLarge: 32,
 } as const;
 
+export const ICON_SIZES = typedObjectKeys(iconSizes);
 export type IconSize = keyof typeof iconSizes;
 
 export const getIconSize = (size: IconSize | number) =>
     typeof size === 'string' ? iconSizes[size] : size;
-
-// NativeText improves the performance of the text rendering, but unfortunately it does not support iOS Accessibility font enlarging.
-// Since iOS devices have enough computational power and the text optimization is not crucial, the NativeText is used only for Android.
-const DefaultTextComponent: typeof RNText = Platform.select({
-    android: NativeText,
-    ios: RNText,
-});
 
 export type IconProps = {
     name: IconName;
@@ -52,7 +52,7 @@ export type IconProps = {
     color?: IconColor;
 } & Omit<TextProps, 'children'>;
 
-export const Icon = ({ name, size = 'large', color = 'iconDefault', ...props }: IconProps) => {
+export const Icon = ({ name, size = 'large', color = 'contentPrimary', ...props }: IconProps) => {
     const char = String.fromCodePoint(codepoints[name]);
     const sizeNumber = getIconSize(size);
     const {
@@ -71,13 +71,9 @@ export const Icon = ({ name, size = 'large', color = 'iconDefault', ...props }: 
     }, [sizeNumber, color, colors]);
 
     return (
-        <DefaultTextComponent
-            style={style}
-            {...props}
-            maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}
-        >
+        <Text style={style} {...props} maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}>
             {char}
-        </DefaultTextComponent>
+        </Text>
     );
 };
 
@@ -114,7 +110,7 @@ type AnimatedIconProps = Omit<IconProps, 'color'> & {
 const AnimatedIcon = ({
     name,
     size = 'large',
-    color = 'iconDefault',
+    color = 'contentPrimary',
     ...props
 }: AnimatedIconProps) => {
     const char = String.fromCodePoint(codepoints[name]);

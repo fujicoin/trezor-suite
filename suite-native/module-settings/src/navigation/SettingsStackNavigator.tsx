@@ -1,16 +1,23 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import {
-    SettingsStackParamList,
+    type SettingsStackParamList,
     SettingsStackRoutes,
     stackNavigationOptionsConfig,
 } from '@suite-native/navigation';
+import { SettingsTradingLocationScreen } from '@suite-native/trading-residence';
 
+import { NetworkBackendsScreen } from '../screens/NetworkBackendsScreen';
+import { SettingsAdvancedScreen } from '../screens/SettingsAdvancedScreen';
+import { SettingsAppLogScreen } from '../screens/SettingsAppLogScreen';
 import { SettingsAutoEjectScreen } from '../screens/SettingsAutoEjectScreen';
-import { SettingsCoinEnablingScreen } from '../screens/SettingsCoinEnablingScreen';
-import { SettingsDeviceChecksScreen } from '../screens/SettingsDeviceChecksScreen';
+import { SettingsDustPhishingScreen } from '../screens/SettingsDustPhishingScreen';
+import { SettingsExperimentalScreen } from '../screens/SettingsExperimentalScreen';
+import { SettingsNetworksScreen } from '../screens/SettingsNetworksScreen';
 import { SettingsPreferencesScreen } from '../screens/SettingsPreferencesScreen';
 import { SettingsPrivacyScreen } from '../screens/SettingsPrivacyScreen';
+import { SettingsSecurityScreen } from '../screens/SettingsSecurityScreen';
+import { SettingsSuiteSyncScreen } from '../screens/SettingsSuiteSyncScreen';
 import { SettingsSupportScreen } from '../screens/SettingsSupportScreen';
 import { TurnOffDeviceAuthenticityCheckScreen } from '../screens/TurnOffDeviceAuthenticityCheckScreen';
 import { TurnOffFirmwareAuthenticityCheckScreen } from '../screens/TurnOffFirmwareAuthenticityCheckScreen';
@@ -24,7 +31,6 @@ export const SettingsStackNavigator = () => (
             name={SettingsStackRoutes.SettingsPreferences}
             component={SettingsPreferencesScreen}
         />
-
         <SettingsStack.Screen
             options={{ title: SettingsStackRoutes.SettingsPrivacy }}
             name={SettingsStackRoutes.SettingsPrivacy}
@@ -40,15 +46,40 @@ export const SettingsStackNavigator = () => (
             name={SettingsStackRoutes.SettingsSupport}
             component={SettingsSupportScreen}
         />
-
         <SettingsStack.Screen
-            options={{ title: SettingsStackRoutes.SettingsCoinEnabling }}
-            name={SettingsStackRoutes.SettingsCoinEnabling}
-            component={SettingsCoinEnablingScreen}
+            options={{ title: SettingsStackRoutes.SettingsAppLog }}
+            name={SettingsStackRoutes.SettingsAppLog}
+            component={SettingsAppLogScreen}
         />
         <SettingsStack.Screen
-            name={SettingsStackRoutes.SettingsDeviceChecks}
-            component={SettingsDeviceChecksScreen}
+            options={{ title: SettingsStackRoutes.SettingsNetworks }}
+            name={SettingsStackRoutes.SettingsNetworks}
+            component={SettingsNetworksScreen}
+        />
+        <SettingsStack.Screen
+            name={SettingsStackRoutes.SettingsNetworkBackends}
+            component={NetworkBackendsScreen}
+        />
+        <SettingsStack.Screen
+            options={{ title: SettingsStackRoutes.SettingsSuiteSync }}
+            name={SettingsStackRoutes.SettingsSuiteSync}
+            component={SettingsSuiteSyncScreen}
+        />
+        <SettingsStack.Screen
+            name={SettingsStackRoutes.SettingsSecurity}
+            component={SettingsSecurityScreen}
+        />
+        <SettingsStack.Screen
+            name={SettingsStackRoutes.SettingsAdvanced}
+            component={SettingsAdvancedScreen}
+        />
+        <SettingsStack.Screen
+            name={SettingsStackRoutes.SettingsDustPhishing}
+            component={SettingsDustPhishingScreen}
+        />
+        <SettingsStack.Screen
+            name={SettingsStackRoutes.SettingsExperimental}
+            component={SettingsExperimentalScreen}
         />
         <SettingsStack.Screen
             name={SettingsStackRoutes.TurnOffFirmwareAuthenticityCheck}
@@ -57,6 +88,11 @@ export const SettingsStackNavigator = () => (
         <SettingsStack.Screen
             name={SettingsStackRoutes.TurnOffDeviceAuthenticityCheck}
             component={TurnOffDeviceAuthenticityCheckScreen}
+        />
+        <SettingsStack.Screen
+            options={{ title: SettingsStackRoutes.SettingsTradingLocation }}
+            name={SettingsStackRoutes.SettingsTradingLocation}
+            component={SettingsTradingLocationScreen}
         />
     </SettingsStack.Navigator>
 );

@@ -1,36 +1,53 @@
-import { FirmwareUpdateState } from '@suite-common/firmware';
+import type { BackupState } from '@suite/backup';
+import { debugInitialState } from '@suite/debug';
+import { desktopUpdateInitialState } from '@suite/desktop-update';
+import { initialState as featureFeedbackInitialState } from '@suite/feature-feedback';
+import { flagsInitialState } from '@suite/flags';
+import { locksInitialState } from '@suite/locks';
+import { type RouterState } from '@suite/router';
+import { suiteSettingsInitialState } from '@suite/settings';
+import { initialSuiteSyncDesktopState } from '@suite/suite-sync';
+import { TorStatus } from '@suite/tor';
+import { type FirmwareUpdateState } from '@suite-common/firmware';
 import { messageSystemInitialState } from '@suite-common/message-system';
-import { MetadataState } from '@suite-common/metadata-types';
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type MetadataState } from '@suite-common/metadata-types';
+import { quotaManagerInitialState } from '@suite-common/suite-sync-quota-manager/src/quotaManagerReducer';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 
+import { initialDesktopBluetoothState } from 'src/actions/bluetooth/desktopBluetoothReducer';
 import { initialState } from 'src/actions/device/deviceSlice';
-import { BackupState } from 'src/reducers/backup/backupReducer';
-import { OnboardingState } from 'src/reducers/onboarding/onboardingReducer';
-import { AppState } from 'src/reducers/store';
-import { desktopUpdateInitialState } from 'src/reducers/suite/desktopUpdateReducer';
-import { ProtocolState } from 'src/reducers/suite/protocolReducer';
-import { RouterState } from 'src/reducers/suite/routerReducer';
+import { type OnboardingState } from 'src/reducers/onboarding/onboardingReducer';
+import { type AppState } from 'src/reducers/store';
+import { type ProtocolState } from 'src/reducers/suite/protocolReducer';
 import { suiteInitialState } from 'src/reducers/suite/suiteReducer';
-import WalletReducers from 'src/reducers/wallet';
+import type WalletReducers from 'src/reducers/wallet';
 
 export const initialAppState: AppState = {
     suite: suiteInitialState,
-    device: initialState,
-    bluetooth: {
-        unpairedDeviceNeedsManualOsRemoval: false,
-        isBluetoothListOpen: false,
-        connectingDeviceIds: [],
-        isUnpairingDevice: false,
-        adapterStatus: 'unknown',
-        scanStatus: 'error',
-        nearbyDevices: null,
-        knownDevices: [],
+    discreetMode: {
+        isActive: false,
     },
+    tor: {
+        torStatus: TorStatus.Disabled,
+        torBootstrap: null,
+    },
+    suiteSettings: suiteSettingsInitialState,
+    debug: debugInitialState,
+    flags: flagsInitialState,
+    locks: locksInitialState,
+    device: initialState,
+    bluetooth: initialDesktopBluetoothState,
     thp: {
         step: null,
+        autoconnectStep: null,
         lastThpCode: undefined,
         credentials: [],
     },
+    suiteSyncData: {
+        wallets: {},
+    },
+    suiteSync: initialSuiteSyncDesktopState,
+    suiteSyncQuotaManager: quotaManagerInitialState,
     window: {
         isVisible: true,
         isBelowMobile: false,
@@ -47,6 +64,7 @@ export const initialAppState: AppState = {
         view: 'GUIDE_DEFAULT',
         indexNode: null,
         currentNode: null,
+        width: 350,
     },
     messageSystem: messageSystemInitialState,
     modal: {
@@ -64,8 +82,9 @@ export const initialAppState: AppState = {
     desktopUpdate: desktopUpdateInitialState,
     router: {
         loaded: true,
-        url: '/suite-web/develop/web/',
-        pathname: '/suite-web/develop/web/',
+        pathname: '/suite-web/develop/web/' as RouterState['pathname'],
+        hash: '',
+        search: '',
         app: 'dashboard',
         route: {
             name: 'suite-index',
@@ -104,17 +123,14 @@ export const initialAppState: AppState = {
         pendingProposal: undefined,
     },
     bioAuth: {
-        initialNow: 0,
         bioAuthEnabled: false,
-        blurTimeoutId: null,
-        bioAuthEnabledNextValue: null,
-        lastBioAuthValidatedTimestamp: null,
-        lastWindowBlurTimestamp: null,
-        bioAuthValidationInProgress: false,
-        bioAuthValidationRequested: false,
+        bioAuthAvailable: false,
         bioAuthValidationRequired: false,
-        windowBlurred: false,
-        bioAuthAvailable: null,
-        hasEverValidatedBioAuth: false,
+        cancelled: false,
     },
+    globalSendReceiveFilters: {
+        search: '',
+        networkSymbol: undefined,
+    },
+    featureFeedback: featureFeedbackInitialState,
 };

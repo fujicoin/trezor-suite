@@ -1,22 +1,22 @@
-import { MouseEventHandler } from 'react';
-
+import { selectDevices, selectSelectedDevice } from '@suite-common/device';
 import * as deviceUtils from '@suite-common/suite-utils';
-import { acquireDevice, selectDevices, selectSelectedDevice } from '@suite-common/wallet-core';
+import { getDeviceInternalModel } from '@suite-common/suite-utils';
 
-import { TrezorDevice } from 'src/types/suite';
+import { useSelector } from 'src/hooks/suite';
+import { useResponsiveContext } from 'src/support/suite/ResponsiveContext';
+import { type TrezorDevice } from 'src/types/suite';
 
 import { DeviceStatus } from './DeviceStatus';
-import { useDispatch, useSelector } from '../../../../../hooks/suite';
-import { useIsSidebarCollapsed } from '../Sidebar/utils';
 
 const needsRefresh = (device?: TrezorDevice) => {
-    if (!device) return false;
+    if (!device?.connected) return false;
 
     const deviceStatus = deviceUtils.getStatus(device);
-    const needsAcquire =
-        device.type === 'unacquired' ||
-        deviceStatus === 'used-in-other-window' ||
-        deviceStatus === 'was-used-in-other-window';
+    const needsAcquire = [
+        'unacquired',
+        'used-in-other-window',
+        'was-used-in-other-window',
+    ].includes(deviceStatus);
 
     return needsAcquire;
 };
@@ -24,24 +24,11 @@ const needsRefresh = (device?: TrezorDevice) => {
 export const SidebarDeviceStatus = () => {
     const selectedDevice = useSelector(selectSelectedDevice);
     const devices = useSelector(selectDevices);
-    const dispatch = useDispatch();
-    const isSidebarCollapsed = useIsSidebarCollapsed();
+    const { isSidebarCollapsed } = useResponsiveContext();
 
     const deviceNeedsRefresh = needsRefresh(selectedDevice);
 
-    const handleRefreshClick: MouseEventHandler = e => {
-        e.stopPropagation();
-
-        if (deviceNeedsRefresh) {
-            dispatch(
-                acquireDevice({
-                    requestedDevice: selectedDevice,
-                }),
-            );
-        }
-    };
-
-    const selectedDeviceModelInternal = selectedDevice?.features?.internal_model;
+    const selectedDeviceModelInternal = getDeviceInternalModel(selectedDevice);
 
     if (!selectedDevice || !selectedDeviceModelInternal) {
         return null;
@@ -57,7 +44,6 @@ export const SidebarDeviceStatus = () => {
             deviceModel={selectedDeviceModelInternal}
             deviceNeedsRefresh={deviceNeedsRefresh}
             device={selectedDevice}
-            handleRefreshClick={handleRefreshClick}
             forceConnectionInfo={isConnectionShown}
             isDeviceDetailVisible={!isSidebarCollapsed}
         />

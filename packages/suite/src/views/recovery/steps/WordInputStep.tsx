@@ -1,7 +1,9 @@
+import { Translation } from '@suite/intl';
 import { Banner, Card, Column, Paragraph } from '@trezor/components';
+import { QuestionIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { Translation, WordInput } from 'src/components/suite';
+import { WordInput } from 'src/components/suite';
 
 export const WordInputStep = () => (
     <Card>
@@ -9,9 +11,11 @@ export const WordInputStep = () => (
             <Paragraph>
                 <Translation id="TR_ENTER_SEED_WORDS_INSTRUCTION" />
             </Paragraph>
-            <Banner variant="info" icon="question">
-                <Translation id="TR_RANDOM_SEED_WORDS_DISCLAIMER" />
-            </Banner>
+            <Banner
+                intent="info"
+                icon={QuestionIcon}
+                description={<Translation id="TR_RANDOM_SEED_WORDS_DISCLAIMER" />}
+            />
             <WordInput />
         </Column>
     </Card>

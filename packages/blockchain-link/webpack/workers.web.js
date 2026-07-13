@@ -1,6 +1,6 @@
-const { SRC, BUILD } = require('./constants');
+import { BUILD, SRC } from './constants.js';
 
-module.exports = {
+export default {
     target: 'webworker',
     mode: 'production',
     entry: {
@@ -9,6 +9,7 @@ module.exports = {
         'blockfrost-worker': `${SRC}workers/blockfrost/index.ts`,
         'solana-worker': `${SRC}workers/solana/index.ts`,
         'stellar-worker': `${SRC}workers/stellar/index.ts`,
+        'evm-rpc-worker': `${SRC}workers/evm-rpc/index.ts`,
     },
     output: {
         filename: '[name].js',
@@ -34,11 +35,6 @@ module.exports = {
     resolve: {
         modules: [SRC, 'node_modules'],
         extensions: ['.ts', '.js'],
-        mainFields: ['main', 'module'], // prevent wrapping default exports by harmony export (bignumber.js in ripple issue)
-        fallback: {
-            crypto: require.resolve('crypto-browserify'),
-            stream: require.resolve('stream-browserify'),
-        },
     },
     externals: [
         {

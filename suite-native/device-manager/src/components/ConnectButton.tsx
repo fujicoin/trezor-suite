@@ -1,22 +1,15 @@
-import { useMemo } from 'react';
-import { Platform } from 'react-native';
 import { FadeInUp, FadeOutUp, LinearTransition } from 'react-native-reanimated';
 import { useSelector } from 'react-redux';
 
-import { TrezorDevice } from '@suite-common/suite-types';
-import {
-    selectHasRunningDiscovery,
-    selectInstacelessUnselectedDevices,
-    selectIsNoPhysicalDeviceConnected,
-    selectSelectedDevice,
-} from '@suite-common/wallet-core';
-import { EventType, analytics } from '@suite-native/analytics';
-import { AnimatedBox, Button } from '@suite-native/atoms';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectSelectedDevice } from '@suite-common/device';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { selectHasRunningDiscovery } from '@suite-common/wallet-core';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
+import { AnimatedBox, Box, Button } from '@suite-native/atoms';
 import { useConnectDeviceHandler } from '@suite-native/device';
-import { FeatureFlag, useFeatureFlag } from '@suite-native/feature-flags';
-import { IconName } from '@suite-native/icons';
-import { Translation, TxKeyPath } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { Translation } from '@suite-native/intl';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { useDeviceManager } from '../hooks/useDeviceManager';
 
@@ -29,22 +22,23 @@ const buttonWrapperStyle = prepareNativeStyle(utils => ({
     paddingHorizontal: utils.spacings.sp16,
 }));
 
+const buttonSurfaceStyle = prepareNativeStyle(utils => ({
+    backgroundColor: utils.colors.surfaceFillRaised,
+    borderRadius: utils.borders.radii.r12,
+}));
+
 export const ConnectButton = ({ onSelectDevice }: ConnectButtonProps) => {
-    const { applyStyle } = useNativeStyles();
-    const hasDiscovery = useSelector(selectHasRunningDiscovery);
-    const isNoPhysicalDeviceConnected = useSelector(selectIsNoPhysicalDeviceConnected);
     const { setIsDeviceManagerVisible } = useDeviceManager();
-    const isBluetoothEnabled = useFeatureFlag(FeatureFlag.IsBluetoothEnabled);
+    const { applyStyle } = useNativeStyles();
+    const { analytics } = useServices(selectNativeAnalyticsDep);
+    const hasDiscovery = useSelector(selectHasRunningDiscovery);
     const device = useSelector(selectSelectedDevice);
-    const notSelectedInstancelessDevices = useSelector(selectInstacelessUnselectedDevices);
-
-    const hasUnselectedDevices = notSelectedInstancelessDevices.length > 0;
-
-    const isOnlyBluetoothSupported = Platform.OS === 'ios' && isBluetoothEnabled;
-
-    const isConnectButtonVisible = !hasDiscovery && isNoPhysicalDeviceConnected;
 
     const { onConnectDevicePress } = useConnectDeviceHandler();
+
+    if (hasDiscovery) {
+        return null;
+    }
 
     const handleConnectDevice = () => {
         if (device) {
@@ -55,31 +49,10 @@ export const ConnectButton = ({ onSelectDevice }: ConnectButtonProps) => {
         onConnectDevicePress();
 
         analytics.report({
-            type: EventType.DeviceManagerClick,
+            type: events.switcherEvent.name,
             payload: { action: 'connectDeviceButton' },
         });
     };
-
-    const buttonViewLeft: IconName | undefined = useMemo(() => {
-        if (isOnlyBluetoothSupported) {
-            return 'bluetooth';
-        }
-
-        return undefined;
-    }, [isOnlyBluetoothSupported]);
-
-    const buttonText: TxKeyPath = useMemo(() => {
-        if (isOnlyBluetoothSupported) {
-            return 'deviceManager.connectButton.bluetooth';
-        }
-        if (hasUnselectedDevices) {
-            return 'deviceManager.connectButton.another';
-        }
-
-        return 'deviceManager.connectButton.first';
-    }, [isOnlyBluetoothSupported, hasUnselectedDevices]);
-
-    if (!isConnectButtonVisible) return null;
 
     return (
         <AnimatedBox
@@ -88,13 +61,17 @@ export const ConnectButton = ({ onSelectDevice }: ConnectButtonProps) => {
             entering={FadeInUp}
             exiting={FadeOutUp}
         >
-            <Button
-                viewLeft={buttonViewLeft}
-                colorScheme="tertiaryElevation0"
-                onPress={handleConnectDevice}
-            >
-                <Translation id={buttonText} />
-            </Button>
+            <Box style={applyStyle(buttonSurfaceStyle)}>
+                <Button
+                    iconLeft="trezorDevices"
+                    intent="neutral"
+                    priority="secondary"
+                    isFullWidth
+                    onPress={handleConnectDevice}
+                >
+                    <Translation id="deviceManager.connectButton" />
+                </Button>
+            </Box>
         </AnimatedBox>
     );
 };

@@ -1,10 +1,22 @@
 import { createAction } from '@reduxjs/toolkit';
 
-import { Action, Category, MessageSystem } from '@suite-common/suite-types';
+import {
+    type Action,
+    type Category,
+    type Experiments,
+    type MessageSystem,
+} from '@suite-common/suite-types';
 
-import { MessageSystemConfigSource } from './messageSystemTypes';
+import { type MessageSystemConfigSource } from './messageSystemTypes';
 
-export type ValidMessagesPayload = { [key in Category]: string[] };
+export type ValidMessagesPayload = {
+    [key in Category]: string[];
+};
+
+export type InclusionOverridePayload = {
+    id: string;
+    inclusion: number;
+};
 
 export const ACTION_PREFIX = '@message-system';
 
@@ -58,6 +70,24 @@ const removeMessage = createAction(`${ACTION_PREFIX}/removeMessage`, (payload: s
     payload,
 }));
 
+const addExperiment = createAction(`${ACTION_PREFIX}/addExperiment`, (payload: Experiments) => ({
+    payload,
+}));
+
+const removeExperiment = createAction(`${ACTION_PREFIX}/removeExperiment`, (payload: string) => ({
+    payload,
+}));
+
+export const setExperimentInclusionOverride = createAction(
+    `${ACTION_PREFIX}/setExperimentsInclusionOverride`,
+    (payload: InclusionOverridePayload) => ({ payload }),
+);
+
+export const clearExperimentInclusionOverride = createAction(
+    `${ACTION_PREFIX}/clearExperimentsInclusionOverride`,
+    (payload: string) => ({ payload }),
+);
+
 export const messageSystemActions = {
     updateValidMessages,
     updateValidExperiments,
@@ -68,4 +98,8 @@ export const messageSystemActions = {
     setConfigSource,
     addMessage,
     removeMessage,
+    addExperiment,
+    removeExperiment,
+    setExperimentInclusionOverride,
+    clearExperimentInclusionOverride,
 } as const;

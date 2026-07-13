@@ -1,22 +1,15 @@
-import { selectSelectedDevice } from '@suite-common/wallet-core';
+import { selectSelectedDevice } from '@suite-common/device';
 import { isLinux } from '@trezor/env-utils';
 
-import { Translation, TroubleshootingTips } from 'src/components/suite';
+import { TroubleshootingTips } from 'src/components/suite/troubleshooting/TroubleshootingTips';
 import {
     TROUBLESHOOTING_TIP_CLOSE_ALL_TABS,
-    TROUBLESHOOTING_TIP_DIFFERENT_COMPUTER,
     TROUBLESHOOTING_TIP_RECONNECT,
     TROUBLESHOOTING_TIP_SUITE_DESKTOP,
-    TROUBLESHOOTING_TIP_SUITE_DESKTOP_TOGGLE_BRIDGE,
     TROUBLESHOOTING_TIP_UDEV,
     TROUBLESHOOTING_TIP_UNREADABLE_HID,
 } from 'src/components/suite/troubleshooting/tips';
 import { useSelector } from 'src/hooks/suite';
-import type { TrezorDevice } from 'src/types/suite';
-
-interface DeviceUnreadableProps {
-    device?: TrezorDevice; // this should be actually UnreadableDevice, but it is not worth type casting
-}
 
 /**
  * Device was detected but @trezor/connect was not able to communicate with it. Reasons could be:
@@ -24,14 +17,13 @@ interface DeviceUnreadableProps {
  * - device can't be communicated with using currently used transport (eg. hid / node bridge + webusb)
  * - missing udev rule on linux
  */
-export const DeviceUnreadable = ({ device }: DeviceUnreadableProps) => {
+export const DeviceUnreadable = () => {
     const selectedDevice = useSelector(selectSelectedDevice);
-
     // generic troubleshooting tips
     const items = [];
 
     // this error is dispatched by trezord when udev rules are missing
-    if (isLinux() && device?.error === 'LIBUSB_ERROR_ACCESS') {
+    if (isLinux() && selectedDevice?.error === 'LIBUSB_ERROR_ACCESS') {
         items.push(TROUBLESHOOTING_TIP_UDEV);
     }
 
@@ -44,9 +36,6 @@ export const DeviceUnreadable = ({ device }: DeviceUnreadableProps) => {
         // at the time of writing this, there is still an option to opt-in for legacy bridge in suite-desktop which can
         // communicate with this device. see the next troubleshooting point
         items.push(TROUBLESHOOTING_TIP_SUITE_DESKTOP);
-        // you might have a very old device which is no longer supported current bridge
-        // if on desktop - try toggling between the 2 bridges we have available
-        items.push(TROUBLESHOOTING_TIP_SUITE_DESKTOP_TOGGLE_BRIDGE);
     } else {
         // it might also be unreadable because device was acquired on transport layer by another app and never released.
         // this should be rather exceptional case that happens only when sessions synchronization is broken or other app
@@ -57,19 +46,11 @@ export const DeviceUnreadable = ({ device }: DeviceUnreadableProps) => {
         items.push(TROUBLESHOOTING_TIP_RECONNECT);
         // if on web - try installing desktop. this takes you to using bridge which should be more powerful than WebUSB
         items.push(TROUBLESHOOTING_TIP_SUITE_DESKTOP);
-        // unfortunately we have seen reports that even old bridge might not be enough for some Windows users. So the only chance
-        // is using another computer, or maybe it would be better to say another OS
-        items.push(TROUBLESHOOTING_TIP_DIFFERENT_COMPUTER);
     }
 
     return (
         <TroubleshootingTips
-            label={
-                <Translation
-                    id="TR_TROUBLESHOOTING_UNREADABLE_UNKNOWN"
-                    values={{ error: device?.error }}
-                />
-            }
+            intent="warning"
             items={items}
             data-testid="@connect-device-prompt/unreadable-unknown"
         />

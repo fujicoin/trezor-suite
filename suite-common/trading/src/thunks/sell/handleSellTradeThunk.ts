@@ -1,18 +1,15 @@
-import { SellFiatTrade, SellFiatTradeResponse } from 'invity-api';
+import { type SellFiatTrade, type SellFiatTradeResponse } from 'invity-api';
 
 import { createThunk } from '@suite-common/redux-utils';
-import { notificationsActions } from '@suite-common/toast-notifications';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
 
 import { TRADING_SELL_THUNK_PREFIX } from '../../constants';
 import { invityAPI } from '../../invityAPI';
 import { tradingSellActions } from '../../reducers/sellReducer';
-import { tradingActions } from '../../reducers/tradingReducer';
-import {
-    selectTradingSellInfo,
-    selectTradingSellQuotesRequest,
-} from '../../selectors/tradingSelectors';
+import { tradingActions } from '../../reducers/tradingCommonReducer';
+import { selectTradingSellInfo } from '../../selectors/tradingSelectors';
 import { getUnusedAddressFromAccount } from '../../utils';
+import { logErrorThunk } from '../common/logErrorThunk';
 
 export type HandleSellTradeThunkProps = {
     account: Account;
@@ -29,12 +26,17 @@ export const handleSellTradeThunk = createThunk(
         { dispatch, getState, fulfillWithValue },
     ) => {
         const sellInfo = selectTradingSellInfo(getState());
-        const quotesRequest = selectTradingSellQuotesRequest(getState());
+
         const provider =
             sellInfo?.providerInfos && trade.exchange
                 ? sellInfo.providerInfos[trade.exchange]
                 : undefined;
-        if (!quotesRequest || !provider) return;
+
+        if (!provider) {
+            console.warn('doSellTrade: No provider found');
+
+            return;
+        }
 
         const response = await invityAPI.doSellTrade({
             trade: { ...trade, refundAddress: getUnusedAddressFromAccount(account).address },
@@ -43,9 +45,9 @@ export const handleSellTradeThunk = createThunk(
 
         if (!response.trade) {
             dispatch(
-                notificationsActions.addToast({
-                    type: 'error',
-                    error: 'No response from the server',
+                logErrorThunk({
+                    errorMessage: 'No response from the server',
+                    tradingType: 'sell',
                 }),
             );
 
@@ -54,9 +56,9 @@ export const handleSellTradeThunk = createThunk(
 
         if (response.trade.error && response.trade.status !== 'LOGIN_REQUEST') {
             dispatch(
-                notificationsActions.addToast({
-                    type: 'error',
-                    error: response.trade.error,
+                logErrorThunk({
+                    errorMessage: response.trade.error,
+                    tradingType: 'sell',
                 }),
             );
 

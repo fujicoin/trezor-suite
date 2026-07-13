@@ -1,8 +1,10 @@
+import { Translation } from '@suite/intl';
+import { goto } from '@suite/router';
 import { Column, H3, Modal, Paragraph } from '@trezor/components';
+import { AppWindowIcon, CaretLeftIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { goto } from 'src/actions/suite/routerActions';
-import { Metadata, Translation } from 'src/components/suite';
+import { Metadata } from 'src/components/suite';
 import { useDispatch, useSelector } from 'src/hooks/suite';
 import { useOpenSuiteDesktop } from 'src/hooks/suite/useOpenSuiteDesktop';
 import {
@@ -20,7 +22,7 @@ export const BridgeUnavailable = () => {
 
     const handleOpenSuite = useOpenSuiteDesktop();
 
-    const goToWallet = () => dispatch(goto('wallet-index'));
+    const goToWallet = () => dispatch(goto({ routeName: 'wallet-index' }));
 
     // if bridge is running, user will never be directed to this page, but since this page is accessible directly over /bridge url
     // it makes sense to show some meaningful information here
@@ -31,8 +33,8 @@ export const BridgeUnavailable = () => {
     return (
         <Modal
             data-testid="@modal/bridge"
-            iconName="appWindow"
-            size="small"
+            icon={AppWindowIcon}
+            width={600}
             bottomContent={
                 <>
                     <Modal.Button onClick={handleOpenSuite}>
@@ -40,8 +42,9 @@ export const BridgeUnavailable = () => {
                     </Modal.Button>
                     {hasTransport && (
                         <Modal.Button
-                            icon="caretLeft"
-                            variant="tertiary"
+                            iconLeft={CaretLeftIcon}
+                            intent="neutral"
+                            priority="secondary"
                             onClick={goToWallet}
                             data-testid="@bridge/goto/wallet-index"
                         >
@@ -56,7 +59,7 @@ export const BridgeUnavailable = () => {
                 <H3>
                     <Translation id="TR_BRIDGE" />
                 </H3>
-                <Paragraph variant="tertiary">
+                <Paragraph intent="neutral" priority="secondary">
                     {hasTransport ? description : <Translation id="TR_BRIDGE_NEEDED_DESCRIPTION" />}
                 </Paragraph>
             </Column>

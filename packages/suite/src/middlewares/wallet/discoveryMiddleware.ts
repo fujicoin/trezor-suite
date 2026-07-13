@@ -1,22 +1,20 @@
+import { selectIsDeviceLocked } from '@suite/locks';
+import { routerAppChanged } from '@suite/router';
 import { connectPopupCallThunkInner } from '@suite-common/connect-popup';
+import { deviceActions, selectSelectedDevice } from '@suite-common/device';
 import { createMiddlewareWithExtraDeps } from '@suite-common/redux-utils';
 import { isDeviceAcquired } from '@suite-common/suite-utils';
+import { selectThpAutoconnectStep, thpActions } from '@suite-common/thp';
 import {
     accountsActions,
     changeNetworks,
-    deviceActions,
-    runAdditionalDiscoveryThunk,
-    selectSelectedDevice,
     selectShouldRediscover,
-    startDiscoveryThunk,
+    startOrRestartDiscoveryThunk,
 } from '@suite-common/wallet-core';
-
-import { SUITE } from 'src/actions/suite/constants';
-import { selectIsDeviceLocked } from 'src/selectors/suite/suiteSelectors';
 
 // todo: this is crazy. needs some consideration
 export const prepareDiscoveryMiddleware = createMiddlewareWithExtraDeps(
-    async (action, { dispatch, next, getState, extra }) => {
+    async (action, { dispatch, next, getState }) => {
         const prevState = getState();
 
         // Pass action to next middleware, meaning that the code below runs *only after* the action has been completely processed in Redux.
@@ -24,7 +22,11 @@ export const prepareDiscoveryMiddleware = createMiddlewareWithExtraDeps(
         await next(action);
 
         const nextState = getState();
-        if (nextState.router.app !== 'wallet' && nextState.router.app !== 'dashboard')
+        if (
+            nextState.router.app !== 'wallet' &&
+            nextState.router.app !== 'dashboard' &&
+            nextState.router.app !== 'earn'
+        )
             return action;
 
         const device = selectSelectedDevice(nextState);
@@ -36,13 +38,8 @@ export const prepareDiscoveryMiddleware = createMiddlewareWithExtraDeps(
         let becomesConnected = false;
         if (deviceActions.updateSelectedDevice.match(action)) {
             const prevDevice = prevState.device.selectedDevice;
-            becomesAcquired = !!(prevDevice && !prevDevice.features && device && device.features);
-            becomesConnected = !!(
-                prevDevice &&
-                !prevDevice.connected &&
-                device &&
-                device.connected
-            );
+            becomesAcquired = !!(prevDevice && !prevDevice.features && device?.features);
+            becomesConnected = !!(prevDevice && !prevDevice.connected && device?.connected);
         }
 
         // device becomesAcquired (device-change event) and is locked at the same time.
@@ -50,35 +47,27 @@ export const prepareDiscoveryMiddleware = createMiddlewareWithExtraDeps(
         const isDeviceReady =
             device?.connected && isDeviceAcquired(device) && (!isDeviceLocked || becomesAcquired);
 
+        // delay discovery if THP Autoconnect modal is open (discovery executed by the modal), as it is the only
+        // THP step that takes place *after* device acquisition, and also needs device interaction to complete.
+        const isTHPAutoconnectModal = selectThpAutoconnectStep(getState()) === 'AutoconnectInfo';
+        const isTHPAutoconnectFinished = thpActions.finishAutoconnectFlow.match(action);
+        const isUIReady = !isTHPAutoconnectModal;
+
         if (
             becomesAcquired ||
             becomesConnected ||
-            action.type === SUITE.APP_CHANGED ||
+            isTHPAutoconnectFinished ||
+            action.type === routerAppChanged.type ||
             connectPopupCallThunkInner.fulfilled.match(action) ||
             deviceActions.selectDevice.match(action) ||
             changeNetworks.match(action) ||
+            accountsActions.updateAccount.match(action) || // empty account can become nonempty
             accountsActions.changeAccountVisibility.match(action)
         ) {
-            if (isDeviceReady) {
-                if (!device?.state) {
-                    // note: currently this is only used in Suite. If a Suite Lite implementation is needed,
-                    // refactor this to a parameter because suiteSettings is a suite-only reducer.
-                    const isAddingHiddenWalletWithRespectToSettings =
-                        extra.selectors.selectSuiteSettings(getState()).defaultWalletLoading ===
-                        'passphrase';
-
-                    dispatch(
-                        startDiscoveryThunk({
-                            device,
-                            isAddingHiddenWalletWithRespectToSettings,
-                            isAddingExistingWallet: true,
-                            isAddingHiddenWallet: isAddingHiddenWalletWithRespectToSettings,
-                        }),
-                    );
-                } else if (device.state.staticSessionId) {
-                    if (selectShouldRediscover(getState(), device)) {
-                        dispatch(runAdditionalDiscoveryThunk(device.state.staticSessionId));
-                    }
+            if (isDeviceReady && isUIReady) {
+                const shouldRediscover = selectShouldRediscover(getState(), device);
+                if (shouldRediscover) {
+                    dispatch(startOrRestartDiscoveryThunk());
                 }
             }
         }

@@ -1,77 +1,55 @@
-/* eslint-disable import/order */
-import { Provider as ReduxProvider } from 'react-redux';
-import { HelmetProvider } from 'react-helmet-async';
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router';
-import { init as initSentry } from '@sentry/browser';
+import 'core-js/actual';
 
-import { SENTRY_CONFIG } from '@suite-common/sentry';
-import { FormatterProvider } from '@suite-common/formatters';
-
-import { initStore } from 'src/reducers/store';
-import { preloadStore } from 'src/support/suite/preloadStore';
-import { AppRouter, BundleLoader, Metadata, Preloader, ToastContainer } from 'src/components/suite';
-import { ConnectedIntlProvider } from 'src/support/suite/ConnectedIntlProvider';
-import Resize from 'src/support/suite/Resize';
-import Protocol from 'src/support/suite/Protocol';
-import Autodetect from 'src/support/suite/Autodetect';
-import { useTor } from 'src/support/suite/useTor';
-import { useConnectPopupModals } from 'src/support/suite/useConnectPopupModals';
-import OnlineStatus from 'src/support/suite/OnlineStatus';
-import { ErrorBoundary } from 'src/support/suite/ErrorBoundary';
-import { RouterHandler } from 'src/support/suite/RouterHandler';
-import { ConnectedThemeProvider } from 'src/support/suite/ConnectedThemeProvider';
-import { LoadingScreen } from 'src/support/suite/screens/LoadingScreen';
-import { useDebugLanguageShortcut, useFormattersConfig } from 'src/hooks/suite';
-
-import { usePlaywright } from './support/usePlaywright';
-import { ResponsiveContextProvider } from 'src/support/suite/ResponsiveContext';
 import { Suspense } from 'react';
+import { Provider as ReduxProvider } from 'react-redux';
+
+import { createRoot } from 'react-dom/client';
+
+import { useDebugLanguageShortcut } from '@suite/debug';
+import { ServicesProvider } from '@suite-common/dependency-injection';
+
+import {
+    AppRouter,
+    BundleLoader,
+    Metadata,
+    Preloader,
+    ToasterProvider,
+} from 'src/components/suite';
+import { Main } from 'src/support/suite/Main';
+import { preloadStore } from 'src/support/suite/preloadStore';
+import { LoadingScreen } from 'src/support/suite/screens/LoadingScreen';
+import { useConnectPopupWeb } from 'src/support/suite/useConnectPopupWeb';
+import { useConnectPopupWebextension } from 'src/support/suite/useConnectPopupWebextension';
+import { useTor } from 'src/support/suite/useTor';
+
+import { createSuiteWebCompositionRoot } from './createSuiteWebCompositionRoot';
+import { initSentry } from './sentry';
+import { usePlaywright } from './support/usePlaywright';
 import { webComponents } from './support/webComponents';
 
 const MainWeb = () => {
     usePlaywright();
     useTor();
     useDebugLanguageShortcut();
-    useConnectPopupModals();
-    const formattersConfig = useFormattersConfig();
+    useConnectPopupWeb();
+    useConnectPopupWebextension();
 
     return (
-        // Todo: Enable when issues are fixed (ReactTruncate & BumpFee)
-        // <StrictMode>
-        <HelmetProvider>
-            <ConnectedThemeProvider>
-                <BrowserRouter>
-                    <ResponsiveContextProvider>
-                        <ErrorBoundary>
-                            <Autodetect />
-                            <Resize />
-                            <Protocol />
-                            <OnlineStatus />
-                            <RouterHandler />
-                            <ConnectedIntlProvider>
-                                <FormatterProvider config={formattersConfig}>
-                                    <Metadata />
-                                    <ToastContainer />
-                                    <Preloader>
-                                        <Suspense fallback={<BundleLoader />}>
-                                            <AppRouter components={webComponents} />
-                                        </Suspense>
-                                    </Preloader>
-                                </FormatterProvider>
-                            </ConnectedIntlProvider>
-                        </ErrorBoundary>
-                    </ResponsiveContextProvider>
-                </BrowserRouter>
-            </ConnectedThemeProvider>
-        </HelmetProvider>
-        // </StrictMode>
+        <Main>
+            <Metadata />
+            <ToasterProvider />
+            <Preloader>
+                <Suspense fallback={<BundleLoader />}>
+                    <AppRouter components={webComponents} />
+                </Suspense>
+            </Preloader>
+        </Main>
     );
 };
 
 export const init = async (container: HTMLElement) => {
     if (!window.Playwright) {
-        initSentry(SENTRY_CONFIG);
+        initSentry();
     }
 
     // render simple loader with theme provider without redux, wait for indexedDB
@@ -79,11 +57,14 @@ export const init = async (container: HTMLElement) => {
     root.render(<LoadingScreen />);
 
     const preloadAction = await preloadStore();
-    const store = initStore(preloadAction);
+
+    const { store, services } = createSuiteWebCompositionRoot(preloadAction);
 
     root.render(
-        <ReduxProvider store={store}>
-            <MainWeb />
-        </ReduxProvider>,
+        <ServicesProvider services={services}>
+            <ReduxProvider store={store}>
+                <MainWeb />
+            </ReduxProvider>
+        </ServicesProvider>,
     );
 };

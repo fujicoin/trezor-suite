@@ -1,140 +1,249 @@
-import { AcquiredDevice } from '@suite-common/suite-types';
+import { type AcquiredDevice } from '@suite-common/suite-types';
+import { mockSuiteDevice } from '@suite-common/suite-types/mocks';
 import { DeviceModelInternal } from '@trezor/device-utils';
 
 import fixtures from '../__fixtures__/device';
-import * as utils from '../device';
+import {
+    findInstanceIndex,
+    getChangelogUrl,
+    getCheckBackupUrl,
+    getDeviceInstances,
+    getDeviceInstancesGroupedByDeviceId,
+    getFirmwareDowngradeUrl,
+    getFirstDeviceInstance,
+    getIsDeviceConnectedViaBluetooth,
+    getIsDeviceDescriptorApiTypeBluetooth,
+    getIsDeviceRemembered,
+    getNewInstanceNumber,
+    getNewWalletNumber,
+    getPackagingUrl,
+    getPhysicalDeviceCount,
+    getPhysicalDeviceUniqueIds,
+    getSelectedDevice,
+    getSortedDevicesWithoutInstances,
+    getStatus,
+    isDeviceWithButtonOnlyNoTouchscreen,
+    isSelectedDevice,
+    isSelectedInstance,
+    sortByTimestamp,
+} from '../device';
 
-describe('getStatus', () => {
+describe(getStatus.name, () => {
     fixtures.getStatus.forEach(f => {
         it(f.status, () => {
-            const status = utils.getStatus(f.device);
+            const status = getStatus(f.device);
             expect(status).toEqual(f.status);
         });
     });
 });
 
-describe('isSelectedDevice', () => {
+describe(getIsDeviceDescriptorApiTypeBluetooth.name, () => {
+    fixtures.getIsDeviceDescriptorApiTypeBluetooth.forEach(f => {
+        it(f.description, () => {
+            expect(getIsDeviceDescriptorApiTypeBluetooth(f.device)).toEqual(f.result);
+        });
+    });
+});
+
+describe(getIsDeviceConnectedViaBluetooth.name, () => {
+    fixtures.getIsDeviceConnectedViaBluetooth.forEach(f => {
+        it(f.description, () => {
+            expect(getIsDeviceConnectedViaBluetooth(f.device)).toEqual(f.result);
+        });
+    });
+});
+
+describe(isSelectedDevice.name, () => {
     fixtures.isSelectedDevice.forEach(f => {
         it(f.description, () => {
-            const instance = utils.isSelectedDevice(f.selected, f.device);
+            const instance = isSelectedDevice(f.selected, f.device);
             expect(instance).toEqual(f.result);
         });
     });
 });
 
-describe('isSelectedInstance', () => {
+describe(isSelectedInstance.name, () => {
     fixtures.isSelectedInstance.forEach(f => {
         it(f.description, () => {
-            const instance = utils.isSelectedInstance(f.selected, f.device);
+            const instance = isSelectedInstance(f.selected, f.device);
             expect(instance).toEqual(f.result);
         });
     });
 });
 
-describe('getNewInstanceNumber', () => {
+describe(getNewInstanceNumber.name, () => {
     fixtures.getNewInstanceNumber.forEach(f => {
         it(f.description, () => {
-            const instance = utils.getNewInstanceNumber(f.state, f.device as AcquiredDevice);
+            const instance = getNewInstanceNumber(f.state, f.device as AcquiredDevice);
             expect(instance).toEqual(f.result);
         });
     });
 });
 
-describe('getNewWalletNumber', () => {
+describe(getNewWalletNumber.name, () => {
     fixtures.getNewWalletNumber.forEach(f => {
         it(f.description, () => {
-            const instance = utils.getNewWalletNumber(f.state, f.device as AcquiredDevice);
+            const instance = getNewWalletNumber(f.state, f.device as AcquiredDevice);
             expect(instance).toEqual(f.result);
         });
     });
 });
 
-describe('findInstanceIndex', () => {
+describe(findInstanceIndex.name, () => {
     fixtures.findInstanceIndex.forEach(f => {
         it(f.description, () => {
-            const instance = utils.findInstanceIndex(f.state, f.device as AcquiredDevice);
+            const instance = findInstanceIndex(f.state, f.device as AcquiredDevice);
             expect(instance).toEqual(f.result);
         });
     });
 });
 
-describe('getSelectedDevice', () => {
+describe(getSelectedDevice.name, () => {
     fixtures.getSelectedDevice.forEach(f => {
         it(f.description, () => {
-            const instance = utils.getSelectedDevice(f.device, f.state);
+            const instance = getSelectedDevice(f.device, f.state);
             expect(instance).toEqual(f.result);
         });
     });
 });
 
-describe('sortByTimestamp', () => {
-    it('sortByTimestamp', () => {
-        const result = utils.sortByTimestamp(fixtures.sortByTimestamp.devices as any);
+describe(sortByTimestamp.name, () => {
+    it(sortByTimestamp.name, () => {
+        const result = sortByTimestamp(fixtures.sortByTimestamp.devices as any);
         expect(result).toEqual(fixtures.sortByTimestamp.result);
     });
 });
 
-describe('getFirstDeviceInstance', () => {
+describe(getFirstDeviceInstance.name, () => {
     fixtures.getFirstDeviceInstance.forEach(f => {
         it(f.description, () => {
-            const sort = utils.getFirstDeviceInstance(f.devices as any);
+            const sort = getFirstDeviceInstance(f.devices as any);
             expect(sort).toEqual(f.result);
         });
     });
 });
 
-describe('getDeviceInstances', () => {
+describe(getDeviceInstances.name, () => {
     fixtures.getDeviceInstances.forEach(f => {
         it(f.description, () => {
-            const sort = utils.getDeviceInstances(f.selected as any, f.devices as any, f.excluded);
+            const sort = getDeviceInstances(f.selected as any, f.devices as any, f.excluded);
             expect(sort).toEqual(f.result);
         });
     });
 });
 
-describe('isDeviceRemembered', () => {
+describe(getDeviceInstancesGroupedByDeviceId.name, () => {
+    fixtures.getDeviceInstancesGroupedByDeviceId.forEach(f => {
+        it(f.description, () => {
+            expect(getDeviceInstancesGroupedByDeviceId(f.devices as any)).toEqual(f.result);
+        });
+    });
+});
+
+describe(getSortedDevicesWithoutInstances.name, () => {
+    fixtures.getSortedDevicesWithoutInstances.forEach(f => {
+        it(f.description, () => {
+            expect(getSortedDevicesWithoutInstances(f.devices as any, f.excludedDeviceId)).toEqual(
+                f.result,
+            );
+        });
+    });
+});
+
+describe(getIsDeviceRemembered.name, () => {
     fixtures.isDeviceRemembered.forEach(f => {
         it(f.description, () => {
-            expect(utils.isDeviceRemembered(f.device)).toEqual(f.result);
+            expect(getIsDeviceRemembered(f.device)).toEqual(f.result);
         });
     });
 });
 
-describe('getChangelogUrl', () => {
+describe(getChangelogUrl.name, () => {
     fixtures.getChangelogUrl.forEach(f => {
         it(f.description, () => {
-            expect(utils.getChangelogUrl(f.device, f.revision)).toEqual(f.result);
+            expect(getChangelogUrl(f.device, f.revision)).toEqual(f.result);
         });
     });
 });
 
-describe('getCheckBackupUrl', () => {
+describe(getCheckBackupUrl.name, () => {
     fixtures.getCheckBackupUrl.forEach(f => {
         it(f.description, () => {
-            expect(utils.getCheckBackupUrl(f.device)).toEqual(f.result);
+            expect(getCheckBackupUrl(f.device)).toEqual(f.result);
         });
     });
 });
 
-describe('getPackagingUrl', () => {
+describe(getPackagingUrl.name, () => {
     fixtures.getPackagingUrl.forEach(f => {
         it(f.description, () => {
-            expect(utils.getPackagingUrl(f.device)).toEqual(f.result);
+            expect(getPackagingUrl(f.device)).toEqual(f.result);
         });
     });
 });
 
-describe('getFirmwareDowngradeUrl', () => {
+describe(getFirmwareDowngradeUrl.name, () => {
     fixtures.getFirmwareDowngradeUrl.forEach(f => {
         it(f.description, () => {
-            expect(utils.getFirmwareDowngradeUrl(f.device)).toEqual(f.result);
+            expect(getFirmwareDowngradeUrl(f.device)).toEqual(f.result);
         });
     });
 });
 
 describe('device utils', () => {
-    test('isDeviceWithButtons', () => {
-        expect(utils.isDeviceWithButtons(DeviceModelInternal.T3B1)).toBe(true);
-        expect(utils.isDeviceWithButtons(DeviceModelInternal.T3T1)).toBe(false);
+    test(isDeviceWithButtonOnlyNoTouchscreen.name, () => {
+        expect(isDeviceWithButtonOnlyNoTouchscreen(DeviceModelInternal.T3B1)).toBe(true);
+        expect(isDeviceWithButtonOnlyNoTouchscreen(DeviceModelInternal.T3T1)).toBe(false);
+    });
+});
+
+describe(getPhysicalDeviceUniqueIds.name, () => {
+    it('returns empty array for no devices', () => {
+        expect(getPhysicalDeviceUniqueIds([])).toEqual([]);
+    });
+
+    it('returns single id for one device', () => {
+        const devices = [mockSuiteDevice(undefined, { device_id: 'a' })];
+        expect(getPhysicalDeviceUniqueIds(devices)).toEqual(['a']);
+    });
+
+    it('deduplicates ids across multiple instances of the same physical device', () => {
+        const devices = [
+            mockSuiteDevice({ instance: 1 }, { device_id: 'a' }),
+            mockSuiteDevice({ instance: 2 }, { device_id: 'a' }),
+            mockSuiteDevice(undefined, { device_id: 'b' }),
+        ];
+        expect(getPhysicalDeviceUniqueIds(devices)).toEqual(['a', 'b']);
+    });
+
+    // Regression guard: switching the filter to a pure null/undefined typeguard
+    // would let empty-string ids through and inflate the count (used in analytics).
+    it('filters out devices with an empty-string id', () => {
+        const devices = [
+            mockSuiteDevice(undefined, { device_id: '' }),
+            mockSuiteDevice(undefined, { device_id: 'a' }),
+        ];
+        expect(getPhysicalDeviceUniqueIds(devices)).toEqual(['a']);
+    });
+
+    it('filters out devices with a null id', () => {
+        const devices = [
+            mockSuiteDevice(undefined, { device_id: null }),
+            mockSuiteDevice(undefined, { device_id: 'a' }),
+        ];
+        expect(getPhysicalDeviceUniqueIds(devices)).toEqual(['a']);
+    });
+});
+
+describe(getPhysicalDeviceCount.name, () => {
+    it('counts unique physical devices, ignoring instances and falsy ids', () => {
+        const devices = [
+            mockSuiteDevice({ instance: 1 }, { device_id: 'a' }),
+            mockSuiteDevice({ instance: 2 }, { device_id: 'a' }),
+            mockSuiteDevice(undefined, { device_id: 'b' }),
+            mockSuiteDevice(undefined, { device_id: '' }),
+            mockSuiteDevice(undefined, { device_id: null }),
+        ];
+        expect(getPhysicalDeviceCount(devices)).toBe(2);
     });
 });

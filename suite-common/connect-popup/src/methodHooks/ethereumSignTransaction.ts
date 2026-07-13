@@ -1,22 +1,26 @@
-import { Bip43Path, getNetworkByEvmChainId } from '@suite-common/wallet-config';
+import { selectSelectedDevice } from '@suite-common/device';
+import { type Bip43Path, getNetworkByEvmChainId } from '@suite-common/wallet-config';
 import {
     accountsActions,
     selectAccountForNetworkSymbolAndPath,
-    selectSelectedDevice,
     sendFormActions,
 } from '@suite-common/wallet-core';
-import { Account, PrecomposedTransactionFinal } from '@suite-common/wallet-types';
+import { type Account, type PrecomposedTransactionFinal } from '@suite-common/wallet-types';
 import TrezorConnect from '@trezor/connect';
-import type { EthereumSignTransaction } from '@trezor/connect';
-import { MethodInfo } from '@trezor/connect/src/core/AbstractMethod';
+import type {
+    CallMethodKeys,
+    EthereumSignTransaction,
+    EthereumSignTypedData,
+    MethodInfo,
+} from '@trezor/connect';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- TODO: extract pathUtils to a shared location and remove this exception (see #27376 deferred work)
 import { getSerializedPath, validatePath } from '@trezor/connect/src/utils/pathUtils';
 
 import { connectPopupActions } from '../connectPopupActions';
 import { createPlaceholderAccount } from './utils';
 import { getPermissionDeferred } from '../connectPopupPromiseManager';
 import { selectConnectPopupCall } from '../connectPopupReducer';
-
-import { PostCallHookParams, PreCallHookParams } from './index';
+import { type PostCallHookParams, type PreCallHookParams } from './types';
 
 const temporaryAccounts: Account[] = [];
 
@@ -36,10 +40,9 @@ const _storePrecomposedTransaction = ({
             selectedUtxos: [],
             isCoinControlEnabled: false,
             hasCoinControlBeenOpened: false,
-            options: ['ethereumNonce', 'ethereumData'],
+            options: ['ethereumNonce', 'transactionData'],
             selectedFee: 'custom',
-            ethereumDataAscii: '',
-            ethereumDataHex: typedPayload.transaction.data?.replace(/^0x/, ''),
+            transactionData: typedPayload.transaction.data?.replace(/^0x/, ''),
             ethereumNonce: typedPayload.transaction.nonce,
         },
         precomposedTransaction: {
@@ -47,7 +50,7 @@ const _storePrecomposedTransaction = ({
         },
     });
 
-const preCallHook = async <M extends keyof typeof TrezorConnect>({
+const preCallHook = async <M extends CallMethodKeys>({
     method,
     payload,
     getState,
@@ -56,42 +59,53 @@ const preCallHook = async <M extends keyof typeof TrezorConnect>({
     source,
 }: PreCallHookParams<M>) => {
     try {
-        // Prepare selected account
-        if (method === 'ethereumSignTransaction' && txSigningPrecomposed) {
+        // Parse common parameters (path, chainId) from payload
+        let path: Bip43Path;
+        let chainId = 1;
+        if (method === 'ethereumSignTransaction') {
             const typedPayload = payload as any as EthereumSignTransaction;
-            const path = getSerializedPath(validatePath(typedPayload.path)) as Bip43Path;
-            const network = getNetworkByEvmChainId(typedPayload.transaction.chainId || 1) || {
-                // Placeholder for chains not supported in Suite
-                networkType: 'ethereum',
-                symbol: 'eth',
-                name: 'Chain ID: ' + typedPayload.transaction.chainId,
-                isHidden: true,
-            };
-            // Try to find matching account
-            let selectedAccount = !network.isHidden
-                ? selectAccountForNetworkSymbolAndPath(getState(), network.symbol, path)
-                : null;
-            if (!selectedAccount) {
-                // Create a new placeholder account
-                const createdAccount = await dispatch(createPlaceholderAccount(network, path));
-                temporaryAccounts.push(createdAccount.payload);
-                selectedAccount = createdAccount.payload;
+            path = getSerializedPath(validatePath(typedPayload.path)) as Bip43Path;
+            chainId = typedPayload.transaction.chainId || 1;
+
+            if (txSigningPrecomposed) {
+                dispatch(_storePrecomposedTransaction({ typedPayload, txSigningPrecomposed }));
             }
-            if (!selectedAccount) {
-                throw new Error('Selected account is missing'); // Should not happen
-            }
-            dispatch(
-                connectPopupActions.setSelectedAccountKey({
-                    selectedAccountKey: selectedAccount.key,
-                }),
-            );
-            dispatch(_storePrecomposedTransaction({ typedPayload, txSigningPrecomposed }));
+        } else if (method === 'ethereumSignTypedData') {
+            const typedPayload = payload as any as EthereumSignTypedData<any>;
+            path = getSerializedPath(validatePath(typedPayload.path)) as Bip43Path;
+            chainId = Number(typedPayload.data.domain.chainId) || 1;
+        } else {
+            return;
         }
 
-        if (
-            (method === 'ethereumSignTransaction' || method === 'ethereumSignTypedData') &&
-            source.type !== 'desktop-ws'
-        ) {
+        // Prepare selected account
+        const network = getNetworkByEvmChainId(chainId) || {
+            // Placeholder for chains not supported in Suite
+            networkType: 'ethereum',
+            symbol: 'eth',
+            name: 'Chain ID: ' + chainId,
+            isHidden: true,
+        };
+        // Try to find matching account
+        let selectedAccount = !network.isHidden
+            ? selectAccountForNetworkSymbolAndPath(getState(), network.symbol, path)
+            : null;
+        if (!selectedAccount) {
+            // Create a new placeholder account
+            const createdAccount = await dispatch(createPlaceholderAccount(network, path));
+            temporaryAccounts.push(createdAccount.payload);
+            selectedAccount = createdAccount.payload;
+        }
+        if (!selectedAccount) {
+            throw new Error('Selected account is missing'); // Should not happen
+        }
+        dispatch(
+            connectPopupActions.setSelectedAccountKey({
+                selectedAccountKey: selectedAccount.key,
+            }),
+        );
+
+        if (source.type !== 'desktop-ws' && source.type !== 'web') {
             // Display simulation
             const device = selectSelectedDevice(getState());
             if (!device) throw new Error('No device selected');
@@ -101,11 +115,11 @@ const preCallHook = async <M extends keyof typeof TrezorConnect>({
                     path: device.path,
                     instance: device.instance,
                     state: device.state,
+                    useEmptyPassphrase: device.useEmptyPassphrase,
                 },
-                useEmptyPassphrase: device.useEmptyPassphrase,
                 showOnTrezor: false,
             });
-            if (!accountAddress.success) throw new Error(accountAddress.payload.error);
+            if (!accountAddress.success) throw new Error(accountAddress.error.message);
             dispatch(
                 connectPopupActions.txSimulation({
                     fromAddress: accountAddress.payload.address,
@@ -115,7 +129,7 @@ const preCallHook = async <M extends keyof typeof TrezorConnect>({
         }
 
         // Modify payload to include selected fee, if present
-        if (method === 'ethereumSignTransaction') {
+        if (method === 'ethereumSignTransaction' && source.type === 'walletconnect') {
             const currentPopupCall = selectConnectPopupCall(getState());
             const typedPayload = payload as any as EthereumSignTransaction;
             if (
@@ -138,13 +152,13 @@ const preCallHook = async <M extends keyof typeof TrezorConnect>({
                     __precomposed: true,
                 });
                 if (!methodInfo.success) {
-                    throw methodInfo.payload;
+                    throw methodInfo.error;
                 }
                 txSigningPrecomposed = (methodInfo.payload as any as MethodInfo).precomposed;
                 if (txSigningPrecomposed)
                     dispatch(_storePrecomposedTransaction({ typedPayload, txSigningPrecomposed }));
 
-                return modifiedPayload;
+                return modifiedPayload as any as typeof payload;
             }
         }
     } catch (error) {
@@ -157,9 +171,7 @@ const preCallHook = async <M extends keyof typeof TrezorConnect>({
     }
 };
 
-const postCallHook = <M extends keyof typeof TrezorConnect>({
-    dispatch,
-}: PostCallHookParams<M>) => {
+const postCallHook = <M extends CallMethodKeys>({ dispatch }: PostCallHookParams<M>) => {
     if (temporaryAccounts.length) {
         // Remove temporary accounts
         dispatch(accountsActions.removeAccount(temporaryAccounts));

@@ -1,36 +1,40 @@
 import React from 'react';
 
-import { DeviceModelInternal } from '@trezor/device-utils';
+import { type AllowedAnimationPrimitiveFrameProps, Icon } from '@trezor/components';
+import { DeviceModelInternal, normalizeDeviceColorVariant } from '@trezor/device-utils';
 
+import { mapTrezorModelToIcon } from '../../utils/mapTrezorModelToIcon';
 import { DeviceAnimation } from '../DeviceAnimation/DeviceAnimation';
 
-export type RotateDeviceImageProps = {
+export type RotateDeviceImageProps = AllowedAnimationPrimitiveFrameProps & {
     deviceModel?: DeviceModelInternal;
     deviceColor?: number;
-    className?: string;
-    animationHeight?: string;
-    animationWidth?: string;
+    loop?: boolean;
 };
 
 export const RotateDeviceImage = ({
     deviceModel,
     deviceColor,
-    className,
-    animationHeight,
-    animationWidth,
+    loop,
+    ...rest
 }: RotateDeviceImageProps) => {
     if (!deviceModel) {
         return null;
     }
 
+    if (deviceModel === DeviceModelInternal.UNKNOWN) {
+        return <Icon as={mapTrezorModelToIcon[DeviceModelInternal.T3T1]} size={32} />;
+    }
+
     return (
         <DeviceAnimation
-            className={className}
+            loop={loop}
             type="ROTATE"
-            deviceModelInternal={deviceModel}
-            deviceUnitColor={deviceColor}
-            height={animationHeight}
-            width={animationWidth}
+            deviceModelInternal={
+                deviceModel === DeviceModelInternal.T2B1 ? DeviceModelInternal.T3B1 : deviceModel
+            }
+            deviceUnitColor={normalizeDeviceColorVariant(deviceColor) as any}
+            {...rest}
         />
     );
 };

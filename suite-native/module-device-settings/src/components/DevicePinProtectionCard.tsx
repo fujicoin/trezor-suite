@@ -2,17 +2,14 @@ import { useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
-import {
-    selectHasRunningDiscovery,
-    selectIsDeviceProtectedByPin,
-    selectSelectedDevice,
-} from '@suite-common/wallet-core';
-import { InlineAlertBoxProps } from '@suite-native/atoms';
+import { selectIsDeviceProtectedByPin, selectSelectedDevice } from '@suite-common/device';
+import { selectHasRunningDiscovery } from '@suite-common/wallet-core';
+import { type InlineAlertBoxProps } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import {
-    DeviceSettingsStackParamList,
+    type DeviceSettingsStackParamList,
     DeviceSettingsStackRoutes,
-    StackNavigationProps,
+    type StackNavigationProps,
 } from '@suite-native/navigation';
 
 import { DeviceSettingsItemCard } from './DeviceSettingsItemCard';
@@ -42,7 +39,7 @@ export const DevicePinProtectionCard = () => {
         if (!isDeviceProtectedByPin) {
             return {
                 title: <Translation id="moduleDeviceSettings.pinProtection.alertBoxTitle" />,
-                variant: 'warning',
+                intent: 'warning',
                 buttonLabel: <Translation id="moduleDeviceSettings.pinProtection.buttons.setPin" />,
                 onButtonPress: navigateToPinStack,
                 buttonProps: {
@@ -56,7 +53,7 @@ export const DevicePinProtectionCard = () => {
     })();
 
     const handleOnPress = () => {
-        navigation.navigate(DeviceSettingsStackRoutes.PinProtection);
+        navigation.navigate(DeviceSettingsStackRoutes.DevicePinProtection);
     };
 
     return (

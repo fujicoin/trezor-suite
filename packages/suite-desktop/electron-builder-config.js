@@ -3,25 +3,16 @@ const { suiteVersion } = require('../suite/package.json');
 
 const isCodesignBuild = process.env.IS_CODESIGN_BUILD === 'true';
 
-const filterExtraResources = resources =>
-    resources.filter(r => {
-        if (r.to.includes('bluetooth')) {
-            return !!process.env.BLUETOOTH;
-        }
-
-        return true;
-    });
-
 // to be able to use patterns like ${author} and ${arch}
 module.exports = {
-    // distingush between dev and prod builds
-    appId: `io.trezor.TrezorSuite${isCodesignBuild ? '' : '.dev'}`,
+    // distinguish between dev and prod builds
+    appId: `fujicoin.org.TrezorSuite${isCodesignBuild ? '' : '.dev'}`,
     extraMetadata: {
         version: suiteVersion,
-        // distingush between dev and prod builds so different userDataDir is used
+        // distinguish between dev and prod builds so different userDataDir is used
         name: `@trezor/suite-desktop${isCodesignBuild ? '' : '-dev'}`,
     },
-    productName: 'Trezor Suite',
+    productName: 'Fujicoin - Trezor Suite',
     copyright: 'Copyright © ${author}',
     asar: true,
     asarUnpack: ['**/*.node'],
@@ -31,17 +22,13 @@ module.exports = {
     npmRebuild: false,
     files: [
         // defaults are https://www.electron.build/configuration#files
-        'build/**/*',
-        'dist/**/*.{js,wasm}',
-        '!**/{tsconfig}*',
-        '!**/*.{md,js.map}',
-        'build/release-notes.md',
-        '!**/node_modules/**/*.{js.flow,ts}',
-        '!build/static/**/{favicon,icons,bin,browsers}',
-        '!node_modules/@sentry/**/esm',
-        '!node_modules/ajv/lib',
-        '!node_modules/blake-hash/**/{build,src}',
-        '!node_modules/usb/**/{libusb,libusb_config,src}',
+        'build/**/*', // Electron renderer process
+        'dist/**/*.{js,wasm}', // Electron main+preload process
+        '!**/*.{md,js.map}', // exclude files unnecessary for runtime
+        'build/release-notes.md', // this one is dynamically loaded in runtime
+        '!build/static/**/{favicon,icons,bin,browsers}', // copied as extraResources instead, some are platform-specific
+        '!node_modules/usb/**/{libusb,libusb_config,src}', // exclude files unnecessary for runtime
+        '!node_modules/@trezor/**', // exclude @trezor/suite-desktop, which would recurse. Other @trezor packages are bundled by bundler.
     ],
     extraResources: [
         {
@@ -91,11 +78,7 @@ module.exports = {
     },
     mac: {
         files: ['entitlements.mac.inherit.plist'],
-        extraResources: filterExtraResources([
-            {
-                from: 'build/static/bin/bridge/mac-${arch}',
-                to: 'bin/bridge',
-            },
+        extraResources: [
             {
                 from: 'build/static/bin/tor/mac-${arch}',
                 to: 'bin/tor',
@@ -108,10 +91,10 @@ module.exports = {
                 from: 'build/static/bin/bluetooth/mac-${arch}',
                 to: 'bin/bluetooth',
             },
-        ]),
+        ],
         icon: 'build/static/images/desktop/512x512.icns',
-        artifactName: 'Trezor-Suite-${version}-mac-${arch}.${ext}',
-        hardenedRuntime: true,
+        artifactName: 'Fujicoin-Trezor-Suite-${version}-mac-${arch}.${ext}',
+        hardenedRuntime: isCodesignBuild,
         gatekeeperAssess: false,
         darkModeSupport: true,
         entitlements: 'entitlements.mac.inherit.plist',
@@ -128,11 +111,7 @@ module.exports = {
         target: ['dmg', 'zip'],
     },
     win: {
-        extraResources: filterExtraResources([
-            {
-                from: 'build/static/bin/bridge/win-${arch}',
-                to: 'bin/bridge',
-            },
+        extraResources: [
             {
                 from: 'build/static/bin/tor/win-${arch}',
                 to: 'bin/tor',
@@ -149,22 +128,19 @@ module.exports = {
                 from: 'build/static/bin/bluetooth/win-${arch}',
                 to: 'bin/bluetooth',
             },
-        ]),
+        ],
         icon: 'build/static/images/desktop/512x512.png',
-        artifactName: 'Trezor-Suite-${version}-win-${arch}.${ext}',
+        artifactName: 'Fujicoin-Trezor-Suite-${version}-win-${arch}.${ext}',
         target: ['nsis'],
+        signExts: ['.exe', '.dll'],
         signtoolOptions: {
             publisherName: ['SatoshiLabs, s.r.o.', 'Trezor Company s.r.o.'],
-            // TODO #14482: when Electron-main is migrated to ESM, and we declare whole suite-desktop package as ESM, rename .mjs files back to .js
-            sign: '../suite-desktop-core/lib/sign-windows.mjs',
+            // TODO #14482: when Electron-main is migrated to ESM, and we declare whole suite-desktop package as ESM, rename .mjs files to .js
+            sign: '../suite-desktop-core/scripts/sign-windows.mjs',
         },
     },
     linux: {
-        extraResources: filterExtraResources([
-            {
-                from: 'build/static/bin/bridge/linux-${arch}',
-                to: 'bin/bridge',
-            },
+        extraResources: [
             {
                 from: 'build/static/bin/tor/linux-${arch}',
                 to: 'bin/tor',
@@ -181,14 +157,14 @@ module.exports = {
                 from: 'build/static/bin/bluetooth/linux-${arch}',
                 to: 'bin/bluetooth',
             },
-        ]),
+        ],
         icon: 'build/static/images/desktop/512x512.png',
-        artifactName: 'Trezor-Suite-${version}-linux-${arch}.${ext}',
-        executableName: 'trezor-suite',
+        artifactName: 'Fujicoin-Trezor-Suite-${version}-linux-${arch}.${ext}',
+        executableName: 'fujicoin-trezor-suite',
         category: 'Utility',
         target: ['AppImage'],
     },
-    // TODO #14482: when Electron-main is migrated to ESM, and we declare whole suite-desktop package as ESM, rename .mjs files back to .js
-    afterPack: '../suite-desktop-core/lib/setElectronFuses.mjs',
-    afterSign: '../suite-desktop-core/lib/notarize.mjs',
+    // TODO #14482: when Electron-main is migrated to ESM, and we declare whole suite-desktop package as ESM, rename .mjs files to .js
+    afterPack: '../suite-desktop-core/scripts/setElectronFuses.mjs',
+    afterSign: '../suite-desktop-core/scripts/notarize.mjs',
 };

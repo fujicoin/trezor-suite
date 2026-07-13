@@ -1,63 +1,75 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import EventEmitter from 'events';
 
-import { storage } from '@trezor/connect-common';
-import { TRANSPORT, TRANSPORT_ERROR } from '@trezor/transport';
-import { createDeferred, createLazy, getSynchronize, throwError } from '@trezor/utils';
-
-import { ERRORS } from '../constants';
-import { AbstractMethod } from './AbstractMethod';
-import { getMethod } from './method';
-import { onCallFirmwareUpdate } from './onCallFirmwareUpdate';
-import { dispose as disposeBackend } from '../backend/BlockchainLink';
-import { DataManager } from '../data/DataManager';
-import { enhanceMessageWithAnalytics } from '../data/analyticsInfo';
-import { parseLocalFirmwares } from '../data/connectSettings';
-import type { Device, DeviceEvents } from '../device/Device';
-import { DeviceList, IDeviceList, assertDeviceListConnected } from '../device/DeviceList';
-import { WebextensionStateStorage } from '../device/StateStorage';
-import * as workflows from '../device/workflow';
 import {
+    CORE_CALL,
+    CORE_CALL_CANCEL,
     CORE_EVENT,
-    CoreEventMessage,
-    CoreRequestMessage,
     DEVICE,
-    IFRAME,
-    IFrameCallMessage,
     POPUP,
     RESPONSE_EVENT,
-    TransportInfo,
-    UI,
+    SET_ENABLED_NETWORKS,
+    UI_EVENT,
+    UI_REQUEST,
+    UI_RESPONSE,
     createDeviceMessage,
-    createPopupMessage,
     createResponseMessage,
     createTransportMessage,
     createUiMessage,
-} from '../events';
-import type { ConnectSettings, DeviceIdentity, Device as DeviceTyped } from '../types';
-import { LogWriter, enableLog, initLog, setLogWriter } from '../utils/debug';
-import { InteractionTimeout } from '../utils/interactionTimeout';
-import { createPopupPromiseManager } from '../utils/popupPromiseManager';
-import { createUiPromiseManager } from '../utils/uiPromiseManager';
+} from '@trezor/connect-common';
+import type {
+    ConnectSettings,
+    CoreCallMessage,
+    CoreEventMessage,
+    CoreRequestMessage,
+    DeviceIdentity,
+    TransportInfo,
+} from '@trezor/connect-common';
+import { ERRORS } from '@trezor/connect-common/src/constants';
+import type { TrezorError } from '@trezor/connect-common/src/constants/errors';
+import { parseLocalFirmwares } from '@trezor/connect-common/src/data/connectSettings';
+import type { CreateLogger } from '@trezor/connect-common/src/types/settings';
+import {
+    type LogWriter,
+    noopCreateLogger,
+    noopLogger,
+    setLogWriter,
+} from '@trezor/connect-common/src/utils/debug';
+import { TRANSPORT, TRANSPORT_ERROR } from '@trezor/transport-common';
+import { type Logger, createDeferred, createLazy, getSynchronize, throwError } from '@trezor/utils';
 
-// custom log
-const _log = initLog('Core');
+import type { AbstractMethod } from './AbstractMethod';
+import { getMethod } from './method';
+import { onCallFirmwareUpdate } from './onCallFirmwareUpdate';
+import { dispose as disposeBackend } from '../backend/BlockchainLink';
+import * as enabledNetworksStore from '../data/enabledNetworksStore';
+import { initializeFirmwareConfig } from '../data/firmwareInfo';
+import * as firmwareReleaseStore from '../data/firmwareReleaseStore';
+import * as localFirmwareStore from '../data/localFirmwareStore';
+import { loadProtobufModules } from '../data/protobufLoader';
+import * as settingsStore from '../data/settingsStore';
+import type { Device, DeviceEvents } from '../device/Device';
+import type { IDeviceList } from '../device/DeviceList';
+import { DeviceList, assertDeviceListConnected } from '../device/DeviceList';
+import { validateState } from '../device/workflow/validateState';
+import { createUiPromiseManager } from '../utils/uiPromiseManager';
 
 type CoreContext = ReturnType<Core['getCoreContext']>;
 
-const waitForPopup = ({ popupPromise, sendCoreMessage }: CoreContext) => {
-    sendCoreMessage(createUiMessage(UI.REQUEST_UI_WINDOW));
+const createSendCoreMessageWithCallId =
+    (sendCoreMessage: CoreContext['sendCoreMessage'], callId?: string) =>
+    (message: CoreEventMessage) => {
+        const isUiRequestMessage = message.event === UI_EVENT && message.type.startsWith('ui-');
+        const hasCallId = 'callId' in message && Boolean(message.callId);
 
-    return popupPromise.wait();
-};
+        if (callId && isUiRequestMessage && !hasCallId) {
+            sendCoreMessage({ ...message, callId } as CoreEventMessage);
 
-/**
- * Start interaction timeout timer
- */
-const startInteractionTimeout = (context: CoreContext) =>
-    context.interactionTimeout.start(() => {
-        onPopupClosed(context, 'Interaction timeout');
-    });
+            return;
+        }
+
+        sendCoreMessage(message);
+    };
 
 /**
  * Find device by device path. Returned device may be unacquired.
@@ -65,116 +77,20 @@ const startInteractionTimeout = (context: CoreContext) =>
  * @returns {Promise<Device>}
  * @memberof Core
  */
-const initDevice = async (context: CoreContext, methodCallDevice?: DeviceIdentity) => {
-    const { uiPromises, deviceList, sendCoreMessage } = context;
-
+const selectDevice = ({ deviceList }: CoreContext, methodCallDevice?: DeviceIdentity) => {
     assertDeviceListConnected(deviceList);
 
-    const isWebUsb = deviceList.getActiveTransports().some(t => t.type === 'WebUsbTransport');
-    let device: Device | typeof undefined;
-    let showDeviceSelection = isWebUsb;
-    const isUsingPopup = DataManager.getSettings('popup');
-    const origin = DataManager.getSettings('origin')!;
-    const useCoreInPopup = DataManager.getSettings('useCoreInPopup');
-    const { preferredDevice } = storage.load().origin[origin] || {};
-    const preferredDeviceInList =
-        preferredDevice?.state && deviceList.getDeviceByStaticState(preferredDevice.state);
+    let device: Device | undefined;
 
     if (methodCallDevice?.state?.staticSessionId) {
         device = deviceList.getDeviceByStaticState(methodCallDevice.state.staticSessionId);
-    } else if (methodCallDevice?.path) {
+    }
+    if (!device && methodCallDevice?.path) {
         device = deviceList.getDeviceByPath(methodCallDevice.path);
     }
-
-    if (preferredDevice && !device) {
-        if (preferredDeviceInList) {
-            device = preferredDeviceInList;
-        } else {
-            // we detected that there is a preferred device (user stored previously) but it's not in the list anymore (disconnected now)
-            // we treat this situation as implicit forget
-            storage.save(store => {
-                store.origin[origin] = { ...store.origin[origin], preferredDevice: undefined };
-
-                return store;
-            });
-        }
+    if (!device) {
+        device = deviceList.getOnlyDevice();
     }
-
-    if (device) {
-        showDeviceSelection = device.isUnreadable() || (device.isUnacquired() && !!isUsingPopup);
-    } else {
-        const onlyDevice = deviceList.getOnlyDevice();
-        if (onlyDevice && (!isWebUsb || !isUsingPopup)) {
-            // there is only one device available. use it
-            device = onlyDevice;
-            // Show device selection if device is unreadable or unacquired
-            // Also in case of core in popup, so user can press "Remember device"
-            showDeviceSelection =
-                device.isUnreadable() || device.isUnacquired() || !!useCoreInPopup;
-        } else {
-            showDeviceSelection = true;
-        }
-    }
-
-    // show device selection when:
-    // - there are no devices
-    // - using webusb and method.devicePath is not set
-    // - device is in unreadable state
-    if (showDeviceSelection) {
-        // initialize uiPromise instance which will catch changes in _deviceList (see: handleDeviceSelectionChanges function)
-        // but do not wait for resolve yet
-        uiPromises.create(UI.RECEIVE_DEVICE);
-
-        // wait for popup handshake
-        await waitForPopup(context);
-
-        // there is await above, _deviceList might have been disconnected.
-        assertDeviceListConnected(deviceList);
-
-        // check again for available devices
-        // there is a possible race condition before popup open
-        const onlyDevice = deviceList.getOnlyDevice();
-        if (
-            onlyDevice &&
-            !onlyDevice.isUnreadable() &&
-            !onlyDevice.isUnacquired() &&
-            !isWebUsb &&
-            !useCoreInPopup
-        ) {
-            // there is one device available. use it
-            device = onlyDevice;
-        } else {
-            // request select device view
-            sendCoreMessage(
-                createUiMessage(UI.SELECT_DEVICE, {
-                    webusb: isWebUsb,
-                    devices: deviceList.getAllDevices().map(d => d.toMessageObject()),
-                }),
-            );
-
-            // wait for device selection
-            if (uiPromises.exists(UI.RECEIVE_DEVICE)) {
-                const { payload } = await uiPromises.get(UI.RECEIVE_DEVICE);
-                if (payload.remember) {
-                    const { label, path, state } = payload.device;
-                    storage.save(store => {
-                        store.origin[origin] = {
-                            ...store.origin[origin],
-                            preferredDevice: { label, path, state },
-                        };
-
-                        return store;
-                    });
-                }
-                device = deviceList.getDeviceByPath(payload.device.path);
-            }
-        }
-    } else if (uiPromises.exists(UI.RECEIVE_DEVICE)) {
-        // In case of second method call quickly after the first one, wait for device selection
-        // (if created during the first call) even if showDeviceSelection is false now
-        await uiPromises.get(UI.RECEIVE_DEVICE);
-    }
-
     if (!device) {
         throw ERRORS.TypedError('Device_NotFound');
     }
@@ -187,110 +103,36 @@ const initDevice = async (context: CoreContext, methodCallDevice?: DeviceIdentit
  */
 const inner = async (context: CoreContext, method: AbstractMethod<any>, device: Device) => {
     const { uiPromises, sendCoreMessage } = context;
-    const trustedHost = DataManager.getSettings('trustedHost');
-    const isUsingPopup = DataManager.getSettings('popup') ?? false;
 
     const firmwareException = method.checkFirmwareRange();
     if (firmwareException) {
-        if (isUsingPopup) {
-            if (firmwareException === UI.FIRMWARE_NOT_COMPATIBLE) {
-                // wait for popup handshake
-                await waitForPopup(context);
-                // initialize user response promise
-                const uiPromise = uiPromises.create(UI.RECEIVE_CONFIRMATION, device);
-                // show unexpected state information and wait for confirmation
-                sendCoreMessage(
-                    createUiMessage(UI.FIRMWARE_NOT_COMPATIBLE, device.toMessageObject()),
-                );
-
-                const uiResp = await uiPromise.promise;
-                if (!uiResp.payload) {
-                    throw ERRORS.TypedError('Method_PermissionsNotGranted');
-                }
-            } else {
-                await waitForPopup(context);
-                // show unexpected state information
-                sendCoreMessage(createUiMessage(firmwareException, device.toMessageObject()));
-
-                // wait for device disconnect
-                await uiPromises.create(DEVICE.DISCONNECT, device).promise;
-
-                // interrupt process and go to "final" block
-                return Promise.reject(ERRORS.TypedError('Method_Cancel'));
-            }
-        } else {
-            // return error if not using popup
-            return Promise.reject(ERRORS.TypedError('Device_FwException', firmwareException));
-        }
+        // return error if not using popup
+        return Promise.reject(ERRORS.TypedError('Device_FwException', firmwareException));
     }
 
     // check if device is in unexpected mode [bootloader, not-initialized, required firmware]
-    const unexpectedMode = device.hasUnexpectedMode(
-        method.allowDeviceMode,
-        method.requireDeviceMode,
-    );
+    const unexpectedMode = device.hasUnexpectedMode(method.allowDeviceMode);
     if (unexpectedMode) {
-        if (isUsingPopup) {
-            // wait for popup handshake
-            await waitForPopup(context);
-            // show unexpected state information
-            sendCoreMessage(createUiMessage(unexpectedMode, device.toMessageObject()));
-
-            // wait for device disconnect
-            await uiPromises.create(DEVICE.DISCONNECT, device).promise;
-
-            // interrupt process and go to "final" block
-            return Promise.reject(ERRORS.TypedError('Device_ModeException', unexpectedMode));
-        }
-
         // throw error if not using popup
         return Promise.reject(ERRORS.TypedError('Device_ModeException', unexpectedMode));
     }
 
     method.checkDeviceCapability();
 
-    // check and request permissions [read, write...]
-    method.checkPermissions({ origin: DataManager.getSettings('origin') });
-    if (!trustedHost && method.requiredPermissions.length > 0) {
-        // wait for popup window
-        await waitForPopup(context);
-        // initialize user response promise
-        const uiPromise = uiPromises.create(UI.RECEIVE_PERMISSION, device);
-        sendCoreMessage(
-            createUiMessage(UI.REQUEST_PERMISSION, {
-                permissions: method.requiredPermissions,
-                device: device.toMessageObject(),
-            }),
-        );
-        // wait for response
-        const { granted, remember } = await uiPromise.promise.then(({ payload }) => payload);
-
-        if (granted) {
-            method.savePermissions(!remember, { origin: DataManager.getSettings('origin') });
-        } else {
-            // interrupt process and go to "final" block
-            return Promise.reject(ERRORS.TypedError('Method_PermissionsNotGranted'));
-        }
-    }
-
     const deviceNeedsBackup = device.features.backup_availability === 'Required';
     if (deviceNeedsBackup) {
-        if (
-            method.noBackupConfirmationMode === 'always' ||
-            (method.noBackupConfirmationMode === 'popup-only' && isUsingPopup)
-        ) {
-            // wait for popup window
-            await waitForPopup(context);
+        if (method.confirmMissingBackup) {
             // initialize user response promise
-            const uiPromise = uiPromises.create(UI.RECEIVE_CONFIRMATION, device);
+            const uiPromise = uiPromises.create(UI_RESPONSE.RECEIVE_CONFIRMATION, device);
 
             // request confirmation view
             sendCoreMessage(
-                enhanceMessageWithAnalytics(
-                    createUiMessage(UI.REQUEST_CONFIRMATION, {
+                createUiMessage(
+                    UI_REQUEST.REQUEST_CONFIRMATION,
+                    {
                         view: 'no-backup',
-                    }),
-                    { device: device.toMessageObject() },
+                    },
+                    { requestId: uiPromise.requestId },
                 ),
             );
 
@@ -302,69 +144,35 @@ const inner = async (context: CoreContext, method: AbstractMethod<any>, device: 
                 return Promise.reject(ERRORS.TypedError('Method_PermissionsNotGranted'));
             }
         }
-
-        // wait for popup handshake
-        await waitForPopup(context);
         // show notification
-        sendCoreMessage(createUiMessage(UI.DEVICE_NEEDS_BACKUP, device.toMessageObject()));
+        sendCoreMessage(createUiMessage(UI_REQUEST.DEVICE_NEEDS_BACKUP, device.toMessageObject()));
     }
 
     // notify if firmware is outdated but not required
     if (device.firmwareStatus === 'outdated') {
-        // wait for popup handshake
-        await waitForPopup(context);
         // show notification
-        sendCoreMessage(createUiMessage(UI.FIRMWARE_OUTDATED, device.toMessageObject()));
+        sendCoreMessage(createUiMessage(UI_REQUEST.FIRMWARE_OUTDATED, device.toMessageObject()));
     }
-
-    // ask for confirmation [export xpub, export info, sign message]
-    if (!trustedHost) {
-        const requestConfirmation = method.confirmation;
-        if (requestConfirmation) {
-            // wait for popup window
-            await waitForPopup(context);
-            // initialize user response promise
-            const uiPromise = uiPromises.create(UI.RECEIVE_CONFIRMATION, device);
-
-            // request confirmation view
-            sendCoreMessage(
-                enhanceMessageWithAnalytics(
-                    createUiMessage(UI.REQUEST_CONFIRMATION, requestConfirmation),
-                    { device: device.toMessageObject() },
-                ),
-            );
-
-            // wait for user action
-            const confirmed = await uiPromise.promise.then(({ payload }) => payload);
-            if (!confirmed) {
-                // interrupt process and go to "final" block
-                return Promise.reject(ERRORS.TypedError('Method_Cancel'));
-            }
-        }
-    }
-
-    const workflowCtx = {
-        device,
-        method,
-        signal: context.signal,
-    };
 
     // Make sure that device will display pin/passphrase
-    await workflows.validateState(workflowCtx);
-
-    if (method.useUi) {
-        // make sure that popup is opened
-        await waitForPopup(context);
-    } else {
-        // popup is not required
-        sendCoreMessage(createPopupMessage(POPUP.CANCEL_POPUP_REQUEST));
+    if (method.useDeviceState) {
+        await validateState({
+            device,
+            method,
+            signal: context.signal,
+            sendCoreMessage,
+        });
     }
 
     // run method
     try {
-        const response = await method.run();
+        const response = await method.run({ sendCoreMessage, createUiPromise: uiPromises.create });
 
-        return createResponseMessage(method.responseID, true, response, device);
+        return createResponseMessage(method.responseID, true, response, {
+            path: device.getUniquePath(),
+            state: device.getState(),
+            instance: device.getInstance(),
+        });
     } catch (error) {
         return Promise.reject(error);
     }
@@ -377,8 +185,8 @@ const inner = async (context: CoreContext, method: AbstractMethod<any>, device: 
  * @returns {Promise<void>}
  * @memberof Core
  */
-const onCall = async (context: CoreContext, message: IFrameCallMessage) => {
-    if (!message.id || !message.payload || message.type !== IFRAME.CALL) {
+const onCall = async (context: CoreContext, message: CoreCallMessage) => {
+    if (!message.id || !message.payload || message.type !== CORE_CALL) {
         throw ERRORS.TypedError(
             'Method_InvalidParameter',
             'onCall: message.id or message.payload is missing',
@@ -391,6 +199,7 @@ const onCall = async (context: CoreContext, message: IFrameCallMessage) => {
         methodSynchronize,
         resolveWaitForFirstMethod,
         sendCoreMessage,
+        logger,
     } = context;
     const responseID = message.id;
 
@@ -398,14 +207,10 @@ const onCall = async (context: CoreContext, message: IFrameCallMessage) => {
     let method: AbstractMethod<any>;
     try {
         method = await methodSynchronize(async () => {
-            _log.debug('loading method...');
+            logger.debug('loading method...');
             const method2 = await getMethod(message);
-            _log.debug('method selected', method2.name);
-            // bind callbacks
-            method2.postMessage = sendCoreMessage;
-            method2.createUiPromise = uiPromises.create;
-            // start validation process
-            method2.init();
+            logger.debug('method selected', method2.name);
+
             await method2.initAsync?.();
 
             return method2;
@@ -413,16 +218,15 @@ const onCall = async (context: CoreContext, message: IFrameCallMessage) => {
         resolveWaitForFirstMethod();
         callMethods.push(method);
     } catch (error) {
-        sendCoreMessage(createPopupMessage(POPUP.CANCEL_POPUP_REQUEST));
         sendCoreMessage(createResponseMessage(responseID, false, { error }));
 
         return Promise.resolve();
     }
 
-    if (method.payload.__info) {
+    if (message.payload.__info) {
         const response = method.getMethodInfo();
 
-        if (method.payload.__precomposed) {
+        if (message.payload.__precomposed) {
             response.precomposed = await method.payloadToPrecomposed();
         }
         sendCoreMessage(createResponseMessage(method.responseID, true, response));
@@ -430,85 +234,62 @@ const onCall = async (context: CoreContext, message: IFrameCallMessage) => {
         return Promise.resolve();
     }
 
+    const sendCoreMessageWithCallId = createSendCoreMessageWithCallId(
+        sendCoreMessage,
+        method.callId,
+    );
+    const methodContext: CoreContext = {
+        ...context,
+        sendCoreMessage: sendCoreMessageWithCallId,
+    };
+
     // this method is not using the device, there is no need to acquire
     if (!method.useDevice) {
         try {
-            if (method.useUi) {
-                // wait for popup handshake
-                await waitForPopup(context);
-            } else {
-                // cancel popup request
-                sendCoreMessage(createPopupMessage(POPUP.CANCEL_POPUP_REQUEST));
-            }
-
-            const response = await method.run();
-            sendCoreMessage(createResponseMessage(method.responseID, true, response));
+            const response = await method.run({
+                sendCoreMessage: sendCoreMessageWithCallId,
+                createUiPromise: uiPromises.create,
+            });
+            sendCoreMessageWithCallId(createResponseMessage(method.responseID, true, response));
         } catch (error) {
-            sendCoreMessage(createResponseMessage(method.responseID, false, { error }));
+            sendCoreMessageWithCallId(createResponseMessage(method.responseID, false, { error }));
         }
 
         return Promise.resolve();
     }
 
-    if (method.isManagementRestricted({ origin: DataManager.getSettings('origin') })) {
-        sendCoreMessage(createPopupMessage(POPUP.CANCEL_POPUP_REQUEST));
-        sendCoreMessage(
-            createResponseMessage(responseID, false, {
-                error: ERRORS.TypedError('Method_NotAllowed'),
-            }),
-        );
-
-        return Promise.resolve();
-    }
-
-    return await onCallDevice(context, message, method);
+    return await onCallDevice(methodContext, message, method);
 };
 
 const onCallDevice = async (
     context: CoreContext,
-    message: IFrameCallMessage,
+    message: CoreCallMessage,
     method: AbstractMethod<any>,
 ): Promise<void> => {
-    const { deviceList, callMethods, sendCoreMessage } = context;
+    const { deviceList, callMethods, sendCoreMessage, logger } = context;
     const responseID = message.id;
-    const { origin, env, useCoreInPopup, transports } = DataManager.getSettings();
+    const { transports, pendingTransportEvent } = settingsStore.get();
 
     if (!deviceList.isConnected() && !deviceList.pendingConnection()) {
         // transport is missing try to initialize it once again
-        deviceList.init({ transports });
+        deviceList.init({ transports, pendingTransportEvent });
     }
     await deviceList.pendingConnection();
 
-    const shouldRetry = ['web', 'webextension'].includes(env);
     // find device
     let tempDevice: Device | undefined;
-    while (!tempDevice) {
-        try {
-            tempDevice = await initDevice(context, message.payload.device);
-        } catch (error) {
-            if (error.code === 'Transport_Missing') {
-                // wait for popup handshake
-                await waitForPopup(context);
-                // show message about transport
-                sendCoreMessage(createUiMessage(UI.TRANSPORT));
-
-                // Retry initDevice again
-                // NOTE: this should change after multi-transports refactor, where transport will be always alive
-                if (deviceList.pendingConnection() && shouldRetry) {
-                    while (deviceList.pendingConnection()) {
-                        await deviceList.pendingConnection();
-                    }
-                    continue;
-                }
-            } else {
-                // cancel popup request
-                sendCoreMessage(createPopupMessage(POPUP.CANCEL_POPUP_REQUEST));
-            }
-            // TODO: this should not be returned here before user agrees on "read" perms...
-            sendCoreMessage(createResponseMessage(responseID, false, { error }));
-            throw error;
+    try {
+        tempDevice = selectDevice(context, message.payload.device);
+    } catch (error) {
+        if (error.code === 'Transport_Missing') {
+            // show message about transport
+            sendCoreMessage(createUiMessage(UI_REQUEST.TRANSPORT));
         }
+        // TODO: this should not be returned here before user agrees on "read" perms...
+        sendCoreMessage(createResponseMessage(responseID, false, { error }));
+        throw error;
     }
+
     const device = tempDevice;
 
     method.setDevice(device);
@@ -518,7 +299,7 @@ const onCallDevice = async (
         call =>
             call &&
             call !== method &&
-            call.device?.getUniquePath() === method.device.getUniquePath(),
+            call.device?.getUniquePath() === method.device?.getUniquePath(),
     );
     if (previousCall.length > 0 && method.overridePreviousCall) {
         // set flag for each pending method
@@ -545,8 +326,6 @@ const onCallDevice = async (
             // wait for self-release and then carry on
             await device.currentRun;
         } else {
-            // cancel popup request
-            // sendCoreMessage(UiMessage(POPUP.CANCEL_POPUP_REQUEST));
             sendCoreMessage(
                 createResponseMessage(responseID, false, {
                     error: ERRORS.TypedError('Device_CallInProgress'),
@@ -558,18 +337,15 @@ const onCallDevice = async (
 
     // set device instance. default is 0
     device.setInstance(message.payload.device?.instance);
-
-    if (method.hasExpectedDeviceState) {
-        device.setState(method.deviceState);
-    }
+    device.setState(method.deviceState);
 
     // device is available
     // set public variables, listeners and run method
     registerDeviceEvents(context, method)(device);
 
-    if (useCoreInPopup && env === 'webextension' && origin) {
-        device.initStorage(new WebextensionStateStorage(origin));
-    }
+    // Must run here: after the `__info` early-return above, before `device.run` reads
+    // `useCardanoDerivation` below.
+    method.resolveCardanoCapability();
 
     let messageResponse: CoreEventMessage;
 
@@ -587,7 +363,7 @@ const onCallDevice = async (
     } catch (error) {
         // just a log proving that cause propagates all the way up
         if (error.cause) {
-            _log.debug('device.run error caught, caused by:', error.cause);
+            logger.debug('device.run error caught, caused by:', error.cause);
         }
         // corner case: Device was disconnected during authorization
         // this device_id needs to be stored and penalized with delay on future connection
@@ -618,7 +394,7 @@ const onCallDevice = async (
             method.deviceState.sessionId !== device.getState()?.sessionId
         ) {
             // if session was changed from the one that was sent, send a device changed event
-            sendCoreMessage(createDeviceMessage(DEVICE.CHANGED, device.toMessageObject()));
+            device.emitDeviceChanged();
         }
 
         // TODO: This requires a massive refactoring https://github.com/trezor/trezor-suite/issues/5323
@@ -628,11 +404,6 @@ const onCallDevice = async (
         if (response) {
             // remove all listeners
             device.eventNames().forEach(e => device.removeAllListeners(e as keyof DeviceEvents));
-
-            if (useCoreInPopup) {
-                // We need to send response before closing popup
-                sendCoreMessage(response);
-            }
 
             closePopup(context);
             cleanup(context);
@@ -645,9 +416,7 @@ const onCallDevice = async (
                 deviceList.removeAuthPenalty(device);
             }
 
-            if (!useCoreInPopup) {
-                sendCoreMessage(response);
-            }
+            sendCoreMessage(response);
         }
     }
 };
@@ -657,11 +426,9 @@ const onCallDevice = async (
  * @returns {void}
  * @memberof Core
  */
-const cleanup = ({ uiPromises, popupPromise, interactionTimeout }: CoreContext) => {
-    popupPromise.clear();
+const cleanup = ({ uiPromises, logger }: CoreContext) => {
     uiPromises.clear();
-    interactionTimeout.stop();
-    _log.debug('Cleanup...');
+    logger.debug('Cleanup...');
 };
 
 /**
@@ -669,11 +436,8 @@ const cleanup = ({ uiPromises, popupPromise, interactionTimeout }: CoreContext) 
  * @returns {void}
  * @memberof Core
  */
-const closePopup = ({ popupPromise, sendCoreMessage }: CoreContext) => {
-    if (popupPromise.isWaiting()) {
-        sendCoreMessage(createPopupMessage(POPUP.CANCEL_POPUP_REQUEST));
-    }
-    sendCoreMessage(createUiMessage(UI.CLOSE_UI_WINDOW));
+const closePopup = ({ sendCoreMessage }: CoreContext) => {
+    sendCoreMessage(createUiMessage(UI_REQUEST.CLOSE_UI_WINDOW));
 };
 
 /**
@@ -685,52 +449,47 @@ const closePopup = ({ popupPromise, sendCoreMessage }: CoreContext) => {
  */
 const onDeviceButtonHandler =
     (device: Device, context: CoreContext, method?: AbstractMethod<any>) =>
-    async ({ payload: request }: DeviceEvents['button']) => {
+    ({ payload: request }: DeviceEvents['button']) => {
         const { sendCoreMessage } = context;
-        // wait for popup handshake
-        const addressRequest = request.code === 'ButtonRequest_Address';
-        if (!addressRequest || (addressRequest && method?.useUi)) {
-            await waitForPopup(context);
-        }
         const data =
             typeof method?.getButtonRequestData === 'function' && request.code
                 ? method?.getButtonRequestData(request.code, request.name)
                 : undefined;
-        // interaction timeout
-        startInteractionTimeout(context);
         // request view
         sendCoreMessage(
             createDeviceMessage(DEVICE.BUTTON, { ...request, device: device.toMessageObject() }),
         );
         sendCoreMessage(
-            createUiMessage(UI.REQUEST_BUTTON, {
+            createUiMessage(UI_REQUEST.REQUEST_BUTTON, {
                 ...request,
                 device: device.toMessageObject(),
                 data,
             }),
         );
-        if (addressRequest && !method?.useUi) {
-            sendCoreMessage(createUiMessage(UI.ADDRESS_VALIDATION, data));
-        }
     };
 
 const onDevicePinHandler =
     (device: Device, context: CoreContext) =>
     async ({ type, callback }: DeviceEvents['pin']) => {
         const { uiPromises, sendCoreMessage } = context;
-        // wait for popup handshake
-        await waitForPopup(context);
         // create ui promise
-        const uiPromise = uiPromises.create(UI.RECEIVE_PIN, device);
+        const uiPromise = uiPromises.create(UI_RESPONSE.RECEIVE_PIN, device);
         // request pin view
         sendCoreMessage(
-            createUiMessage(UI.REQUEST_PIN, { device: device.toMessageObject(), type }),
+            createUiMessage(
+                UI_REQUEST.REQUEST_PIN,
+                { device: device.toMessageObject(), type },
+                { requestId: uiPromise.requestId },
+            ),
         );
         // wait for pin
         try {
             const uiResp = await uiPromise.promise;
             if (uiResp.payload == null) {
-                callback({ success: false, error: new Error(`${UI.RECEIVE_PIN} missing payload`) });
+                callback({
+                    success: false,
+                    error: new Error(`${UI_RESPONSE.RECEIVE_PIN} missing payload`),
+                });
             } else {
                 callback({ success: true, payload: uiResp.payload });
             }
@@ -743,12 +502,14 @@ const onDeviceWordHandler =
     (device: Device, context: CoreContext) =>
     async ({ type, callback }: DeviceEvents['word']) => {
         const { uiPromises, sendCoreMessage } = context;
-        // wait for popup handshake
-        await waitForPopup(context);
         // create ui promise
-        const uiPromise = uiPromises.create(UI.RECEIVE_WORD, device);
+        const uiPromise = uiPromises.create(UI_RESPONSE.RECEIVE_WORD, device);
         sendCoreMessage(
-            createUiMessage(UI.REQUEST_WORD, { device: device.toMessageObject(), type }),
+            createUiMessage(
+                UI_REQUEST.REQUEST_WORD,
+                { device: device.toMessageObject(), type },
+                { requestId: uiPromise.requestId },
+            ),
         );
         // wait for word
         try {
@@ -756,7 +517,7 @@ const onDeviceWordHandler =
             if (uiResp.payload == null) {
                 callback({
                     success: false,
-                    error: new Error(`${UI.RECEIVE_WORD} missing payload`),
+                    error: new Error(`${UI_RESPONSE.RECEIVE_WORD} missing payload`),
                 });
             } else {
                 callback({ success: true, payload: uiResp.payload });
@@ -770,13 +531,15 @@ const onDevicePassphraseHandler =
     (device: Device, context: CoreContext) =>
     async ({ callback }: DeviceEvents['passphrase']) => {
         const { uiPromises, sendCoreMessage } = context;
-        // wait for popup handshake
-        await waitForPopup(context);
         // create ui promise
-        const uiPromise = uiPromises.create(UI.RECEIVE_PASSPHRASE, device);
+        const uiPromise = uiPromises.create(UI_RESPONSE.RECEIVE_PASSPHRASE, device);
         // request passphrase view
         sendCoreMessage(
-            createUiMessage(UI.REQUEST_PASSPHRASE, { device: device.toMessageObject() }),
+            createUiMessage(
+                UI_REQUEST.REQUEST_PASSPHRASE,
+                { device: device.toMessageObject() },
+                { requestId: uiPromise.requestId },
+            ),
         );
         // wait for passphrase
         try {
@@ -784,7 +547,7 @@ const onDevicePassphraseHandler =
             if (uiResp.payload == null) {
                 callback({
                     success: false,
-                    error: new Error(`${UI.RECEIVE_PASSPHRASE} missing payload`),
+                    error: new Error(`${UI_RESPONSE.RECEIVE_PASSPHRASE} missing payload`),
                 });
             } else {
                 callback({ success: true, payload: uiResp.payload });
@@ -811,16 +574,18 @@ const onThpPairingHandler =
     (device: Device, context: CoreContext) =>
     async ({ callback, payload }: DeviceEvents['thp_pairing']) => {
         const { uiPromises, sendCoreMessage } = context;
-        // wait for popup handshake
-        await waitForPopup(context);
         // create ui promise
-        const uiPromise = uiPromises.create(UI.RECEIVE_THP_PAIRING_TAG, device);
+        const uiPromise = uiPromises.create(UI_RESPONSE.RECEIVE_THP_PAIRING_TAG, device);
 
         sendCoreMessage(
-            createUiMessage(UI.REQUEST_THP_PAIRING, {
-                device: device.toMessageObject(),
-                ...payload,
-            }),
+            createUiMessage(
+                UI_REQUEST.REQUEST_THP_PAIRING,
+                {
+                    device: device.toMessageObject(),
+                    ...payload,
+                },
+                { requestId: uiPromise.requestId },
+            ),
         );
         // wait for response
         try {
@@ -828,7 +593,7 @@ const onThpPairingHandler =
             if (uiResp.payload == null) {
                 callback({
                     success: false,
-                    error: new Error(`${UI.RECEIVE_THP_PAIRING_TAG} missing payload`),
+                    error: new Error(`${UI_RESPONSE.RECEIVE_THP_PAIRING_TAG} missing payload`),
                 });
             } else {
                 callback({ success: true, payload: uiResp.payload });
@@ -851,6 +616,19 @@ const onThpCredentialsChangedHandler =
         );
     };
 
+const onThpPhaseChangedHandler =
+    (device: Device, context: CoreContext) =>
+    (payload: DeviceEvents['device-thp_pairing_status_changed']) => {
+        const { sendCoreMessage } = context;
+
+        sendCoreMessage(
+            createDeviceMessage(DEVICE.THP_PAIRING_STATUS_CHANGED, {
+                device: device.toMessageObject(),
+                ...payload,
+            }),
+        );
+    };
+
 const registerDeviceEvents =
     (context: CoreContext, method?: AbstractMethod<any>) => (device: Device) => {
         device.removeAllListeners();
@@ -866,7 +644,7 @@ const registerDeviceEvents =
         );
         device.on(DEVICE.PASSPHRASE_ON_DEVICE, () => {
             context.sendCoreMessage(
-                createUiMessage(UI.REQUEST_PASSPHRASE_ON_DEVICE, {
+                createUiMessage(UI_REQUEST.REQUEST_PASSPHRASE_ON_DEVICE, {
                     device: device.toMessageObject(),
                 }),
             );
@@ -876,25 +654,37 @@ const registerDeviceEvents =
         });
         device.on(DEVICE.THP_PAIRING, onThpPairingHandler(device, context));
         device.on(DEVICE.THP_CREDENTIALS_CHANGED, onThpCredentialsChangedHandler(device, context));
+        device.on(DEVICE.THP_PAIRING_STATUS_CHANGED, onThpPhaseChangedHandler(device, context));
     };
 
-/**
- * Handle popup closed by user.
- * @returns {void}
- * @memberof Core
- */
-const onPopupClosed = (context: CoreContext, customErrorMessage?: string) => {
-    const {
-        uiPromises,
-        popupPromise,
-        deviceList,
-        callMethods,
-        resetWaitForFirstMethod,
-        sendCoreMessage,
-    } = context;
-    const error = customErrorMessage
-        ? ERRORS.TypedError('Method_Cancel', customErrorMessage)
-        : ERRORS.TypedError('Method_Interrupted');
+// When `callId` is provided, the abort is scoped to the single method whose
+// AbstractMethod.callId matches. Other in-flight methods, devices and UI
+// promises remain untouched. When `callId` is undefined, all in-flight work
+// is aborted (legacy behavior).
+const abortRunningCall = (context: CoreContext, error: TrezorError, callId?: string) => {
+    const { uiPromises, deviceList, callMethods, resetWaitForFirstMethod, sendCoreMessage } =
+        context;
+
+    if (callId) {
+        const method = callMethods.find(m => m.callId === callId);
+        if (!method) {
+            return;
+        }
+
+        if (method.device?.isUsedHere()) {
+            // Aborting the device session causes device.run to reject which
+            // propagates through the onCallDevice try/catch block and emits
+            // the response for this method only.
+            method.device.interrupt(error);
+        } else {
+            // Method has not acquired a device yet. Respond directly and
+            // let sendCoreMessage's RESPONSE_EVENT handler prune callMethods.
+            sendCoreMessage(createResponseMessage(method.responseID, false, { error }));
+        }
+
+        return;
+    }
+
     // Device was already acquired. Try to interrupt running action which will throw error from onCall try/catch block
     if (deviceList.isConnected() && deviceList.getDeviceCount() > 0) {
         deviceList.getAllDevices().forEach(d => {
@@ -914,72 +704,32 @@ const onPopupClosed = (context: CoreContext, customErrorMessage?: string) => {
         // Waiting for device. Throw error before onCall try/catch block
     } else {
         uiPromises.rejectAll(error);
-        popupPromise.reject(error);
     }
     cleanup(context);
 };
 
-/**
- * Handle DeviceList changes.
- * If there is uiPromise waiting for device selection update view.
- * Used in initDevice function
- * @param {DeviceTyped} interruptDevice
- * @returns {void}
- * @memberof Core
- */
-const handleDeviceSelectionChanges = (context: CoreContext, interruptDevice?: DeviceTyped) => {
-    const { uiPromises, deviceList, sendCoreMessage } = context;
-    // update list of devices in popup
-    const promiseExists = uiPromises.exists(UI.RECEIVE_DEVICE);
-    if (promiseExists && deviceList.isConnected()) {
-        const onlyDevice = deviceList.getOnlyDevice();
-        const isWebUsb = deviceList.getActiveTransports().some(t => t.type === 'WebUsbTransport');
+// Handle genuine popup window close (always produces Method_Interrupted)
+const onPopupClosed = (context: CoreContext) => {
+    abortRunningCall(context, ERRORS.TypedError('Method_Interrupted'));
+};
 
-        if (onlyDevice && !isWebUsb) {
-            // there is only one device. use it
-            // resolve uiPromise to looks like it's a user choice (see: handleMessage function)
-            uiPromises.resolve({
-                type: UI.RECEIVE_DEVICE,
-                payload: { device: onlyDevice.toMessageObject() },
-            });
-        } else {
-            // update device selection list view
-            sendCoreMessage(
-                createUiMessage(UI.SELECT_DEVICE, {
-                    webusb: isWebUsb,
-                    devices: deviceList.getAllDevices().map(d => d.toMessageObject()),
-                }),
-            );
-        }
-    }
-
-    // device was disconnected, interrupt pending uiPromises for this device
-    if (interruptDevice) {
-        const { path } = interruptDevice;
-        const shouldClosePopup = uiPromises.disconnected(path);
-
-        if (shouldClosePopup) {
-            closePopup(context);
-            cleanup(context);
-        }
-    }
+// Handle an explicit cancel() call (always produces Method_Cancel)
+const onCallCancel = (context: CoreContext, reason?: string, callId?: string) => {
+    abortRunningCall(context, ERRORS.TypedError('Method_Cancel', reason), callId);
 };
 
 const initDeviceList = (context: CoreContext) => {
-    const { deviceList, sendCoreMessage } = context;
+    const { deviceList, sendCoreMessage, logger } = context;
 
     deviceList.on(DEVICE.CONNECT, device => {
-        handleDeviceSelectionChanges(context);
         sendCoreMessage(createDeviceMessage(DEVICE.CONNECT, device.toMessageObject()));
     });
 
     deviceList.on(DEVICE.CONNECT_UNACQUIRED, device => {
-        handleDeviceSelectionChanges(context);
         sendCoreMessage(createDeviceMessage(DEVICE.CONNECT_UNACQUIRED, device.toMessageObject()));
     });
 
     deviceList.on(DEVICE.DISCONNECT, device => {
-        handleDeviceSelectionChanges(context);
         sendCoreMessage(createDeviceMessage(DEVICE.DISCONNECT, device.toMessageObject()));
     });
 
@@ -987,12 +737,22 @@ const initDeviceList = (context: CoreContext) => {
         sendCoreMessage(createDeviceMessage(DEVICE.CHANGED, device.toMessageObject()));
     });
 
+    deviceList.on(DEVICE.TREZOR_PUSH_NOTIFICATION, payload => {
+        sendCoreMessage(
+            createDeviceMessage(DEVICE.TREZOR_PUSH_NOTIFICATION, {
+                device: payload.device.toMessageObject(),
+                mode: payload.mode,
+                type: payload.type,
+            }),
+        );
+    });
+
     deviceList.on(TRANSPORT.START, transport =>
         sendCoreMessage(createTransportMessage(TRANSPORT.START, transport)),
     );
 
     deviceList.on(TRANSPORT.ERROR, error => {
-        _log.warn('TRANSPORT.ERROR', error.error);
+        logger.warn('TRANSPORT.ERROR', error.error);
         sendCoreMessage(createTransportMessage(TRANSPORT.ERROR, error));
     });
 };
@@ -1005,18 +765,13 @@ const initDeviceList = (context: CoreContext) => {
 export class Core extends EventEmitter {
     private abortController = new AbortController();
     private callMethods: AbstractMethod<any>[] = []; // generic type is irrelevant. only common functions are called at this level
-    private popupPromise = createPopupPromiseManager();
     private methodSynchronize = getSynchronize();
-    private uiPromises = createUiPromiseManager(() =>
-        startInteractionTimeout(this.getCoreContext()),
-    );
+    private uiPromises = createUiPromiseManager();
+
+    private createLogger: CreateLogger = noopCreateLogger;
+    private coreLogger: Logger = noopLogger;
 
     private waitForFirstMethod = createDeferred();
-
-    private _interactionTimeout?: InteractionTimeout;
-    private get interactionTimeout() {
-        return this._interactionTimeout ?? throwError('Core not initialized: interactionTimeout');
-    }
 
     private _deviceList?: IDeviceList;
     private get deviceList() {
@@ -1025,9 +780,7 @@ export class Core extends EventEmitter {
 
     private sendCoreMessage(message: CoreEventMessage) {
         if (message.event === RESPONSE_EVENT) {
-            const index = this.callMethods.findIndex(
-                call => call && call.responseID === message.id,
-            );
+            const index = this.callMethods.findIndex(call => call?.responseID === message.id);
             if (index >= 0) {
                 this.callMethods.splice(index, 1);
                 if (this.callMethods.length === 0) {
@@ -1042,9 +795,8 @@ export class Core extends EventEmitter {
         return {
             signal: this.abortController.signal,
             uiPromises: this.uiPromises,
-            popupPromise: this.popupPromise,
-            interactionTimeout: this.interactionTimeout,
             deviceList: this.deviceList,
+            logger: this.coreLogger,
             callMethods: this.callMethods,
             methodSynchronize: this.methodSynchronize,
             sendCoreMessage: this.sendCoreMessage.bind(this),
@@ -1058,34 +810,28 @@ export class Core extends EventEmitter {
     }
 
     handleMessage(message: CoreRequestMessage) {
-        _log.debug('handleMessage', message.type);
+        this.coreLogger.debug('handleMessage', message.type);
 
         switch (message.type) {
-            case POPUP.HANDSHAKE:
-                this.popupPromise.resolve();
-                break;
             case POPUP.CLOSED:
-                this.popupPromise.clear();
-                onPopupClosed(
+                onPopupClosed(this.getCoreContext());
+                break;
+
+            case CORE_CALL_CANCEL:
+                onCallCancel(
                     this.getCoreContext(),
-                    message.payload ? message.payload.error : null,
+                    message.payload?.reason,
+                    message.payload?.callId,
                 );
                 break;
 
-            case TRANSPORT.DISABLE_WEBUSB: {
-                const settings = DataManager.getSettings();
-                const transports = settings.transports?.filter(t => t !== 'WebUsbTransport');
-                if (transports && !transports.includes('BridgeTransport')) {
-                    transports.unshift('BridgeTransport');
-                }
-                settings.transports = transports;
-
+            case TRANSPORT.SET_TRANSPORTS:
+                settingsStore.update({ transports: message.payload.transports });
                 resetTransports(this.getCoreContext());
                 break;
-            }
-            case TRANSPORT.SET_TRANSPORTS:
-                DataManager.getSettings().transports = message.payload.transports;
-                resetTransports(this.getCoreContext());
+
+            case SET_ENABLED_NETWORKS:
+                enabledNetworksStore.add(message.payload);
                 break;
 
             case TRANSPORT.REQUEST_DEVICE:
@@ -1106,29 +852,26 @@ export class Core extends EventEmitter {
                 break;
 
             // messages from UI (popup/modal...)
-            case UI.RECEIVE_DEVICE:
-            case UI.RECEIVE_CONFIRMATION:
-            case UI.RECEIVE_PERMISSION:
-            case UI.RECEIVE_PIN:
-            case UI.RECEIVE_PASSPHRASE:
-            case UI.INVALID_PASSPHRASE_ACTION:
-            case UI.RECEIVE_THP_PAIRING_TAG:
-            case UI.RECEIVE_ACCOUNT:
-            case UI.RECEIVE_FEE:
-            case UI.RECEIVE_WORD:
-            case UI.LOGIN_CHALLENGE_RESPONSE:
+            case UI_RESPONSE.RECEIVE_CONFIRMATION:
+            case UI_RESPONSE.RECEIVE_PIN:
+            case UI_RESPONSE.RECEIVE_PASSPHRASE:
+            case UI_RESPONSE.RECEIVE_THP_PAIRING_TAG:
+            case UI_RESPONSE.RECEIVE_ACCOUNT:
+            case UI_RESPONSE.RECEIVE_FEE:
+            case UI_RESPONSE.RECEIVE_WORD:
+            case UI_RESPONSE.RECEIVE_DISCOVERY_ACCOUNTS:
                 this.uiPromises.resolve(message);
                 break;
-            case UI.RECEIVE_FIRMWARE: {
+            case UI_RESPONSE.RECEIVE_FIRMWARE: {
                 const localFirmwares = message.payload && parseLocalFirmwares(message.payload);
                 if (localFirmwares) {
-                    DataManager.setLocalFirmwares(localFirmwares);
+                    localFirmwareStore.set(localFirmwares);
                 }
                 break;
             }
 
             // message from index
-            case IFRAME.CALL:
+            case CORE_CALL:
                 // firmwareUpdate is the only procedure that expects device disconnecting
                 // and reconnecting during the process. Due to this it can't be handled just
                 // like regular methods using onCall function. In onCall, disconnecting device
@@ -1137,13 +880,17 @@ export class Core extends EventEmitter {
                     assertDeviceListConnected(this.deviceList);
 
                     const coreContext = this.getCoreContext();
+                    const sendCoreMessageWithCallId = createSendCoreMessageWithCallId(
+                        this.sendCoreMessage.bind(this),
+                        message.payload.callId,
+                    );
                     onCallFirmwareUpdate({
                         params: message.payload,
                         context: {
                             deviceList: this.deviceList,
-                            postMessage: this.sendCoreMessage.bind(this),
-                            initDevice: path => initDevice(coreContext, { path }),
-                            log: _log,
+                            postMessage: sendCoreMessageWithCallId,
+                            selectDevice: path => selectDevice(coreContext, { path }),
+                            log: this.coreLogger,
                             abortSignal: this.abortController.signal,
                             registerEvents: registerDeviceEvents(coreContext),
                             uiPromises: coreContext.uiPromises,
@@ -1156,11 +903,11 @@ export class Core extends EventEmitter {
                             this.sendCoreMessage(
                                 createResponseMessage(message.id, false, { error }),
                             );
-                            _log.error('onCallFirmwareUpdate', error);
+                            this.coreLogger.error('onCallFirmwareUpdate', error);
                         });
                 } else {
                     onCall(this.getCoreContext(), message).catch(error => {
-                        _log.error('onCall', error);
+                        this.coreLogger.error('onCall', error);
                     });
                 }
         }
@@ -1200,6 +947,11 @@ export class Core extends EventEmitter {
             setLogWriter(logWriterFactory);
         }
 
+        // Logger factory comes from the host composition root and must be ready before DeviceList
+        // is created because device discovery/handshake can log during init.
+        this.createLogger = settings.createLogger ?? noopCreateLogger;
+        this.coreLogger = this.createLogger('Core');
+
         // do not send any event until Core is fully loaded
         // DeviceList emits TRANSPORT and DEVICE events if pendingTransportEvent is set
         const throttlePromise = createDeferred();
@@ -1208,40 +960,38 @@ export class Core extends EventEmitter {
             throttlePromise.promise.then(() => onCoreEvent(message));
 
         try {
-            await DataManager.load(settings);
+            // enabledNetworks has its own store (the single source of truth); keep it out of
+            // settingsStore so no reader picks up a stale, unsanitized snapshot.
+            settingsStore.set({ ...settings, enabledNetworks: undefined });
+            enabledNetworksStore.set(settings.enabledNetworks ?? []);
+            await firmwareReleaseStore.init(
+                settings.firmwareChannel,
+                false,
+                initializeFirmwareConfig,
+            );
             const localFirmwares =
                 settings.localFirmwares && parseLocalFirmwares(settings.localFirmwares);
             if (localFirmwares) {
-                DataManager.setLocalFirmwares(localFirmwares);
+                localFirmwareStore.set(localFirmwares);
             }
-            const { debug, priority, manifest } = DataManager.getSettings();
-            const messages = DataManager.getProtobufMessages();
-
-            enableLog(debug);
-
-            // If we're not in popup mode, set the interaction timeout to 0 (= disabled)
-            this._interactionTimeout = new InteractionTimeout(
-                settings.popup ? settings.interactionTimeout : 0,
-            );
+            await loadProtobufModules();
+            const { manifest } = settingsStore.get();
 
             this._deviceList = new DeviceList({
-                debug,
-                messages,
-                priority,
                 manifest,
+                createLogger: this.createLogger,
             });
             initDeviceList(this.getCoreContext());
 
             this.on(CORE_EVENT, onCoreEventThrottled);
         } catch (error) {
             // TODO: kill app
-            _log.error('init', error);
+            this.coreLogger.error('init', error);
             throttlePromise.reject(error);
             throw error;
         }
 
-        const { transports, pendingTransportEvent, transportReconnect, coreMode } =
-            DataManager.getSettings();
+        const { transports, pendingTransportEvent, transportReconnect } = settingsStore.get();
 
         try {
             this.deviceList.init({ transports, pendingTransportEvent, transportReconnect });
@@ -1251,8 +1001,7 @@ export class Core extends EventEmitter {
             throw error;
         }
 
-        // in auto core mode, we have to wait to check if transport is available
-        if (!transportReconnect || coreMode === 'auto') {
+        if (!transportReconnect) {
             await this.deviceList.pendingConnection();
         }
 
@@ -1264,7 +1013,7 @@ export class Core extends EventEmitter {
 }
 
 const resetTransports = async ({ deviceList, sendCoreMessage }: CoreContext) => {
-    const { transports, pendingTransportEvent, transportReconnect } = DataManager.getSettings();
+    const { transports, pendingTransportEvent, transportReconnect } = settingsStore.get();
 
     try {
         await deviceList.init({ transports, pendingTransportEvent, transportReconnect });

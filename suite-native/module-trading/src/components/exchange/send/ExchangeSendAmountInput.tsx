@@ -1,18 +1,20 @@
 import { forwardRef } from 'react';
-import { TextInput } from 'react-native';
+import { type TextInput } from 'react-native';
 
 import { useAmountInputTransformers } from '@suite-native/helpers';
 import { useTranslate } from '@suite-native/intl';
+import { getSymbolFromTradeableAsset } from '@suite-native/trading-atoms';
 
 import { useExchangeFormContext } from '../../../hooks/exchange/useExchangeFormContext';
 import { useAmountInputDecimals } from '../../../hooks/general/useAmountInputDecimals';
 import { useInputFieldControls } from '../../../hooks/general/useInputFieldControls';
-import { getSymbolFromTradeableAsset } from '../../../utils/general/tradeableAssetUtils';
 import { AmountInput } from '../../general/Input/AmountInput';
 
 export type ExchangeSendAmountInputProps = {
     showAssetsSheet: () => void;
 };
+
+const EXCHANGE_SEND_INPUT_TEST_ID = '@trading/exchange/send-amount-input';
 
 export const ExchangeSendAmountInput = forwardRef<TextInput, ExchangeSendAmountInputProps>(
     ({ showAssetsSheet }, ref) => {
@@ -38,6 +40,7 @@ export const ExchangeSendAmountInput = forwardRef<TextInput, ExchangeSendAmountI
                 loadingAccessibilityLabel={translate(
                     'moduleTrading.tradingScreen.quotesLoadingLabel',
                 )}
+                testID={EXCHANGE_SEND_INPUT_TEST_ID}
             />
         );
     },

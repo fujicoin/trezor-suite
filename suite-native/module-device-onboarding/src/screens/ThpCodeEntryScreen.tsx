@@ -1,15 +1,16 @@
 import { useEffect } from 'react';
 import { useSelector } from 'react-redux';
 
+import { selectIsDeviceThpLocked } from '@suite-common/device';
 import { selectThpStep } from '@suite-common/thp';
 import {
-    DeviceOnboardingStackParamList,
+    type DeviceOnboardingStackParamList,
     DeviceOnboardingStackRoutes,
-    StackProps,
+    type StackProps,
 } from '@suite-native/navigation';
 import { ThpCodeEntryScreenContent } from '@suite-native/thp';
 
-import { DeviceOnboardingScreenWithExitButton } from '../components/DeviceOnboardingScreenWithExitButton';
+import { NonClosableDeviceOnboardingScreen } from '../components/NonClosableDeviceOnboardingScreen';
 import { useInitiateThpConnection } from '../hooks/useInitiateThpConnection';
 
 export const ThpCodeEntryScreen = ({
@@ -18,16 +19,19 @@ export const ThpCodeEntryScreen = ({
     const { initiateThpConnection } = useInitiateThpConnection();
 
     const thpStep = useSelector(selectThpStep);
+    const isDeviceThpLocked = useSelector(selectIsDeviceThpLocked);
 
     useEffect(() => {
-        if (thpStep === null) {
-            navigation.navigate(DeviceOnboardingStackRoutes.ThpPairingSuccess);
+        if (thpStep === 'BeforeConnectionInfo') {
+            navigation.replace(DeviceOnboardingStackRoutes.ThpPairingInfo);
+        } else if (!isDeviceThpLocked) {
+            navigation.replace(DeviceOnboardingStackRoutes.ThpPairingSuccess);
         }
-    }, [thpStep, navigation]);
+    }, [thpStep, isDeviceThpLocked, navigation]);
 
     return (
-        <DeviceOnboardingScreenWithExitButton>
+        <NonClosableDeviceOnboardingScreen>
             <ThpCodeEntryScreenContent onRetry={initiateThpConnection} />
-        </DeviceOnboardingScreenWithExitButton>
+        </NonClosableDeviceOnboardingScreen>
     );
 };

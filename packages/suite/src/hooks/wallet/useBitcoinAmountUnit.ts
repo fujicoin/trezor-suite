@@ -1,9 +1,6 @@
-import { NetworkSymbol, getNetworkOptional } from '@suite-common/wallet-config';
-import {
-    selectDeviceUnavailableCapabilities,
-    setBitcoinAmountUnits,
-    toggleBitcoinAmountUnits,
-} from '@suite-common/wallet-core';
+import { selectDeviceUnavailableCapabilities } from '@suite-common/device';
+import { type NetworkSymbol, getNetworkOptional } from '@suite-common/wallet-config';
+import { setBitcoinAmountUnits, toggleBitcoinAmountUnits } from '@suite-common/wallet-core';
 import { PROTO } from '@trezor/connect';
 
 import { useDispatch, useSelector } from 'src/hooks/suite';
@@ -22,6 +19,7 @@ export const useBitcoinAmountUnit = (symbol?: NetworkSymbol) => {
     };
 
     const areSatsDisplayed = bitcoinAmountUnit === PROTO.AmountUnit.SATOSHI;
+    const isBtcSatsAmountUnit = areSatsDisplayed && symbol === 'btc';
 
     const areUnitsSupportedByDevice = !unavailableCapabilities?.amountUnit;
 
@@ -30,6 +28,7 @@ export const useBitcoinAmountUnit = (symbol?: NetworkSymbol) => {
     return {
         bitcoinAmountUnit,
         areSatsDisplayed,
+        isBtcSatsAmountUnit,
         shouldSendInSats:
             areSatsDisplayed && areUnitsSupportedByNetwork && areUnitsSupportedByDevice,
         toggleBitcoinAmountUnits: toggleBitcoinAmountUnitsAction,

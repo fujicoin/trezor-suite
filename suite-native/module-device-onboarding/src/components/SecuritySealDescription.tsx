@@ -1,7 +1,8 @@
 import { useSelector } from 'react-redux';
 
-import { selectDeviceModel } from '@suite-common/wallet-core';
-import { EventType, analytics } from '@suite-native/analytics';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectDeviceModel } from '@suite-common/device';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import {
     BottomSheetModal,
     Box,
@@ -10,7 +11,6 @@ import {
     VStack,
     useBottomSheetModal,
 } from '@suite-native/atoms';
-import { Icon } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
 import { Link, useOpenLink } from '@suite-native/link';
 import { DeviceModelInternal } from '@trezor/device-utils';
@@ -20,12 +20,13 @@ import { SecuritySealImages } from './SecuritySealImages';
 
 export const SecuritySealDescription = () => {
     const openLink = useOpenLink();
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const { bottomSheetRef, openModal, closeModal } = useBottomSheetModal();
 
     const handleLinkPress = () => {
         openModal();
         analytics.report({
-            type: EventType.DeviceSetupInfo,
+            type: events.deviceSetupInfoEvent.name,
             payload: {
                 location: 'securitySeal',
             },
@@ -45,7 +46,7 @@ export const SecuritySealDescription = () => {
 
     return (
         <>
-            <Text variant="highlight">
+            <Text variant="body-md-strong">
                 <Translation
                     id="moduleDeviceOnboarding.securityCheckScreen.step2.description"
                     values={{
@@ -54,8 +55,8 @@ export const SecuritySealDescription = () => {
                                 onPress={handleLinkPress}
                                 label={linkChunk}
                                 isUnderlined
-                                textVariant="highlight"
-                                textColor="backgroundSecondaryDefault"
+                                textVariant="body-md-strong"
+                                textColor="legacyBackgroundSecondaryDefault"
                             />
                         ),
                     }}
@@ -70,7 +71,7 @@ export const SecuritySealDescription = () => {
                                 <VStack>
                                     <VStack spacing="sp16">
                                         <Box>
-                                            <Text variant="highlight">
+                                            <Text variant="body-md-strong">
                                                 <Translation id="moduleDeviceOnboarding.securityCheckScreen.step2.modal.title" />
                                             </Text>
                                             <Text>
@@ -88,8 +89,9 @@ export const SecuritySealDescription = () => {
                                         <Translation id="generic.buttons.gotIt" />
                                     </Button>
                                     <Button
-                                        viewLeft={<Icon name="arrowUpRight" />}
-                                        colorScheme="tertiaryElevation0"
+                                        iconLeft="arrowUpRight"
+                                        intent="neutral"
+                                        priority="secondary"
                                         onPress={handleLearnMoreButtonPress}
                                     >
                                         <Translation id="generic.buttons.learnMore" />

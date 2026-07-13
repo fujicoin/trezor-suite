@@ -1,10 +1,9 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
-import { LayoutChangeEvent, Pressable, TextInput, TextInputProps } from 'react-native';
+import { type LayoutChangeEvent, Pressable, TextInput, type TextInputProps } from 'react-native';
 
 import { BoxSkeleton } from '@suite-native/atoms';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-
-import { truncateDecimals } from '../../../utils/general/amountUtils';
+import { truncateDecimals } from '@suite-native/helpers';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 export type AmountInputProps = {
     inputTransformer: (value: string) => string;
@@ -36,8 +35,8 @@ const boxStyle = prepareNativeStyle(() => ({
 
 const inputStyle = prepareNativeStyle<{ hasError: boolean; fontSize: number }>(
     ({ colors, typography }, { hasError, fontSize }) => ({
-        ...typography.body,
-        color: hasError ? colors.textAlertRed : colors.textDefault,
+        ...typography['body-md'],
+        color: hasError ? colors.contentCritical : colors.contentPrimary,
         textAlign: 'right',
         fontSize,
         lineHeight: Math.floor(fontSize * FONT_TO_LINE_HEIGHT_RATIO),
@@ -45,7 +44,7 @@ const inputStyle = prepareNativeStyle<{ hasError: boolean; fontSize: number }>(
     }),
 );
 
-const useInputLayoutControls = () => {
+const useInputLayoutControls = (value: string | undefined) => {
     const [availableWidth, setAvailableWidth] = useState(
         MIN_INPUT_WIDTH + FONT_SIZE_SHRINK_THRESHOLD,
     );
@@ -60,7 +59,7 @@ const useInputLayoutControls = () => {
         ({ nativeEvent }: LayoutChangeEvent) => {
             const contentWidth = nativeEvent.layout.width;
 
-            if (contentWidth === 0 || availableWidth === 0) {
+            if (contentWidth === 0 || availableWidth === 0 || !value) {
                 setFontSize(MAX_FONT_SIZE);
 
                 return;
@@ -84,7 +83,7 @@ const useInputLayoutControls = () => {
                 setFontSize(newFontSize);
             }
         },
-        [availableWidth, fontSize],
+        [availableWidth, fontSize, value],
     );
 
     return {
@@ -116,7 +115,7 @@ export const AmountInput = forwardRef<TextInput, AmountInputProps>(
         useImperativeHandle(ref, () => innerRef.current!, []);
 
         const { applyStyle, utils } = useNativeStyles();
-        const { fontSize, onBoxLayout, onInputLayout } = useInputLayoutControls();
+        const { fontSize, onBoxLayout, onInputLayout } = useInputLayoutControls(value);
 
         const handleTextChange = useCallback(
             (text: string) => {
@@ -159,7 +158,7 @@ export const AmountInput = forwardRef<TextInput, AmountInputProps>(
                     keyboardType="decimal-pad"
                     inputMode="decimal"
                     placeholder="0.0"
-                    placeholderTextColor={utils.colors.textDisabled}
+                    placeholderTextColor={utils.colors.contentDisabled}
                     value={value}
                     maxLength={maxLength}
                     onChangeText={handleTextChange}

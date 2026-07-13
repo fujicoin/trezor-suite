@@ -7,13 +7,17 @@
             "{workspaceRoot}/package.json"
         ],
         "default": ["{projectRoot}/**/*", "sharedGlobals"],
-        "prod": ["default", "!{projectRoot}/**/*.test.{ts,tsx}"]
+        "production": ["{projectRoot}/**/*", "!{projectRoot}/**/*.test.{ts,tsx}"]
+    },
+    "tui": {
+        "autoExit": true
     },
     "targetDefaults": {
         "build:lib": {
             "dependsOn": [],
             "inputs": [
-                "^prod",
+                "^production",
+                "default",
                 "{workspaceRoot}/tsconfig.base.json",
                 "{workspaceRoot}/tsconfig.lib.json"
             ],
@@ -28,7 +32,8 @@
                 "@suite-common/message-system:build:lib"
             ],
             "inputs": [
-                "^prod",
+                "^production",
+                "default",
                 "{workspaceRoot}/tsconfig.base.json",
                 "{workspaceRoot}/tsconfig.lib.json"
             ],
@@ -38,10 +43,23 @@
         "test:unit": {
             "dependsOn": ["@suite-common/message-system:build:lib"],
             "inputs": [
-                "^prod",
+                "^production",
+                "default",
                 "{workspaceRoot}/jest.config.base.js",
-                "{workspaceRoot}/jest.config.native.js"
+                "{workspaceRoot}/jest.config.base.swc.js",
+                "{workspaceRoot}/jest.config.native.js",
+                "{workspaceRoot}/jest.config.swc-transform.js",
+                "{workspaceRoot}/JestCustomEnv.js"
             ],
+            "cache": true
+        },
+        "lint:js": {
+            "inputs": [
+                "{projectRoot}/**/*",
+                "{workspaceRoot}/eslint.config.mjs",
+                "{workspaceRoot}/packages/eslint/**/*"
+            ],
+            "outputs": ["{projectRoot}/.eslintcache"],
             "cache": true
         },
         "lint:styles": {
@@ -54,10 +72,9 @@
             "cache": true
         }
     },
-    "affected": {
-        "defaultBase": "origin/develop"
-    },
+    "defaultBase": "origin/develop",
     "$schema": "./node_modules/nx/schemas/nx-schema.json",
     "nxCloudAccessToken": "NmE2NmFlYTUtN2JhZi00ZmQ3LWEyYzMtYWRkNzc3MTg0YmUyfHJlYWQ=",
-    "parallel": 4
+    "analytics": false,
+    "parallel": 3
 }

@@ -1,12 +1,12 @@
 import { combineReducers } from '@reduxjs/toolkit';
 
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
-import { DeviceUniquePath } from '@trezor/connect';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
+import { type DeviceUniquePath } from '@trezor/connect';
 
 import { discoveryActions } from '../discoveryActions';
-import { DiscoveryRootState, prepareDiscoveryReducer } from '../discoveryReducer';
+import { type DiscoveryRootState, prepareDiscoveryReducer } from '../discoveryReducer';
 
-const discoveryReducer = prepareDiscoveryReducer(extraDependenciesMock);
+const discoveryReducer = prepareDiscoveryReducer(extraDependenciesCommonMock);
 
 type InitStoreArgs = {
     preloadedState?: DiscoveryRootState;
@@ -295,7 +295,7 @@ describe('Discovery Reducer', () => {
         });
     });
 
-    it('should handle updateDiscovery action with failed status', () => {
+    it('should handle updateDiscovery action with errored status', () => {
         // Initialize store with existing discovery
         const store = initStore({
             preloadedState: {

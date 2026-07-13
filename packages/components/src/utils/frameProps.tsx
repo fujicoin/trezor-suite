@@ -1,9 +1,14 @@
 import { css } from 'styled-components';
 
-import { BorderRadii, SpacingValues, SpacingValuesNew, borders } from '@trezor/theme';
+import {
+    type BorderRadii,
+    type SpacingValues,
+    type SpacingValuesNew,
+    borders,
+} from '@trezor/theme';
 
-import { TransientProps, makePropsTransient } from './transientProps';
-import type { Flex } from '../components/Flex/Flex';
+import { type TransientProps, makePropsTransient } from './transientProps';
+import type { FlexType } from '../components/Flex/FlexProp';
 
 export type Margin =
     | {
@@ -60,11 +65,20 @@ type Position = {
     inset?: string | number;
 };
 
-const cursors = ['pointer', 'help', 'default', 'not-allowed', 'inherit'] as const;
+const cursors = ['pointer', 'help', 'default', 'not-allowed', 'inherit', 'text', 'auto'] as const;
 type Cursor = (typeof cursors)[number];
 
 const userSelects = ['none', 'text', 'all', 'auto', 'inherit'] as const;
 type UserSelect = (typeof userSelects)[number];
+
+const objectFits = ['none', 'fill', 'contain', 'cover', 'scale-down'] as const;
+export type ObjectFit = (typeof objectFits)[number];
+
+const objectPositions = ['left', 'center', 'right', 'top', 'bottom'] as const;
+export type ObjectPosition = (typeof objectPositions)[number];
+
+const displays = ['block', 'inline', 'inline-block', 'flex', 'inline-flex'] as const;
+export type Display = (typeof displays)[number];
 
 export type FrameProps = {
     margin?: Margin;
@@ -78,13 +92,16 @@ export type FrameProps = {
     overflow?: Overflow;
     borderRadius?: BorderRadii;
     pointerEvents?: PointerEvent;
-    flex?: Flex;
+    flex?: FlexType;
     position?: Position;
     cursor?: Cursor;
     zIndex?: number;
     opacity?: number;
     aspectRatio?: `${number}` | `${number} / ${number}`;
     userSelect?: UserSelect;
+    objectFit?: ObjectFit;
+    objectPosition?: ObjectPosition;
+    display?: Display;
 };
 export type FramePropsKeys = keyof FrameProps;
 
@@ -99,6 +116,7 @@ export const pickAndPrepareFrameProps = <
 >(
     props: TProps,
     allowedFrameProps: KFP,
+    makeTransient: boolean = true,
 ) => {
     const selectedProps = allowedFrameProps.reduce<{
         [value in KFP[number]]: TProps[value];
@@ -107,7 +125,7 @@ export const pickAndPrepareFrameProps = <
         {} as { [value in KFP[number]]: TProps[value] },
     );
 
-    return makePropsTransient(selectedProps);
+    return makeTransient ? makePropsTransient(selectedProps) : selectedProps;
 };
 
 export const withFrameProps = ({
@@ -129,6 +147,9 @@ export const withFrameProps = ({
     $aspectRatio,
     $opacity,
     $userSelect,
+    $objectFit,
+    $objectPosition,
+    $display,
 }: TransientFrameProps) => css`
     ${$margin &&
     (typeof $margin === 'object'
@@ -222,6 +243,18 @@ export const withFrameProps = ({
     css`
         user-select: ${$userSelect};
     `};
+    ${$objectFit &&
+    css`
+        object-fit: ${$objectFit};
+    `};
+    ${$objectPosition &&
+    css`
+        object-position: ${$objectPosition};
+    `};
+    ${$display &&
+    css`
+        display: ${$display};
+    `};
 `;
 
 const getStorybookType = (key: FramePropsKeys) => {
@@ -280,17 +313,39 @@ const getStorybookType = (key: FramePropsKeys) => {
                     type: 'number',
                 },
             };
-        default:
-            return {
-                control: {
-                    type: 'text',
-                },
-            };
         case 'userSelect':
             return {
                 options: userSelects,
                 control: {
                     type: 'select',
+                },
+            };
+        case 'objectFit':
+            return {
+                options: objectFits,
+                control: {
+                    type: 'select',
+                },
+            };
+        case 'objectPosition':
+            return {
+                options: objectPositions,
+                control: {
+                    type: 'select',
+                },
+            };
+        case 'display':
+            return {
+                options: displays,
+                control: {
+                    type: 'select',
+                },
+            };
+
+        default:
+            return {
+                control: {
+                    type: 'text',
                 },
             };
     }
@@ -360,6 +415,9 @@ export const getFramePropsStory = (allowedFrameProps: Array<FramePropsKeys>) => 
             ...(allowedFrameProps.includes('opacity') ? { opacity: undefined } : {}),
             ...(allowedFrameProps.includes('aspectRatio') ? { aspectRatio: undefined } : {}),
             ...(allowedFrameProps.includes('userSelect') ? { userSelect: undefined } : {}),
+            ...(allowedFrameProps.includes('objectFit') ? { objectFit: undefined } : {}),
+            ...(allowedFrameProps.includes('objectPosition') ? { objectPosition: undefined } : {}),
+            ...(allowedFrameProps.includes('display') ? { display: undefined } : {}),
         },
         argTypes,
     };

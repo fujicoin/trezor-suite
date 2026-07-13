@@ -3,26 +3,45 @@
     "compilerOptions": { "outDir": "libDev" },
     "references": [
         {
-            "path": "../../suite-common/formatters"
+            "path": "../../suite-common/connect-popup"
+        },
+        { "path": "../../suite-common/device" },
+        { "path": "../../suite-common/icons" },
+        {
+            "path": "../../suite-common/wallet-config"
+        },
+        {
+            "path": "../../suite-common/wallet-constants"
         },
         {
             "path": "../../suite-common/wallet-core"
         },
         {
+            "path": "../../suite-common/wallet-types"
+        },
+        {
             "path": "../../suite-common/walletconnect"
         },
+        { "path": "../accounts" },
         { "path": "../atoms" },
         { "path": "../config" },
-        { "path": "../device" },
+        { "path": "../confirm-on-trezor" },
         { "path": "../device-manager" },
-        { "path": "../feature-flags" },
+        { "path": "../formatters" },
+        { "path": "../icons" },
         { "path": "../intl" },
         { "path": "../navigation" },
+        { "path": "../qr-code" },
+        { "path": "../toasts" },
+        { "path": "../tx-simulation" },
         { "path": "../../packages/connect" },
         {
-            "path": "../../packages/connect-mobile"
+            "path": "../../packages/connect-common"
+        },
+        {
+            "path": "../../packages/styles-native"
         },
         { "path": "../../packages/urls" },
-        { "path": "../../packages/utils" }
+        { "path": "../../packages/requirements" }
     ]
 }

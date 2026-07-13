@@ -2,10 +2,11 @@ import { useState } from 'react';
 
 import styled from 'styled-components';
 
+import { Translation } from '@suite/intl';
 import { Divider, IconButton, Row, Tabs } from '@trezor/components';
+import { XIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { SETTINGS } from 'src/config/suite';
 import { useSelector } from 'src/hooks/suite';
 
@@ -47,7 +48,13 @@ export const Notifications = (props: NotificationsProps) => {
                     </Tabs.Item>
                 </Tabs>
                 {props.onCancel && (
-                    <IconButton variant="tertiary" icon="x" onClick={onCancel} size="tiny" />
+                    <IconButton
+                        intent="neutral"
+                        priority="secondary"
+                        icon={XIcon}
+                        onClick={onCancel}
+                        tooltip={{ content: <Translation id="TR_CLOSE" /> }}
+                    />
                 )}
             </Row>
             <Divider margin={{ top: 0, bottom: spacings.md }} />

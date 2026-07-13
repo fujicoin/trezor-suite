@@ -1,8 +1,8 @@
 import { bufferUtils } from '@trezor/utils';
 import * as BitcoinJs from '@trezor/utxo-lib';
-import type { TxInput, TxOutput } from '@trezor/utxo-lib/src/transaction/base';
+import type { TxInput, TxOutput } from '@trezor/utxo-lib';
 
-import { RefTransaction } from '../../src';
+import type { RefTransaction } from '../../src';
 
 // Referenced transaction generator script.
 // Transform bitcoin-like transaction data in to format required by tests of signTransaction method.
@@ -21,13 +21,11 @@ const inputsMap = (input: TxInput) => ({
     sequence: input.sequence,
     prev_hash: bufferUtils.reverseBuffer(input.hash).toString('hex'),
     script_sig: input.script.toString('hex'),
-    decred_tree: input.decredTree,
 });
 
 const binOutputsMap = (output: TxOutput) => ({
     amount: output.value,
     script_pubkey: output.script.toString('hex'),
-    decred_script_version: output.decredVersion,
 });
 
 const refTxArg: Partial<RefTransaction> = {

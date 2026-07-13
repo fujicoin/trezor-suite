@@ -1,13 +1,11 @@
-import { CryptoId } from 'invity-api';
+import { type CryptoId } from 'invity-api';
 import styled from 'styled-components';
 
-import { useTradingInfo } from '@suite-common/trading';
+import { useTradingUtils } from '@suite-common/trading';
 import { getDisplaySymbol } from '@suite-common/wallet-config';
 import { Row } from '@trezor/components';
-import { spacings } from '@trezor/theme';
 
 import { FormattedCryptoAmount } from 'src/components/suite';
-import { TradingTestWrapper } from 'src/views/wallet/trading';
 import { TradingCoinLogo } from 'src/views/wallet/trading/common/TradingCoinLogo';
 
 const LogoWrapper = styled.div`
@@ -18,14 +16,16 @@ export interface TradingCryptoAmountProps {
     amount?: string | number;
     cryptoId: CryptoId;
     displayLogo?: boolean;
+    testId?: string;
 }
 
 export const TradingCryptoAmount = ({
     amount,
     cryptoId,
     displayLogo,
+    testId,
 }: TradingCryptoAmountProps) => {
-    const { cryptoIdToSymbolAndContractAddress } = useTradingInfo();
+    const { cryptoIdToSymbolAndContractAddress } = useTradingUtils();
     const { coinSymbol, contractAddress } = cryptoIdToSymbolAndContractAddress(cryptoId);
 
     if (!amount || amount === '') {
@@ -33,7 +33,7 @@ export const TradingCryptoAmount = ({
             <Row alignItems="center">
                 {displayLogo && (
                     <LogoWrapper>
-                        <TradingCoinLogo cryptoId={cryptoId} margin={{ right: spacings.xs }} />
+                        <TradingCoinLogo cryptoId={cryptoId} margin={{ right: 8 }} />
                     </LogoWrapper>
                 )}
                 {coinSymbol ? getDisplaySymbol(coinSymbol, contractAddress) : ''}
@@ -42,21 +42,18 @@ export const TradingCryptoAmount = ({
     }
 
     return (
-        <TradingTestWrapper data-testid="@trading/form/info/crypto-amount">
-            <Row alignItems="center">
-                {displayLogo && (
-                    <LogoWrapper>
-                        <TradingCoinLogo cryptoId={cryptoId} margin={{ right: spacings.xs }} />
-                    </LogoWrapper>
-                )}
-                <FormattedCryptoAmount
-                    value={amount}
-                    symbol={coinSymbol}
-                    contractAddress={contractAddress}
-                    disableHiddenPlaceholder
-                    data-testid="@trading/offers/quote/crypto-amount"
-                />
-            </Row>
-        </TradingTestWrapper>
+        <Row alignItems="center" data-testid="@trading/form/info/crypto-amount">
+            {displayLogo && (
+                <LogoWrapper>
+                    <TradingCoinLogo cryptoId={cryptoId} margin={{ right: 8 }} />
+                </LogoWrapper>
+            )}
+            <FormattedCryptoAmount
+                value={amount}
+                symbol={coinSymbol}
+                contractAddress={contractAddress}
+                data-testid={testId ?? '@trading/offers/quote/crypto-amount'}
+            />
+        </Row>
     );
 };

@@ -1,19 +1,21 @@
+import { Translation } from '@suite/intl';
 import { Banner, H4, Paragraph } from '@trezor/components';
-
-import { Translation } from 'src/components/suite';
+import { SpinnerGapIcon } from '@trezor/icons';
 
 export const DiscoveryWarning = () => (
     <Banner
-        variant="warning"
+        intent="warning"
         data-testid="@warning/trezorDiscovery"
-        icon="spinnerGap"
-        iconSize="extraLarge"
-    >
-        <H4>
-            <Translation id="TR_DISCOVERY_WARNING_TITLE" />
-        </H4>
-        <Paragraph>
-            <Translation id="TR_DISCOVERY_WARNING_DESCRIPTION" />
-        </Paragraph>
-    </Banner>
+        icon={SpinnerGapIcon}
+        description={
+            <>
+                <H4>
+                    <Translation id="TR_DISCOVERY_WARNING_TITLE" />
+                </H4>
+                <Paragraph>
+                    <Translation id="TR_DISCOVERY_WARNING_DESCRIPTION" />
+                </Paragraph>
+            </>
+        }
+    />
 );

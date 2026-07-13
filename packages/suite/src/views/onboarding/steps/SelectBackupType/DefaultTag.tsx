@@ -1,7 +1,7 @@
+import { Translation } from '@suite/intl';
 import { Badge, Text } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useLayoutSize } from 'src/hooks/suite';
 
 export const DefaultTag = () => {
@@ -9,12 +9,11 @@ export const DefaultTag = () => {
 
     return (
         <Badge
-            variant="primary"
-            inline
+            intent="brand"
             margin={{ left: spacings.xs }}
-            size={isBelowTablet ? 'tiny' : undefined}
+            size={isBelowTablet ? 'small' : undefined}
         >
-            <Text typographyStyle="hint">
+            <Text typographyStyle="body-sm">
                 <Translation id="TR_ONBOARDING_BACKUP_TYPE_DEFAULT" />
             </Text>
         </Badge>

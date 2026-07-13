@@ -1,143 +1,175 @@
-import React from 'react';
 import { FormattedMessage } from 'react-intl';
 
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 
-import { Badge, Box, IconButton, Row, Spinner, Tooltip, useElevation } from '@trezor/components';
-import {
-    Elevation,
-    borders,
-    mapElevationToBorder,
-    spacings,
-    spacingsPx,
-    zIndices,
-} from '@trezor/theme';
+import { IconButton, type IconButtonProps, Spinner } from '@trezor/components';
+import { ArrowsClockwiseIcon, CheckIcon, PencilSimpleIcon, TrashIcon, XIcon } from '@trezor/icons';
+
+import type { SavingStatus } from './types';
 
 type ActionContainerProps = {
     onEdit: () => void;
-    onDelete: () => void;
-    onSave: () => void;
+    onDelete: () => void | Promise<void>;
+    onSubmit: () => void | Promise<void>;
+    onError: () => void;
     onCancel: () => void;
     isLoading?: boolean;
     isEditable: boolean;
-    isJustSaved: boolean;
     isDisabled?: boolean;
     isHovered: boolean;
     isDeleteButtonVisible: boolean;
+    isSubmitButtonVisible: boolean;
+    savingStatus: SavingStatus;
 };
 
-const ActionsBackground = styled.div<{ $elevation: Elevation }>`
-    background: ${({ theme }) => mapElevationToBorder({ theme, $elevation: 2 })};
-    border-radius: ${borders.radii.full};
-    padding: ${spacingsPx.xxs};
-    margin-left: ${spacingsPx.xs};
+const Container = styled.div<{
+    $isActive: boolean;
+}>`
+    display: flex;
+    align-items: center;
+    gap: calc(0.1em + 2px);
+    transform-origin: left;
+    transform: translateX(-5px);
+    opacity: 0;
+    pointer-events: none;
+
+    ${({ $isActive }) =>
+        $isActive &&
+        css`
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+            transition: 200ms ease-in-out;
+        `}
 `;
 
 export const ActionsContainer = ({
     onEdit,
     onDelete,
-    onSave,
+    onSubmit,
+    onError,
     onCancel,
     isLoading,
     isEditable,
-    isJustSaved,
     isDisabled,
     isHovered,
     isDeleteButtonVisible,
+    isSubmitButtonVisible,
+    savingStatus,
 }: ActionContainerProps) => {
-    const { elevation } = useElevation();
+    const isActive = Boolean(isEditable || isHovered);
+
+    if (isDisabled) {
+        return null;
+    }
+
+    const commonProps: Partial<IconButtonProps> = {
+        isDisabled,
+        tabIndex: isActive ? 0 : -1,
+        priority: 'secondary',
+        size: 'small',
+    };
+
+    const getContent = () => {
+        if (isLoading || ['saved', 'saving'].includes(savingStatus)) {
+            return (
+                <Spinner
+                    size={20}
+                    margin={{ horizontal: 4 }}
+                    variant={savingStatus === 'saved' ? 'success' : 'loading'}
+                    isDisabled={isLoading}
+                    data-testid={savingStatus === 'saved' ? `@metadata/success` : undefined}
+                />
+            );
+        }
+
+        if (savingStatus === 'error') {
+            return (
+                <IconButton
+                    intent="critical"
+                    icon={ArrowsClockwiseIcon}
+                    onClick={onError}
+                    tooltip={{
+                        content: (
+                            <FormattedMessage
+                                id="TR_LABELING_ERROR"
+                                defaultMessage="There was an error saving the label. Please try again."
+                            />
+                        ),
+                        delayShow: 0,
+                    }}
+                    {...commonProps}
+                />
+            );
+        }
+
+        if (isEditable) {
+            return (
+                <>
+                    {isSubmitButtonVisible && (
+                        <IconButton
+                            data-testid="@metadata/submit"
+                            icon={CheckIcon}
+                            onClick={onSubmit}
+                            tooltip={{ isActive: false }}
+                            {...commonProps}
+                        />
+                    )}
+                    <IconButton
+                        data-testid="@metadata/cancel"
+                        icon={XIcon}
+                        intent="neutral"
+                        onClick={onCancel}
+                        tooltip={{ isActive: false }}
+                        {...commonProps}
+                    />
+                </>
+            );
+        } else {
+            return (
+                <>
+                    <IconButton
+                        data-testid="@metadata/edit"
+                        intent="neutral"
+                        icon={PencilSimpleIcon}
+                        onClick={onEdit}
+                        tooltip={{
+                            content: (
+                                <FormattedMessage
+                                    id="TR_LABELING_EDIT_LABEL"
+                                    defaultMessage="Edit"
+                                />
+                            ),
+                            delayShow: 1000,
+                        }}
+                        {...commonProps}
+                    />
+                    {isDeleteButtonVisible && (
+                        <IconButton
+                            data-testid="@metadata/delete"
+                            intent="critical"
+                            icon={TrashIcon}
+                            onClick={onDelete}
+                            tooltip={{
+                                content: (
+                                    <FormattedMessage
+                                        id="TR_LABELING_REMOVE_LABEL"
+                                        defaultMessage="Remove"
+                                    />
+                                ),
+                                delayShow: 1000,
+                            }}
+                            {...commonProps}
+                        />
+                    )}
+                </>
+            );
+        }
+    };
 
     return (
-        <Box
-            as="span"
-            position={{ type: 'absolute', top: 0, left: '100%' }}
-            height="100%"
-            zIndex={zIndices.tooltip}
-            cursor="pointer"
-        >
-            <Row alignItems="center" height="100%">
-                {isLoading ? (
-                    <ActionsBackground $elevation={elevation}>
-                        <Row gap={spacings.xxs}>
-                            <Spinner size={20} />
-                            <FormattedMessage id="TR_LOADING" defaultMessage="Loading" />
-                        </Row>
-                    </ActionsBackground>
-                ) : (
-                    <>
-                        {!isJustSaved && isEditable && (
-                            <ActionsBackground $elevation={elevation}>
-                                <Row gap={spacings.xxs}>
-                                    <Tooltip
-                                        content={
-                                            <FormattedMessage
-                                                id="TR_CONFIRM"
-                                                defaultMessage="Confirm"
-                                            />
-                                        }
-                                        hasArrow
-                                        delayShow={1000}
-                                        cursor="inherit"
-                                    >
-                                        <IconButton
-                                            icon="check"
-                                            size="tiny"
-                                            onClick={onSave}
-                                            isDisabled={isDisabled}
-                                        />
-                                    </Tooltip>
-                                    <Tooltip
-                                        content={
-                                            <FormattedMessage
-                                                id="TR_CANCEL"
-                                                defaultMessage="Cancel"
-                                            />
-                                        }
-                                        hasArrow
-                                        delayShow={1000}
-                                        cursor="inherit"
-                                    >
-                                        <IconButton
-                                            variant="destructive"
-                                            icon="x"
-                                            size="tiny"
-                                            onClick={onCancel}
-                                            isDisabled={isDisabled}
-                                        />
-                                    </Tooltip>
-                                </Row>
-                            </ActionsBackground>
-                        )}
-                        {!isJustSaved && !isEditable && isHovered && (
-                            <Row gap={spacings.xxs} margin={{ left: spacings.sm }}>
-                                <IconButton
-                                    variant="tertiary"
-                                    icon="pencil"
-                                    size="tiny"
-                                    onClick={onEdit}
-                                    isDisabled={isDisabled}
-                                />
-                                {isDeleteButtonVisible && (
-                                    <IconButton
-                                        variant="tertiary"
-                                        icon="x"
-                                        size="tiny"
-                                        onClick={onDelete}
-                                        isDisabled={isDisabled}
-                                    />
-                                )}
-                            </Row>
-                        )}
-                        {isJustSaved && (
-                            <Row gap={spacings.xxs} margin={{ left: spacings.sm }}>
-                                <Badge icon="check" variant="primary">
-                                    <FormattedMessage id="TR_SAVED" defaultMessage="Saved" />
-                                </Badge>
-                            </Row>
-                        )}
-                    </>
-                )}
-            </Row>
-        </Box>
+        <Container onClick={e => e.stopPropagation()} $isActive={isActive}>
+            {getContent()}
+        </Container>
     );
 };

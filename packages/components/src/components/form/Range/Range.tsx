@@ -1,16 +1,18 @@
 import {
-    ChangeEventHandler,
-    KeyboardEventHandler,
-    ReactNode,
+    type ChangeEventHandler,
+    type KeyboardEventHandler,
+    type ReactNode,
     useCallback,
     useLayoutEffect,
     useRef,
     useState,
 } from 'react';
 
-import styled, { CSSObject, DefaultTheme, css } from 'styled-components';
+import styled, { type CSSObject, type DefaultTheme, css } from 'styled-components';
 
 import { borders, spacingsPx, typography } from '@trezor/theme';
+
+import { commonFocusStyles } from '../../../utils/utils';
 
 type RangeMode = 'normal' | 'segments';
 
@@ -50,12 +52,8 @@ const getProgress = (
 };
 
 const getLinearGradient = (progress: number, theme: DefaultTheme, disabled?: boolean): string => {
-    const primaryColor = disabled
-        ? theme.backgroundNeutralDisabled
-        : theme.backgroundPrimaryDefault;
-    const secondaryColor = disabled
-        ? theme.backgroundNeutralDisabled
-        : theme.backgroundNeutralSubdued;
+    const primaryColor = disabled ? theme.elementFillBoldDisabled : theme.elementFillFieldSelected;
+    const secondaryColor = disabled ? theme.elementFillBoldDisabled : theme.elementFillNeutralBold;
 
     return `linear-gradient(90deg, ${primaryColor} ${progress}%, ${secondaryColor} ${progress}%)`;
 };
@@ -109,11 +107,6 @@ const thumb = css<{ disabled?: boolean }>`
         `}
 `;
 
-const focusStyle = css`
-    border: ${({ theme }) => `1px solid ${theme.backgroundAlertBlueBold}`};
-    box-shadow: ${({ theme }) => theme.boxShadowFocused};
-`;
-
 const Input = styled.input<{
     $trackStyle?: CSSObject;
     disabled?: boolean;
@@ -154,11 +147,11 @@ const Input = styled.input<{
 
     &:focus-visible {
         &::-webkit-slider-thumb {
-            ${focusStyle}
+            ${commonFocusStyles}
         }
 
         ::-moz-range-thumb {
-            ${focusStyle}
+            ${commonFocusStyles}
         }
     }
 
@@ -174,8 +167,8 @@ const Label = styled.div<{ disabled?: boolean; $width?: number }>`
     padding-top: ${spacingsPx.xxxs};
     min-width: ${({ $width }) => `${$width}px`};
     text-align: center;
-    color: ${({ theme }) => theme.textSubdued};
-    ${typography.label}
+    color: ${({ theme }) => theme.contentSecondary};
+    ${typography['body-xs']}
     cursor: ${({ disabled }) => (disabled ? 'default' : 'pointer')};
 
     &:first-child {
@@ -266,8 +259,8 @@ const SegmentLabel = styled.div`
     margin-top: ${spacingsPx.md};
     padding-top: ${spacingsPx.xxxs};
     text-align: left;
-    color: ${({ theme }) => theme.textSubdued};
-    ${typography.label}
+    color: ${({ theme }) => theme.contentSecondary};
+    ${typography['body-xs']}
 
     span {
         cursor: pointer;
@@ -328,7 +321,6 @@ const SegmentsComponent = ({
 );
 
 export interface RangeProps {
-    className?: string;
     disabled?: boolean;
     fill?: boolean;
     labels?: Segment[];
@@ -344,7 +336,6 @@ export interface RangeProps {
 }
 
 export const Range = ({
-    className,
     disabled = false,
     fill = false,
     labels,
@@ -362,7 +353,7 @@ export const Range = ({
     );
 
     return (
-        <StyledRange className={className} $fill={fill}>
+        <StyledRange $fill={fill}>
             <Input
                 {...props}
                 type="range"

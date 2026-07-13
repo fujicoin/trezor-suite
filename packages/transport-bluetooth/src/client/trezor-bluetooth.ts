@@ -2,12 +2,14 @@ import { resolveAfter } from '@trezor/utils';
 import { WebsocketClient } from '@trezor/websocket-client';
 
 import {
-    BluetoothDevice,
-    BluetoothInfo,
-    Logger,
-    NotificationEvent,
-    TrezorBluetoothSettings,
+    type BluetoothDevice,
+    type BluetoothInfo,
+    type NotificationCharacteristic,
+    type NotificationEvent,
+    type TrezorBluetoothSettings,
 } from './types';
+
+// reflection of rust params ./src/server/types.rs
 
 type SetStateParams = {
     devices: Pick<BluetoothDevice, 'id' | 'macAddress'>[];
@@ -18,16 +20,40 @@ type ConnectDeviceParams = {
     timeout: number;
 };
 
+type DisconnectDeviceParams = {
+    id: string;
+};
+
+type ForgetDeviceParams = {
+    id: string;
+};
+
+type OpenDeviceParams = {
+    id: string;
+    characteristic?: NotificationCharacteristic;
+};
+
+type CloseDeviceParams = {
+    id: string;
+    characteristic?: NotificationCharacteristic;
+};
+
 type WriteParams = {
     id: string;
     data: number[];
     withResponse?: boolean;
 };
 
+type ReadParams = {
+    id: string;
+};
+
+// WsResponsePayload::Success
+type Success = { success: boolean };
+
 // Client for trezor-bluetooth rust websocket server
 export class TrezorBluetooth extends WebsocketClient<NotificationEvent> {
     readonly settings: TrezorBluetoothSettings;
-    readonly logger: Logger;
 
     constructor(settings: TrezorBluetoothSettings) {
         super({
@@ -35,13 +61,6 @@ export class TrezorBluetooth extends WebsocketClient<NotificationEvent> {
             keepAlive: true,
         });
         this.settings = Object.freeze(settings);
-        this.logger = settings.logger || {
-            info: () => {},
-            debug: () => {},
-            log: () => {},
-            warn: () => {},
-            error: () => {},
-        };
     }
 
     onMessageTimeout(promiseId: number) {
@@ -108,18 +127,18 @@ export class TrezorBluetooth extends WebsocketClient<NotificationEvent> {
         return this.sendMessage({ method: 'write', params: { ...params, withResponse } });
     }
 
-    send(method: 'set_state', state: SetStateParams): Promise<boolean>;
+    send(method: 'set_state', state: SetStateParams): Promise<Success>;
     send(method: 'get_info', adapter?: boolean): Promise<BluetoothInfo>;
-    send(method: 'enumerate'): Promise<BluetoothDevice[]>;
-    send(method: 'start_scan'): Promise<BluetoothDevice[]>;
-    send(method: 'stop_scan'): Promise<boolean>;
-    send(method: 'connect_device', params: ConnectDeviceParams): Promise<boolean>; // args: id, timeout
-    send(method: 'disconnect_device', id: string): Promise<boolean>;
-    send(method: 'forget_device', id: string): Promise<boolean>;
-    send(method: 'open_device', id: string): Promise<boolean>;
-    send(method: 'close_device', id: string): Promise<boolean>;
-    send(method: 'read', id: string): Promise<boolean>;
-    send(method: 'write', params: WriteParams): Promise<boolean>;
+    send(method: 'enumerate'): Promise<{ devices: BluetoothDevice[] }>;
+    send(method: 'start_scan'): Promise<{ devices: BluetoothDevice[] }>;
+    send(method: 'stop_scan'): Promise<Success>;
+    send(method: 'connect_device', params: ConnectDeviceParams): Promise<Success>;
+    send(method: 'disconnect_device', params: DisconnectDeviceParams): Promise<Success>;
+    send(method: 'forget_device', params: ForgetDeviceParams): Promise<Success>;
+    send(method: 'open_device', params: OpenDeviceParams): Promise<Success>;
+    send(method: 'close_device', params: CloseDeviceParams): Promise<Success>;
+    send(method: 'read', params: ReadParams): Promise<{ data: number[] }>;
+    send(method: 'write', params: WriteParams): Promise<Success>;
     public send(method: string, params?: any) {
         if (method === 'connect_device') {
             return this.connectDevice(params);
@@ -130,14 +149,14 @@ export class TrezorBluetooth extends WebsocketClient<NotificationEvent> {
         }
 
         if (method === 'open_device') {
-            this.writeBuffer[params] = {
+            this.writeBuffer[params.id] = {
                 bytes: 0,
                 lastWrite: 0,
             };
         }
 
         if (method === 'close_device') {
-            delete this.writeBuffer[params];
+            delete this.writeBuffer[params.id];
         }
 
         return this.sendMessage({ method, params });

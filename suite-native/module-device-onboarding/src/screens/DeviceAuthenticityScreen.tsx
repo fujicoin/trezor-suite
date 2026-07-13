@@ -2,25 +2,38 @@ import { useCallback, useEffect } from 'react';
 
 import { ContinueOnTrezorScreenContent, useDeviceAuthenticityCheck } from '@suite-native/device';
 import {
-    DeviceOnboardingStackParamList,
+    type DeviceOnboardingStackParamList,
     DeviceOnboardingStackRoutes,
-    StackProps,
+    type RootStackParamList,
+    RootStackRoutes,
+    type StackToStackCompositeNavigationProps,
+    useInterceptNativeNavigation,
 } from '@suite-native/navigation';
 
 import { DeviceOnboardingScreenWithExitButton } from '../components/DeviceOnboardingScreenWithExitButton';
 
-export const DeviceAuthenticityScreen = ({
-    navigation,
-}: StackProps<DeviceOnboardingStackParamList, DeviceOnboardingStackRoutes.DeviceAuthenticity>) => {
+type NavigationProp = StackToStackCompositeNavigationProps<
+    DeviceOnboardingStackParamList,
+    DeviceOnboardingStackRoutes.DeviceAuthenticity,
+    RootStackParamList
+>;
+
+export const DeviceAuthenticityScreen = ({ navigation }: { navigation: NavigationProp }) => {
     const { checkDeviceAuthenticity } = useDeviceAuthenticityCheck();
+    useInterceptNativeNavigation();
 
     const handleSuccess = useCallback(() => {
         navigation.navigate(DeviceOnboardingStackRoutes.DeviceAuthenticitySuccess);
     }, [navigation]);
+    const handleFailure = useCallback(() => {
+        navigation.navigate(RootStackRoutes.DeviceCompromisedModal, {
+            failedCheck: 'device-authenticity',
+        });
+    }, [navigation]);
 
     const startCheckDeviceAuthenticity = useCallback(() => {
-        checkDeviceAuthenticity(handleSuccess);
-    }, [checkDeviceAuthenticity, handleSuccess]);
+        checkDeviceAuthenticity({ handleSuccess, handleFailure });
+    }, [checkDeviceAuthenticity, handleSuccess, handleFailure]);
 
     useEffect(() => {
         startCheckDeviceAuthenticity();

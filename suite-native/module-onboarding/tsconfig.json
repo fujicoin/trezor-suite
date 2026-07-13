@@ -2,12 +2,38 @@
     "extends": "../../tsconfig.base.json",
     "compilerOptions": { "outDir": "libDev" },
     "references": [
+        {
+            "path": "../../suite-common/analytics"
+        },
+        {
+            "path": "../../suite-common/dependency-injection"
+        },
+        { "path": "../analytics" },
+        { "path": "../app-init" },
         { "path": "../atoms" },
+        { "path": "../biometrics" },
         { "path": "../icons" },
         { "path": "../intl" },
+        { "path": "../link" },
         { "path": "../navigation" },
+        { "path": "../settings" },
+        { "path": "../trading-residence" },
+        { "path": "../trading-state" },
+        {
+            "path": "../../packages/analytics-uploader"
+        },
         { "path": "../../packages/env-utils" },
-        { "path": "../../packages/styles" },
-        { "path": "../../packages/utils" }
+        {
+            "path": "../../packages/styles-native"
+        },
+        { "path": "../../packages/theme" },
+        { "path": "../../packages/urls" },
+        { "path": "../../packages/utils" },
+        {
+            "path": "../../suite-common/message-system"
+        },
+        { "path": "../feature-flags" },
+        { "path": "../test-utils-store" },
+        { "path": "../../packages/requirements" }
     ]
 }

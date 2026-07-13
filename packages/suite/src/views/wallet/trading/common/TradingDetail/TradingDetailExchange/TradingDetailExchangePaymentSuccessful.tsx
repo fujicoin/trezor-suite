@@ -1,66 +1,55 @@
-import styled from 'styled-components';
+import { type ExchangeProviderInfo, type ExchangeTrade } from 'invity-api';
 
-import { Button, Image, variables } from '@trezor/components';
+import { Translation } from '@suite/intl';
+import { goto } from '@suite/router';
+import { Button, Card, Column, H3, IconCircle, Paragraph } from '@trezor/components';
+import { CheckIcon } from '@trezor/icons';
 
-import { goto } from 'src/actions/suite/routerActions';
-import { Translation } from 'src/components/suite';
 import { useDispatch } from 'src/hooks/suite';
-import { Account } from 'src/types/wallet';
+import { type Account } from 'src/types/wallet';
 
-const Wrapper = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 60px 20px;
-    flex-direction: column;
-`;
+import { TradingDetailProviderInfo } from '../TradingDetailProviderInfo';
 
-const Title = styled.div`
-    margin-top: 25px;
-    font-weight: ${variables.FONT_WEIGHT.DEMI_BOLD};
-`;
+type TradingDetailExchangePaymentSuccessfulProps = {
+    trade: ExchangeTrade;
+    account?: Account;
+    provider?: ExchangeProviderInfo;
+};
 
-const Description = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: ${({ theme }) => theme.legacy.TYPE_LIGHT_GREY};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-    margin: 17px 0 30px;
-    max-width: 310px;
-    text-align: center;
-`;
-
-interface PaymentSuccessfulProps {
-    account: Account;
-}
-
-export const TradingDetailExchangePaymentSuccessful = ({ account }: PaymentSuccessfulProps) => {
+export const TradingDetailExchangePaymentSuccessful = ({
+    trade,
+    account,
+    provider,
+}: TradingDetailExchangePaymentSuccessfulProps) => {
     const dispatch = useDispatch();
 
-    const handleClick = () =>
-        dispatch(
-            goto('wallet-trading-exchange', {
-                params: {
-                    symbol: account.symbol,
-                    accountIndex: account.index,
-                    accountType: account.accountType,
-                },
-            }),
-        );
+    const handleClick = () => dispatch(goto({ routeName: 'wallet-trading-exchange' }));
 
     return (
-        <Wrapper>
-            <Image image="TRADING_SUCCESS" />
-            <Title data-testid="@trading/transaction/detail/status">
-                <Translation id="TR_EXCHANGE_DETAIL_SUCCESS_TITLE" />
-            </Title>
-            <Description>
-                <Translation id="TR_EXCHANGE_DETAIL_SUCCESS_TEXT" />
-            </Description>
-            <Button data-testid="@trading/exchange/payment/back-to-account" onClick={handleClick}>
+        <Column gap={24} padding={{ top: 12, bottom: 4 }}>
+            <IconCircle icon={CheckIcon} size={96} />
+            <Column>
+                <H3 data-testid="@trading/transaction/detail/status">
+                    <Translation id="TR_EXCHANGE_DETAIL_SUCCESS_TITLE" />
+                </H3>
+                <Paragraph typographyStyle="body-sm" intent="neutral" priority="secondary">
+                    <Translation id="TR_EXCHANGE_DETAIL_SUCCESS_TEXT" />
+                </Paragraph>
+            </Column>
+            <Button onClick={handleClick}>
                 <Translation id="TR_EXCHANGE_DETAIL_SUCCESS_BUTTON" />
             </Button>
-        </Wrapper>
+            {provider && (
+                <Card>
+                    <TradingDetailProviderInfo
+                        account={account}
+                        orderId={trade.orderId}
+                        provider={provider}
+                        trade={trade}
+                        txId={trade.receiveTxHash}
+                    />
+                </Card>
+            )}
+        </Column>
     );
 };

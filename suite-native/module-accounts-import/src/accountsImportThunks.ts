@@ -1,3 +1,4 @@
+import { PORTFOLIO_TRACKER_DEVICE_STATE } from '@suite-common/device';
 import { createThunk } from '@suite-common/redux-utils';
 import {
     getSupportedDefinitionTypes,
@@ -6,18 +7,22 @@ import {
     selectFilterKnownTokens,
     selectNetworkTokenDefinitions,
 } from '@suite-common/token-definitions';
-import { type AccountType, type Bip43Path, type NetworkSymbol } from '@suite-common/wallet-config';
 import {
-    PORTFOLIO_TRACKER_DEVICE_STATE,
+    type AccountType,
+    type Bip43Path,
+    type NetworkSymbol,
+    getNetworkType,
+} from '@suite-common/wallet-config';
+import {
     accountsActions,
     selectAccountsByNetworkAndDeviceState,
     updateFiatRatesThunk,
 } from '@suite-common/wallet-core';
-import { Timestamp, TokenAddress } from '@suite-common/wallet-types';
+import { type Timestamp, type TokenAddress } from '@suite-common/wallet-types';
 import { getAccountIdentity, shouldUseIdentities } from '@suite-common/wallet-utils';
-import { isCoinWithTokens } from '@suite-native/tokens';
+import { isNetworkWithTokens } from '@suite-native/tokens';
 import type { BaseCurrencyCode } from '@trezor/blockchain-link-types';
-import TrezorConnect, { AccountInfo } from '@trezor/connect';
+import TrezorConnect, { type AccountInfo } from '@trezor/connect';
 import { convertTaprootXpub } from '@trezor/utils';
 import { getXpubOrDescriptorInfo } from '@trezor/utxo-lib';
 
@@ -101,6 +106,7 @@ export const getAccountInfoThunk = createThunk<
                     descriptor: taprootXpubWithApostrophes ?? xpubAddress,
                     details: 'txs',
                     suppressBackupWarning: true,
+                    protocols: getNetworkType(symbol) === 'ethereum' ? ['erc4626'] : undefined,
                 }),
                 dispatch(
                     updateFiatRatesThunk({
@@ -120,7 +126,7 @@ export const getAccountInfoThunk = createThunk<
                 const tokenDefinitions = selectNetworkTokenDefinitions(getState(), symbol);
 
                 // fetch token definitions for this network in case they are needed
-                if (!tokenDefinitions && isCoinWithTokens(symbol)) {
+                if (!tokenDefinitions && isNetworkWithTokens(symbol)) {
                     const definitionTypes = getSupportedDefinitionTypes(symbol);
 
                     const promises = definitionTypes.map(async type => {
@@ -157,7 +163,7 @@ export const getAccountInfoThunk = createThunk<
 
                 return fetchedAccountInfo.payload;
             } else {
-                return rejectWithValue(fetchedAccountInfo.payload.error);
+                return rejectWithValue(fetchedAccountInfo.error.message);
             }
         } catch (error) {
             return rejectWithValue(error?.message);

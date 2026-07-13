@@ -5,6 +5,11 @@
         "lib": ["dom", "dom.iterable", "esnext"],
         "emitDeclarationOnly": false,
         "noEmit": true,
+        "paths": {
+            "@suite-common/icons/src/icons": [
+                "./src/icons/minimalIcons.ts"
+            ]
+        },
         "plugins": [
             { "name": "typescript-styled-plugin" }
         ]
@@ -16,15 +21,17 @@
     ],
     "references": [
         { "path": "../components" },
-        { "path": "../connect" },
+        { "path": "../connect-common" },
         { "path": "../connect-explorer-theme" },
         { "path": "../connect-mobile" },
         { "path": "../connect-web" },
         { "path": "../connect-webextension" },
+        { "path": "../device-authenticity" },
+        { "path": "../icons" },
         { "path": "../protobuf" },
         { "path": "../schema-utils" },
         { "path": "../theme" },
-        { "path": "../utils" },
+        { "path": "../urls" },
         { "path": "../eslint" }
     ]
 }

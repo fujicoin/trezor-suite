@@ -1,8 +1,8 @@
+import { Translation } from '@suite/intl';
 import { Column, H4, Paragraph } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
-import { AppState } from 'src/types/suite';
+import { type AppState } from 'src/types/suite';
 import { getSeenAndUnseenNotifications } from 'src/utils/suite/notification';
 
 import { NotificationList } from './NotificationList/NotificationList';
@@ -24,7 +24,7 @@ export const NotificationGroup = (props: NotificationGroupProps) => {
                 <H4>
                     <Translation id="NOTIFICATIONS_EMPTY_TITLE" />
                 </H4>
-                <Paragraph typographyStyle="hint" variant="tertiary">
+                <Paragraph typographyStyle="body-sm" intent="neutral" priority="secondary">
                     <Translation id="NOTIFICATIONS_EMPTY_DESC" />
                 </Paragraph>
             </Column>

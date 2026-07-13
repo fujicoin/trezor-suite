@@ -1,36 +1,42 @@
-import { Explorer } from '@suite-common/wallet-config';
+import { TrezorLink } from '@suite/external-links';
+import { Translation } from '@suite/intl';
+import { type Explorer } from '@suite-common/wallet-config';
 import { getExplorerUrl } from '@suite-common/wallet-config/src/getExplorerUrls';
 import { selectExplorer } from '@suite-common/wallet-core';
+import { isUtxoBased } from '@suite-common/wallet-utils';
+import { ArrowUpRightIcon, CloudIcon } from '@trezor/icons';
 
-import { Translation, TrezorLink } from 'src/components/suite';
 import { AccountExceptionLayout } from 'src/components/wallet';
 import { useSelector } from 'src/hooks/suite';
-import { Account } from 'src/types/wallet';
-
+import { type Account } from 'src/types/wallet';
 interface NoTransactionsProps {
     account: Account;
 }
 
 export const NoTransactions = ({ account }: NoTransactionsProps) => {
     const explorer = useSelector(state => selectExplorer(state, account.symbol)) as Explorer;
-    const explorerUrl = `${getExplorerUrl(explorer, 'account')}${account.descriptor}${explorer.queryString ?? ''}`;
+    const explorerUrl = `${getExplorerUrl(explorer, 'address')}${account.descriptor}${explorer.queryString ?? ''}`;
 
     return (
         <AccountExceptionLayout
             title={<Translation id="TR_TRANSACTIONS_NOT_AVAILABLE" />}
-            iconName="cloud"
+            icon={CloudIcon}
             iconVariant="info"
-            actions={[
-                {
-                    key: '1',
-                    icon: 'arrowUpRight',
-                    children: (
-                        <TrezorLink variant="nostyle" href={explorerUrl}>
-                            <Translation id="TR_SHOW_DETAILS_IN_BLOCK_EXPLORER" />
-                        </TrezorLink>
-                    ),
-                },
-            ]}
+            actions={
+                !isUtxoBased(account)
+                    ? [
+                          {
+                              key: '1',
+                              iconLeft: ArrowUpRightIcon,
+                              children: (
+                                  <TrezorLink href={explorerUrl}>
+                                      <Translation id="TR_SHOW_DETAILS_IN_BLOCK_EXPLORER" />
+                                  </TrezorLink>
+                              ),
+                          },
+                      ]
+                    : undefined
+            }
         />
     );
 };

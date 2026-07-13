@@ -1,33 +1,35 @@
-import { useEffect } from 'react';
+import { useSelector } from 'react-redux';
 
-import { useNavigation } from '@react-navigation/core';
-
+import { selectIsEntropyCheckEnabledAndFailedForSelectedDevice } from '@suite-native/device';
 import { Translation } from '@suite-native/intl';
-import { ScreenHeader } from '@suite-native/navigation';
+import { ScreenHeader, useInterceptNativeNavigation } from '@suite-native/navigation';
 import { HELP_CENTER_ENTROPY_CHECK_URL } from '@trezor/urls';
 
+import { CloseButton } from './CloseButton';
 import { DeviceCompromisedModalContent } from './DeviceCompromisedModalContent';
-
-const supportUrlWithChat = `${HELP_CENTER_ENTROPY_CHECK_URL}#open-chat`;
+import { useCloseDeviceCompromisedScreen } from './useCloseDeviceCompromisedScreen';
 
 export const EntropyCheckFailModalContent = () => {
-    const navigation = useNavigation();
+    useInterceptNativeNavigation();
 
-    useEffect(() => {
-        // Prevent navigation GO_BACK action; this modal will be shown as long as the device is connected
-        const unsubscribe = navigation.addListener('beforeRemove', e => {
-            if (e.data.action.type === 'GO_BACK') {
-                e.preventDefault();
-            }
-        });
+    const { handleClose } = useCloseDeviceCompromisedScreen();
 
-        return unsubscribe;
-    }, [navigation]);
+    const isEntropyCheckFailedForCurrentDevice = useSelector(
+        selectIsEntropyCheckEnabledAndFailedForSelectedDevice,
+    );
+    const canClose = !isEntropyCheckFailedForCurrentDevice;
 
     return (
         <DeviceCompromisedModalContent
-            contactSupportUrl={supportUrlWithChat}
-            screenHeaderContent={<ScreenHeader leftIcon={null} />}
+            contactSupportUrl={HELP_CENTER_ENTROPY_CHECK_URL}
+            screenHeaderContent={
+                canClose ? (
+                    <ScreenHeader closeActionType="close" closeAction={handleClose} />
+                ) : (
+                    <ScreenHeader leftIcon={null} />
+                )
+            }
+            closeButtonContent={canClose ? <CloseButton handleClose={handleClose} /> : null}
             subtitleContent={
                 <Translation id="moduleAuthenticityChecks.deviceCompromised.subtitle.entropy" />
             }

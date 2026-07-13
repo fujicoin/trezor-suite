@@ -9,7 +9,7 @@ import { spacingsPx } from '@trezor/theme';
 import { Method, MethodContent } from './Method';
 import * as methodActions from '../actions/methodActions';
 import { useActions, useSelector } from '../hooks';
-import { MethodState } from '../reducers/methodCommon';
+import { type MethodState } from '../reducers/methodCommon';
 
 const ApiPlaygroundWrapper = styled.div`
     display: block;
@@ -23,8 +23,8 @@ const ApiPlaygroundWrapper = styled.div`
     overscroll-behavior: contain;
     border-radius: 1rem;
     padding: 0;
-    border: 1px solid ${({ theme }) => theme.legacy.STROKE_GREY};
-    box-shadow: ${({ theme }) => theme.boxShadowElevated};
+    border: 1px solid ${({ theme }) => theme.surfaceBorderFixed};
+    box-shadow: ${({ theme }) => theme.surfaceShadowFixed};
 
     @media (min-width: ${variables.SCREEN_SIZE.LG}) {
         left: 18rem;
@@ -60,10 +60,10 @@ const SelectWrapper = styled.div`
     .react-select__control:read-only:not(:disabled) {
         background: transparent;
         border-style: solid;
-        border-color: ${({ theme }) => theme.borderElevation1};
+        border-color: ${({ theme }) => theme.borderNeutral};
 
         &:hover {
-            border-color: ${({ theme }) => theme.borderElevation2};
+            border-color: ${({ theme }) => theme.elementBorderFieldHovered};
         }
     }
 `;
@@ -83,9 +83,7 @@ interface ApiPlaygroundProps {
 }
 export const ApiPlayground = ({ options }: ApiPlaygroundProps) => {
     const [selectedOption, setSelectedOption] = useState(0);
-    const { method } = useSelector(state => ({
-        method: state.method,
-    }));
+    const method = useSelector(state => state.method);
     const actions = useActions({
         onSetSchema: methodActions.onSetSchema,
         onSetMethod: methodActions.onSetMethod,
@@ -95,7 +93,8 @@ export const ApiPlayground = ({ options }: ApiPlaygroundProps) => {
     const { manualMode } = method;
 
     useEffect(() => {
-        const option = options[selectedOption];
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const option: (typeof options)[number] = options[selectedOption];
         if ('legacyConfig' in option) {
             actions.onSetMethod(option.legacyConfig);
         } else {
@@ -134,7 +133,7 @@ export const ApiPlayground = ({ options }: ApiPlaygroundProps) => {
                                         label="Select method"
                                         value={{
                                             value: selectedOption,
-                                            label: options[selectedOption].title,
+                                            label: options[selectedOption]?.title ?? '',
                                         }}
                                         onChange={option => setSelectedOption(option.value)}
                                         options={options.map((option, index) => ({

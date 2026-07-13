@@ -2,6 +2,10 @@ import pluginImport from 'eslint-plugin-import';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+/**
+ * @typedef {import('eslint').Linter.Config} Config
+ */
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -12,11 +16,13 @@ export const globalNoExtraneousDependenciesDevDependencies = [
     // ----------------------------------------------------------------
     '**/*fixtures*/**',
     '**/*.test.{tsx,ts,js}',
-    '**/eslint.config.mjs',
+    '**/eslint.config.mjs', // for CJS packages, those files should eventually be renamed to .js and this line deleted
+    '**/eslint.config.js',
 
     '**/*e2e/**', // Todo: This shall be only in packages that has e2e tests
 ];
 
+/** @type {Config[]} */
 export const importConfig = [
     pluginImport.flatConfigs.recommended,
     {

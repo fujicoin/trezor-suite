@@ -1,8 +1,8 @@
+import { Translation } from '@suite/intl';
 import { type NetworkSymbol } from '@suite-common/wallet-config';
 import { Column, InfoItem, Paragraph } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite/Translation';
 import { useSelector } from 'src/hooks/suite';
 
 type ConnectionInfoProps = {
@@ -15,7 +15,7 @@ const ConnectionInfo = ({ symbol }: ConnectionInfoProps) => {
     const { connected, url, blockHash: hash, blockHeight: height, version } = blockchain[symbol];
 
     return (
-        <Paragraph typographyStyle="hint">
+        <Paragraph typographyStyle="body-sm">
             {connected ? (
                 <Column gap={spacings.sm}>
                     <InfoItem label={<Translation id="SETTINGS_ADV_COIN_CONN_INFO_URL" />}>

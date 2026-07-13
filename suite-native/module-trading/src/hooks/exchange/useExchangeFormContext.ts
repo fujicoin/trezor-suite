@@ -1,5 +1,4 @@
 import { useFormContext } from '@suite-native/forms';
-
-import { ExchangeFormValues } from '../../types/exchange';
+import { type ExchangeFormValues } from '@suite-native/trading-types';
 
 export const useExchangeFormContext = () => useFormContext<ExchangeFormValues>();

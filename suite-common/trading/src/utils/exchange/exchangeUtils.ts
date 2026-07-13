@@ -1,9 +1,19 @@
-import { CryptoId, ExchangeTrade, ExchangeTradeStatus } from 'invity-api';
+import type { CryptoId, ExchangeTrade, ExchangeTradeStatus } from 'invity-api';
 
-import { CONTRACT_ADDRESS_FOR_NATIVE_TOKEN, TRADING_EXCHANGE_RATE_FIXED } from '../../constants';
-import { ExchangeInfo } from '../../reducers/exchangeReducer';
-import { TradingExchangeAmountLimitProps, TradingExchangeRateType } from '../../types';
+import { invariant } from '@suite-common/suite-utils';
+import { type GeneralPrecomposedLevels } from '@suite-common/wallet-types';
+import {
+    buildApprovalTransactionData,
+    getErc20ApproveSpender,
+    tokenSupportsIncreasingAllowance,
+} from '@suite-common/wallet-utils';
+
+import { CONTRACT_ADDRESS_FOR_NATIVE_TOKEN } from '../../constants';
+import { type ExchangeInfo } from '../../reducers/exchangeReducer';
+import { type TradingExchangeAmountLimitProps } from '../../types';
 import { cryptoIdToNetwork, parseCryptoId } from '../../utils';
+
+export { tokenSupportsIncreasingAllowance };
 
 type GetAmountLimitsProps = {
     quotes: ExchangeTrade[];
@@ -81,23 +91,6 @@ const fixedRateCexQuotes = (quotes: ExchangeTrade[], exchangeInfo: ExchangeInfo 
             !isQuoteError(q),
     );
 
-const floatRateCexQuotes = (quotes: ExchangeTrade[], exchangeInfo: ExchangeInfo | undefined) =>
-    quotes.filter(q => {
-        const provider = exchangeInfo?.providerInfos[q.exchange || ''];
-
-        return provider && !provider.isFixedRate && !q.isDex && !isQuoteError(q);
-    });
-
-const getCexQuotesByRateType = (
-    rateType: TradingExchangeRateType,
-    quotes: ExchangeTrade[],
-    exchangeInfo: ExchangeInfo | undefined,
-) => {
-    if (rateType === TRADING_EXCHANGE_RATE_FIXED) return fixedRateCexQuotes(quotes, exchangeInfo);
-
-    return floatRateCexQuotes(quotes, exchangeInfo);
-};
-
 const getSuccessQuotesOrdered = (quotes: ExchangeTrade[]): ExchangeTrade[] =>
     quotes.filter(q => !isQuoteError(q));
 
@@ -116,12 +109,108 @@ export const getStatusMessage = (status: ExchangeTradeStatus) => {
     }
 };
 
+export type ApprovalStatus =
+    | 'approved'
+    | 'needs_approval'
+    | 'needs_increase'
+    | 'needs_revoke'
+    | 'not_needed'
+    | null;
+
+export const hasEip712SignDataType = (quote?: ExchangeTrade): boolean =>
+    quote?.signData?.type === 'eip712-typed-data';
+
+export const hasEip712SignData = (quote?: ExchangeTrade) =>
+    quote?.status === 'SIGN_DATA' && hasEip712SignDataType(quote);
+
+export const requiresTokenApproval = (quote?: ExchangeTrade): boolean =>
+    !!quote &&
+    !!quote.isDex &&
+    !!quote.send &&
+    !isSendingEvmNativeToken(quote.send) &&
+    !hasEip712SignData(quote);
+
+export const getDisplayNetworkFee = (
+    quote: ExchangeTrade | undefined,
+    fee: string | undefined,
+): string | undefined => (hasEip712SignDataType(quote) ? '0' : fee);
+
+export const getDisplayComposedLevels = <T extends GeneralPrecomposedLevels>(
+    quote: ExchangeTrade | undefined,
+    composedLevels: T | undefined,
+): T | undefined => {
+    if (composedLevels && hasEip712SignDataType(quote)) {
+        return Object.fromEntries(
+            Object.entries(composedLevels).map(([label, level]) => [
+                label,
+                level.type === 'error' ? level : { ...level, fee: '0' },
+            ]),
+        ) as T;
+    }
+
+    return composedLevels;
+};
+
+export const getApprovalStatus = (candidateQuote?: ExchangeTrade): ApprovalStatus => {
+    if (!candidateQuote) {
+        return null;
+    }
+
+    if (!requiresTokenApproval(candidateQuote)) {
+        return 'not_needed';
+    }
+
+    const isApprovalTxPreApproved =
+        candidateQuote.preapprovedStringAmount && candidateQuote.preapprovedStringAmount !== '0';
+
+    if (isApprovalTxPreApproved && candidateQuote.status === 'APPROVAL_REQ') {
+        // send is defined as requiresTokenApproval checks for it, but we need to assert it for TypeScript
+        invariant(candidateQuote.send, 'candidateQuote.send not defined!');
+        const { contractAddress } = parseCryptoId(candidateQuote.send);
+
+        return tokenSupportsIncreasingAllowance(contractAddress)
+            ? 'needs_increase'
+            : 'needs_revoke';
+    }
+
+    if (isApprovalTxPreApproved) {
+        return 'approved';
+    }
+
+    return 'needs_approval';
+};
+
+export const getDexEstimationData = (quote: ExchangeTrade): string | undefined => {
+    if (!quote.dexTx?.data) {
+        return undefined;
+    }
+
+    if (getApprovalStatus(quote) === 'needs_revoke') {
+        const spender = getErc20ApproveSpender(quote.dexTx.data);
+        if (spender) {
+            try {
+                return buildApprovalTransactionData({ spender, amount: '0' });
+            } catch {
+                return quote.dexTx.data;
+            }
+        }
+    }
+
+    return quote.dexTx.data;
+};
+
 export const exchangeUtils = {
     getAmountLimits,
     isQuoteError,
     fixedRateCexQuotes,
-    floatRateCexQuotes,
-    getCexQuotesByRateType,
     getSuccessQuotesOrdered,
     getStatusMessage,
+    tokenSupportsIncreasingAllowance,
+    hasEip712SignDataType,
+    hasEip712SignData,
+    requiresTokenApproval,
+    getApprovalStatus,
+    getDexEstimationData,
+    getDisplayNetworkFee,
+    getDisplayComposedLevels,
 };

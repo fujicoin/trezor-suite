@@ -2,17 +2,23 @@ import { useEffect, useState } from 'react';
 import { Dimensions, PixelRatio, Platform } from 'react-native';
 import { useSelector } from 'react-redux';
 
+import { useServices } from '@suite-common/dependency-injection';
+import {
+    selectDeviceLanguage,
+    selectRememberedHiddenWalletsCount,
+    selectRememberedStandardWalletsCount,
+} from '@suite-common/device';
+import { useDiscreetMode } from '@suite-common/discreet-mode';
 import { UNIT_ABBREVIATIONS } from '@suite-common/suite-constants';
+import { selectIsSuiteSyncEnabled } from '@suite-common/suite-sync';
 import {
     selectBaseCurrency,
     selectBitcoinAmountUnit,
     selectEnabledNetworks,
-    selectRememberedHiddenWalletsCount,
-    selectRememberedStandardWalletsCount,
 } from '@suite-common/wallet-core';
-import { EventType, analytics } from '@suite-native/analytics';
-import { useDiscreetMode } from '@suite-native/atoms';
-import { useIsBiometricsEnabled } from '@suite-native/biometrics';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
+import { selectIsBiometricsEnabled } from '@suite-native/biometrics';
+import { selectLocale } from '@suite-native/intl';
 import { selectIsOnboardingFinished } from '@suite-native/settings';
 import { selectIsAppReady } from '@suite-native/state';
 import { useUserColorScheme } from '@suite-native/theme';
@@ -20,17 +26,20 @@ import { useUserColorScheme } from '@suite-native/theme';
 export const useReportAppInitToAnalytics = (appLaunchTimestamp: number) => {
     const [loadDuration, setLoadDuration] = useState<number | null>(null);
     const [initWasReported, setInitWasReported] = useState(false);
-
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const isAppReady = useSelector(selectIsAppReady);
     const isOnboardingFinished = useSelector(selectIsOnboardingFinished);
     const { userColorScheme } = useUserColorScheme();
     const { isDiscreetMode } = useDiscreetMode();
     const currencyCode = useSelector(selectBaseCurrency);
     const bitcoinUnit = useSelector(selectBitcoinAmountUnit);
-    const { isBiometricsOptionEnabled } = useIsBiometricsEnabled();
+    const isBiometricsOptionEnabled = useSelector(selectIsBiometricsEnabled);
     const rememberedStandardWallets = useSelector(selectRememberedStandardWalletsCount);
     const rememberedHiddenWallets = useSelector(selectRememberedHiddenWalletsCount);
     const enabledNetworks = useSelector(selectEnabledNetworks);
+    const appLanguage = useSelector(selectLocale);
+    const deviceLanguage = useSelector(selectDeviceLanguage);
+    const isSuiteSyncEnabled = useSelector(selectIsSuiteSyncEnabled);
 
     useEffect(() => {
         if (isAppReady && !loadDuration) setLoadDuration(Date.now() - appLaunchTimestamp);
@@ -40,10 +49,10 @@ export const useReportAppInitToAnalytics = (appLaunchTimestamp: number) => {
         if (isAppReady && isOnboardingFinished && loadDuration && !initWasReported) {
             setInitWasReported(true);
             analytics.report({
-                type: EventType.AppReady,
+                type: events.appReadyEvent.name,
                 payload: {
-                    appLanguage: 'en',
-                    deviceLanguage: undefined,
+                    appLanguage,
+                    deviceLanguage,
                     osName: Platform.OS,
                     osVersion: Platform.Version,
                     screenHeight: Dimensions.get('screen').height,
@@ -59,6 +68,7 @@ export const useReportAppInitToAnalytics = (appLaunchTimestamp: number) => {
                     rememberedStandardWallets,
                     rememberedHiddenWallets,
                     enabledNetworks,
+                    labeling: isSuiteSyncEnabled ? 'suite-sync' : 'off',
                 },
             });
         }
@@ -75,5 +85,9 @@ export const useReportAppInitToAnalytics = (appLaunchTimestamp: number) => {
         rememberedStandardWallets,
         rememberedHiddenWallets,
         enabledNetworks,
+        appLanguage,
+        deviceLanguage,
+        isSuiteSyncEnabled,
+        analytics,
     ]);
 };

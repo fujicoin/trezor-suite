@@ -1,28 +1,22 @@
 import { memo } from 'react';
-import { SelectInstance, StylesConfig, createFilter } from 'react-select';
+import { type SelectInstance, createFilter } from 'react-select';
 
-import { CSSObject } from 'styled-components';
-
+import { useTranslation } from '@suite/intl';
+import { selectModalRequestId } from '@suite/modal';
 import { Select } from '@trezor/components';
-import TrezorConnect, { UI } from '@trezor/connect';
-import { bip39 } from '@trezor/crypto-utils';
+import TrezorConnect, { UI_RESPONSE } from '@trezor/connect';
+import { bip39EnglishWordlist } from '@trezor/crypto-utils';
 import { resolveAfter } from '@trezor/utils';
 
-import { useTranslation } from 'src/hooks/suite/useTranslation';
+import { useSelector } from 'src/hooks/suite';
 
-const options = bip39.map(item => ({ label: item, value: item }));
+const options = bip39EnglishWordlist.map(item => ({ label: item, value: item }));
 
 type Option = { label: string; value: string };
 
-const styles: StylesConfig<Option, boolean> = {
-    menuList: base => ({
-        ...(base as Record<string, CSSObject>),
-        maxHeight: '180px',
-    }),
-};
-
 export const WordInput = memo(() => {
     const { translationString } = useTranslation();
+    const requestId = useSelector(selectModalRequestId);
 
     return (
         <Select
@@ -31,13 +25,16 @@ export const WordInput = memo(() => {
             isSearchable
             isClearable={false}
             isMenuOpen
-            styles={styles}
             noOptionsMessage={({ inputValue }: { inputValue: string }) =>
                 translationString('TR_WORD_DOES_NOT_EXIST', { word: inputValue })
             }
             onChange={async (item: Option, ref?: SelectInstance<Option, boolean> | null) => {
                 await resolveAfter(600);
-                TrezorConnect.uiResponse({ type: UI.RECEIVE_WORD, payload: item.value });
+                TrezorConnect.uiResponse({
+                    type: UI_RESPONSE.RECEIVE_WORD,
+                    payload: item.value,
+                    requestId,
+                });
                 ref?.clearValue();
             }}
             options={options}
@@ -50,3 +47,5 @@ export const WordInput = memo(() => {
         />
     );
 });
+
+WordInput.displayName = 'WordInput';

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { FieldError } from 'react-hook-form';
+import { type FieldError } from 'react-hook-form';
 
-import { getInputState } from '@suite-common/wallet-utils';
+import { useDevice } from '@suite/device';
+import { Translation, type TranslationKey, useTranslation } from '@suite/intl';
+import { selectReceiveRevealedAddresses } from '@suite/receive';
 import {
+    Box,
     Button,
     Card,
     Column,
@@ -16,18 +19,17 @@ import {
     Tooltip,
 } from '@trezor/components';
 import { copyToClipboard } from '@trezor/dom-utils';
+import { CheckIcon, CopyIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
 import { isVerifySupported, sign, verify } from 'src/actions/wallet/signVerifyActions';
-import { Translation } from 'src/components/suite';
-import { TranslationKey } from 'src/components/suite/Translation';
 import { WalletLayout, WalletSubpageHeading } from 'src/components/wallet';
-import { useDevice, useDispatch, useSelector, useTranslation } from 'src/hooks/suite';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 import { useCopySignedMessage } from 'src/hooks/wallet/sign-verify/useCopySignedMessage';
 import {
     MAX_LENGTH_MESSAGE,
     MAX_LENGTH_SIGNATURE,
-    SignVerifyFields,
+    type SignVerifyFields,
     useSignVerifyForm,
 } from 'src/hooks/wallet/sign-verify/useSignVerifyForm';
 import { ConnectDeviceGenericPromo } from 'src/views/wallet/receive/components/ConnectDevicePromo';
@@ -39,7 +41,9 @@ const SignVerify = () => {
     const [isCompleted, setIsCompleted] = useState(false);
 
     const selectedAccount = useSelector(state => state.wallet.selectedAccount);
-    const revealedAddresses = useSelector(state => state.wallet.receive);
+    const revealedAddresses = useSelector(state =>
+        selectReceiveRevealedAddresses(state, selectedAccount.account?.key),
+    );
     const dispatch = useDispatch();
 
     const isSignPage = page === 'sign';
@@ -79,7 +83,7 @@ const SignVerify = () => {
 
     const signatureProps = {
         label: translationString('TR_SIGNATURE'),
-        inputState: getInputState(formErrors.signature) as ReturnType<typeof getInputState>,
+        hasError: !!formErrors.signature,
         bottomText: signatureError,
         'data-testid': '@sign-verify/signature',
         innerRef: signatureRef,
@@ -87,7 +91,7 @@ const SignVerify = () => {
     };
     const pubKeyProps = {
         label: translationString('TR_PUBLIC_KEY'),
-        inputState: getInputState(formErrors.pubKey) as ReturnType<typeof getInputState>,
+        hasError: !!formErrors.pubKey,
         bottomText: pubKeyError,
         'data-testid': '@sign-verify/pubKey',
         innerRef: pubKeyRef,
@@ -135,7 +139,13 @@ const SignVerify = () => {
         >
             <WalletSubpageHeading title={canVerify ? 'TR_NAV_SIGN_VERIFY' : 'TR_SIGN_MESSAGE'}>
                 {isFormDirty && (
-                    <Button type="button" size="small" variant="tertiary" onClick={resetForm}>
+                    <Button
+                        type="button"
+                        size="small"
+                        intent="neutral"
+                        priority="secondary"
+                        onClick={resetForm}
+                    >
                         <Translation id="TR_CLEAR_ALL" />
                     </Button>
                 )}
@@ -170,10 +180,11 @@ const SignVerify = () => {
                                 <Switch
                                     label={<Translation id="TR_HEX_FORMAT" />}
                                     labelPosition="start"
+                                    size="small"
                                     {...hexField}
                                 />
                             }
-                            inputState={getInputState(formErrors.message)}
+                            hasError={!!formErrors.message}
                             characterCount={{
                                 current: formValues.message?.length,
                                 max: MAX_LENGTH_MESSAGE,
@@ -186,17 +197,19 @@ const SignVerify = () => {
                         />
                         {isSignPage ? (
                             <>
-                                <Row gap={spacings.xxxl}>
-                                    <SignAddressInput
-                                        name="path"
-                                        label={<Translation id="TR_ADDRESS" />}
-                                        account={selectedAccount.account}
-                                        revealedAddresses={revealedAddresses}
-                                        inputState={getInputState(formErrors.path)}
-                                        bottomText={pathError || null}
-                                        data-testid="@sign-verify/sign-address"
-                                        {...pathField}
-                                    />
+                                <Row gap={spacings.xxxl} alignItems="flex-start">
+                                    <Box flex="1" minWidth={0}>
+                                        <SignAddressInput
+                                            name="path"
+                                            label={<Translation id="TR_ADDRESS" />}
+                                            account={selectedAccount.account}
+                                            revealedAddresses={revealedAddresses}
+                                            hasError={!!formErrors.path}
+                                            bottomText={pathError || null}
+                                            data-testid="@sign-verify/sign-address"
+                                            {...pathField}
+                                        />
+                                    </Box>
                                     {signFormatsDiffer && (
                                         <SelectBar
                                             label={
@@ -263,14 +276,15 @@ const SignVerify = () => {
                                     placeholder={translationString(
                                         'TR_SIGNATURE_AFTER_SIGNING_PLACEHOLDER',
                                     )}
-                                    innerAddon={
+                                    rightContent={
                                         canCopy ? (
                                             <Button
                                                 type="button"
-                                                variant="tertiary"
+                                                intent="neutral"
+                                                priority="secondary"
                                                 onClick={copy}
-                                                icon="copy"
-                                                size="tiny"
+                                                iconLeft={CopyIcon}
+                                                size="small"
                                             >
                                                 <Translation
                                                     id={
@@ -292,16 +306,17 @@ const SignVerify = () => {
                                         placeholder={translationString(
                                             'TR_SIGNATURE_AFTER_SIGNING_PLACEHOLDER',
                                         )}
-                                        innerAddon={
+                                        rightContent={
                                             canCopy ? (
                                                 <Button
                                                     type="button"
-                                                    variant="tertiary"
+                                                    intent="neutral"
+                                                    priority="secondary"
                                                     onClick={() =>
                                                         copyToClipboard(formValues.pubKey || '')
                                                     }
-                                                    icon="copy"
-                                                    size="tiny"
+                                                    iconLeft={CopyIcon}
+                                                    size="small"
                                                 >
                                                     <Translation id="TR_COPY_TO_CLIPBOARD" />
                                                 </Button>
@@ -317,7 +332,7 @@ const SignVerify = () => {
                                     name="address"
                                     label={<Translation id="TR_ADDRESS" />}
                                     type="text"
-                                    inputState={getInputState(formErrors.address)}
+                                    hasError={!!formErrors.address}
                                     bottomText={addressError || null}
                                     data-testid="@sign-verify/select-address"
                                     {...addressField}
@@ -336,9 +351,9 @@ const SignVerify = () => {
                     </Column>
                     <Button
                         type="submit"
-                        variant="primary"
-                        icon={isCompleted ? 'check' : undefined}
-                        isSubtle={isCompleted}
+                        intent="brand"
+                        iconLeft={isCompleted ? CheckIcon : undefined}
+                        priority={isCompleted ? 'secondary' : 'primary'}
                         isDisabled={isLocked()}
                         isLoading={isSubmitting}
                         data-testid="@sign-verify/submit"

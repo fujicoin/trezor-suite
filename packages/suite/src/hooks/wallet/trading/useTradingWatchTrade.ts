@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useTimeoutFn, useUnmount } from 'react-use';
 
-import { BuyTradeFinalStatus, ExchangeTradeFinalStatus, SellTradeFinalStatus } from 'invity-api';
+import {
+    type BuyTradeFinalStatus,
+    type ExchangeTradeFinalStatus,
+    type SellTradeFinalStatus,
+} from 'invity-api';
 
 import {
     type TradingTradeStatusType,
@@ -11,8 +15,7 @@ import {
     tradingThunks,
 } from '@suite-common/trading';
 
-import { useFormDraft } from 'src/hooks/wallet/useFormDraft';
-import { TradingUseWatchTradeProps } from 'src/types/trading/trading';
+import { type TradingUseWatchTradeProps } from 'src/types/trading/trading';
 
 export const tradeFinalStatuses: Record<TradingType, TradingTradeStatusType[]> = {
     buy: ['SUCCESS', 'ERROR', 'BLOCKED'] satisfies BuyTradeFinalStatus[],
@@ -21,7 +24,7 @@ export const tradeFinalStatuses: Record<TradingType, TradingTradeStatusType[]> =
 };
 
 const shouldRefreshTrade = (trade: TradingTransaction | undefined) =>
-    trade && trade.data.status && !tradeFinalStatuses[trade.tradeType].includes(trade.data.status);
+    trade?.data.status && !tradeFinalStatuses[trade.tradeType].includes(trade.data.status);
 
 export const useTradingWatchTrade = <T extends TradingType>({
     account,
@@ -41,8 +44,6 @@ export const useTradingWatchTrade = <T extends TradingType>({
         cancelRefresh();
     });
 
-    const { removeDraft } = useFormDraft(`trading-${trade?.tradeType ?? 'buy'}`);
-
     const watchTrade = useCallback(async () => {
         if (!trade || !account) return;
 
@@ -57,19 +58,9 @@ export const useTradingWatchTrade = <T extends TradingType>({
                 }),
             );
 
-            if (
-                trade.data.status &&
-                tradeFinalStatuses[trade.tradeType].includes(trade.data.status)
-            ) {
-                removeDraft(account.key);
-            }
-
             resetRefresh();
-        } else {
-            removeDraft('trading-exchange');
-            removeDraft('trading-sell');
         }
-    }, [account, refreshCount, trade, cancelRefresh, dispatch, removeDraft, resetRefresh]);
+    }, [account, refreshCount, trade, cancelRefresh, dispatch, resetRefresh]);
 
     useEffect(() => {
         watchTrade();

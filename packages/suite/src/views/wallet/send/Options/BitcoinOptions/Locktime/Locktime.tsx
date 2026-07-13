@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 
+import { Translation } from '@suite/intl';
 import { selectBlockchainHeightBySymbol } from '@suite-common/wallet-core';
 import { datetimeToLocktime } from '@suite-common/wallet-utils';
-import { Card, IconButton, Row, Select, Tooltip } from '@trezor/components';
+import { Card, Column, IconButton, Row, Select, Tooltip } from '@trezor/components';
+import { XIcon } from '@trezor/icons';
 
 import { OpenGuideFromTooltip } from 'src/components/guide';
-import { TextColumn, Translation } from 'src/components/suite';
-import { useSelector, useTranslation } from 'src/hooks/suite';
+import { useSelector } from 'src/hooks/suite';
 import { useSendFormContext } from 'src/hooks/wallet';
 
 import { LocktimeBlockHeight, inputName as blockHeightInputName } from './LocktimeBlockHeight';
@@ -43,8 +44,6 @@ export const Locktime = ({ close }: LocktimeProps) => {
     ]);
 
     const [locktimeOption, setLocktimeOption] = useState(locktimeBlockHeight ? 'block' : 'date');
-
-    const { translationString } = useTranslation();
 
     const options = watch('options');
     const broadcastEnabled = options.includes('broadcast');
@@ -91,35 +90,40 @@ export const Locktime = ({ close }: LocktimeProps) => {
                     );
                 setLocktimeOption(v.value);
             }}
-            isClean
             data-testid="locktime-option"
+            size="small"
+            isClean
         />
     );
 
     return (
         <Card>
-            <Row justifyContent="space-between" alignItems="start">
-                <TextColumn
-                    title={
-                        <Tooltip
-                            addon={
-                                <OpenGuideFromTooltip id="/3_send-and-receive/transactions-in-depth/locktime.md" />
-                            }
-                            content={<Translation id="LOCKTIME_ADD_TOOLTIP" />}
-                            hasIcon
-                        >
-                            <Translation id="LOCKTIME_ADD" />
-                        </Tooltip>
-                    }
-                    description={translationString('LOCKTIME_DESCRIPTION')}
-                />
-                <IconButton icon="x" size="small" variant="tertiary" onClick={close} />
-            </Row>
-            {locktimeOption == 'block' ? (
-                <LocktimeBlockHeight innerAddon={locktimeOptionSelect} />
-            ) : (
-                <LocktimeDatetime innerAddon={locktimeOptionSelect} />
-            )}
+            <Column gap={16}>
+                <Row justifyContent="space-between" alignItems="start">
+                    <Tooltip
+                        addon={
+                            <OpenGuideFromTooltip id="/3_send-and-receive/transactions-in-depth/locktime.md" />
+                        }
+                        content={<Translation id="LOCKTIME_ADD_TOOLTIP" />}
+                        hasIcon
+                    >
+                        <Translation id="LOCKTIME_ADD" />
+                    </Tooltip>
+                    <IconButton
+                        icon={XIcon}
+                        intent="neutral"
+                        priority="secondary"
+                        size="small"
+                        onClick={close}
+                        tooltip={{ content: <Translation id="TR_CLOSE" /> }}
+                    />
+                </Row>
+                {locktimeOption == 'block' ? (
+                    <LocktimeBlockHeight rightContent={locktimeOptionSelect} />
+                ) : (
+                    <LocktimeDatetime rightContent={locktimeOptionSelect} />
+                )}
+            </Column>
         </Card>
     );
 };

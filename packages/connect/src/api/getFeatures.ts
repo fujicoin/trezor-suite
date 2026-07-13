@@ -1,19 +1,33 @@
 // origin: https://github.com/trezor/connect/blob/develop/src/js/core/methods/GetFeatures.js
 
+import { type PermissionRequest, UI_REQUEST } from '@trezor/connect-common';
+
+import type { MethodMessage } from '../core/AbstractMethod';
 import { AbstractMethod } from '../core/AbstractMethod';
-import { UI } from '../events';
 
 export default class GetFeatures extends AbstractMethod<'getFeatures'> {
-    init() {
-        this.requiredPermissions = [];
+    constructor(message: MethodMessage<'getFeatures'>) {
+        super(message, undefined);
+
         this.useUi = false;
-        this.allowDeviceMode = [...this.allowDeviceMode, UI.INITIALIZE, UI.BOOTLOADER];
+        this.allowDeviceMode = [
+            ...this.allowDeviceMode,
+            UI_REQUEST.INITIALIZE,
+            UI_REQUEST.BOOTLOADER,
+        ];
         this.useDeviceState = false;
-        this.skipFirmwareCheck = true;
-        this.skipFinalReload = true;
+        this.useEmptyPassphrase = true;
+    }
+
+    get requiredPermissions(): PermissionRequest[] {
+        return [{ permission: 'read_features' }];
+    }
+
+    checkFirmwareRange() {
+        return undefined;
     }
 
     run() {
-        return Promise.resolve(this.device.features);
+        return Promise.resolve(this.getDevice().features);
     }
 }

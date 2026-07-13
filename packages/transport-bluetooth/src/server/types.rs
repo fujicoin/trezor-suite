@@ -5,6 +5,7 @@ use btleplug::api::CentralState;
 pub enum AbortProcess {
     ClientDisconnected(String), // websocket client disconnected
     DeviceDisconnected(String), // device disconnected
+    NotificationStream(String, Option<NotificationCharacteristic>), // device closed/disconnected
     Scan,                       // stop scan
 }
 
@@ -34,11 +35,46 @@ pub struct ConnectDeviceParams {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct DisconnectDeviceParams {
+    pub id: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct ForgetDeviceParams {
+    pub id: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum NotificationCharacteristic {
+    Read,
+    TrezorPushNotification,
+    BatteryLevel,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct OpenDeviceParams {
+    pub id: String,
+    pub characteristic: Option<NotificationCharacteristic>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct CloseDeviceParams {
+    pub id: String,
+    pub characteristic: Option<NotificationCharacteristic>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct WriteParams {
     pub id: String,
     pub data: Vec<u8>,
     #[serde(rename = "withResponse")]
     pub with_response: bool,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct ReadParams {
+    pub id: String,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
@@ -49,6 +85,34 @@ pub enum WsRequestMethod {
     StartScan,
     StopScan,
     SetState(SetStateParams),
+    ConnectDevice(ConnectDeviceParams),
+    DisconnectDevice(DisconnectDeviceParams),
+    ForgetDevice(ForgetDeviceParams),
+    OpenDevice(OpenDeviceParams),
+    CloseDevice(CloseDeviceParams),
+    Write(WriteParams),
+    Read(ReadParams),
+}
+
+impl WsRequestMethod {
+    pub fn as_string(&self) -> String {
+        match self {
+            WsRequestMethod::GetInfo => "GetInfo".to_string(),
+            WsRequestMethod::Enumerate => "Enumerate".to_string(),
+            WsRequestMethod::StartScan => "StartScan".to_string(),
+            WsRequestMethod::StopScan => "StopScan".to_string(),
+            WsRequestMethod::SetState(_) => "SetState".to_string(),
+            WsRequestMethod::ConnectDevice(params) => format!("ConnectDevice({})", params.id),
+            WsRequestMethod::DisconnectDevice(params) => {
+                format!("DisconnectDevice({})", params.id)
+            }
+            WsRequestMethod::ForgetDevice(params) => format!("ForgetDevice({})", params.id),
+            WsRequestMethod::OpenDevice(params) => format!("OpenDevice({})", params.id),
+            WsRequestMethod::CloseDevice(params) => format!("CloseDevice({})", params.id),
+            WsRequestMethod::Write(params) => format!("Write({})", params.id),
+            WsRequestMethod::Read(params) => format!("Read({})", params.id),
+        }
+    }
 }
 
 #[derive(serde::Deserialize, Debug)]
@@ -66,10 +130,16 @@ pub enum WsResponsePayload {
         api_version: String,
         build: String,
         adapter_info: String,
-        adapter_version: u8,
     },
-    Peripherals(Vec<TrezorDevice>),
-    Success(bool),
+    Peripherals {
+        devices: Vec<TrezorDevice>,
+    },
+    Success {
+        success: bool,
+    },
+    Read {
+        data: Vec<u8>,
+    },
 }
 
 #[derive(serde::Serialize, Clone, Debug)]
@@ -131,18 +201,30 @@ pub enum NotificationEvent {
     DeviceRemoved {
         id: String,
     },
+    DeviceConnectionStatus {
+        device: TrezorDevice,
+    },
+    #[allow(dead_code)]
+    OpenBluetoothSettings {
+        id: String,
+    }, // see linux.rs/pair_with_timeout()
+    DeviceRead {
+        id: String,
+        characteristic: NotificationCharacteristic,
+        data: Vec<u8>,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum MethodError {
-    #[error("UnexpectedError: {0}")]
-    Unexpected(String),
-
     #[error("BtleplugError: {0}")]
     Btleplug(#[from] btleplug::Error),
 
     #[error("AdapterError: {0}")]
     Adapter(#[from] AdapterError),
+
+    #[error(transparent)]
+    PlatformError(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
 
 pub type MethodResult = Result<WsResponsePayload, MethodError>;

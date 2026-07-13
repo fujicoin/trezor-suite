@@ -1,10 +1,9 @@
-import { TouchableOpacity } from 'react-native';
-
 import { Icon } from '@suite-native/icons';
 import { useTranslate } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { Box } from '../Box';
+import { PressableOpacity } from '../Pressable';
 
 type SwitchAmountsButtonProps = { onPress: () => void; label?: string };
 
@@ -19,10 +18,14 @@ const buttonWrapperStyle = prepareNativeStyle(() => ({
 
 const buttonStyle = prepareNativeStyle(utils => ({
     padding: BUTTON_PADDING,
-    backgroundColor: utils.colors.backgroundTertiaryDefaultOnElevation1,
-    borderColor: utils.colors.borderDashed,
+    backgroundColor: utils.colors.surfaceFillRaised,
+    borderColor: utils.colors.borderNeutral,
     borderWidth: utils.borders.widths.small,
     borderRadius: utils.borders.radii.round,
+}));
+
+const iconWrapperStyle = prepareNativeStyle(() => ({
+    transform: [{ rotate: '90deg' }],
 }));
 
 export const SwitchViewsButton = ({ onPress, label }: SwitchAmountsButtonProps) => {
@@ -31,15 +34,17 @@ export const SwitchViewsButton = ({ onPress, label }: SwitchAmountsButtonProps) 
 
     return (
         <Box style={applyStyle(buttonWrapperStyle)}>
-            <TouchableOpacity
+            <PressableOpacity
                 style={applyStyle(buttonStyle)}
                 onPress={onPress}
                 accessibilityLabel={
                     label ?? translate('atoms.animatedDoubleView.defaultSwitchLabel')
                 }
             >
-                <Icon size="mediumLarge" name="arrowsCounterClockwise" />
-            </TouchableOpacity>
+                <Box style={applyStyle(iconWrapperStyle)}>
+                    <Icon size="mediumLarge" name="arrowsCounterClockwise" />
+                </Box>
+            </PressableOpacity>
         </Box>
     );
 };

@@ -1,12 +1,14 @@
-import { MouseEventHandler } from 'react';
+import { type MouseEventHandler } from 'react';
 
-import { AcquiredDevice } from '@suite-common/suite-types';
-import { deviceActions } from '@suite-common/wallet-core';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { useServices } from '@suite-common/dependency-injection';
+import { deviceActions } from '@suite-common/device';
+import { type AcquiredDevice } from '@suite-common/suite-types';
 import { Box, Button, H4, Paragraph, Row } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { EjectIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useDispatch } from 'src/hooks/suite';
 
 type EjectConfirmationProps = {
@@ -16,13 +18,14 @@ type EjectConfirmationProps = {
 };
 
 export const EjectConfirmation = ({ onClick, onCancel, instance }: EjectConfirmationProps) => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const dispatch = useDispatch();
 
     const handleEject = () => {
         dispatch(deviceActions.forgetDevice({ device: instance }));
 
         analytics.report({
-            type: EventType.SwitchDeviceEject,
+            type: events.switchDeviceEjectEvent.name,
         });
     };
 
@@ -31,26 +34,32 @@ export const EjectConfirmation = ({ onClick, onCancel, instance }: EjectConfirma
             <H4>
                 <Translation id="TR_SWITCH_DEVICE_EJECT_CONFIRMATION_TITLE" />
             </H4>
-            <Paragraph variant="tertiary" typographyStyle="hint" margin={{ top: spacings.xxs }}>
+            <Paragraph
+                intent="neutral"
+                priority="secondary"
+                typographyStyle="body-sm"
+                margin={{ top: spacings.xxs }}
+            >
                 <Translation id="TR_SWITCH_DEVICE_EJECT_CONFIRMATION_DESCRIPTION" />
             </Paragraph>
             <Row gap={spacings.xs} margin={{ top: spacings.md }}>
                 <Button
                     size="small"
-                    icon="eject"
+                    iconLeft={EjectIcon}
                     onClick={handleEject}
-                    variant="primary"
+                    intent="brand"
                     data-testid="@switch-device/eject"
-                    isFullWidth
+                    flex="1"
                 >
                     <Translation id="TR_SWITCH_DEVICE_EJECT_CONFIRMATION_PRIMARY_BUTTON" />
                 </Button>
                 <Button
                     size="small"
                     onClick={onCancel}
-                    variant="tertiary"
+                    intent="neutral"
+                    priority="secondary"
                     data-testid="@switch-device/cancelEject"
-                    isFullWidth
+                    flex="1"
                 >
                     <Translation id="TR_SWITCH_DEVICE_EJECT_CONFIRMATION_CANCEL_BUTTON" />
                 </Button>

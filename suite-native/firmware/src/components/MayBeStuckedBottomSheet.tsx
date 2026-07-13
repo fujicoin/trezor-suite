@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { FirmwareUpdateStuckedState } from '@suite-native/analytics';
+import { type FirmwareUpdateStuckedState } from '@suite-native/analytics';
 import {
     BottomSheetModal,
-    BottomSheetModalRef,
+    type BottomSheetModalRef,
     Box,
     Button,
     NumberedListItem,
@@ -42,19 +42,19 @@ export const MayBeStuckedBottomSheet = ({
                 <Animated.View>
                     <VStack spacing="sp24">
                         <VStack alignItems="center" spacing="sp8">
-                            <Text textAlign="center" variant="titleSmall">
+                            <Text textAlign="center" variant="headline-sm">
                                 <Translation id="firmware.stuckedBottomSheet.part1.title" />
                             </Text>
-                            <Text textAlign="center" color="textSubdued">
+                            <Text textAlign="center" color="contentSecondary">
                                 <Translation id="firmware.stuckedBottomSheet.part1.description" />
                             </Text>
                         </VStack>
 
                         <VStack spacing="sp16">
-                            <Button onPress={handleContinue} colorScheme="yellowBold">
+                            <Button onPress={handleContinue} intent="warning" priority="primary">
                                 <Translation id="firmware.stuckedBottomSheet.part1.continueButton" />
                             </Button>
-                            <Button onPress={handleClose} colorScheme="yellowElevation0">
+                            <Button onPress={handleClose} intent="warning" priority="secondary">
                                 <Translation id="firmware.stuckedBottomSheet.part1.closeButton" />
                             </Button>
                         </VStack>
@@ -65,10 +65,10 @@ export const MayBeStuckedBottomSheet = ({
                 <Animated.View entering={FadeIn}>
                     <VStack spacing="sp24">
                         <VStack spacing="sp8">
-                            <Text variant="titleSmall">
+                            <Text variant="headline-sm">
                                 <Translation id="firmware.stuckedBottomSheet.part2.title" />
                             </Text>
-                            <Text color="textSubdued">
+                            <Text color="contentSecondary">
                                 <Translation id="firmware.stuckedBottomSheet.part2.subtitle" />
                             </Text>
                         </VStack>
@@ -86,7 +86,7 @@ export const MayBeStuckedBottomSheet = ({
                         </VStack>
 
                         <Box flex={1}>
-                            <Button onPress={handleClose} colorScheme="primary">
+                            <Button onPress={handleClose} intent="brand" priority="primary">
                                 <Translation id="firmware.stuckedBottomSheet.part2.gotItButton" />
                             </Button>
                         </Box>

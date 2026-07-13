@@ -1,17 +1,26 @@
-import { useEffect, useMemo } from 'react';
-import { Control, Controller } from 'react-hook-form';
+import { useMemo } from 'react';
+import { type Control, Controller } from 'react-hook-form';
 
 import {
+    CurrencyPicker,
+    mapCurrenciesToCurrencyPickerOptions,
+    mapCurrencyToCurrencyPickerOption,
+} from '@suite/trading';
+import {
     TRADING_FORM_FIAT_CURRENCY_SELECT,
-    TRADING_FORM_FIAT_INPUT,
     TRADING_FORM_OUTPUT_CURRENCY,
-    TradingFiatCurrencyOption,
+    type TradingFiatCurrencyOption,
+    buildTradingFiatOption,
+    isTradingFiatCurrencyOption,
 } from '@suite-common/trading';
-import { buildCurrencyOptions } from '@suite-common/wallet-utils';
-import { Select } from '@trezor/components';
+import { buildCurrencyOptions, buildCurrencyShortOption } from '@suite-common/wallet-utils';
+import { isFiatBaseCurrencyCode } from '@trezor/blockchain-link-types';
 
 import { useTradingFormContext } from 'src/hooks/wallet/trading/form/useTradingCommonForm';
-import { TradingAllFormProps, TradingFormInputCurrencyProps } from 'src/types/trading/tradingForm';
+import {
+    type TradingAllFormProps,
+    type TradingFormInputCurrencyProps,
+} from 'src/types/trading/tradingForm';
 import {
     getFiatCurrenciesProps,
     getSelectedTradingCurrency,
@@ -19,13 +28,10 @@ import {
     isTradingExchangeContext,
     isTradingSellContext,
 } from 'src/utils/wallet/trading/tradingTypingUtils';
-import { buildTradingFiatOption } from 'src/utils/wallet/trading/tradingUtils';
-
-import { useBitcoinAmountUnit } from '../../../../../../hooks/wallet/useBitcoinAmountUnit';
 
 export const TradingFormInputCurrency = ({
-    isClean = true,
-    width = 100,
+    width,
+    isClean = false,
 }: TradingFormInputCurrencyProps) => {
     const context = useTradingFormContext();
     const { control, setAmountLimits, defaultCurrency } = context;
@@ -35,26 +41,27 @@ export const TradingFormInputCurrency = ({
     const currentCurrency = getSelectedTradingCurrency(context);
     const fiatCurrencies = getFiatCurrenciesProps(context);
     const currencies = fiatCurrencies?.supportedFiatCurrencies ?? null;
-    const { areSatsDisplayed } = useBitcoinAmountUnit(context.network.symbol);
+    const selectedBaseCurrencyValue = isFiatBaseCurrencyCode(currentCurrency.value)
+        ? currentCurrency.value
+        : '';
+
+    const selectedBaseCurrency = buildCurrencyShortOption({
+        currency: selectedBaseCurrencyValue,
+        areSatsDisplayed: false,
+    });
 
     const options = useMemo(
         () =>
             currencies
-                ? [...currencies]
-                      .map(currency => buildTradingFiatOption(currency))
-                      .filter(currency => currency.value !== currentCurrency.value)
-                : buildCurrencyOptions({ selected: currentCurrency, areSatsDisplayed }),
-        [currencies, currentCurrency, areSatsDisplayed],
+                ? [...currencies].map(currency => buildTradingFiatOption(currency))
+                : buildCurrencyOptions({
+                      selected: selectedBaseCurrency,
+                      areSatsDisplayed: false,
+                  }).filter(option => isFiatBaseCurrencyCode(option.value)),
+        [currencies, selectedBaseCurrency],
     );
 
     const onChangeAdditional = (option: TradingFiatCurrencyOption) => {
-        if (isTradingBuyContext(context)) {
-            context.setValue(
-                TRADING_FORM_FIAT_INPUT,
-                fiatCurrencies?.defaultAmountsOfFiatCurrencies?.get(option.value) ?? '',
-            );
-        }
-
         if (isTradingExchangeContext(context) || isTradingSellContext(context)) {
             context.form.helpers.onFiatCurrencyChange(option.value);
         }
@@ -65,38 +72,24 @@ export const TradingFormInputCurrency = ({
         }
     };
 
-    // update defaultCurrency in select only on mount
-    useEffect(() => {
-        if (isTradingBuyContext(context)) {
-            context.setValue(TRADING_FORM_FIAT_CURRENCY_SELECT, defaultCurrency);
-            context.setValue(
-                TRADING_FORM_FIAT_INPUT,
-                fiatCurrencies?.defaultAmountsOfFiatCurrencies?.get(defaultCurrency.value) ?? '',
-            );
-        }
-    }, [fiatCurrencies?.defaultAmountsOfFiatCurrencies]); // eslint-disable-line react-hooks/exhaustive-deps
-
     return (
         <Controller
             name={name}
             defaultValue={defaultCurrency}
             control={control as Control<TradingAllFormProps>}
             render={({ field: { onChange, value } }) => (
-                <Select
-                    value={value}
-                    onChange={(selected: TradingFiatCurrencyOption) => {
-                        onChange(selected);
+                <CurrencyPicker
+                    options={mapCurrenciesToCurrencyPickerOptions(options)}
+                    onSelect={option => {
+                        onChange(option);
                         setAmountLimits(undefined);
-
-                        onChangeAdditional(selected);
+                        if (isTradingFiatCurrencyOption(option)) {
+                            onChangeAdditional(option);
+                        }
                     }}
-                    options={options}
-                    data-testid="@trading/form/fiat-currency-select"
-                    isClearable={false}
-                    isClean={isClean}
-                    size="small"
-                    isSearchable
+                    value={mapCurrencyToCurrencyPickerOption(value)}
                     width={width}
+                    isClean={isClean}
                 />
             )}
         />

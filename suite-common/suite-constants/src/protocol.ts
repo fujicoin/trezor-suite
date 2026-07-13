@@ -1,9 +1,10 @@
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 
 export type Protocol =
     | 'bitcoin'
     | 'btc'
     | 'litecoin'
+    | 'fujicoin'
     | 'bitcoincash'
     | 'dogecoin'
     | 'zcash'
@@ -20,6 +21,7 @@ export type Protocol =
     | 'test'
     | 'regtest'
     | 'ltc'
+    | 'fjc'
     | 'bch'
     | 'bsc'
     | 'bnb'
@@ -38,19 +40,24 @@ export type Protocol =
     | 'arbitrum-ethereum'
     | 'base'
     | 'op'
+    | 'avax'
+    | 'avalanche'
     | 'xlm'
     | 'test'
     | 'regtest'
     | 'tsep'
-    | 'thol'
+    | 'thod'
     | 'txrp'
     | 'txlm'
-    | 'tada'
-    | 'dsol';
+    | 'dsol'
+    | 'tron'
+    | 'trx'
+    | 'ttrx';
 
 export const NETWORK_TO_PROTOCOLS: Record<NetworkSymbol, Protocol[]> = {
     btc: ['bitcoin', 'btc'],
     ltc: ['litecoin', 'ltc'],
+    fjc: ['fujicoin', 'fjc'],
     bch: ['bitcoincash', 'bch'],
     doge: ['dogecoin', 'doge'],
     zec: ['zcash', 'zec'],
@@ -59,17 +66,19 @@ export const NETWORK_TO_PROTOCOLS: Record<NetworkSymbol, Protocol[]> = {
     xrp: ['ripple', 'xrp'],
     ada: ['cardano', 'ada'],
     sol: ['solana', 'sol'],
+    trx: ['tron', 'trx'],
+    ttrx: ['ttrx'],
     pol: ['polygon', 'matic', 'pol'],
     bsc: ['binance', 'bnb', 'bsc'],
     arb: ['arbitrum', 'arbitrum-one', 'arb', 'arbitrum-ethereum'],
     base: ['base'],
     op: ['optimism', 'op'],
+    avax: ['avalanche', 'avax'],
     test: ['test'],
     regtest: ['regtest'],
     tsep: ['tsep'],
-    thol: ['thol'],
+    thod: ['thod'],
     txrp: ['txrp'],
-    tada: ['tada'],
     dsol: ['dsol'],
     xlm: ['stellar', 'xlm'],
     txlm: ['txlm'],

@@ -1,12 +1,12 @@
 import { sanitizeUrl } from '@braintree/sanitize-url';
 import * as http from 'http';
-import * as net from 'net';
-import * as url from 'url';
+import type * as net from 'net';
 
 import type { RequiredKey } from '@trezor/type-utils';
-import { Log, TypedEmitter, arrayPartition } from '@trezor/utils';
+import { type Log, TypedEmitter, arrayPartition } from '@trezor/utils';
 
 import { findProcessFromIncomingPort } from './findProcessFromIncomingPort';
+import { formatRequestUrl, parseRequestUrl } from './parseRequestUrl';
 
 type Request = RequiredKey<http.IncomingMessage, 'url'>;
 const isRequest = (request: http.IncomingMessage): request is Request => request.url !== undefined;
@@ -95,9 +95,22 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
     private readonly emitter: TypedEmitter<BaseEvents> = this;
     private ports: number[] = [];
     private port: number | undefined;
+    private address: string;
     private sockets: Record<number, net.Socket> = {};
+    private onConnection?: (socket: net.Socket) => void;
+    private onError?: (e: Error) => void;
 
-    constructor({ logger, port, ports }: { logger: Log; port?: number; ports?: number[] }) {
+    constructor({
+        logger,
+        port,
+        ports,
+        address = '127.0.0.1',
+    }: {
+        logger: Log;
+        port?: number;
+        ports?: number[];
+        address?: string;
+    }) {
         super();
 
         if (ports && ports.length > 0) {
@@ -110,6 +123,7 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
 
         this.logger = logger;
         this.server = http.createServer(this.onRequest);
+        this.address = address;
     }
 
     get logName() {
@@ -168,7 +182,7 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
               }
         >(resolve => {
             let nextSocketId = 0;
-            this.server.on('connection', socket => {
+            this.onConnection = socket => {
                 // Add a newly connected socket
                 const socketId = nextSocketId++;
                 this.sockets[socketId] = socket;
@@ -176,9 +190,10 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
                 socket.on('close', () => {
                     delete this.sockets[socketId];
                 });
-            });
+            };
+            this.server.on('connection', this.onConnection);
 
-            this.server.on('error', async e => {
+            this.onError = async e => {
                 this.server.close();
                 // @ts-expect-error - type is missing
                 const errorCode: string = e.code;
@@ -210,10 +225,11 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
                     error: 'other error',
                     message: `Start error code: ${errorCode}`,
                 };
-            });
+            };
+            this.server.on('error', this.onError);
 
-            this.server.listen(port, '127.0.0.1', undefined, () => {
-                this.logger.info('Server started');
+            this.server.listen(port, this.address, undefined, () => {
+                this.logger.info('Server started, listening on port: ', port);
                 const address = this.getServerAddress();
                 if (address) {
                     this.emitter.emit('server/listening', address);
@@ -229,6 +245,14 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
     public stop() {
         // note that this method only stops listening but keeps existing connections open and thus port blocked
         this.emitter.removeAllListeners();
+        if (this.onConnection) {
+            this.server.off('connection', this.onConnection);
+            this.onConnection = undefined;
+        }
+        if (this.onError) {
+            this.server.off('error', this.onError);
+            this.onError = undefined;
+        }
 
         return new Promise<void>(resolve => {
             this.emitter.emit('server/closing');
@@ -260,8 +284,12 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
         return [baseSegments, paramsSegments];
     }
 
-    private registerRoute(pathname: string, method: 'POST' | 'GET', handler: AnyRequestHandler[]) {
-        const [baseSegments, paramsSegments] = this.splitSegments(pathname);
+    private registerRoute(pathname: string, method: Route['method'], handler: AnyRequestHandler[]) {
+        const segments = this.splitSegments(pathname);
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const baseSegments: string[] = segments[0];
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const paramsSegments: string[] = segments[1];
         const basePathname = baseSegments.join('/');
         this.routes.push({
             method,
@@ -283,7 +311,9 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
         this.registerRoute(pathname, 'GET', handler);
     }
 
-    // PUT, DELETE etc are not used anywhere in our codebase, so no need to implement them now
+    public delete(pathname: string, handler: AnyRequestHandler[]) {
+        this.registerRoute(pathname, 'DELETE', handler);
+    }
 
     /**
      * Register common handlers that are run for all requests before route handlers
@@ -321,31 +351,62 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
     }
 
     /**
-     * pathname could be /a/b/c/d
-     * return route with highest number of matching segments
+     * Find the best matching route using express.js-like matching logic.
+     *
+     * Rules:
+     * 1. Route method must match (exact method or wildcard '*')
+     * 2. Request path segments must equal base segments + parameter count
+     * 3. Base segments must match exactly
+     * 4. Remaining segments fill in the expected parameters
+     * 5. Return the most specific match (most base segments)
+     *
+     * Examples:
+     * - /enumerate matches POST /enumerate (1 base segment, 0 params)
+     * - /enumerate does NOT match POST /enumerate/extra (1 base segment ≠ 2 request segments)
+     * - /acquire/:path/:previous matches POST /acquire/1/2 (1 base + 2 params = 3 segments)
+     * - / matches POST / (0 base segments, 0 params)
+     * - / does NOT match POST /xyz (0 base segments ≠ 1 request segment)
      */
     private findBestMatchingRoute = (pathname: string, method = 'GET') => {
-        const segments = pathname.split('/').map(segment => segment || '/');
+        // Split and filter to get only actual path segments (no empty strings from leading/trailing /)
+        const requestSegments = pathname.split('/').filter(s => s);
         const routes = this.routes.filter(r => r.method === method || r.method === '*');
-        const match = routes.reduce(
-            (acc, route) => {
-                // todo:
-                // Is it necessary to split the path when registering, then join it for storing, and splitting again everytime when finding the best one?
-                // Also, when stored segment-by-segment, it would be possible to represent it as a tree instead of iterating over an array.
-                const routeSegments = route.pathname.split('/').map(segment => segment || '/');
-                const matchedSegments = segments.filter(
-                    (segment, index) => segment === routeSegments[index],
-                );
-                if (matchedSegments.length > acc.matchedSegments.length) {
-                    return { route, matchedSegments };
+
+        let bestMatch: { route: Route; specificity: number } | undefined;
+
+        for (const route of routes) {
+            // Split and filter to get only actual route segments
+            const routeSegments = route.pathname.split('/').filter(s => s);
+            const expectedSegmentCount = routeSegments.length + route.params.length;
+
+            // Request must have exactly the number of segments expected by this route
+            if (requestSegments.length !== expectedSegmentCount) {
+                continue;
+            }
+
+            // Verify that all base route segments match the request segments exactly
+            let segmentsMatch = true;
+            for (let i = 0; i < routeSegments.length; i++) {
+                if (requestSegments[i] !== routeSegments[i]) {
+                    segmentsMatch = false;
+                    break;
                 }
+            }
 
-                return acc;
-            },
-            { route: undefined as Route | undefined, matchedSegments: [] as string[] },
-        );
+            if (!segmentsMatch) {
+                continue;
+            }
 
-        return match.route;
+            // This route matches! Calculate specificity as the number of base segments.
+            // More specific routes (with more fixed segments vs parameters) should win.
+            const specificity = routeSegments.length;
+
+            if (!bestMatch || specificity > bestMatch.specificity) {
+                bestMatch = { route, specificity };
+            }
+        }
+
+        return bestMatch?.route;
     };
     /**
      * Entry point for handling requests
@@ -363,7 +424,7 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
             this.logger.info(`Request ${request.method} ${request.url} aborted`);
         });
 
-        const { protocol, hostname, pathname, query } = url.parse(request.url, true);
+        const { protocol, hostname, pathname, query } = parseRequestUrl(request.url);
 
         if (query) {
             for (const key in query) {
@@ -374,7 +435,8 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
                     query[key] = allParamsOfSameKey.map(singleParam => {
                         const decoded = this.getSafeDecodedURI(singleParam);
                         const sanitized = sanitizeUrl(decoded);
-                        if (sanitized !== decoded) isParamInvalid = true;
+                        // remove trailing slash from sanitized URL
+                        if (sanitized.replace(/\/$/, '') !== decoded) isParamInvalid = true;
 
                         return sanitized;
                     });
@@ -387,7 +449,7 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
                 }
             }
         }
-        request.url = url.format({ protocol, hostname, pathname, query });
+        request.url = formatRequestUrl({ protocol, hostname, pathname, query });
 
         if (!pathname) {
             const msg = `url ${request.url} could not be parsed`;
@@ -402,6 +464,8 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
         if (!route) {
             this.emitter.emit('server/error', `Route not found for ${request.method} ${pathname}`);
             this.logger.warn(`Route not found for ${request.method} ${pathname}`);
+            response.statusCode = 404;
+            response.end();
 
             return;
         }
@@ -409,6 +473,8 @@ export class HttpServer<T extends EventMap> extends TypedEmitter<T & BaseEvents>
         if (!route.handler.length) {
             this.emitter.emit('server/error', `No handlers registered for route ${pathname}`);
             this.logger.warn(`No handlers registered for route ${pathname}`);
+            response.statusCode = 500;
+            response.end();
 
             return;
         }
@@ -623,6 +689,62 @@ export const parseBodyJSON: RequestHandler<unknown, JSON> = (request, response, 
             response.end(JSON.stringify({ error: `Invalid json body: ${error.message}` }));
         });
 };
+
+/**
+ * Factory that creates a body parser middleware with a maximum body size limit.
+ * Returns 413 if the body exceeds the limit.
+ */
+export const parseBodyJSONWithLimit =
+    (maxBytes: number): RequestHandler<unknown, JSON> =>
+    (request, response, next) => {
+        const hasData =
+            (request.headers['content-length'] &&
+                Number.parseInt(request.headers['content-length']) > 0) ||
+            request.headers['transfer-encoding'] === 'chunked';
+
+        if (!hasData) {
+            next(
+                Object.assign(request, { body: {} }) as unknown as RequestWithParams<JSON>,
+                response,
+            );
+
+            return;
+        }
+
+        const chunks: Buffer[] = [];
+        let size = 0;
+        let rejected = false;
+
+        request
+            .on('data', (chunk: Buffer) => {
+                if (rejected) return;
+                size += chunk.length;
+                if (size > maxBytes) {
+                    rejected = true;
+                    request.resume();
+                    response.statusCode = 413;
+                    response.end(JSON.stringify({ error: 'Payload too large' }));
+
+                    return;
+                }
+                chunks.push(chunk);
+            })
+            .on('end', () => {
+                if (rejected) return;
+                try {
+                    const text = Buffer.concat(chunks).toString();
+                    const body = text ? JSON.parse(text) : {};
+                    next(Object.assign(request, { body }), response);
+                } catch (error) {
+                    response.statusCode = 400;
+                    response.end(
+                        JSON.stringify({
+                            error: `Invalid json body: ${error instanceof Error ? error.message : String(error)}`,
+                        }),
+                    );
+                }
+            });
+    };
 
 /**
  * set request.body as string

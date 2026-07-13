@@ -1,9 +1,8 @@
 import { yup } from '@suite-common/validators';
-import { NetworkSymbol } from '@suite-common/wallet-config';
-import { asBaseCurrencyAmount } from '@suite-common/wallet-utils';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { asBaseCurrencyAmount } from '@suite-common/wallet-types';
+import { type TradingFormContext } from '@suite-native/trading-types';
 import { BigNumber } from '@trezor/utils';
-
-import { TradingFormContext } from '../../types/general';
 
 export const getAmountLimitContext = ({
     options,
@@ -120,7 +119,7 @@ export const sendCryptoAmountValidationSchema = yup
         });
     })
     .test('send-crypto-balance', (value, testContext) => {
-        const { balance, translate, convertNumberToBaseUnit, sendSymbol } =
+        const { balance, translate, convertNumberToBaseUnit, sendSymbol, maxSpendableAmount } =
             getAmountLimitContext(testContext);
 
         if (sendSymbol === undefined) {
@@ -129,15 +128,31 @@ export const sendCryptoAmountValidationSchema = yup
 
         const convertedValue = convertNumberToBaseUnit(value, sendSymbol.toLowerCase());
 
-        if (
-            convertedValue === undefined ||
-            balance === undefined ||
-            convertedValue <= parseFloat(balance)
-        ) {
+        if (convertedValue === undefined || convertedValue === 0 || balance === undefined) {
             return true;
         }
 
-        return testContext.createError({
-            message: translate('moduleTrading.validators.insufficientBalance'),
-        });
+        if (convertedValue > parseFloat(balance)) {
+            return testContext.createError({
+                type: 'insufficient-balance',
+                message: translate('moduleTrading.validators.insufficientBalance'),
+            });
+        }
+
+        // undefined means the max amount is unknown (still loading or its calculation
+        // failed), there is nothing to validate against
+        if (maxSpendableAmount === undefined) {
+            return true;
+        }
+
+        if (convertedValue > parseFloat(maxSpendableAmount)) {
+            return testContext.createError({
+                type: 'network-reserve',
+                message: translate('moduleTrading.validators.networkReserve', {
+                    displaySymbol: sendSymbol.toUpperCase(),
+                }),
+            });
+        }
+
+        return true;
     });

@@ -1,6 +1,6 @@
 import { useSelector } from 'react-redux';
 
-import { selectIsDeviceProtectedByPin } from '@suite-common/wallet-core';
+import { selectIsDeviceProtectedByPin } from '@suite-common/device';
 import { Card, PictogramTitleHeader, VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import { DynamicScreenHeader, Screen } from '@suite-native/navigation';
@@ -17,7 +17,10 @@ const EnablePinCard = () => (
                 <Translation id="moduleDeviceSettings.pinProtection.pictograms.enable.subtitle" />
             }
         />
-        <DevicePinActionButton type="enable" colorScheme="yellowBold">
+        <DevicePinActionButton
+            type="enable"
+            buttonColorProps={{ intent: 'warning', priority: 'primary' }}
+        >
             <Translation id="moduleDeviceSettings.pinProtection.buttons.setPin" />
         </DevicePinActionButton>
     </>
@@ -30,11 +33,17 @@ const DisableOrChangePinCard = () => (
             icon="check"
             title={<Translation id="moduleDeviceSettings.pinProtection.pictograms.change.title" />}
         />
-        <VStack>
-            <DevicePinActionButton type="change" colorScheme="primary">
+        <VStack spacing="sp12">
+            <DevicePinActionButton
+                type="change"
+                buttonColorProps={{ intent: 'brand', priority: 'primary' }}
+            >
                 <Translation id="moduleDeviceSettings.pinProtection.buttons.changePin" />
             </DevicePinActionButton>
-            <DevicePinActionButton type="disable" colorScheme="tertiaryElevation0">
+            <DevicePinActionButton
+                type="disable"
+                buttonColorProps={{ intent: 'neutral', priority: 'secondary' }}
+            >
                 <Translation id="moduleDeviceSettings.pinProtection.buttons.removePin" />
             </DevicePinActionButton>
         </VStack>
@@ -50,12 +59,12 @@ export const PinProtectionScreen = () => {
                 <DynamicScreenHeader
                     title={<Translation id="moduleDeviceSettings.pinProtection.title" />}
                     subtitle={<Translation id="moduleDeviceSettings.pinProtection.content" />}
-                    closeActionType="close"
+                    closeActionType="back"
                 />
             }
         >
             <Card>
-                <VStack spacing="sp32">
+                <VStack marginTop="sp16" spacing="sp32">
                     {isDeviceProtectedByPin ? <DisableOrChangePinCard /> : <EnablePinCard />}
                 </VStack>
             </Card>

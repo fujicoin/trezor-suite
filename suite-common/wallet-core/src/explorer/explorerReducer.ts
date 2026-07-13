@@ -1,6 +1,10 @@
 import { createReducerWithExtraDeps } from '@suite-common/redux-utils';
-import { Explorer, NetworkSymbol, networksCollection } from '@suite-common/wallet-config';
-import { getExplorerUrlsRaw } from '@suite-common/wallet-config/src/getExplorerUrls';
+import {
+    type Explorer,
+    type NetworkSymbol,
+    getParsedExplorerUrls,
+    networksCollection,
+} from '@suite-common/wallet-config';
 
 import { explorerActions } from './explorerActions';
 
@@ -16,11 +20,7 @@ const initialStatePredefined: Partial<ExplorerConfig> = {};
 
 export const explorerInitialState: ExplorerConfig = networksCollection.reduce((state, network) => {
     state[network.symbol] = {
-        default: getExplorerUrlsRaw(
-            network.explorer.base,
-            network.networkType,
-            network.explorer.queryString,
-        ),
+        default: getParsedExplorerUrls(network.explorer),
         custom: undefined,
     };
 

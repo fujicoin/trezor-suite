@@ -1,26 +1,18 @@
-import { FC, useMemo } from 'react';
+import { type FC, useCallback, useMemo } from 'react';
 
-import styled from 'styled-components';
-
-import { Route } from '@suite-common/suite-types';
-import { type SpacingPxValues, spacingsPx } from '@trezor/theme';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { selectIsInitialRun } from '@suite/flags';
+import { type Route } from '@suite/router';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectHasBitcoinOnlyFirmware } from '@suite-common/device';
+import { Column } from '@trezor/components';
+import { BellIcon, GearSixIcon, HouseIcon, PiggyBankIcon, RepeatIcon } from '@trezor/icons';
 
 import { useSelector } from 'src/hooks/suite';
-import { selectIsInitialRun } from 'src/selectors/suite/suiteSelectors';
+import { useResponsiveContext } from 'src/support/suite/ResponsiveContext';
 
-import { NavigationItem, NavigationItemProps } from './NavigationItem';
+import { NavigationItem, type NavigationItemProps } from './NavigationItem';
 import { NotificationDropdown } from './NotificationDropdown';
-import { useResponsiveContext } from '../../../../../support/suite/ResponsiveContext';
-
-export const Nav = styled.nav<{ $isSidebarCollapsed: boolean; $margin: SpacingPxValues }>`
-    display: flex;
-    flex-direction: column;
-    gap: ${spacingsPx.xxs};
-    align-items: stretch;
-
-    ${({ $margin }) => $margin && `margin: ${$margin};`}
-    ${({ $isSidebarCollapsed }) => $isSidebarCollapsed && `align-items: center;`}
-`;
 
 export const SETTINGS_ROUTES: Route['name'][] = [
     'settings-index',
@@ -31,47 +23,96 @@ export const SETTINGS_ROUTES: Route['name'][] = [
 ] as const;
 
 type NavigationProps = {
-    margin?: SpacingPxValues;
+    children?: React.ReactNode;
 };
 
-export const Navigation = ({ margin = spacingsPx.xs }: NavigationProps) => {
+export const Navigation = ({ children }: NavigationProps) => {
     const { isSidebarCollapsed } = useResponsiveContext();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
 
     const isInitialRun = useSelector(selectIsInitialRun);
     const startRoute: Route['name'] = isInitialRun ? 'suite-start' : 'suite-index';
+
+    const isBtcOnly = useSelector(selectHasBitcoinOnlyFirmware);
+
+    const reportSwapNavigation = useCallback(() => {
+        analytics.report({
+            type: events.tradeNavigateEvent.name,
+            payload: {
+                action: 'navigate',
+                type: 'exchange',
+                from: 'sidebar',
+            },
+        });
+    }, [analytics]);
 
     const navItems: Array<NavigationItemProps & { CustomComponent?: FC<NavigationItemProps> }> =
         useMemo(
             () => [
                 {
                     nameId: 'TR_DASHBOARD',
-                    icon: 'house',
+                    icon: HouseIcon,
                     goToRoute: startRoute,
                     routes: [startRoute],
+                    shortcut: ['ALT', 'KEY_0'],
                 },
+                ...(!isBtcOnly
+                    ? [
+                          {
+                              nameId: 'TR_TRADING_SWAP',
+                              icon: RepeatIcon,
+                              goToRoute: 'wallet-trading-exchange',
+                              routes: ['wallet-trading-exchange'],
+                              onClick: reportSwapNavigation,
+                              shortcut: ['ALT', 'KEY_X'],
+                          } as NavigationItemProps,
+                          {
+                              nameId: 'TR_EARN',
+                              icon: PiggyBankIcon,
+                              goToRoute: 'suite-earn',
+                              shortcut: ['ALT', 'KEY_E'],
+                              routes: [
+                                  'suite-earn',
+                                  'earn-yield-deposit',
+                                  'earn-yield-withdraw',
+                                  'earn-yield-claim',
+                                  'earn-tron',
+                                  'earn-tron-stake',
+                                  'earn-tron-vote',
+                                  'earn-tron-unstake',
+                                  'earn-tron-withdraw',
+                                  'earn-tron-claim',
+                              ],
+                          } as NavigationItemProps,
+                      ]
+                    : []),
                 {
                     nameId: 'TR_NOTIFICATIONS',
-                    icon: 'bell',
+                    icon: BellIcon,
                     CustomComponent: NotificationDropdown,
+                    'data-testid': '@suite/menu/notifications',
+                    shortcut: ['ALT', 'KEY_I'],
                 },
                 {
                     nameId: 'TR_SETTINGS',
-                    icon: 'gearSix',
+                    icon: GearSixIcon,
                     goToRoute: 'settings-index',
                     routes: SETTINGS_ROUTES,
                     'data-testid': '@suite/menu/settings',
+                    shortcut: ['MOD', 'COMMA'],
                 },
             ],
-            [startRoute],
+            [startRoute, isBtcOnly, reportSwapNavigation],
         );
 
     return (
-        <Nav $isSidebarCollapsed={isSidebarCollapsed} $margin={margin}>
+        <Column alignItems={isSidebarCollapsed ? 'center' : 'stretch'} gap={4} margin={8} as="nav">
+            {children ?? null}
             {navItems.map(item => {
                 const Component = item.CustomComponent ? item.CustomComponent : NavigationItem;
 
                 return <Component key={item.nameId} {...item} />;
             })}
-        </Nav>
+        </Column>
     );
 };

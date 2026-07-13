@@ -1,38 +1,36 @@
 import styled from 'styled-components';
 
-import { Card, Row } from '@trezor/components';
-import { spacings, spacingsPx, typography } from '@trezor/theme';
+import { Translation } from '@suite/intl';
+import { Card, Modal, Row, Text } from '@trezor/components';
+import { spacingsPx } from '@trezor/theme';
+
+import { type DesktopBluetoothDevice } from 'src/actions/bluetooth/DesktopBluetoothDevice';
 
 import { BluetoothDeviceComponent } from './BluetoothDeviceComponent';
-import { DesktopBluetoothDevice } from '../../../actions/bluetooth/DesktopBluetoothDevice';
 
-const Pin = styled.div`
-    display: flex;
-    flex: 1;
-
-    ${typography.titleLarge} /* Amount */ margin: 0 auto;
-
+const Pin = styled.span`
     letter-spacing: ${spacingsPx.md};
 `;
 
 type BluetoothPairingPinProps = {
     pairingPin?: string;
     device: DesktopBluetoothDevice;
+    onCancel: () => void;
 };
 
-export const BluetoothPairingPin = ({ pairingPin, device }: BluetoothPairingPinProps) => (
-    <Card paddingType="none" overflow="hidden">
-        <Row
-            alignItems="center"
-            gap={spacings.xs}
-            justifyContent="space-between"
-            margin={{ vertical: spacings.xxl, horizontal: spacings.xxl }}
-        >
-            <Pin>{pairingPin}</Pin>
-            <BluetoothDeviceComponent
-                device={device}
-                margin={{ vertical: spacings.xxs, horizontal: spacings.xxs }}
-            />
-        </Row>
-    </Card>
+export const BluetoothPairingPin = ({ pairingPin, device, onCancel }: BluetoothPairingPinProps) => (
+    <Modal
+        onCancel={onCancel}
+        heading={<Translation id="TR_CONFIRM_PAIRING_TREZOR" />}
+        description={<Translation id="TR_CONFIRM_PAIRING_TREZOR_DESCRIPTION" />}
+    >
+        <Card overflow="hidden" paddingType="large">
+            <Row gap={8} justifyContent="space-between" padding={{ horizontal: 8, vertical: 4 }}>
+                <Text typographyStyle="headline-lg">
+                    <Pin>{pairingPin}</Pin>
+                </Text>
+                <BluetoothDeviceComponent device={device} />
+            </Row>
+        </Card>
+    </Modal>
 );

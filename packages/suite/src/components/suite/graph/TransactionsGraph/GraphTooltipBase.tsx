@@ -1,13 +1,14 @@
-import { JSX, useEffect } from 'react';
+import { type JSX, useEffect } from 'react';
 
-import { TooltipProps } from 'recharts';
-import styled from 'styled-components';
+import { type TooltipProps } from 'recharts';
+import styled, { ThemeProvider } from 'styled-components';
 
-import { Row, variables } from '@trezor/components';
+import { Translation } from '@suite/intl';
+import { Row, Text, intermediaryTheme } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
-import { FormattedDate, Translation } from 'src/components/suite';
-import { CommonAggregatedHistory, GraphRange } from 'src/types/wallet/graph';
+import { FormattedDate } from 'src/components/suite/FormattedDate';
+import { type CommonAggregatedHistory, type GraphRange } from 'src/types/wallet/graph';
 
 // Used for triggering custom Tooltip alignment
 const OFFSET_LIMIT_HORIZONTAL = 125;
@@ -47,11 +48,12 @@ interface WrapperProps {
 const CustomTooltipWrapper = styled.div<WrapperProps>`
     display: flex;
     flex-direction: column;
-    color: ${({ theme }) => theme.legacy.TYPE_WHITE};
-    background: ${({ theme }) => theme.legacy.BG_TOOLTIP};
+    color: ${({ theme }) => theme.contentPrimary};
+    background: ${({ theme }) => theme.surfaceFillModelessNeutralDark};
+    outline: 1px solid ${({ theme }) => theme.surfaceBorderModelessNeutralDark};
     padding: 8px 6px;
     border-radius: 4px;
-    box-shadow: 0 3px 14px 0 ${({ theme }) => theme.legacy.BOX_SHADOW_BLACK_15};
+    box-shadow: ${({ theme }) => theme.surfaceShadowModeless};
     font-variant-numeric: tabular-nums;
     ${({ $positionX, $boxWidth }) =>
         $positionX >= $boxWidth - OFFSET_LIMIT_HORIZONTAL && `position: absolute; right: 0;`}
@@ -70,7 +72,7 @@ const CustomTooltipWrapper = styled.div<WrapperProps>`
         height: 0;
         border-left: 10px solid transparent;
         border-right: 10px solid transparent;
-        border-top: 10px solid ${({ theme }) => theme.legacy.BG_TOOLTIP};
+        border-top: 10px solid ${({ theme }) => theme.surfaceFillModelessNeutralDark};
     }
 `;
 
@@ -79,14 +81,15 @@ const Col = styled.div`
     flex-direction: column;
 `;
 
-const Title = styled.span`
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-    margin-right: 20px;
-`;
+const Title = ({ children }: { children: React.ReactNode }) => (
+    <Text typographyStyle="body-md" margin={{ right: 20 }}>
+        {children}
+    </Text>
+);
 
-const Value = styled.span`
-    font-weight: ${variables.FONT_WEIGHT.DEMI_BOLD};
-`;
+const Value = ({ children }: { children: React.ReactNode }) => (
+    <Text typographyStyle="body-md-strong">{children}</Text>
+);
 
 const ColsWrapper = styled.div`
     display: flex;
@@ -132,86 +135,106 @@ export const GraphTooltipBase = (props: GraphTooltipBaseProps) => {
 
         props.onShow(
             props.extendedDataForInterval.findIndex(
-                item => item.time === props.payload?.[0].payload.time,
+                item => item.time === props.payload?.[0]?.payload.time,
             ),
         );
     }, [props]);
 
-    if (!props.active || !props.payload) {
+    const firstEntry = props.payload?.[0];
+
+    if (!props.active || !props.payload || !firstEntry) {
         return null;
     }
 
-    const date = new Date(props.payload[0].payload.time * 1000);
+    const date = new Date(firstEntry.payload.time * 1000);
     const dateFormat =
         props.selectedRange?.label === 'year' || props.selectedRange?.label === 'all'
             ? 'month'
             : 'day';
 
     return (
-        <CustomTooltipWrapper
-            $positionX={props.coordinate!.x!}
-            $boxWidth={props.viewBox!.width!}
-            data-testid="@dashboard/customtooltip"
-        >
-            <Row margin={{ bottom: spacings.xxs, left: spacings.xs, right: spacings.xs }}>
-                <Title>{date && formatDate(date, dateFormat)}</Title>
-            </Row>
+        <ThemeProvider theme={{ variant: 'dark', ...intermediaryTheme.dark }}>
+            <CustomTooltipWrapper
+                $positionX={props.coordinate!.x!}
+                $boxWidth={props.viewBox!.width!}
+                data-testid="@dashboard/customtooltip"
+            >
+                <Row margin={{ bottom: spacings.xxs, left: spacings.xs, right: spacings.xs }}>
+                    <Title>{date && formatDate(date, dateFormat)}</Title>
+                </Row>
 
-            <ColsWrapper>
-                <Col>
-                    {props.balance && (
-                        <Row
-                            margin={{ bottom: spacings.xxs, left: spacings.xs, right: spacings.xs }}
-                        >
-                            <Title>
-                                <Translation id="TR_BALANCE" />
-                            </Title>
-                        </Row>
-                    )}
+                <ColsWrapper>
+                    <Col>
+                        {props.balance && (
+                            <Row
+                                margin={{
+                                    bottom: spacings.xxs,
+                                    left: spacings.xs,
+                                    right: spacings.xs,
+                                }}
+                            >
+                                <Title>
+                                    <Translation id="TR_BALANCE" />
+                                </Title>
+                            </Row>
+                        )}
 
-                    <HighlightedAreaLeft>
-                        <Row
-                            margin={{ bottom: spacings.xxs, left: spacings.xs, right: spacings.xs }}
-                        >
-                            <Title>
-                                <Translation id="TR_RECEIVED" />
-                            </Title>
-                        </Row>
+                        <HighlightedAreaLeft>
+                            <Row
+                                margin={{
+                                    bottom: spacings.xxs,
+                                    left: spacings.xs,
+                                    right: spacings.xs,
+                                }}
+                            >
+                                <Title>
+                                    <Translation id="TR_RECEIVED" />
+                                </Title>
+                            </Row>
 
-                        <Row margin={{ left: spacings.xs, right: spacings.xs }}>
-                            <Title>
-                                <Translation id="TR_SENT" />
-                            </Title>
-                        </Row>
-                    </HighlightedAreaLeft>
-                </Col>
+                            <Row margin={{ left: spacings.xs, right: spacings.xs }}>
+                                <Title>
+                                    <Translation id="TR_SENT" />
+                                </Title>
+                            </Row>
+                        </HighlightedAreaLeft>
+                    </Col>
 
-                <Col>
-                    {props.balance && (
-                        <Row
-                            margin={{ bottom: spacings.xxs, left: spacings.xs, right: spacings.xs }}
-                        >
-                            <Value>
-                                <Row margin={{ left: spacings.xs, right: spacings.xs }}>
-                                    {props.balance}
-                                </Row>
-                            </Value>
-                        </Row>
-                    )}
+                    <Col>
+                        {props.balance && (
+                            <Row
+                                margin={{
+                                    bottom: spacings.xxs,
+                                    left: spacings.xs,
+                                    right: spacings.xs,
+                                }}
+                            >
+                                <Value>
+                                    <Row margin={{ left: spacings.xs, right: spacings.xs }}>
+                                        {props.balance}
+                                    </Row>
+                                </Value>
+                            </Row>
+                        )}
 
-                    <HighlightedAreaRight>
-                        <Row
-                            margin={{ bottom: spacings.xxs, left: spacings.xs, right: spacings.xs }}
-                        >
-                            <Value>{props.receivedAmount}</Value>
-                        </Row>
+                        <HighlightedAreaRight>
+                            <Row
+                                margin={{
+                                    bottom: spacings.xxs,
+                                    left: spacings.xs,
+                                    right: spacings.xs,
+                                }}
+                            >
+                                <Value>{props.receivedAmount}</Value>
+                            </Row>
 
-                        <Row margin={{ left: spacings.xs, right: spacings.xs }}>
-                            <Value>{props.sentAmount}</Value>
-                        </Row>
-                    </HighlightedAreaRight>
-                </Col>
-            </ColsWrapper>
-        </CustomTooltipWrapper>
+                            <Row margin={{ left: spacings.xs, right: spacings.xs }}>
+                                <Value>{props.sentAmount}</Value>
+                            </Row>
+                        </HighlightedAreaRight>
+                    </Col>
+                </ColsWrapper>
+            </CustomTooltipWrapper>
+        </ThemeProvider>
     );
 };

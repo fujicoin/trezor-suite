@@ -1,41 +1,44 @@
-import { RouterState } from 'src/reducers/suite/routerReducer';
+import { type RouterState } from '@suite/router';
+
+type Route = RouterState['route'];
 
 const TRADING_BUY_ROUTE = {
     anchor: undefined,
     app: 'wallet',
-    hash: '/btc/0/normal',
+    hash: '',
+    search: '',
     loaded: true,
-    params: { symbol: 'btc', accountIndex: 0, accountType: 'normal' },
+    params: undefined,
     pathname: '/accounts/coinmarket/buy',
     route: {
         name: 'wallet-trading-buy',
         pattern: '/accounts/coinmarket/buy',
         app: 'wallet',
-    },
+    } as Route,
     settingsBackRoute: { name: 'wallet-index', params: undefined },
-    url: '/accounts/coinmarket/buy#/btc/0/normal',
 } as RouterState;
 
 const TRADING_SELL_ROUTE = {
     anchor: undefined,
     app: 'wallet',
-    hash: '/btc/0/normal',
+    hash: '',
+    search: '',
     loaded: true,
-    params: { symbol: 'btc', accountIndex: 0, accountType: 'normal' },
+    params: undefined,
     pathname: '/accounts/coinmarket/sell',
     route: {
         name: 'wallet-trading-sell',
         pattern: '/accounts/coinmarket/sell',
         app: 'wallet',
-    },
+    } as Route,
     settingsBackRoute: { name: 'wallet-index', params: undefined },
-    url: '/accounts/coinmarket/sell#/btc/0/normal',
 } as RouterState;
 
 const TRADING_EXCHANGE_ROUTE = {
     anchor: undefined,
     app: 'wallet',
-    hash: '/btc/0/normal',
+    hash: '#/btc/0/normal',
+    search: '',
     loaded: true,
     params: { symbol: 'btc', accountIndex: 0, accountType: 'normal' },
     pathname: '/accounts/coinmarket/exchange',
@@ -43,15 +46,15 @@ const TRADING_EXCHANGE_ROUTE = {
         name: 'wallet-trading-exchange',
         pattern: '/accounts/coinmarket/exchange',
         app: 'wallet',
-    },
+    } as Route,
     settingsBackRoute: { name: 'wallet-index', params: undefined },
-    url: '/accounts/coinmarket/exchange#/btc/0/normal',
 } as RouterState;
 
 const DEFAULT_ROUTE = {
     loaded: false,
-    url: '/',
     pathname: '/',
+    hash: '',
+    search: '',
     app: 'unknown',
     route: undefined,
     params: undefined,

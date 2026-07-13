@@ -1,22 +1,28 @@
-import { PropsWithChildren, useMemo } from 'react';
+import { type PropsWithChildren, useMemo } from 'react';
 
 import styled from 'styled-components';
 
-import { selectAreFeesLoading, useDisplayBaseCurrency } from '@suite-common/wallet-core';
-import { convertAmountSubunitsToUnits, formatNetworkAmount } from '@suite-common/wallet-utils';
-import { Card, Column, InfoItem, SkeletonRectangle } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { Translation } from '@suite/intl';
+import { selectAreFeesLoading } from '@suite-common/wallet-core';
+import {
+    calculateTronFeeBreakdown,
+    convertAmountSubunitsToUnits,
+    formatNetworkAmount,
+} from '@suite-common/wallet-utils';
+import { Card, Column, InfoItem, Skeleton } from '@trezor/components';
 
-import { BaseCurrencyValue, FormattedCryptoAmount, Translation } from 'src/components/suite';
+import { FormattedCryptoAmount } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
 import { useSendFormContext } from 'src/hooks/wallet';
 
+import { CardanoSentTokenInfo } from './CardanoSentTokenInfo';
 import { ReviewButton } from './ReviewButton';
+import { TotalSentFeeContent } from './TotalSentFeeContent';
 
 type ChildOrSkeletonProps = PropsWithChildren<{ isLoading?: boolean }>;
 
 const ChildOrSkeleton = ({ children, isLoading }: ChildOrSkeletonProps) =>
-    isLoading ? <SkeletonRectangle animate={true} /> : children;
+    isLoading ? <Skeleton animate={true} /> : children;
 
 const Container = styled.div`
     position: sticky;
@@ -25,12 +31,11 @@ const Container = styled.div`
 
 export const TotalSent = () => {
     const {
-        account: { symbol, networkType },
+        account: { symbol, networkType, misc },
         composedLevels,
         getValues,
     } = useSendFormContext();
     const areFeesLoading = useSelector(state => selectAreFeesLoading(state, symbol));
-    const { shallDisplayBaseCurrency } = useDisplayBaseCurrency(symbol);
 
     const selectedFee = getValues().selectedFee || 'normal';
     const transactionInfo = composedLevels ? composedLevels[selectedFee] : undefined;
@@ -38,9 +43,16 @@ export const TotalSent = () => {
     const hasTransactionInfo = transactionInfo !== undefined && transactionInfo.type !== 'error';
     const tokenInfo = hasTransactionInfo ? transactionInfo.token : undefined;
     const includingRent = networkType === 'solana';
+    const isZeroValueTx = hasTransactionInfo && transactionInfo.totalSpent === '0' && !tokenInfo;
+
+    const tronResources = misc && 'tronResources' in misc ? misc.tronResources : undefined;
+    const tronFees =
+        networkType === 'tron'
+            ? calculateTronFeeBreakdown(transactionInfo, tronResources, symbol)
+            : null;
 
     const feeLabelId = useMemo(() => {
-        if (isTokenTransfer) {
+        if (isTokenTransfer || isZeroValueTx) {
             return 'FEE';
         }
 
@@ -49,61 +61,63 @@ export const TotalSent = () => {
         }
 
         return 'INCLUDING_FEE';
-    }, [isTokenTransfer, includingRent]);
+    }, [isTokenTransfer, isZeroValueTx, includingRent]);
 
     return (
         <Container>
-            <Card height="min-content" fillType="flat">
-                <Column gap={spacings.xxs} margin={{ bottom: spacings.xl }}>
+            <Card height="min-content" type="sunken">
+                <Column gap={4} margin={{ bottom: 24 }}>
+                    {!isZeroValueTx && (
+                        <InfoItem
+                            label={<Translation id="TOTAL_SENT" />}
+                            direction="row"
+                            verticalAlignment="start"
+                            intent="neutral"
+                            priority="primary"
+                            typographyStyle="body-md"
+                        >
+                            <ChildOrSkeleton isLoading={areFeesLoading}>
+                                <Column alignItems="flex-end">
+                                    <CardanoSentTokenInfo />
+                                    {hasTransactionInfo && (
+                                        <FormattedCryptoAmount
+                                            disableHiddenPlaceholder
+                                            value={
+                                                tokenInfo
+                                                    ? convertAmountSubunitsToUnits(
+                                                          transactionInfo.totalSpent,
+                                                          tokenInfo.decimals,
+                                                      )
+                                                    : formatNetworkAmount(
+                                                          transactionInfo.totalSpent,
+                                                          symbol,
+                                                      )
+                                            }
+                                            symbol={tokenInfo?.symbol ?? symbol}
+                                            contractAddress={tokenInfo?.contract}
+                                            data-testid="@wallet/send/total-sent"
+                                        />
+                                    )}
+                                </Column>
+                            </ChildOrSkeleton>
+                        </InfoItem>
+                    )}
+
                     <InfoItem
-                        label={<Translation id="TOTAL_SENT" />}
+                        label={<Translation id={feeLabelId} />}
                         direction="row"
-                        variant="default"
-                        typographyStyle="body"
+                        verticalAlignment="start"
                     >
                         <ChildOrSkeleton isLoading={areFeesLoading}>
                             {hasTransactionInfo && (
-                                <FormattedCryptoAmount
-                                    disableHiddenPlaceholder
-                                    value={
-                                        tokenInfo
-                                            ? convertAmountSubunitsToUnits(
-                                                  transactionInfo.totalSpent,
-                                                  tokenInfo.decimals,
-                                              )
-                                            : formatNetworkAmount(
-                                                  transactionInfo.totalSpent,
-                                                  symbol,
-                                              )
-                                    }
-                                    symbol={tokenInfo?.symbol ?? symbol}
-                                    contractAddress={tokenInfo?.contract}
+                                <TotalSentFeeContent
+                                    transactionInfo={transactionInfo}
+                                    networkType={networkType}
+                                    networkSymbol={symbol}
+                                    tokenInfo={tokenInfo}
+                                    tronFees={tronFees}
                                 />
                             )}
-                        </ChildOrSkeleton>
-                    </InfoItem>
-
-                    <InfoItem label={<Translation id={feeLabelId} />} direction="row">
-                        <ChildOrSkeleton isLoading={areFeesLoading}>
-                            {hasTransactionInfo &&
-                                (tokenInfo ? (
-                                    <FormattedCryptoAmount
-                                        disableHiddenPlaceholder
-                                        value={formatNetworkAmount(transactionInfo.fee, symbol)}
-                                        symbol={symbol}
-                                    />
-                                ) : (
-                                    shallDisplayBaseCurrency && (
-                                        <BaseCurrencyValue
-                                            disableHiddenPlaceholder
-                                            amount={formatNetworkAmount(
-                                                transactionInfo.totalSpent,
-                                                symbol,
-                                            )}
-                                            symbol={symbol}
-                                        />
-                                    )
-                                ))}
                         </ChildOrSkeleton>
                     </InfoItem>
                 </Column>

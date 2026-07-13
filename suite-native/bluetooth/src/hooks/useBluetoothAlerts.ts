@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { openSettings } from 'react-native-permissions';
 import { useSelector } from 'react-redux';
 
@@ -9,6 +9,8 @@ import { useTranslate } from '@suite-native/intl';
 
 import { selectBluetoothAdapterStatus, selectBluetoothPermissionStatus } from '../selectors';
 import { useBluetoothPermissions } from './useBluetoothPermissions';
+// @ts-expect-error The definition of the hook is stored in platform-specific files (.ios.tsx for iOS, .android.tsx for Android).
+import { useBluetoothPlatformSpecificAlerts } from './useBluetoothPlatformSpecificAlerts';
 import { useBluetoothSettings } from './useBluetoothSettings';
 
 export const useBluetoothAlerts = () => {
@@ -17,16 +19,17 @@ export const useBluetoothAlerts = () => {
     const navigation = useNavigation();
 
     const { requestBluetoothPermission } = useBluetoothPermissions();
-    const { openBluetoothSettings } = useBluetoothSettings();
+    const { openLocationServicesSettings } = useBluetoothSettings();
+    const { showBluetoothAdapterDisabledAlert, showPairingFailedAlert, showSystemUnpairingAlert } =
+        useBluetoothPlatformSpecificAlerts();
 
     const bluetoothPermissionStatus = useSelector(selectBluetoothPermissionStatus);
     const bluetoothAdapterStatus = useSelector(selectBluetoothAdapterStatus);
 
-    const [isBluetoothAlertShown, setIsBluetoothAlertShown] = useState(false);
-
     const showOrHideBluetoothAlert = useCallback(() => {
         if (bluetoothPermissionStatus === 'denied') {
             showAlert({
+                type: 'bluetoothAdapter',
                 title: translate('bluetooth.alerts.permissionDenied.title'),
                 description: translate('bluetooth.alerts.permissionDenied.description'),
                 primaryButtonTitle: translate('bluetooth.alerts.permissionDenied.primaryButton'),
@@ -34,9 +37,9 @@ export const useBluetoothAlerts = () => {
                 secondaryButtonTitle: translate('generic.buttons.cancel'),
                 onPressSecondaryButton: navigation.goBack,
             });
-            setIsBluetoothAlertShown(true);
         } else if (bluetoothPermissionStatus === 'blocked') {
             showAlert({
+                type: 'bluetoothAdapter',
                 title: translate('bluetooth.alerts.permissionBlocked.title'),
                 description: translate('bluetooth.alerts.permissionBlocked.description'),
                 primaryButtonTitle: translate('bluetooth.alerts.permissionBlocked.primaryButton'),
@@ -44,36 +47,39 @@ export const useBluetoothAlerts = () => {
                 secondaryButtonTitle: translate('generic.buttons.cancel'),
                 onPressSecondaryButton: navigation.goBack,
             });
-            setIsBluetoothAlertShown(true);
         } else if (bluetoothAdapterStatus === 'disabled') {
-            showAlert({
-                title: translate('bluetooth.alerts.adapterDisabled.title'),
-                description: translate('bluetooth.alerts.adapterDisabled.description'),
-                primaryButtonTitle: translate('bluetooth.alerts.adapterDisabled.primaryButton'),
-                onPressPrimaryButton: openBluetoothSettings,
-                secondaryButtonTitle: translate('generic.buttons.cancel'),
-                onPressSecondaryButton: navigation.goBack,
-            });
-            setIsBluetoothAlertShown(true);
+            showBluetoothAdapterDisabledAlert();
         } else if (bluetoothAdapterStatus === 'enabled') {
-            if (isBluetoothAlertShown) {
-                hideAlert();
-                setIsBluetoothAlertShown(false);
-            }
+            hideAlert('bluetoothAdapter');
         }
     }, [
         bluetoothPermissionStatus,
         requestBluetoothPermission,
         bluetoothAdapterStatus,
-        isBluetoothAlertShown,
-        openBluetoothSettings,
         navigation,
         translate,
         showAlert,
+        showBluetoothAdapterDisabledAlert,
         hideAlert,
     ]);
 
+    const showLocationServicesDisabledAlert = useCallback(() => {
+        showAlert({
+            title: translate('bluetooth.alerts.locationServicesDisabled.title'),
+            description: translate('bluetooth.alerts.locationServicesDisabled.description'),
+            primaryButtonTitle: translate(
+                'bluetooth.alerts.locationServicesDisabled.primaryButton',
+            ),
+            onPressPrimaryButton: openLocationServicesSettings,
+            secondaryButtonTitle: translate('generic.buttons.cancel'),
+            onPressSecondaryButton: navigation.goBack,
+        });
+    }, [showAlert, openLocationServicesSettings, translate, navigation]);
+
     return {
         showOrHideBluetoothAlert,
+        showLocationServicesDisabledAlert,
+        showPairingFailedAlert,
+        showSystemUnpairingAlert,
     };
 };

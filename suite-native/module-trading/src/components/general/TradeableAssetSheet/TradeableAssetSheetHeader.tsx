@@ -1,21 +1,22 @@
 import { useState } from 'react';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 import { Translation, useTranslate } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-
 import {
     FOCUS_ANIMATION_DURATION,
     SEARCHABLE_SHEET_HEADER_DEFAULT_HEIGHT,
     SearchableSheetHeader,
-} from '../SearchableSheetHeader';
+} from '@suite-native/trading-atoms';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+
 import { TradeableAssetFilterTabs } from './TradeableAssetFilterTabs';
 
 type TradeableAssetsSheetHeaderProps = {
     onClose: () => void;
     onFilterChange: (value: string) => void;
     onSelectedNetworkFilter: (symbol: NetworkSymbol | undefined) => void;
+    testID?: string;
 };
 
 const wrapperStyle = prepareNativeStyle(() => ({
@@ -26,11 +27,14 @@ export const TradeableAssetSheetHeader = ({
     onClose,
     onFilterChange,
     onSelectedNetworkFilter,
+    testID,
 }: TradeableAssetsSheetHeaderProps) => {
     const { applyStyle } = useNativeStyles();
     const { translate } = useTranslate();
 
     const [isFilterActive, setIsFilterActive] = useState(false);
+
+    const searchInputTestId = testID ? `${testID}/search-input` : undefined;
 
     return (
         <SearchableSheetHeader
@@ -39,13 +43,18 @@ export const TradeableAssetSheetHeader = ({
             onFilterFocusChange={setIsFilterActive}
             onFilterChange={onFilterChange}
             style={applyStyle(wrapperStyle)}
+            searchInputTestId={searchInputTestId}
             searchInputPlaceholder={translate(
                 'moduleTrading.tradeableAssetsSheet.searchInputPlaceholder',
             )}
+            autoCorrect={false}
         >
-            <Animated.View layout={LinearTransition.duration(FOCUS_ANIMATION_DURATION)}>
+            <Animated.View
+                layout={LinearTransition.duration(FOCUS_ANIMATION_DURATION)}
+                testID={testID}
+            >
                 <TradeableAssetFilterTabs
-                    visible={isFilterActive}
+                    isVisible={isFilterActive}
                     animationDuration={FOCUS_ANIMATION_DURATION}
                     onSelectedNetworkFilter={onSelectedNetworkFilter}
                 />

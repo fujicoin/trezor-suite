@@ -1,5 +1,6 @@
-import { TorStatus } from './enums';
-import { ExtractUndefined } from './methods';
+import { type TorStatus } from '@suite/tor';
+
+import { type ExtractUndefined } from './methods';
 
 export type SuiteThemeVariant = 'light' | 'dark' | 'system';
 
@@ -43,7 +44,9 @@ export type HandshakeEvent =
           message: string;
       };
 
-export type HandshakeClient = any;
+export type HandshakeClient = {
+    legacyBioAuthEnabled: boolean;
+};
 
 export type HandshakeInit = {
     statePatch?: Record<string, any>;
@@ -123,6 +126,10 @@ export type BridgeSettings = {
     newBridgeRollout?: number;
 };
 
+export type BioAuthSettings = {
+    enabled: boolean;
+};
+
 export type InvokeResult<Payload = undefined> =
     ExtractUndefined<Payload> extends undefined
         ? { success: true; payload?: Payload } | { success: false; error: string; code?: string }
@@ -132,6 +139,8 @@ export type ConnectPopupCall = {
     id: string;
     method: string;
     payload: any;
+    sourceType?: string;
+    silent?: boolean;
     process?: {
         name: string;
         warning: boolean;
@@ -142,15 +151,27 @@ export type ConnectPopupCall = {
     manifest: {
         appName: string;
         appIcon?: string;
+        appUrl: string;
+        email: string;
+        npmVersion?: string;
     };
 };
 
 export type ConnectPopupCancel = {
     error?: string;
+    callId?: string;
 };
 
 export type ConnectPopupResponse = {
     id: string;
-    success: boolean;
-    payload: any;
-};
+} & (
+    | {
+          success: true;
+          payload: any;
+      }
+    | {
+          success: false;
+          payload: any; // for backward compatibility with v9
+          error: any;
+      }
+);

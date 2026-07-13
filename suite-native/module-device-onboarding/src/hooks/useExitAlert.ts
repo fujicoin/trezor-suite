@@ -1,22 +1,21 @@
 import { useCallback } from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 
-import { useNavigation } from '@react-navigation/core';
-import { useSetAtom } from 'jotai';
+import { useNavigation } from '@react-navigation/native';
 
-import { selectSelectedDevice } from '@suite-common/wallet-core';
+import { selectSelectedDevice } from '@suite-common/device';
 import { useAlert } from '@suite-native/alerts';
-import { wasDeviceOnboardingCancelledAtom } from '@suite-native/device';
+import { setWasDeviceOnboardingCancelled } from '@suite-native/device-onboarding';
 import { useFirmware } from '@suite-native/firmware';
 import { useTranslate } from '@suite-native/intl';
 import {
     AppTabsRoutes,
-    DeviceOnboardingStackParamList,
-    DeviceOnboardingStackRoutes,
+    type DeviceOnboardingStackParamList,
+    type DeviceOnboardingStackRoutes,
     HomeStackRoutes,
-    RootStackParamList,
+    type RootStackParamList,
     RootStackRoutes,
-    StackToStackCompositeNavigationProps,
+    type StackToStackCompositeNavigationProps,
 } from '@suite-native/navigation';
 import TrezorConnect from '@trezor/connect';
 type NavigationProps = StackToStackCompositeNavigationProps<
@@ -25,11 +24,15 @@ type NavigationProps = StackToStackCompositeNavigationProps<
     RootStackParamList
 >;
 export const useExitAlert = (handleContinueButtonPress?: () => void) => {
+    const dispatch = useDispatch();
+
     const navigation = useNavigation<NavigationProps>();
+
     const { showAlert } = useAlert();
+
     const { translate } = useTranslate();
+
     const selectedDevice = useSelector(selectSelectedDevice);
-    const setWasDeviceOnboardingCancelled = useSetAtom(wasDeviceOnboardingCancelledAtom);
     const { setIsFirmwareInstallationRunning } = useFirmware();
 
     const handleExitButtonPress = useCallback(() => {
@@ -39,15 +42,15 @@ export const useExitAlert = (handleContinueButtonPress?: () => void) => {
             primaryButtonTitle: translate(
                 'moduleDeviceOnboarding.cancelOnboardingAlert.cancelButton',
             ),
-            primaryButtonVariant: 'redBold',
+            primaryButtonColorProps: { intent: 'critical', priority: 'primary' },
             secondaryButtonTitle: translate(
                 'moduleDeviceOnboarding.cancelOnboardingAlert.continueButton',
             ),
-            secondaryButtonVariant: 'redElevation0',
+            secondaryButtonColorProps: { intent: 'critical', priority: 'secondary' },
             onPressPrimaryButton: () => {
                 if (selectedDevice) {
                     setIsFirmwareInstallationRunning(false);
-                    setWasDeviceOnboardingCancelled(true);
+                    dispatch(setWasDeviceOnboardingCancelled(true));
                     navigation.popTo(RootStackRoutes.AppTabs, {
                         screen: AppTabsRoutes.HomeStack,
                         params: {
@@ -58,19 +61,17 @@ export const useExitAlert = (handleContinueButtonPress?: () => void) => {
                 }
             },
             onPressSecondaryButton: () => {
-                if (handleContinueButtonPress) {
-                    handleContinueButtonPress();
-                }
+                handleContinueButtonPress?.();
             },
         });
     }, [
+        dispatch,
         handleContinueButtonPress,
-        selectedDevice,
-        setWasDeviceOnboardingCancelled,
-        setIsFirmwareInstallationRunning,
-        translate,
-        showAlert,
         navigation,
+        selectedDevice,
+        setIsFirmwareInstallationRunning,
+        showAlert,
+        translate,
     ]);
 
     return { handleExitButtonPress };

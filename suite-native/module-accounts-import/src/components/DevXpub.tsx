@@ -1,6 +1,6 @@
 import { G } from '@mobily/ts-belt';
 
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 import { Button, VStack } from '@suite-native/atoms';
 
 type DevXpubProps = {
@@ -86,9 +86,10 @@ export const DevXpub = ({ symbol, onSelect }: DevXpubProps) => {
                     return (
                         <Button
                             key={address}
-                            data-testID={`@accounts-import/sync-coins/dev-xpub/${symbol}${testIdSuffix}`}
+                            testID={`@accounts-import/sync-coins/dev-xpub/${symbol}${testIdSuffix}`}
                             onPress={() => onSelect({ xpubAddress: address })}
-                            colorScheme="tertiaryElevation0"
+                            intent="neutral"
+                            priority="secondary"
                         >
                             DEV: {title}
                         </Button>
@@ -100,9 +101,10 @@ export const DevXpub = ({ symbol, onSelect }: DevXpubProps) => {
 
     return (
         <Button
-            data-testID={`@accounts-import/sync-coins/dev-xpub/${symbol}`}
+            testID={`@accounts-import/sync-coins/dev-xpub/${symbol}`}
             onPress={() => onSelect({ xpubAddress: xpub })}
-            colorScheme="tertiaryElevation0"
+            intent="neutral"
+            priority="secondary"
         >
             Use dev xPub
         </Button>

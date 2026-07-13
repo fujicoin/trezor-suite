@@ -1,26 +1,28 @@
 import { memo, useCallback } from 'react';
 
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { type BottomSheetFlashListHandleProps } from '@suite-native/atoms';
+import { BottomSheetSectionList, type ItemRenderConfig } from '@suite-native/trading-atoms';
+import { type TradeableAsset } from '@suite-native/trading-types';
 
+import { TradeableAssetListEmptyComponent } from './TradeableAssetListEmptyComponent';
+import { TradeableAssetListItem } from './TradeableAssetListItem';
+import { TradeableAssetSheetHeader } from './TradeableAssetSheetHeader';
 import {
-    ListItemExtraData,
+    type ListItemExtraData,
     useFavouriteAssetsSectionList,
 } from '../../../hooks/general/useFavouriteAssetsSectionList';
-import { TradeableAsset } from '../../../types/general';
-import { BottomSheetSectionList } from '../BottomSheetSectionList';
-import { TradeableAssetListEmptyComponent } from './TradeableAssetListEmptyComponent';
-import { ASSET_ITEM_HEIGHT, TradeableAssetListItem } from './TradeableAssetListItem';
-import { TradeableAssetSheetHeader } from './TradeableAssetSheetHeader';
-import { ItemRenderConfig } from '../../../hooks/general/useSectionList';
 
 export type TradeableAssetsSheetProps = {
     isVisible: boolean;
-    onClose: () => void;
+    onClose: (shouldHideKeyboard?: boolean) => void;
     onAssetSelect: (symbol: TradeableAsset) => void;
+    hideKeyboardOnAssetSelect?: boolean;
     assets: TradeableAsset[];
     onFilterChange: (value: string) => void;
     onSelectedNetworkFilter: (symbol: NetworkSymbol | undefined) => void;
     flashListKey: string;
+    testID?: string;
 };
 
 const keyExtractor = ({ cryptoId }: TradeableAsset) => `asset_${cryptoId}`;
@@ -36,42 +38,47 @@ export const TradeableAssetSheet = memo(
         isVisible,
         onClose,
         onAssetSelect,
+        hideKeyboardOnAssetSelect,
         assets,
         onFilterChange,
         onSelectedNetworkFilter,
         flashListKey,
+        testID,
     }: TradeableAssetsSheetProps) => {
-        const onAssetSelectCallback = (asset: TradeableAsset) => {
-            onAssetSelect(asset);
-            onClose();
-        };
-
         const listData = useFavouriteAssetsSectionList(assets);
+
+        const headerTestID = testID ? `${testID}/header` : undefined;
 
         // we need to keep stable callback reference, otherwise header will be re-mounted on every keystroke
         const renderHandle = useCallback(
-            () => (
+            ({ closeSheet }: BottomSheetFlashListHandleProps) => (
                 <TradeableAssetSheetHeader
-                    onClose={onClose}
+                    onClose={closeSheet}
                     onFilterChange={onFilterChange}
                     onSelectedNetworkFilter={onSelectedNetworkFilter}
+                    testID={headerTestID}
                 />
             ),
-            [onClose, onFilterChange, onSelectedNetworkFilter],
+            [onFilterChange, onSelectedNetworkFilter, headerTestID],
         );
 
         return (
             <BottomSheetSectionList<TradeableAsset, ListItemExtraData>
                 isVisible={isVisible}
-                onClose={onClose}
+                onClose={() => onClose(hideKeyboardOnAssetSelect)}
                 ListEmptyComponent={<TradeableAssetListEmptyComponent />}
                 handleComponent={renderHandle}
                 data={listData}
                 keyExtractor={keyExtractor}
-                estimatedItemSize={ASSET_ITEM_HEIGHT}
-                renderItem={(item, config) => renderItem(item, config, onAssetSelectCallback)}
+                renderItem={(item, config, { closeSheet }) =>
+                    renderItem(item, config, selectedAsset => {
+                        onAssetSelect(selectedAsset);
+                        closeSheet();
+                    })
+                }
                 flashListKey={flashListKey}
                 noSingletonSectionHeader
+                testID={testID}
             />
         );
     },

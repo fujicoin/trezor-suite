@@ -1,22 +1,32 @@
-import { setFlag } from 'src/actions/suite/suiteActions';
-import { Translation } from 'src/components/suite';
+import { selectFlags, setFlag } from '@suite/flags';
+import { Translation } from '@suite/intl';
+import { type Account } from '@suite-common/wallet-types';
+
 import { useDispatch } from 'src/hooks/suite/useDispatch';
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { selectSuiteFlags } from 'src/selectors/suite/suiteSelectors';
 
 import { BannerPoints } from './BannerPoints';
 import { CloseableBanner } from './CloseableBanner';
 
-export const SolanaLimitedHistoryBanner = () => {
-    const dispatch = useDispatch();
-    const { solanaLimitedHistoryBannerClosed } = useSelector(selectSuiteFlags);
+interface SolanaLimitedHistoryBannerProps {
+    account: Account;
+}
 
-    if (solanaLimitedHistoryBannerClosed) {
+const SOLANA_TX_HISTORY_LIMIT = 100;
+
+export const SolanaLimitedHistoryBanner = ({ account }: SolanaLimitedHistoryBannerProps) => {
+    const dispatch = useDispatch();
+    const { solanaLimitedHistoryBannerClosed } = useSelector(selectFlags);
+
+    const isSolanaAccount = account.networkType === 'solana';
+    const hasTxCountAboveLimit = account.history.total > SOLANA_TX_HISTORY_LIMIT;
+
+    if (solanaLimitedHistoryBannerClosed || !isSolanaAccount || !hasTxCountAboveLimit) {
         return null;
     }
 
     const handleClose = () => {
-        dispatch(setFlag('solanaLimitedHistoryBannerClosed', true));
+        dispatch(setFlag({ key: 'solanaLimitedHistoryBannerClosed', value: true }));
     };
 
     const points = [
@@ -29,7 +39,7 @@ export const SolanaLimitedHistoryBanner = () => {
     return (
         <CloseableBanner
             onClose={handleClose}
-            variant="info"
+            intent="info"
             title={<Translation id="TR_SOLANA_LIMIT_HISTORY_TITLE" />}
             hasIcon={true}
         >

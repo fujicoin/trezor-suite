@@ -1,13 +1,8 @@
-import { DefinedUnionMember } from '@trezor/type-utils';
+import { isAdditionalShamirBackupInProgress, isRecoveryInProgress } from '@suite/recovery';
+import { type RouterState } from '@suite/router';
 
-import { RouterState } from 'src/reducers/suite/routerReducer';
 import type { TransportState } from 'src/reducers/suite/suiteReducer';
 import type { AppState, TrezorDevice } from 'src/types/suite';
-
-import {
-    isAdditionalShamirBackupInProgress,
-    isRecoveryInProgress,
-} from '../device/isRecoveryInProgress';
 
 type GetPrerequisiteNameParams = {
     router: AppState['router'];
@@ -15,8 +10,37 @@ type GetPrerequisiteNameParams = {
     transport?: TransportState;
 };
 
-export const getPrerequisiteName = ({ router, device, transport }: GetPrerequisiteNameParams) => {
-    if (!router || router.app === 'unknown') return;
+export const prerequisiteTypes = [
+    'no-transport',
+    'device-disconnected',
+    'device-disconnect-required',
+    'device-used-elsewhere',
+    'device-thp-locked',
+    'device-unacquired',
+    'device-unreadable',
+    'device-unknown',
+    'device-seedless',
+    'device-recovery-mode',
+    'multi-share-backup-in-progress',
+    'device-initialize',
+    'device-bootloader',
+    'firmware-missing',
+    'firmware-required',
+    'firmware-corrupted',
+    'device-busy',
+    'device-rebooting',
+    'device-bootloader-locked',
+    'device-hard-locked',
+] as const;
+
+export type PrerequisiteType = (typeof prerequisiteTypes)[number];
+
+export const getPrerequisiteName = ({
+    router,
+    device,
+    transport,
+}: GetPrerequisiteNameParams): PrerequisiteType | null => {
+    if (!router || router.app === 'unknown') return null;
 
     // no transport available
     if (transport && !transport.transports.length) return 'no-transport';
@@ -30,10 +54,15 @@ export const getPrerequisiteName = ({ router, device, transport }: GetPrerequisi
     if (device.type === 'unacquired' && device?.transportSessionOwner)
         return 'device-used-elsewhere';
 
+    if (device.status === 'busy') return 'device-busy';
+    if (device.status === 'rebooting') return 'device-rebooting';
+    if (device.status === 'bootloader-locked') return 'device-bootloader-locked';
+    if (device.status === 'hard-locked') return 'device-hard-locked';
+
     // Unacquired device with Trezor Host Protocol properties means
     // that the user must perform the Trezor Host Protocol paring
-    if (device.type === 'unacquired' && device.thp?.properties !== undefined) {
-        return 'device-unacquired-requires-thp';
+    if (device.status === 'thp-locked') {
+        return !device.features ? 'device-thp-locked' : null;
     }
 
     // device features cannot be read, device is probably used in another window
@@ -65,33 +94,45 @@ export const getPrerequisiteName = ({ router, device, transport }: GetPrerequisi
     if (device.mode === 'initialize') return 'device-initialize';
 
     // device is in bootloader mode
-    if (device.mode === 'bootloader')
+    if (device.mode === 'bootloader') {
+        if (device.features.firmware_corrupted) {
+            return 'firmware-corrupted';
+        }
+
         return device.features.firmware_present ? 'device-bootloader' : 'firmware-missing';
+    }
 
     // device firmware update required
     if (device.firmware === 'required') return 'firmware-required';
+
+    return null;
 };
 
-export const getExcludedPrerequisites = (router: RouterState): PrerequisiteType[] => {
-    if (router.app === 'settings') {
-        return [
-            'no-transport',
-            'device-disconnected',
-            'device-unacquired',
-            'device-unacquired-requires-thp',
-            'device-unreadable',
-            'device-unknown',
-            'device-seedless',
-            'device-recovery-mode',
-            'device-initialize',
-            'device-bootloader',
-            'firmware-missing',
-            'firmware-required',
-            'multi-share-backup-in-progress',
-        ];
+const settingsAppActivePrerequisites: PrerequisiteType[] = ['device-disconnect-required'];
+
+type IsPrerequisiteExcluded = {
+    router: RouterState;
+    prerequisite: PrerequisiteType | null;
+};
+
+/**
+ * Check if the prerequisite should be ignored in whole suite.
+ * Note that fullscreen apps may ignore another prerequisites, e.g. 'start'.
+ * TODO: remove the fullscreenApp logic, see Preloader
+ */
+export const isPrerequisiteGloballyExcluded = ({
+    router,
+    prerequisite,
+}: IsPrerequisiteExcluded): boolean => {
+    if (prerequisite === null) return true;
+
+    if (router.app === 'earn' || router.app === 'earn-yield' || router.app === 'earn-staking') {
+        return true;
     }
 
-    return [];
-};
+    if (router.app === 'settings') {
+        return !settingsAppActivePrerequisites.includes(prerequisite);
+    }
 
-export type PrerequisiteType = DefinedUnionMember<ReturnType<typeof getPrerequisiteName>>;
+    return false;
+};

@@ -1,20 +1,25 @@
 import { useCallback } from 'react';
 
+import { selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { events } from '@suite-common/analytics';
 import {
-    DeviceBluetoothConnectionStatusType,
+    type DeviceBluetoothConnectionStatusType,
     bluetoothActions,
     selectKnownDevices,
     selectNearbyDevices,
 } from '@suite-common/bluetooth';
-import { Button, Column, Row } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { useServices } from '@suite-common/dependency-injection';
+import { Button, Row } from '@trezor/components';
+import { type BluetoothDeviceId } from '@trezor/connect';
+
+import { type DesktopBluetoothDevice } from 'src/actions/bluetooth/DesktopBluetoothDevice';
+import { selectConnectingDevices } from 'src/actions/bluetooth/desktopBluetoothSelectors';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 
 import { BluetoothDeviceComponent } from './BluetoothDeviceComponent';
-import { DesktopBluetoothDevice } from '../../../actions/bluetooth/DesktopBluetoothDevice';
-import { selectConnectingDevices } from '../../../actions/bluetooth/desktopBluetoothSelectors';
-import { useDispatch, useSelector } from '../../../hooks/suite';
-import { Translation, TranslationKey } from '../Translation';
 import { PairingState } from './PairingState';
+import { useConnectionGlobalModalContext } from '../../connection/context/ConnectionGlobalModalContext';
 
 const connectionStatusMap: Record<
     DeviceBluetoothConnectionStatusType,
@@ -26,6 +31,7 @@ const connectionStatusMap: Record<
     'connection-error': { component: 'button', text: 'TR_BLUETOOTH_TRY_AGAIN' }, // Out-of-range, offline, in the faraday cage, ...
     pairing: { component: 'loader', text: 'TR_BLUETOOTH_PAIRING' },
     paired: null, // This shall never be shown to the user
+    'pairing-canceled': null, // This shall never be shown to the user
     'pairing-error': null, // This shall never be shown to the user
 };
 
@@ -33,7 +39,7 @@ type GhostDeviceActionButtonProps = {
     device: DesktopBluetoothDevice;
     isConnectingDevice: boolean;
     isLoading: boolean;
-    onPairAgain?: (deviceId: string) => Promise<void>;
+    onPairAgain?: (deviceId: BluetoothDeviceId) => void;
 };
 
 const GhostDeviceActionButton = ({
@@ -52,13 +58,7 @@ const GhostDeviceActionButton = ({
     const isDisabled = isLoading || isConnectingDevice;
 
     return (
-        <Button
-            size="small"
-            margin={{ vertical: spacings.xxs }}
-            isDisabled={isDisabled}
-            isLoading={isLoading}
-            onClick={handleDelete}
-        >
+        <Button size="small" isDisabled={isDisabled} isLoading={isLoading} onClick={handleDelete}>
             <Translation id="TR_PAIR_AGAIN" />
         </Button>
     );
@@ -66,62 +66,74 @@ const GhostDeviceActionButton = ({
 
 type ActionButtonProps = {
     isGhostDevice: boolean;
+    isManuallyPairedDevice: boolean;
     device: DesktopBluetoothDevice;
-    onConnect: (deviceId: string) => Promise<void>;
-    onPairAgain?: (deviceId: string) => Promise<void>;
+    onPairAgain?: (deviceId: BluetoothDeviceId) => void;
 };
 
-const ActionButton = ({ isGhostDevice, device, onConnect, onPairAgain }: ActionButtonProps) => {
+const ActionButton = ({
+    isGhostDevice,
+    isManuallyPairedDevice,
+    device,
+    onPairAgain,
+}: ActionButtonProps) => {
     const connectingDevicesIds = useSelector(selectConnectingDevices);
-
+    const { onConnect } = useConnectionGlobalModalContext();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const isSuiteTryingToConnectToDevice = connectingDevicesIds.includes(device.id);
     const connectionStatus = connectionStatusMap[device.connectionStatus.type];
     const isClickable = connectionStatus?.component === 'button';
     const isLoading = connectionStatus?.component === 'loader';
 
+    const handleOnClick = () => {
+        analytics.report({
+            type: events.deviceConnectionDeviceFoundEvent.name,
+            payload: {
+                option: 'connect',
+            },
+        });
+        onConnect(device.id);
+    };
+
     if (isGhostDevice) {
         return (
-            <Row gap={spacings.xs}>
-                <GhostDeviceActionButton
-                    onPairAgain={onPairAgain}
-                    device={device}
-                    isLoading={isLoading}
-                    isConnectingDevice={isSuiteTryingToConnectToDevice}
-                />
-            </Row>
+            <GhostDeviceActionButton
+                onPairAgain={onPairAgain}
+                device={device}
+                isLoading={isLoading}
+                isConnectingDevice={isSuiteTryingToConnectToDevice}
+            />
+        );
+    }
+    if (isManuallyPairedDevice) {
+        return (
+            <Button intent="brand" size="small" onClick={handleOnClick}>
+                <Translation id="TR_BLUETOOTH_CONNECT" />
+            </Button>
         );
     }
 
-    const handleOnClick = () => onConnect(device.id);
+    if (isLoading) {
+        return <PairingState isLoading text={connectionStatus.text} />;
+    }
 
-    return (
-        <Row gap={spacings.xs}>
-            {isClickable && (
-                <Button
-                    variant="primary"
-                    size="small"
-                    margin={{ vertical: spacings.xxs }}
-                    onClick={handleOnClick}
-                >
-                    <Translation id={connectionStatus.text} />
-                </Button>
-            )}
-            {isLoading && <PairingState isLoading text={connectionStatus.text} />}
-        </Row>
-    );
+    if (isClickable) {
+        return (
+            <Button intent="brand" size="small" onClick={handleOnClick}>
+                <Translation id={connectionStatus.text} />
+            </Button>
+        );
+    }
+
+    return null;
 };
 
 type BluetoothDeviceItemProps = {
     device: DesktopBluetoothDevice;
-    onConnect: (deviceId: string) => Promise<void>;
-    onPairAgain?: (deviceId: string) => Promise<void>;
+    onPairAgain?: (deviceId: BluetoothDeviceId) => void;
 };
 
-export const BluetoothDeviceListItem = ({
-    device,
-    onConnect,
-    onPairAgain,
-}: BluetoothDeviceItemProps) => {
+export const BluetoothDeviceListItem = ({ device, onPairAgain }: BluetoothDeviceItemProps) => {
     const nearbyDevices = useSelector(selectNearbyDevices);
     const isNearbyDevice = (nearbyDevices ?? []).some(
         nearbyDevice => nearbyDevice.id === device.id,
@@ -130,21 +142,18 @@ export const BluetoothDeviceListItem = ({
     const isKnownDevice = knownDevices.some(knownDevice => knownDevice.id === device.id);
 
     const isGhostDevice = isKnownDevice && !isNearbyDevice;
+    // device manually paired via OS Bluetooth settings, instead of Suite
+    const isManuallyPairedDevice = isNearbyDevice && !isKnownDevice;
 
     return (
-        <>
-            <Column gap={spacings.xs}>
-                <Row gap={spacings.md} alignItems="center">
-                    <BluetoothDeviceComponent device={device} flex="1" />
-
-                    <ActionButton
-                        onPairAgain={onPairAgain}
-                        isGhostDevice={isGhostDevice}
-                        device={device}
-                        onConnect={onConnect}
-                    />
-                </Row>
-            </Column>
-        </>
+        <Row gap={16} justifyContent="space-between">
+            <BluetoothDeviceComponent device={device} />
+            <ActionButton
+                onPairAgain={onPairAgain}
+                isGhostDevice={isGhostDevice}
+                isManuallyPairedDevice={isManuallyPairedDevice}
+                device={device}
+            />
+        </Row>
     );
 };

@@ -1,10 +1,10 @@
 /* eslint-disable jest/no-jasmine-globals */
-import { TimeoutError } from 'xrpl';
-
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+import { TimeoutError } from '@trezor/coins-xrpl';
 import { BackendWebsocketServerMock } from '@trezor/e2e-utils';
 
 import workers from './worker';
-import BlockchainLink from '../../src';
+import { BlockchainLink } from '../../src';
 
 const getMethod = (instanceName: string) => {
     let method: string;

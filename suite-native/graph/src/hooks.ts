@@ -3,36 +3,37 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import { A } from '@mobily/ts-belt';
 import { captureException } from '@sentry/react-native';
-import { WritableAtom, useSetAtom } from 'jotai';
+import { type WritableAtom, useSetAtom } from 'jotai';
 
+import { useServices } from '@suite-common/dependency-injection';
 import {
-    AccountItem,
-    CommonUseGraphParams,
-    FiatGraphPoint,
+    type AccountItem,
+    type CommonUseGraphParams,
+    type FiatGraphPoint,
     useGetTimeFrameForHistoryHours,
     useGraphForAccounts,
 } from '@suite-common/graph';
 import { useSelectorDeepComparison } from '@suite-common/redux-utils';
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 import {
-    AccountsRootState,
-    BlockchainRootState,
+    type AccountsRootState,
+    type BlockchainRootState,
     selectAccountByKey,
     selectIsElectrumBackendSelected,
 } from '@suite-common/wallet-core';
-import { BaseCurrencyAmount, tryGetAccountIdentity } from '@suite-common/wallet-utils';
-import { EventType, analytics } from '@suite-native/analytics';
+import { type BaseCurrencyAmount } from '@suite-common/wallet-types';
+import { tryGetAccountIdentity } from '@suite-common/wallet-utils';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 
 import { timeSwitchItems } from './components/TimeSwitch';
-import { selectPortfolioGraphAccountItems } from './selectors';
+import { selectPortfolioGraphAccountItemsIfDiscoveryIsNotRunning } from './selectors';
 import {
-    GraphSliceRootState,
+    type GraphSliceRootState,
     selectAccountGraphTimeframe,
     selectPortfolioGraphTimeframe,
     setAccountGraphTimeframe,
-    setPortfolioGraphTimeframe,
 } from './slice';
-import { TimeframeHoursValue } from './types';
+import { type TimeframeHoursValue } from './types';
 import { omitErrorMessageSensitiveData } from './utils';
 
 const useWatchTimeframeChangeForAnalytics = (
@@ -40,7 +41,7 @@ const useWatchTimeframeChangeForAnalytics = (
     symbol?: NetworkSymbol,
 ) => {
     const isFirstRender = useRef(true);
-
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     useEffect(() => {
         if (isFirstRender.current) {
             // Do not report default value on first render.
@@ -49,26 +50,26 @@ const useWatchTimeframeChangeForAnalytics = (
             return;
         }
 
-        const timeframeLabel = timeSwitchItems.find(
+        const timeframeKey = timeSwitchItems.find(
             item => item.valueBackInHours === timeframeHours,
-        )?.label;
+        )?.key;
 
-        if (timeframeLabel) {
+        if (timeframeKey) {
             if (symbol) {
                 // TODO: Report tokenSymbol and tokenAddress if displaying ERC20 token account graph.
                 // related to issue: https://github.com/trezor/trezor-suite/issues/7839
                 analytics.report({
-                    type: EventType.AssetDetailTimeframeChange,
-                    payload: { timeframe: timeframeLabel, assetSymbol: symbol },
+                    type: events.assetDetailTimeframeChangeEvent.name,
+                    payload: { timeframe: timeframeKey, assetSymbol: symbol },
                 });
             } else {
                 analytics.report({
-                    type: EventType.WatchPortfolioTimeframeChange,
-                    payload: { timeframe: timeframeLabel },
+                    type: events.watchPortfolioTimeframeChangeEvent.name,
+                    payload: { timeframe: timeframeKey },
                 });
             }
         }
-    }, [timeframeHours, symbol, isFirstRender]);
+    }, [timeframeHours, symbol, isFirstRender, analytics]);
 };
 
 const checkAndReportGraphError = (error: Error | null) => {
@@ -154,9 +155,10 @@ export const useGraphForSingleAccount = ({
 };
 
 export const useGraphForAllDeviceAccounts = ({ baseCurrencyCode }: CommonUseGraphParams) => {
-    const dispatch = useDispatch();
-    // if we memoize selectPortfolioGraphAccountItems, it will randomly break so we need to use deep comparison instead to prevent unnecessary rerenders
-    const accountItems = useSelectorDeepComparison(selectPortfolioGraphAccountItems);
+    // Use deep comparison because account items are rebuilt from account data.
+    const accountItems = useSelectorDeepComparison(
+        selectPortfolioGraphAccountItemsIfDiscoveryIsNotRunning,
+    );
     const portfolioGraphTimeframe = useSelector(selectPortfolioGraphTimeframe);
     const isElectrumBackend = useSelector((state: BlockchainRootState) =>
         selectIsElectrumBackendSelected(state, 'btc'),
@@ -164,15 +166,6 @@ export const useGraphForAllDeviceAccounts = ({ baseCurrencyCode }: CommonUseGrap
 
     const { startOfTimeFrameDate, endOfTimeFrameDate } =
         useGetTimeFrameForHistoryHours(portfolioGraphTimeframe);
-
-    const handleSelectPortfolioTimeframe = useCallback(
-        (timeframeHours: TimeframeHoursValue) => {
-            if (portfolioGraphTimeframe !== timeframeHours) {
-                dispatch(setPortfolioGraphTimeframe({ timeframeHours }));
-            }
-        },
-        [dispatch, portfolioGraphTimeframe],
-    );
 
     useWatchTimeframeChangeForAnalytics(portfolioGraphTimeframe);
 
@@ -191,7 +184,6 @@ export const useGraphForAllDeviceAccounts = ({ baseCurrencyCode }: CommonUseGrap
         ...graphForAccounts,
         isAnyMainnetAccountPresent: A.isNotEmpty(accountItems),
         timeframe: portfolioGraphTimeframe,
-        onSelectTimeFrame: handleSelectPortfolioTimeframe,
     };
 };
 
@@ -199,7 +191,7 @@ type UseGraphAtomsParams<TGraphPoint extends FiatGraphPoint> = {
     referencePointAtom: WritableAtom<TGraphPoint | null, [TGraphPoint | null], void>;
     selectedPointAtom: WritableAtom<TGraphPoint | null, [TGraphPoint | null], void>;
     graphPoints: TGraphPoint[];
-    totalFiatBalance: BaseCurrencyAmount;
+    totalFiatBalance?: BaseCurrencyAmount;
 };
 
 export const useGraphAtoms = <TGraphPoint extends FiatGraphPoint>({

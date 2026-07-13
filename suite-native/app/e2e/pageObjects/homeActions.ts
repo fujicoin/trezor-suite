@@ -1,18 +1,28 @@
 import { expect as detoxExpect } from 'detox';
 
-const graphHeaderDiscreetTextElement = element(
-    by.id('@home/portfolio/fiat-balance-header').withDescendant(by.id('discreet-text')),
-);
+import { waitForVisible } from '../support/utils';
+
+const graphHeaderDiscreetTextElement = element(by.id('discreet-text'));
 
 class HomeActions {
     async waitForScreen() {
-        await waitFor(element(by.id('@screen/Home')))
-            .toBeVisible()
-            .withTimeout(10000);
+        await waitForVisible(by.id('@screen/Home'));
+    }
+
+    async assertIsPortfolioGraphVisible() {
+        await waitForVisible(by.id('@home/portfolio/graph'));
+    }
+
+    async scrollScreenToBottom() {
+        await element(by.id('@screen/mainScrollView')).scrollTo('bottom');
+    }
+
+    async tapGetStartedButton() {
+        await element(by.id('@home/get-started-button')).tap();
     }
 
     async tapSyncCoinsButton() {
-        await element(by.id('@screen/mainScrollView')).scrollTo('bottom');
+        await this.scrollScreenToBottom();
         await element(by.id('@home/portfolio/sync-coins-button')).tap();
 
         await detoxExpect(element(by.id('@screen/SelectNetwork'))).toBeVisible();
@@ -23,7 +33,7 @@ class HomeActions {
     }
 
     async assertIsDiscreetModeEnabled() {
-        await waitFor(graphHeaderDiscreetTextElement).toBeVisible().withTimeout(10000);
+        await waitForVisible(graphHeaderDiscreetTextElement);
     }
 }
 

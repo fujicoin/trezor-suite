@@ -1,34 +1,28 @@
+import { Address } from '@suite/address';
+import { Translation } from '@suite/intl';
 import type { NetworkSymbol } from '@suite-common/wallet-config';
-import { ArrayElement } from '@trezor/type-utils';
+import { type ArrayElement } from '@trezor/type-utils';
 
-import { AddressLabeling, Translation } from 'src/components/suite';
-import { WalletAccountTransaction } from 'src/types/wallet';
-
-import { BlurWrapper } from '../TransactionItemBlurWrapper';
+import { AccountLabelForOwnAddress } from 'src/components/suite/labeling/AccountLabelForOwnAddress';
+import { type WalletAccountTransaction } from 'src/types/wallet';
 
 interface TokenTransferAddressLabelProps {
     symbol: NetworkSymbol;
     transfer: ArrayElement<WalletAccountTransaction['tokens']>;
     type: WalletAccountTransaction['type'];
-    isPhishingTransaction: boolean;
 }
 
 export const TokenTransferAddressLabel = ({
     symbol,
     transfer,
     type,
-    isPhishingTransaction,
 }: TokenTransferAddressLabelProps) => {
     if (type === 'self') {
         return <Translation id="TR_SENT_TO_SELF" />;
     }
     if (type === 'sent') {
-        return (
-            <BlurWrapper $isBlurred={isPhishingTransaction}>
-                <AddressLabeling address={transfer.to} symbol={symbol} />
-            </BlurWrapper>
-        );
+        return <AccountLabelForOwnAddress address={transfer.to} symbol={symbol} />;
     }
 
-    return <BlurWrapper $isBlurred={isPhishingTransaction}>{transfer.to}</BlurWrapper>;
+    return <Address value={transfer.to} isTruncated />;
 };

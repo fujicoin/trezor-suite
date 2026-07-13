@@ -1,63 +1,15 @@
 /* WARNING! This file should be imported ONLY in tests! */
 
-import {
-    Action,
-    GuideArticle,
-    GuideCategory,
-    GuideNode,
-    MessageSystem,
-    TrezorDevice,
-} from '@suite-common/suite-types';
+import { type Action, type GuideNode, type MessageSystem } from '@suite-common/suite-types';
 import { networksCollection } from '@suite-common/wallet-config';
 import {
-    Account,
-    BlockchainNetworks,
-    FeeInfo,
-    WalletAccountTransaction,
+    type BlockchainNetworks,
+    type FeeInfo,
+    type WalletAccountTransaction,
+    asAccountDescriptor,
 } from '@suite-common/wallet-types';
-import {
-    AccountUtxo,
-    Device,
-    DeviceUniquePath,
-    Features,
-    FirmwareType,
-    TrezorConnect,
-} from '@trezor/connect';
-import { DeviceModelInternal } from '@trezor/device-utils';
-
-/**
- * Generate wallet account
- * @param {Partial<Account>} [account]
- * @returns {Features}
- */
-// @ts-expect-error - related to backendType and status
-const getWalletAccount = (account?: Partial<Account>): Account => ({
-    deviceState: '1stTestnetAddress@device_id:0',
-    index: 0,
-    path: "m/44'/60'/0'/0/1",
-    descriptor: '0xFA01a39f8Abaeb660c3137f14A310d0b414b2A15',
-    key: `${account?.descriptor ?? '0xFA01a39f8Abaeb660c3137f14A310d0b414b2A15'}-${
-        account?.symbol ?? 'eth'
-    }-${account?.deviceState ?? '1stTestnetAddress@device_id:0'}`,
-    accountType: 'normal',
-    networkType: 'ethereum',
-    symbol: 'eth',
-    empty: false,
-    visible: true,
-    balance: '0',
-    availableBalance: '0',
-    formattedBalance: '0',
-    tokens: [],
-    history: { total: 13, tokens: 0, unconfirmed: 0 },
-    misc: { nonce: '6' },
-    page: { index: 1, size: 25, total: 1 },
-    utxo: undefined,
-    marker: undefined,
-    addresses: undefined,
-    metadata: { key: 'xpub' },
-    ts: 0,
-    ...account,
-});
+import type { AccountUtxo, Device, Features, TrezorConnect } from '@trezor/connect';
+import { DeviceModelInternal, FirmwareType } from '@trezor/device-utils';
 
 /**
  * device.firmwareReleaseConfigInfo property
@@ -151,112 +103,10 @@ const getDeviceFeatures = (feat?: Partial<Features>): Features => {
     };
 };
 
-type StringPath<T extends { path: DeviceUniquePath }> = Omit<T, 'path'> & { path: string };
-
-/**
- * simplified Device from '@trezor/connect'
- * @param {Partial<Device>} [dev]
- * @param {Partial<Features>} [feat]
- * @returns {Device}
- */
-const getConnectDevice = (dev?: Partial<StringPath<Device>>, feat?: Partial<Features>): Device => {
-    const path = DeviceUniquePath(dev?.path ?? '1');
-
-    if (dev && typeof dev.type === 'string' && dev.type === 'unreadable') {
-        return {
-            type: 'unreadable',
-            path,
-            label: 'Unreadable device',
-            name: 'name of unreadable device',
-            error: 'unreadable device',
-            hid: true,
-        };
-    }
-
-    if (dev && typeof dev.type === 'string' && dev.type === 'unacquired') {
-        return {
-            type: dev.type,
-            path,
-            label: 'Unacquired device',
-            name: 'name of unacquired device',
-            transportSessionOwner: 'another app name',
-            thp: dev.thp,
-            status: dev.status,
-        };
-    }
-
-    const features = getDeviceFeatures(feat);
-
-    return {
-        id: features.device_id,
-        // @ts-expect-error
-        path: '',
-        label: 'My Trezor',
-        firmware: 'valid',
-        firmwareReleaseConfigInfo: getFirmwareReleaseConfigInfo(),
-        status: 'available',
-        mode: 'normal',
-        state: undefined,
-        features,
-        unavailableCapabilities: {},
-        firmwareType:
-            feat && feat.capabilities && !feat?.capabilities.includes('Capability_Bitcoin_like')
-                ? FirmwareType.BitcoinOnly
-                : FirmwareType.Universal,
-        name: '',
-        availableTranslations: {},
-        ...dev,
-        error: undefined,
-        type: 'acquired',
-        authenticityChecks: {
-            firmwareRevision: { success: true },
-            firmwareHash: { success: true },
-        },
-    };
-};
-
-/**
- * Extended device from suite reducer
- * @param {Partial<TrezorDevice>} [dev]
- * @param {Partial<Features>} [feat]
- * @returns {TrezorDevice}
- */
-const getSuiteDevice = (
-    dev?: Partial<
-        Omit<StringPath<TrezorDevice>, 'state'> & {
-            state?: `${string}@${string}:${number}`;
-        }
-    >,
-    feat?: Partial<Features>,
-): TrezorDevice => {
-    const bootloader_mode = dev?.mode === 'bootloader';
-    const device = getConnectDevice(dev, { bootloader_mode, ...feat });
-    if (device.type === 'acquired') {
-        return {
-            useEmptyPassphrase: dev?.state ? true : undefined,
-            remember: false,
-            connected: false,
-            available: false,
-            instance: undefined,
-            ts: 0,
-            buttonRequests: [],
-            metadata: {},
-            ...dev,
-            ...device,
-            state: dev?.state
-                ? {
-                      staticSessionId: dev.state,
-                  }
-                : undefined,
-        } as TrezorDevice;
-    }
-
-    return device as TrezorDevice;
-};
-
 const getWalletTransaction = (t?: Partial<WalletAccountTransaction>): WalletAccountTransaction => ({
-    descriptor:
+    descriptor: asAccountDescriptor(
         'zpub6rszzdAK6RuafeRwyN8z1cgWcXCuKbLmjjfnrW4fWKtcoXQ8787214pNJjnBG5UATyghuNzjn6Lfp5k5xymrLFJnCy46bMYJPyZsbpFGagT',
+    ),
     deviceState: '1stTestnetAddress@device_id:0',
     symbol: 'btc',
     type: 'sent',
@@ -310,19 +160,6 @@ const getWalletTransaction = (t?: Partial<WalletAccountTransaction>): WalletAcco
     },
     ...t,
 });
-
-// Mocked @suite-common/analytics package used in various tests
-const getAnalytics = () => {
-    const originalModule = jest.requireActual('@suite-common/analytics');
-
-    return {
-        __esModule: true, // this property makes it work
-        ...originalModule,
-        analytics: {
-            report: jest.fn(),
-        },
-    };
-};
 
 const getMessageSystemConfig = (
     root?: Partial<MessageSystem>,
@@ -537,7 +374,7 @@ const getGuideNode = (type: string, id?: string): GuideNode => {
             title: {
                 'en-us': 'Locktime',
             },
-        } as GuideArticle;
+        };
     } else if (type === 'page' && id !== '/') {
         result = {
             type: 'page',
@@ -546,7 +383,7 @@ const getGuideNode = (type: string, id?: string): GuideNode => {
             title: {
                 'en-us': 'Locktime',
             },
-        } as GuideArticle;
+        };
     } else {
         result = {
             type: 'category',
@@ -595,7 +432,7 @@ const getGuideNode = (type: string, id?: string): GuideNode => {
                     ],
                 },
             ],
-        } as GuideCategory;
+        };
     }
 
     return result;
@@ -628,7 +465,6 @@ const intlMock = {
 const mockedBlockchainNetworks = networksCollection.reduce((result, network) => {
     result[network.symbol] = {
         connected: false,
-        explorer: network.explorer,
         blockHash: '0',
         blockHeight: 0,
         version: '0',
@@ -667,13 +503,9 @@ const setTrezorConnectFixtures = (f?: any) => {
 };
 
 export const testMocks = {
-    getWalletAccount,
     getFirmwareReleaseConfigInfo,
     getDeviceFeatures,
-    getConnectDevice,
-    getSuiteDevice,
     getWalletTransaction,
-    getAnalytics,
     getMessageSystemConfig,
     getGuideNode,
     getUtxo,

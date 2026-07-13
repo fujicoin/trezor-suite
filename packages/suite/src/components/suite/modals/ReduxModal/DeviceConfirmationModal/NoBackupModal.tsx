@@ -1,10 +1,10 @@
+import { Translation } from '@suite/intl';
+import { onReceiveConfirmation } from '@suite/modal';
+import { SettingsAnchor, goto } from '@suite/router';
 import { H2, Modal, Paragraph } from '@trezor/components';
+import { WarningIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { onReceiveConfirmation } from 'src/actions/suite/modalActions';
-import { goto } from 'src/actions/suite/routerActions';
-import { Translation } from 'src/components/suite';
-import { SettingsAnchor } from 'src/constants/suite/anchors';
 import { useDispatch } from 'src/hooks/suite/useDispatch';
 
 export const NoBackupModal = () => {
@@ -14,21 +14,21 @@ export const NoBackupModal = () => {
     const close = () => dispatch(onReceiveConfirmation(false));
     const goToSettings = () => {
         close();
-        dispatch(goto('settings-device', { anchor: SettingsAnchor.BackupRecoverySeed }));
+        dispatch(goto({ routeName: 'settings-device', anchor: SettingsAnchor.BackupRecoverySeed }));
     };
 
     return (
         <Modal
             onCancel={close}
-            iconName="warning"
-            variant="warning"
-            size="small"
+            icon={WarningIcon}
+            intent="warning"
+            width={600}
             bottomContent={
                 <>
                     <Modal.Button onClick={confirm} data-testid="@no-backup/take-risk-button">
                         <Translation id="TR_CONTINUE_ANYWAY" />
                     </Modal.Button>
-                    <Modal.Button variant="tertiary" onClick={goToSettings}>
+                    <Modal.Button intent="neutral" priority="secondary" onClick={goToSettings}>
                         <Translation id="TR_CREATE_BACKUP" />
                     </Modal.Button>
                 </>

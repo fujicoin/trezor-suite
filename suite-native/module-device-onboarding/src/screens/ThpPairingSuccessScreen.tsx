@@ -1,10 +1,9 @@
-import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 
 import { nativeFirmwareActions } from '@suite-native/firmware';
 import { ThpPairingSuccessScreenContent } from '@suite-native/thp';
 
-import { DeviceOnboardingScreenWithExitButton } from '../components/DeviceOnboardingScreenWithExitButton';
+import { NonClosableDeviceOnboardingScreen } from '../components/NonClosableDeviceOnboardingScreen';
 import { useNavigateToNextScreenAfterFirmwareInstallation } from '../hooks/useNavigateToNextScreenAfterFirmwareInstallation';
 
 export const ThpPairingSuccessScreen = () => {
@@ -12,15 +11,14 @@ export const ThpPairingSuccessScreen = () => {
     const { navigateToNextScreenAfterFirmwareInstallation } =
         useNavigateToNextScreenAfterFirmwareInstallation();
 
-    useEffect(() => {
+    const onContinue = () => {
         dispatch(nativeFirmwareActions.setIsFirmwareInstallationRunning(false));
-    }, [dispatch]);
+        navigateToNextScreenAfterFirmwareInstallation();
+    };
 
     return (
-        <DeviceOnboardingScreenWithExitButton>
-            <ThpPairingSuccessScreenContent
-                onContinue={navigateToNextScreenAfterFirmwareInstallation}
-            />
-        </DeviceOnboardingScreenWithExitButton>
+        <NonClosableDeviceOnboardingScreen>
+            <ThpPairingSuccessScreenContent onContinue={onContinue} />
+        </NonClosableDeviceOnboardingScreen>
     );
 };

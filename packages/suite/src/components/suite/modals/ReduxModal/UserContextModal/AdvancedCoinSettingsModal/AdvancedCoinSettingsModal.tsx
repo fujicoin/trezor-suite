@@ -1,43 +1,49 @@
 import { useState } from 'react';
 
+import { Translation } from '@suite/intl';
+import { selectModalType } from '@suite/modal';
+import { selectHasExperimentalFeature } from '@suite/settings';
+import { selectTorState } from '@suite/tor';
 import { type NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
 import {
     Badge,
-    Button,
+    Banner,
     Card,
     CollapsibleBox,
     Column,
-    DotIndicator,
     Input,
-    List,
     Modal,
+    Paragraph,
     Row,
     Text,
 } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
 import { toggleTor } from 'src/actions/suite/suiteActions';
-import { Translation } from 'src/components/suite';
-import { useBackendsForm, useDefaultUrls } from 'src/hooks/settings/backends';
+import { useBackendsForm } from 'src/hooks/settings/backends';
 import { useExplorerForm } from 'src/hooks/settings/useExplorerForm';
+import { useGapLimitForm } from 'src/hooks/settings/useGapLimitForm';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectModalType } from 'src/reducers/suite/modalReducer';
-import { selectTorState } from 'src/selectors/suite/suiteSelectors';
 
+import { BackendUrls } from './BackendUrls/BackendUrls';
 import { BackendTypeSelect } from './CustomBackends/BackendTypeSelect';
 import ConnectionInfo from './CustomBackends/ConnectionInfo';
-import { TorModal, TorResult } from './CustomBackends/TorModal';
+import { TorModal, type TorResult } from './CustomBackends/TorModal';
 import { ExplorerConfigForm } from './ExplorerConfigForm';
 
 type AdvancedCoinSettingsModalProps = {
     symbol: NetworkSymbol;
     onCancel: () => void;
+    onBackClick?: () => void;
 };
 
-export const AdvancedCoinSettingsModal = ({ symbol, onCancel }: AdvancedCoinSettingsModalProps) => {
+export const AdvancedCoinSettingsModal = ({
+    symbol,
+    onCancel,
+    onBackClick,
+}: AdvancedCoinSettingsModalProps) => {
     const network = getNetwork(symbol);
     const { isTorEnabled } = useSelector(selectTorState);
-    const blockchain = useSelector(state => state.wallet.blockchain);
     const modalType = useSelector(selectModalType);
     const dispatch = useDispatch();
     const [torModalOpen, setTorModalOpen] = useState(false);
@@ -45,17 +51,28 @@ export const AdvancedCoinSettingsModal = ({ symbol, onCancel }: AdvancedCoinSett
     const explorer = useSelector(state => state.wallet.explorer[symbol]);
     const usesCustomExplorer = explorer.custom !== undefined;
 
+    const isBitcoinNetwork = network.networkType === 'bitcoin';
+    const isGapLimitEnabled = useSelector(selectHasExperimentalFeature('gap-limit'));
+
+    const gapLimitForm = useGapLimitForm(symbol);
     const explorerForm = useExplorerForm(symbol);
     const backendsForm = useBackendsForm(symbol);
 
-    const onSaveClick = () => {
+    const onSaveClick = async () => {
         explorerForm.save();
+
+        if (isBitcoinNetwork && isGapLimitEnabled) {
+            gapLimitForm.save();
+        }
 
         if (!isTorEnabled && backendsForm.hasOnlyOnions()) {
             setTorModalOpen(true);
         } else {
-            backendsForm.save();
-            onCancel();
+            const success = await backendsForm.save();
+
+            if (success) {
+                onCancel();
+            }
         }
     };
 
@@ -65,8 +82,11 @@ export const AdvancedCoinSettingsModal = ({ symbol, onCancel }: AdvancedCoinSett
                 await dispatch(toggleTor(true, modalType));
 
                 setTorModalOpen(false);
-                backendsForm.save();
-                onCancel();
+                backendsForm.save().then(success => {
+                    if (success) {
+                        onCancel();
+                    }
+                });
 
                 break;
             case 'use-defaults':
@@ -77,42 +97,49 @@ export const AdvancedCoinSettingsModal = ({ symbol, onCancel }: AdvancedCoinSett
         }
     };
 
-    const { defaultUrls } = useDefaultUrls(symbol);
-    const { ref: inputRef, ...inputField } = backendsForm.input.register(backendsForm.input.name, {
-        validate: backendsForm.input.validate,
-    });
     const isEditable = backendsForm.type !== 'default';
     const isSubmitButtonDisabled =
-        (isEditable && !!backendsForm.input.error) || !explorerForm.isValid;
+        (isEditable && !!backendsForm.input.error) ||
+        !explorerForm.isValid ||
+        (isBitcoinNetwork && isGapLimitEnabled && !!gapLimitForm.error) ||
+        backendsForm.isValidating;
 
-    return torModalOpen ? (
-        <TorModal onResult={onTorResult} />
-    ) : (
+    if (torModalOpen) {
+        return <TorModal onResult={onTorResult} />;
+    }
+
+    return (
         <Modal
             onCancel={onCancel}
+            onBackClick={onBackClick}
             heading={
                 <Text as="p">
                     {network.name} <Translation id="TR_BACKENDS" />
                 </Text>
             }
-            description={<Translation id="SETTINGS_BACKEND_SETTINGS_DESCRIPTION" />}
-            size="small"
+            width={600}
             bottomContent={
                 <>
                     <Modal.Button
                         onClick={onSaveClick}
                         isDisabled={isSubmitButtonDisabled}
+                        isLoading={backendsForm.isValidating}
                         data-testid="@settings/advance/button/save"
                     >
-                        <Translation id="TR_CONFIRM" />
+                        <Translation
+                            id={backendsForm.isValidating ? 'TR_VALIDATING' : 'TR_CONFIRM'}
+                        />
                     </Modal.Button>
-                    <Modal.Button onClick={onCancel} variant="tertiary">
+                    <Modal.Button onClick={onCancel} intent="neutral" priority="secondary">
                         <Translation id="TR_CANCEL" />
                     </Modal.Button>
                 </>
             }
         >
             <Column gap={spacings.lg}>
+                <Paragraph intent="neutral" priority="secondary" typographyStyle="body-sm">
+                    <Translation id="SETTINGS_BACKEND_SETTINGS_DESCRIPTION" />
+                </Paragraph>
                 <Card
                     header={
                         <BackendTypeSelect
@@ -122,78 +149,22 @@ export const AdvancedCoinSettingsModal = ({ symbol, onCancel }: AdvancedCoinSett
                         />
                     }
                 >
-                    <Column gap={spacings.xxl}>
-                        {(backendsForm.urls.length || (!isEditable && defaultUrls.length)) && (
-                            <List bulletComponent={<DotIndicator />} gap={spacings.sm}>
-                                {(isEditable ? backendsForm.urls : defaultUrls).map(url => (
-                                    <List.Item
-                                        data-testid="@settings/advance/url"
-                                        key={url}
-                                        bulletComponent={
-                                            url === blockchain[symbol]?.url ? (
-                                                <DotIndicator isActive />
-                                            ) : undefined
-                                        }
-                                    >
-                                        <Row gap={spacings.sm}>
-                                            <Text
-                                                breakAll={true}
-                                                variant={
-                                                    url === blockchain[symbol]?.url
-                                                        ? 'default'
-                                                        : 'tertiary'
-                                                }
-                                            >
-                                                {url}
-                                            </Text>
-                                            {isEditable && (
-                                                <Button
-                                                    variant="tertiary"
-                                                    size="tiny"
-                                                    icon="trash"
-                                                    onClick={() => backendsForm.removeUrl(url)}
-                                                >
-                                                    <Translation id="TR_REMOVE" />
-                                                </Button>
-                                            )}
-                                        </Row>
-                                    </List.Item>
-                                ))}
-                            </List>
-                        )}
-                        {isEditable && (
-                            <Column gap={spacings.sm}>
-                                <Input
-                                    data-testid="@settings/advance/url"
-                                    placeholder={backendsForm.input.placeholder}
-                                    inputState={backendsForm.input.error ? 'error' : undefined}
-                                    bottomText={backendsForm.input.error?.message || null}
-                                    innerRef={inputRef}
-                                    maxLength={backendsForm.maxUrlLength}
-                                    innerAddon={
-                                        <Button
-                                            variant="primary"
-                                            size="tiny"
-                                            icon="plus"
-                                            data-testid="@settings/advance/button/add"
-                                            onClick={() => {
-                                                backendsForm.addUrl(backendsForm.input.value);
-                                                backendsForm.input.reset();
-                                            }}
-                                            isDisabled={
-                                                !!backendsForm.input.error ||
-                                                backendsForm.input.value === ''
-                                            }
-                                        >
-                                            <Translation id="TR_ADD_NEW_BLOCKBOOK_BACKEND" />
-                                        </Button>
-                                    }
-                                    {...inputField}
-                                />
-                            </Column>
-                        )}
-                    </Column>
+                    <BackendUrls
+                        symbol={symbol}
+                        isEditable={isEditable}
+                        input={backendsForm.input}
+                        urls={backendsForm.urls}
+                        addUrl={backendsForm.addUrl}
+                        removeUrl={backendsForm.removeUrl}
+                    />
                 </Card>
+
+                {backendsForm.validationError && (
+                    <Banner
+                        intent="critical"
+                        description={<Text>{backendsForm.validationError}</Text>}
+                    />
+                )}
 
                 <CollapsibleBox
                     heading={
@@ -201,11 +172,11 @@ export const AdvancedCoinSettingsModal = ({ symbol, onCancel }: AdvancedCoinSett
                             <Translation id="TR_EXPLORER" />
 
                             {usesCustomExplorer ? (
-                                <Badge variant="warning">
+                                <Badge intent="warning">
                                     <Translation id="TR_EXPLORER_CUSTOM" />
                                 </Badge>
                             ) : (
-                                <Badge variant="primary">
+                                <Badge intent="brand">
                                     <Translation id="TR_EXPLORER_DEFAULT" />
                                 </Badge>
                             )}
@@ -214,6 +185,31 @@ export const AdvancedCoinSettingsModal = ({ symbol, onCancel }: AdvancedCoinSett
                 >
                     <ExplorerConfigForm form={explorerForm} />
                 </CollapsibleBox>
+
+                {isBitcoinNetwork && isGapLimitEnabled && (
+                    <CollapsibleBox
+                        heading={<Translation id="SETTINGS_BACKEND_SETTINGS_CUSTOM_GAP_LIMIT" />}
+                    >
+                        <Column gap={spacings.sm} alignItems="flex-start">
+                            <Input
+                                type="number"
+                                value={gapLimitForm.value}
+                                size="small"
+                                onChange={e => gapLimitForm.setValue(e.target.value)}
+                                hasError={!!gapLimitForm.error}
+                                bottomText={
+                                    gapLimitForm.error ? (
+                                        <Translation
+                                            id={gapLimitForm.error.id}
+                                            values={gapLimitForm.error.values}
+                                        />
+                                    ) : undefined
+                                }
+                                width={125}
+                            />
+                        </Column>
+                    </CollapsibleBox>
+                )}
 
                 <CollapsibleBox heading={<Translation id="SETTINGS_ADV_COIN_CONN_INFO_TITLE" />}>
                     <ConnectionInfo symbol={symbol} />

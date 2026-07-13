@@ -2,19 +2,25 @@ import { useEffect, useRef } from 'react';
 
 import styled from 'styled-components';
 
-import { DeviceRootState, selectSendFormReviewLastButtonCode } from '@suite-common/wallet-core';
+import { Translation } from '@suite/intl';
+import type { DeviceRootState } from '@suite-common/device';
+import { selectSendFormReviewLastButtonCode } from '@suite-common/wallet-core';
 import type {
     FormState,
-    FormStateTrading,
     GeneralPrecomposedTransactionFinal,
+    ReviewOutput,
     StakeFormState,
+    StakeType,
 } from '@suite-common/wallet-types';
-import { ReviewOutput, StakeType } from '@suite-common/wallet-types';
-import { findAccountsByAddress, getEvmTransactionTextSignature } from '@suite-common/wallet-utils';
+import {
+    findAccountsByAddress,
+    getEvmTransactionTextSignature,
+    isEvmApprovalTx,
+    isEvmYieldTxByTextSignature,
+} from '@suite-common/wallet-utils';
 import { Column, H4 } from '@trezor/components';
 import { spacings, spacingsPx } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
 import type { Account } from 'src/types/wallet';
 
@@ -31,7 +37,6 @@ export type TransactionReviewOutputListProps = {
     outputs: ReviewOutput[];
     buttonRequestsCount: number;
     isRbfAction: boolean;
-    tradingFormState: FormStateTrading | undefined;
     reviewStep: number;
     onTryAgain: (close: boolean) => void;
     isSending?: boolean;
@@ -66,7 +71,6 @@ export const TransactionReviewOutputList = ({
     outputs,
     buttonRequestsCount,
     isRbfAction,
-    tradingFormState,
     stakeType,
     deadline,
     reviewStep,
@@ -91,9 +95,17 @@ export const TransactionReviewOutputList = ({
         lastButtonRequestCode,
     });
 
+    const { trading: isTrading } = precomposedForm;
+
     const isFirstStep = buttonRequestsCount <= 1;
 
     const isStaking = stakeType;
+
+    const isApprovalTx = isEvmApprovalTx(precomposedForm.transactionData);
+
+    const evmTxType = getEvmTransactionTextSignature(precomposedForm.transactionData);
+
+    const isYieldOperation = isEvmYieldTxByTextSignature(evmTxType) || evmTxType === 'claim';
 
     const isInternalTransfer =
         isFirstOutputAddress &&
@@ -103,8 +115,16 @@ export const TransactionReviewOutputList = ({
     const summaryIndex = outputs.findIndex(
         ({ type }) => !['address', 'amount', 'opreturn'].includes(type),
     );
-    const isSLIP24Active =
-        !!tradingFormState && 'send' in tradingFormState && 'receive' in tradingFormState;
+
+    const isTronStakeFreeze =
+        networkType === 'tron' &&
+        (precomposedForm.tronStaking?.kind === 'freeze' ||
+            precomposedForm.tronStaking?.kind === 'unstake');
+
+    const nativeToken =
+        account.accountType === 'placeholder' && 'nativeToken' in precomposedTx
+            ? precomposedTx.nativeToken
+            : undefined;
 
     useEffect(() => {
         if (reviewStep === outputs.length || signedTx) {
@@ -119,8 +139,10 @@ export const TransactionReviewOutputList = ({
         isFirstOutputAddress &&
         isFirstStep &&
         !isStaking &&
-        !tradingFormState &&
+        !isApprovalTx &&
+        !isTrading &&
         !isInternalTransfer &&
+        !isYieldOperation &&
         !signedTx
     ) {
         return (
@@ -163,37 +185,37 @@ export const TransactionReviewOutputList = ({
                                 })}
                                 account={account}
                                 isRbf={isRbfAction}
-                                isTrading={!!tradingFormState}
+                                isTrading={!!isTrading}
                                 stakeType={stakeType}
-                                evmTxType={getEvmTransactionTextSignature(
-                                    precomposedForm.ethereumDataHex,
-                                )}
+                                evmTxType={evmTxType}
+                                nativeToken={nativeToken}
+                                isTronStakeFreeze={isTronStakeFreeze}
                             />
                         </Column>
                     </Wrapper>
                 );
             })}
 
-            {!(isRbfAction && networkType === 'bitcoin') && (
-                <Wrapper ref={totalOutputRef}>
-                    <Column gap={spacings.sm}>
-                        {isMultirecipient && summaryIndex === -1 && (
-                            <H4 margin={{ top: spacings.xs }}>
-                                <Translation id="TR_SUMMARY" />
-                            </H4>
-                        )}
-                        <TransactionReviewTotalOutput
-                            account={account}
-                            state={reviewState}
-                            precomposedTx={precomposedTx}
-                            precomposedForm={precomposedForm}
-                            stakeType={stakeType}
-                            isRbf={isRbfAction}
-                            isSLIP24Active={isSLIP24Active}
-                        />
-                    </Column>
-                </Wrapper>
-            )}
+            {!(isRbfAction && networkType === 'bitcoin') &&
+                (networkType !== 'tron' || isTronStakeFreeze) && (
+                    <Wrapper ref={totalOutputRef}>
+                        <Column gap={spacings.sm}>
+                            {isMultirecipient && summaryIndex === -1 && (
+                                <H4 margin={{ top: spacings.xs }}>
+                                    <Translation id="TR_SUMMARY" />
+                                </H4>
+                            )}
+                            <TransactionReviewTotalOutput
+                                account={account}
+                                state={reviewState}
+                                precomposedTx={precomposedTx}
+                                precomposedForm={precomposedForm}
+                                stakeType={stakeType}
+                                isRbf={isRbfAction}
+                            />
+                        </Column>
+                    </Wrapper>
+                )}
         </Column>
     );
 };

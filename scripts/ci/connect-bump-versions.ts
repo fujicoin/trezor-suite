@@ -1,14 +1,18 @@
-import path from 'path';
-import fs from 'fs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { promisify } from 'node:util';
 
-import { promisify } from 'util';
-import { getPackagesAndDependenciesRequireUpdate, gettingNpmDistributionTags } from './helpers';
+import {
+    comment,
+    commit,
+    exec,
+    getPackageDependencies,
+    getTrezorPackageDir,
+    gettingNpmDistributionTags,
+} from './helpers';
 
 const readFile = promisify(fs.readFile);
-const existsDirectory = promisify(fs.exists);
 const writeFile = promisify(fs.writeFile);
-
-const { checkPackageDependencies, exec, commit, comment } = require('./helpers');
 
 const args = process.argv.slice(2);
 
@@ -27,6 +31,9 @@ const [semver] = args;
 
  */
 const allowedSemvers = ['patch', 'prepatch', 'minor', 'preminor', 'prerelease'];
+if (!semver) {
+    throw new Error('Check npm dependencies requires 1 parameter: semver');
+}
 if (!allowedSemvers.includes(semver)) {
     throw new Error(`provided semver: ${semver} must be one of ${allowedSemvers.join(', ')}`);
 }
@@ -35,7 +42,7 @@ const deploymentType = ['prepatch', 'preminor', 'prerelease'].includes(semver)
     ? 'canary'
     : 'stable';
 
-const ROOT = path.join(__dirname, '..', '..');
+const ROOT = path.join(import.meta.dirname, '..', '..');
 
 const getGitCommitByPackageName = (packageName: string, maxCount = 10) =>
     exec('git', [
@@ -115,96 +122,90 @@ const updateConnectChangelog = async (
 
 const bumpConnect = async () => {
     try {
-        const connectDependenciesToUpdate: { update: string[]; errors: string[] } =
-            await checkPackageDependencies('connect', deploymentType);
-
-        console.info('connectDependenciesToUpdate', connectDependenciesToUpdate);
-
-        const update = connectDependenciesToUpdate.update.map((pkg: string) =>
-            pkg.replace('@trezor/', ''),
-        );
-        const errors = connectDependenciesToUpdate.errors.map((pkg: string) =>
-            pkg.replace('@trezor/', ''),
-        );
-
-        // We also have some packages that we want to update with connect but they are not
-        // dependencies of connect, and they have their own version. We also do not want
-        // to release them every time we release connect but when there are changes applied in
-        // those packages.
-        const independentPackagesNames = [
-            '@trezor/connect-plugin-ethereum',
-            '@trezor/connect-plugin-stellar',
+        // connect-plugin-ethereum is deprecated in 10.x (its hashing logic was
+        // inlined into @trezor/connect). The 10.x release is a stub and the
+        // package source is frozen — no need to auto-bump it on every connect
+        // release. Keep it removed from this list unless the stub itself changes.
+        // TODO The same applies to connect-plugin-stellar.
+        const mainPackages = [
+            'connect-plugin-stellar',
+            'connect-webextension',
+            'connect-mobile',
+            'connect-web',
+            'connect',
         ];
 
-        const independentPackagesAndDependenciesToUpdate =
-            await getPackagesAndDependenciesRequireUpdate(independentPackagesNames);
+        const results = await Promise.all(
+            mainPackages.map(async pkg => {
+                const result = await getPackageDependencies(pkg);
+                console.log(`${pkg} dependencies to update:`, result);
 
-        console.info(
-            'independentPackagesAndDependenciesToUpdate',
-            independentPackagesAndDependenciesToUpdate,
+                return result.update;
+            }),
         );
 
-        const allPackagesToUpdate = [
-            ...independentPackagesAndDependenciesToUpdate.map((pkg: string) =>
-                pkg.replace('@trezor/', ''),
-            ),
-            ...update,
+        // We remove from the list the `mainPackages` so they are added later on in correct order,
+        // so the commits for `mainPackages` are at the end of the changelog.
+        const connectDependencies = results.flat().filter(dep => !mainPackages.includes(dep));
+
+        // Remove connect since it is going to be bumped later using script packages/connect/script/bump-version.ts
+        const mainPackagesWithoutConnect = mainPackages.filter(pkg => pkg !== 'connect');
+
+        // We deduplicate and add the connect packages themselves to the list of packages to update.
+        const allUniquePackagesToUpdate = [
+            ...new Set([...connectDependencies, ...mainPackagesWithoutConnect]),
         ];
-        console.info('allPackagesToUpdate', allPackagesToUpdate);
 
-        const allUniquePackagesToUpdate = [...new Set(allPackagesToUpdate)];
-        console.info('allUniquePackagesToUpdate', allUniquePackagesToUpdate);
+        console.log('allUniquePackagesToUpdate', allUniquePackagesToUpdate);
 
-        if (allUniquePackagesToUpdate) {
-            for (const packageName of allUniquePackagesToUpdate) {
-                const PACKAGE_PATH = path.join(ROOT, 'packages', packageName);
-                const PACKAGE_JSON_PATH = path.join(PACKAGE_PATH, 'package.json');
+        for (const packageName of allUniquePackagesToUpdate) {
+            const PACKAGE_PATH = getTrezorPackageDir(packageName);
+            const PACKAGE_JSON_PATH = path.join(PACKAGE_PATH, 'package.json');
 
-                // This uses dependency version-bump-prompt.
-                await exec('yarn', ['bump', semver, `./packages/${packageName}/package.json`]);
+            // This uses dependency version-bump-prompt.
+            await exec('yarn', ['bump', semver, `./packages/${packageName}/package.json`]);
 
-                const rawPackageJSON = await readFile(PACKAGE_JSON_PATH, 'utf-8');
-                const packageJSON = JSON.parse(rawPackageJSON);
-                const { version } = packageJSON;
+            const rawPackageJSON = await readFile(PACKAGE_JSON_PATH, 'utf-8');
+            const packageJSON = JSON.parse(rawPackageJSON);
+            const { version } = packageJSON;
 
-                const packageGitLog = await getGitCommitByPackageName(packageName, 1000);
+            const packageGitLog = await getGitCommitByPackageName(packageName, 1000);
 
-                const commitsArr = packageGitLog.stdout.split('\n');
+            const commitsArr = packageGitLog.stdout.split('\n');
 
-                const newCommits: string[] = [];
-                for (const commit of commitsArr) {
-                    // Here we check commits utils last stable release
-                    if (commit.includes(`npm-release: @trezor/${packageName}`)) {
-                        break;
-                    }
-                    newCommits.push(commit.replaceAll('"', ''));
+            const newCommits: string[] = [];
+            for (const commit of commitsArr) {
+                // Here we check commits utils last stable release
+                if (commit.includes(`npm-release: @trezor/${packageName}`)) {
+                    break;
                 }
-
-                // In Connect dependencies packages we only update CHANGELOG when doing a stable release (patch or minor).
-                // We do that so we can generate the complete CHANGELOG automatically when doing stable release.
-                if (newCommits.length && deploymentType === 'stable') {
-                    const CHANGELOG_PATH = path.join(PACKAGE_PATH, 'CHANGELOG.md');
-                    if (!(await existsDirectory(CHANGELOG_PATH))) {
-                        await writeFile(CHANGELOG_PATH, '');
-                    }
-
-                    let changelog = await readFile(CHANGELOG_PATH, 'utf-8');
-
-                    changelog = `# ${version}\n\n${newCommits.join('\n')}\n\n${changelog}`;
-                    await writeFile(CHANGELOG_PATH, changelog, 'utf-8');
-
-                    await exec('yarn', ['prettier', '--write', CHANGELOG_PATH]);
-                }
-
-                await commit({
-                    path: PACKAGE_PATH,
-                    // We only use `npm-release` when doing stable release, so the part of the script above can check commits to include in CHANGELOG.
-                    message: `npm-${deploymentType === 'canary' ? 'prerelease' : 'release'}: @trezor/${packageName} ${version}`,
-                });
+                newCommits.push(commit.replaceAll('"', ''));
             }
+
+            // In Connect dependencies packages we only update CHANGELOG when doing a stable release (patch or minor).
+            // We do that so we can generate the complete CHANGELOG automatically when doing stable release.
+            if (newCommits.length && deploymentType === 'stable') {
+                const CHANGELOG_PATH = path.join(PACKAGE_PATH, 'CHANGELOG.md');
+                if (!fs.existsSync(CHANGELOG_PATH)) {
+                    await writeFile(CHANGELOG_PATH, '');
+                }
+
+                let changelog = await readFile(CHANGELOG_PATH, 'utf-8');
+
+                changelog = `# ${version}\n\n${newCommits.join('\n')}\n\n${changelog}`;
+                await writeFile(CHANGELOG_PATH, changelog, 'utf-8');
+
+                await exec('yarn', ['prettier', '--write', CHANGELOG_PATH]);
+            }
+
+            await commit({
+                path: PACKAGE_PATH,
+                // We only use `npm-release` when doing stable release, so the part of the script above can check commits to include in CHANGELOG.
+                message: `npm-${deploymentType === 'canary' ? 'prerelease' : 'release'}: @trezor/${packageName} ${version}`,
+            });
         }
 
-        const CONNECT_PACKAGE_PATH = path.join(ROOT, 'packages', 'connect');
+        const CONNECT_PACKAGE_PATH = getTrezorPackageDir('connect');
         const CONNECT_PACKAGE_JSON_PATH = path.join(CONNECT_PACKAGE_PATH, 'package.json');
         const CONNECT_CHANGELOG_PATH = path.join(CONNECT_PACKAGE_PATH, 'CHANGELOG.md');
 
@@ -232,7 +233,7 @@ const bumpConnect = async () => {
         const branchName = `bump-versions/connect-${version}`;
 
         // Check if branch exists and if so, delete it.
-        const branchExists = await exec('git', ['branch', '--list', branchName]).stdout;
+        const branchExists = (await exec('git', ['branch', '--list', branchName])).stdout;
         if (branchExists) {
             throw new Error(
                 `Branch ${branchName} already exists, delete it and call script again.`,
@@ -256,7 +257,7 @@ const bumpConnect = async () => {
             '--title',
             `${commitMessage}`,
             '--body-file',
-            'docs/releases/connect-bump-version.md',
+            'scripts/templates/connect-bump-version.md',
             '--base',
             'develop',
             '--head',
@@ -266,15 +267,6 @@ const bumpConnect = async () => {
         const prNumber = ghPrCreateResult.stdout
             .replaceAll('\n', '')
             .replace('https://github.com/trezor/trezor-suite/pull/', '');
-
-        if (errors.length) {
-            await comment({
-                prNumber,
-                body: `Deps error. one of the dependencies likely needs to be published for the first time: ${errors.join(
-                    ', ',
-                )}`,
-            });
-        }
 
         const depsChecklist = allUniquePackagesToUpdate.reduce(
             (acc, packageName) =>
@@ -312,6 +304,7 @@ const bumpConnect = async () => {
 
             if (!connectGitLogText) {
                 console.info('no changelog for @trezor/connect');
+
                 return;
             }
 

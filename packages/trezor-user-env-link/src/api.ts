@@ -1,9 +1,9 @@
 /* eslint-disable no-console */
 
-import { TypedEmitter } from '@trezor/utils';
+import { TypedEmitter, resolveAfter } from '@trezor/utils';
 
-import { Firmwares, Model } from './types';
-import { WebsocketClient, WebsocketClientEvents } from './websocket-client';
+import { type Firmwares, Model } from './types';
+import { WebsocketClient, type WebsocketClientEvents } from './websocket-client';
 export interface SetupEmu {
     mnemonic?: string;
     pin?: string;
@@ -54,30 +54,35 @@ interface ClickEmu {
     y: number;
 }
 
-interface SendToAddressAndMineBlock {
+export interface SendToAddressAndMineBlock {
     address: string;
     btc_amount: number;
 }
 
-interface MineBlocks {
+export interface MineBlocks {
     block_amount: number;
 }
 
-interface GenerateBlock {
+export interface GenerateBlock {
     address: string;
     txids: string[];
 }
 
-interface ApplySettings {
+export interface ApplySettings {
     passphrase_always_on_device?: boolean;
 }
 
-interface ReadAndConfirmShamirMnemonicEmu {
+export interface ReadAndConfirmShamirMnemonicEmu {
     shares: number;
     threshold: number;
 }
 
-type StartBridgeVersion = '2.0.32' | '2.0.33' | 'node-bridge';
+export interface ReadAndConfirmAtomicShamirMnemonicEmu {
+    shares: number;
+    threshold: number;
+}
+
+type StartBridgeVersion = 'node-bridge' | 'local-suite-node-bridge' | '2.0.33' | '2.0.32';
 
 export const MNEMONICS = {
     mnemonic_all: 'all all all all all all all all all all all all',
@@ -89,12 +94,17 @@ export const MNEMONICS = {
         'academic again academic academic academic academic academic academic academic academic academic academic academic academic academic academic academic pecan provide remember',
 };
 
-export const DEFAULT_BRIDGE_VERSION = '2.0.33';
+export const DEFAULT_BRIDGE_VERSION = 'node-bridge';
+
+// There's an ongoing problem with debug link & button requests race conditions
+// Adding a delay to workaround this issue temporarily
+// https://github.com/trezor/trezor-suite/issues/23270
+const EMU_RACE_CONDITION_WORKAROUND_DELAY = 200;
 
 export class TrezorUserEnvLinkClass extends TypedEmitter<WebsocketClientEvents> {
     private client: WebsocketClient;
     public firmwares?: Firmwares;
-    public defaultModel: Model = 'T2T1';
+    public defaultModel: Model = Model.T2T1;
 
     public currentEmulatorSetup?: Partial<SetupEmu> = {};
     public currentEmulatorSettings: Partial<ApplySettings> = {};
@@ -198,7 +208,7 @@ export class TrezorUserEnvLinkClass extends TypedEmitter<WebsocketClientEvents> 
         const params = {
             type: 'emulator-start',
             model: this.defaultModel,
-            version: arg?.model === 'T1B1' ? defaultV1Firmware : defaultV2Firmware,
+            version: arg?.model === Model.T1B1 ? defaultV1Firmware : defaultV2Firmware,
             ...arg,
         };
 
@@ -247,43 +257,60 @@ export class TrezorUserEnvLinkClass extends TypedEmitter<WebsocketClientEvents> 
         return null;
     }
     async pressYes() {
+        await resolveAfter(EMU_RACE_CONDITION_WORKAROUND_DELAY);
         await this.client.send({ type: 'emulator-press-yes' });
 
         return null;
     }
     async pressNo() {
+        await resolveAfter(EMU_RACE_CONDITION_WORKAROUND_DELAY);
         await this.client.send({ type: 'emulator-press-no' });
 
         return null;
     }
     async swipeEmu(direction: 'up' | 'down' | 'left' | 'right') {
+        await resolveAfter(EMU_RACE_CONDITION_WORKAROUND_DELAY);
         await this.client.send({ type: 'emulator-swipe', direction });
 
         return null;
     }
     async inputEmu(value: string) {
+        await resolveAfter(EMU_RACE_CONDITION_WORKAROUND_DELAY);
         await this.client.send({ type: 'emulator-input', value });
 
         return null;
     }
     async clickEmu(options: ClickEmu) {
+        await resolveAfter(EMU_RACE_CONDITION_WORKAROUND_DELAY);
         await this.client.send({ type: 'emulator-click', ...options });
 
         return null;
     }
     async resetDevice(options: any) {
+        await resolveAfter(EMU_RACE_CONDITION_WORKAROUND_DELAY);
         await this.client.send({ type: 'emulator-reset-device', ...options });
 
         return null;
     }
     async readAndConfirmMnemonicEmu() {
+        await resolveAfter(EMU_RACE_CONDITION_WORKAROUND_DELAY);
         await this.client.send({ type: 'emulator-read-and-confirm-mnemonic' });
 
         return null;
     }
     async readAndConfirmShamirMnemonicEmu(options: ReadAndConfirmShamirMnemonicEmu) {
+        await resolveAfter(EMU_RACE_CONDITION_WORKAROUND_DELAY);
         await this.client.send({
             type: 'emulator-read-and-confirm-shamir-mnemonic',
+            ...options,
+        });
+
+        return null;
+    }
+    async readAndConfirmAtomicShamirMnemonicEmu(options: ReadAndConfirmAtomicShamirMnemonicEmu) {
+        await resolveAfter(EMU_RACE_CONDITION_WORKAROUND_DELAY);
+        await this.client.send({
+            type: 'emulator-read-and-confirm-atomic-shamir-mnemonic',
             ...options,
         });
 
@@ -309,12 +336,20 @@ export class TrezorUserEnvLinkClass extends TypedEmitter<WebsocketClientEvents> 
         return null;
     }
     async selectNumOfWordsEmu(num: number) {
+        await resolveAfter(EMU_RACE_CONDITION_WORKAROUND_DELAY * 2);
         await this.client.send({ type: 'emulator-select-num-of-words', num });
 
         return null;
     }
 
+    async getScreenContent() {
+        const { response } = await this.client.send({ type: 'emulator-get-screen-content' });
+
+        return response;
+    }
+
     async getDebugState() {
+        await resolveAfter(EMU_RACE_CONDITION_WORKAROUND_DELAY);
         const { response } = await this.client.send({ type: 'emulator-get-debug-state' });
 
         return response;

@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
 
+import { TrezorLink } from '@suite/external-links';
 import { Markdown } from '@trezor/components';
 
 import { useGuideOpenNode } from 'src/hooks/guide';
 
 import { GuideHint } from './GuideHint';
-import { TrezorLink } from '../suite';
+import { GuideImage } from './GuideImage';
 
 interface GuideMarkdownProps {
     markdown: string | undefined;
@@ -34,16 +35,15 @@ export const GuideMarkdown = ({ markdown }: GuideMarkdownProps) => {
                             }
 
                             return href.startsWith('http') ? (
-                                <TrezorLink variant="default" href={href} target="_blank">
-                                    {children}
-                                </TrezorLink>
+                                <TrezorLink href={href}>{children}</TrezorLink>
                             ) : (
-                                <TrezorLink variant="default" onClick={() => openNodeById(href)}>
+                                <TrezorLink onClick={() => openNodeById(href)}>
                                     {children}
                                 </TrezorLink>
                             );
                         },
                         blockquote: props => <GuideHint {...props} />,
+                        img: ({ src, alt }) => <GuideImage src={src} alt={alt} />,
                     }}
                 >
                     {markdown}

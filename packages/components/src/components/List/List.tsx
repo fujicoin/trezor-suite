@@ -1,55 +1,39 @@
-import { createContext, useContext } from 'react';
+import { type ReactNode } from 'react';
 
 import styled from 'styled-components';
 
-import { SpacingValues, spacings, spacingsPx } from '@trezor/theme';
+import { type SpacingValues, spacings, spacingsPx } from '@trezor/theme';
 
+import { ListContext } from './ListContext';
 import { ListItem } from './ListItem';
-import { uiAlignments } from '../../config/types';
+import { type BulletVerticalAlignment, type ListIntent, type ListStyleType } from './types';
 import {
-    FrameProps,
-    FramePropsKeys,
+    type FrameProps,
+    type FramePropsKeys,
     pickAndPrepareFrameProps,
     withFrameProps,
 } from '../../utils/frameProps';
-import { TransientProps, makePropsTransient } from '../../utils/transientProps';
-import { Text, textVariants } from '../typography/Text/Text';
+import { type TransientProps, makePropsTransient } from '../../utils/transientProps';
+import { Text, type TextProps } from '../typography/Text/Text';
 import {
-    TextProps,
-    TextPropsKeys,
+    type TextProps as TextPropsCommon,
+    type TextPropsKeys,
     pickAndPrepareTextProps,
     withTextProps,
 } from '../typography/utils';
-
-type ListStyleType =
-    | 'disc'
-    | 'circle'
-    | 'square'
-    | 'decimal'
-    | 'decimal-leading-zero'
-    | 'lower-roman'
-    | 'upper-roman'
-    | 'lower-alpha'
-    | 'upper-alpha';
 
 export const allowedListFrameProps = [
     'margin',
     'width',
     'overflow',
 ] as const satisfies FramePropsKeys[];
-type AllowedFrameProps = Pick<FrameProps, (typeof allowedListFrameProps)[number]>;
+export type AllowedFrameProps = Pick<FrameProps, (typeof allowedListFrameProps)[number]>;
 
 export const allowedListTextProps = [
     'typographyStyle',
     'textWrap',
 ] as const satisfies TextPropsKeys[];
-type AllowedTextProps = Pick<TextProps, (typeof allowedListTextProps)[number]>;
-
-export const listVariants = textVariants;
-export type ListVariant = (typeof listVariants)[number];
-
-export const bulletVerticalAlignments = uiAlignments;
-export type BulletVerticalAlignment = (typeof bulletVerticalAlignments)[number];
+export type AllowedTextProps = Pick<TextPropsCommon, (typeof allowedListTextProps)[number]>;
 
 type ContainerProps = TransientProps<AllowedFrameProps & AllowedTextProps> & {
     $gap: SpacingValues;
@@ -71,26 +55,15 @@ const Container = styled.ul<ContainerProps>`
 export type ListProps = AllowedFrameProps &
     AllowedTextProps & {
         gap?: SpacingValues;
-        children: React.ReactNode;
-        bulletComponent?: React.ReactNode;
+        children: ReactNode;
+        bulletComponent?: ReactNode;
         bulletGap?: SpacingValues;
         bulletAlignment?: BulletVerticalAlignment;
-        variant?: ListVariant;
+        intent?: ListIntent;
+        priority?: TextProps['priority'];
+        isDisabled?: TextProps['isDisabled'];
         listStyleType?: ListStyleType;
     };
-
-type ListContextValue = {
-    bulletGap: SpacingValues;
-    bulletAlignment: BulletVerticalAlignment;
-    bulletComponent: React.ReactNode;
-    listStyleType?: ListStyleType;
-};
-
-const ListContext = createContext<ListContextValue>({
-    bulletGap: spacings.md,
-    bulletAlignment: 'center',
-    bulletComponent: null as React.ReactNode,
-});
 
 export const List = ({
     gap = spacings.xs,
@@ -98,7 +71,9 @@ export const List = ({
     bulletAlignment = 'center',
     bulletComponent,
     listStyleType,
-    variant,
+    intent,
+    priority,
+    isDisabled,
     children,
     ...rest
 }: ListProps) => {
@@ -109,7 +84,7 @@ export const List = ({
         <ListContext.Provider
             value={{ bulletGap, bulletAlignment, bulletComponent, listStyleType }}
         >
-            <Text as="div" variant={variant}>
+            <Text as="div" intent={intent} priority={priority} isDisabled={isDisabled}>
                 <Container
                     {...makePropsTransient({ gap, listStyleType })}
                     {...frameProps}
@@ -121,7 +96,5 @@ export const List = ({
         </ListContext.Provider>
     );
 };
-
-export const useList = () => useContext(ListContext);
 
 List.Item = ListItem;

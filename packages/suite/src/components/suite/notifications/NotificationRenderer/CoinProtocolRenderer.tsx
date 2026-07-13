@@ -1,16 +1,24 @@
-import { useMatch } from 'react-router';
-
 import styled from 'styled-components';
 
+import { Translation } from '@suite/intl';
+import { goto, selectRouteName } from '@suite/router';
+import { isBech32AddressUppercase } from '@suite-common/address';
 import { getNetworkSymbolForProtocol } from '@suite-common/suite-utils';
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { notificationsActions } from '@suite-common/toast-notifications';
+import {
+    type NetworkSymbol,
+    getNetworkDisplaySymbol,
+    getNetworkDisplaySymbolName,
+} from '@suite-common/wallet-config';
+import { selectDeviceAccountsByNetworkSymbol } from '@suite-common/wallet-core';
+import { Text } from '@trezor/components';
 import { CoinLogo } from '@trezor/product-components';
-import { capitalizeFirstLetter } from '@trezor/utils';
+import { BigNumber } from '@trezor/utils';
 
 import { fillSendForm, resetProtocol } from 'src/actions/suite/protocolActions';
-import { Translation } from 'src/components/suite';
 import type { NotificationRendererProps } from 'src/components/suite';
 import { useDispatch, useSelector } from 'src/hooks/suite';
+import { globalSendReceiveFilters } from 'src/slices/wallet/globalSendReceiveFilters';
 
 import { ConditionalActionRenderer } from './ConditionalActionRenderer';
 
@@ -20,45 +28,108 @@ const Row = styled.span`
 
 const getIcon = (symbol?: NetworkSymbol) => symbol && <CoinLogo symbol={symbol} size={24} />;
 
-const useActionAllowed = (path: string, symbol?: NetworkSymbol) => {
-    const selectedAccount = useSelector(state => state.wallet.selectedAccount);
-    const pathMatch = useMatch(`${process.env.ASSET_PREFIX || ''}${path}`);
-
-    return !!pathMatch && selectedAccount?.network?.symbol === symbol;
-};
-
 export const CoinProtocolRenderer = ({
     render,
     notification,
 }: NotificationRendererProps<'coin-scheme-protocol'>) => {
     const dispatch = useDispatch();
-    const allowed = useActionAllowed(
-        '/accounts/send',
-        getNetworkSymbolForProtocol(notification.scheme),
-    );
+    const selectedAccount = useSelector(state => state.wallet.selectedAccount);
+    const routeName = useSelector(selectRouteName);
 
-    const onAction = () => dispatch(fillSendForm(true));
-    const onCancel = () => dispatch(resetProtocol);
+    const networkSymbol = getNetworkSymbolForProtocol(notification.scheme) ?? null;
+    const displaySymbol = networkSymbol && getNetworkDisplaySymbol(networkSymbol);
+    const networkName = networkSymbol && getNetworkDisplaySymbolName(networkSymbol);
+    const networkAccounts = useSelector(state =>
+        selectDeviceAccountsByNetworkSymbol(state, networkSymbol),
+    ).filter(a => new BigNumber(a.balance).gt(0));
+    const isOnSendPage =
+        routeName === 'wallet-send' && selectedAccount?.network?.symbol === networkSymbol;
+
+    const onCancel = (reset: boolean = true) => {
+        dispatch(notificationsActions.close(notification.id));
+        if (reset) {
+            dispatch(resetProtocol());
+        }
+    };
+
+    const handleContinue = () => {
+        if (isOnSendPage) {
+            dispatch(fillSendForm(true));
+        } else {
+            if (networkSymbol) {
+                dispatch(fillSendForm(true));
+
+                const firstAccount = networkAccounts[0];
+                if (networkAccounts.length === 1 && firstAccount) {
+                    dispatch(
+                        goto({
+                            routeName: 'wallet-send',
+                            params: {
+                                symbol: firstAccount.symbol,
+                                accountIndex: firstAccount.index,
+                                accountType: firstAccount.accountType,
+                            },
+                        }),
+                    );
+                } else {
+                    dispatch(globalSendReceiveFilters.actions.setNetworkSymbol(networkSymbol));
+                    dispatch(
+                        goto({
+                            routeName: 'suite-index',
+                            params: {
+                                modal: 'send',
+                                networkSymbol,
+                            },
+                        }),
+                    );
+                }
+            }
+        }
+
+        onCancel(false);
+    };
+
+    const renderAddress = () => {
+        if (networkSymbol === 'btc' && isBech32AddressUppercase(notification.address)) {
+            return notification.address.toLowerCase();
+        }
+
+        return notification.address;
+    };
 
     return (
         <ConditionalActionRenderer
             render={render}
             notification={notification}
-            header={<Translation id="TOAST_COIN_SCHEME_PROTOCOL_HEADER" />}
+            header={
+                <Translation
+                    id="TOAST_COIN_SCHEME_PROTOCOL_HEADER"
+                    values={{ symbol: networkName?.toLowerCase() }}
+                />
+            }
             body={
                 <>
                     <Row>
-                        {notification.amount && `${notification.amount} `}
-                        {capitalizeFirstLetter(notification.scheme)}
+                        <Text typographyStyle="body-sm">{renderAddress()}</Text>
                     </Row>
-                    <Row>{notification.address}</Row>
+                    {notification.amount && (
+                        <>
+                            <Text intent="neutral" priority="secondary" typographyStyle="body-sm">
+                                <Translation id="TOAST_COIN_SCHEME_PROTOCOL_AMOUNT" />
+                            </Text>
+                            &nbsp;
+                            <Text typographyStyle="body-sm">
+                                {notification.amount} {displaySymbol}
+                            </Text>
+                        </>
+                    )}
                 </>
             }
-            actionLabel="TOAST_COIN_SCHEME_PROTOCOL_ACTION"
-            actionAllowed={allowed}
-            onAction={onAction}
+            actionLabel="TR_CONTINUE"
+            actionAllowed
+            onAction={handleContinue}
             onCancel={onCancel}
-            icon={getIcon(getNetworkSymbolForProtocol(notification.scheme))}
+            icon={getIcon(networkSymbol ?? undefined)}
         />
     );
 };

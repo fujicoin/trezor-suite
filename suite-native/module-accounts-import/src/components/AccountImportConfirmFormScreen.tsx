@@ -1,33 +1,34 @@
 import { useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { useNavigation } from '@react-navigation/core';
+import { useNavigation } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
 
+import { useServices } from '@suite-common/dependency-injection';
+import { PORTFOLIO_TRACKER_DEVICE_STATE } from '@suite-common/device';
 import {
-    TokenDefinitionsRootState,
+    type TokenDefinitionsRootState,
     selectFilterKnownTokens,
 } from '@suite-common/token-definitions';
 import { type NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
 import {
-    AccountsRootState,
-    PORTFOLIO_TRACKER_DEVICE_STATE,
+    type AccountsRootState,
     selectAccountsByNetworkAndDeviceState,
 } from '@suite-common/wallet-core';
-import { TokenAddress, TokenSymbol } from '@suite-common/wallet-types';
-import { AccountFormValues, useAccountLabelForm } from '@suite-native/accounts';
-import { EventType, analytics } from '@suite-native/analytics';
+import { type TokenAddress, type TokenSymbol } from '@suite-common/wallet-types';
+import { type AccountFormValues, useAccountLabelForm } from '@suite-native/accounts';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { Box, Button, Text } from '@suite-native/atoms';
 import { Form } from '@suite-native/forms';
 import { Translation } from '@suite-native/intl';
 import {
-    AccountsImportStackParamList,
-    AccountsImportStackRoutes,
-    RootStackParamList,
-    StackToStackCompositeNavigationProps,
+    type AccountsImportStackParamList,
+    type AccountsImportStackRoutes,
+    type RootStackParamList,
+    type StackToStackCompositeNavigationProps,
     useNavigateToInitialScreen,
 } from '@suite-native/navigation';
-import { AccountInfo, TokenInfo } from '@trezor/connect';
+import { type AccountInfo, type TokenInfo } from '@trezor/connect';
 
 import { importAccountThunk } from '../accountsImportThunks';
 import { useShowImportError } from '../useShowImportError';
@@ -51,6 +52,7 @@ export const AccountImportConfirmFormScreen = ({
     accountInfo,
 }: AccountImportConfirmFormScreenProps) => {
     const dispatch = useDispatch();
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const navigation = useNavigation<NavigationProp>();
     const navigateToInitialScreen = useNavigateToInitialScreen();
     const showImportError = useShowImportError(symbol, navigation);
@@ -83,7 +85,7 @@ export const AccountImportConfirmFormScreen = ({
             ).unwrap();
 
             analytics.report({
-                type: EventType.AssetsSync,
+                type: events.assetsSyncEvent.name,
                 payload: {
                     assetSymbol: symbol,
                     tokenSymbols: nonEmptyTokens.map(token => token.symbol as TokenSymbol),
@@ -121,7 +123,6 @@ export const AccountImportConfirmFormScreen = ({
                     <Button
                         testID="@account-import/coin-synced/confirm-button"
                         onPress={handleImportAccount}
-                        size="large"
                         isDisabled={!isValid}
                     >
                         <Translation id="generic.buttons.confirm" />
@@ -140,12 +141,11 @@ export const AccountImportConfirmFormScreen = ({
                         ListEmptyComponent={null}
                         ListHeaderComponent={
                             <Box marginTop="sp16" marginBottom="sp8">
-                                <Text variant="titleSmall">
+                                <Text variant="headline-sm">
                                     <Translation id="moduleAccountImport.summaryScreen.tokens" />
                                 </Text>
                             </Box>
                         }
-                        estimatedItemSize={115}
                     />
                 )}
             </AccountImportSummaryScreen>

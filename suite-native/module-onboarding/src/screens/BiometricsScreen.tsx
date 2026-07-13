@@ -1,42 +1,50 @@
-import { useDispatch } from 'react-redux';
+import { useSelector } from 'react-redux';
 
-import { CommonActions } from '@react-navigation/core';
-
-import { EventType, analytics } from '@suite-native/analytics';
+import { useServices } from '@suite-common/dependency-injection';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { Box, Button, HStack, Text, VStack } from '@suite-native/atoms';
-import { BiometricsSvg, useBiometricsSettings } from '@suite-native/biometrics';
+import {
+    BiometricsSvg,
+    BiometricsToggleResult,
+    useBiometricsSettings,
+} from '@suite-native/biometrics';
 import { Icon } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
 import {
-    HomeStackRoutes,
-    OnboardingStackParamList,
+    type OnboardingStackParamList,
     OnboardingStackRoutes,
-    RootStackRoutes,
     Screen,
     ScreenHeader,
-    StackProps,
+    type StackProps,
 } from '@suite-native/navigation';
-import { setIsOnboardingFinished } from '@suite-native/settings';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { selectIsTradingResidenceCheckEnabled } from '@suite-native/trading-state';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+
+import { useExitOnboardingFlow } from '../hooks/useExitOnboardingFlow';
+
+export type BiometricsScreenProps = StackProps<
+    OnboardingStackParamList,
+    OnboardingStackRoutes.Biometrics
+>;
 
 const titleStyle = prepareNativeStyle(_ => ({
     // this title should have smaller letter spacing by design.
     letterSpacing: -1.4,
 }));
 
-export const BiometricsScreen = ({
-    navigation,
-}: StackProps<OnboardingStackParamList, OnboardingStackRoutes.Biometrics>) => {
+export const BiometricsScreen = ({ navigation }: BiometricsScreenProps) => {
     const { applyStyle } = useNativeStyles();
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const { toggleBiometricsOption } = useBiometricsSettings();
+    const exitOnboardingFlow = useExitOnboardingFlow();
 
-    const dispatch = useDispatch();
+    const shouldDisplayTradingLocationScreen = useSelector(selectIsTradingResidenceCheckEnabled);
 
     const enableBiometrics = async () => {
         const result = await toggleBiometricsOption();
-        if (result === 'enabled') {
+        if (result === BiometricsToggleResult.Enabled) {
             analytics.report({
-                type: EventType.BiometricsChange,
+                type: events.biometricsChangeEvent.name,
                 payload: {
                     enabled: true,
                     origin: 'bottomSheet',
@@ -45,33 +53,21 @@ export const BiometricsScreen = ({
         }
     };
 
-    const exitOnboardingFlow = () => {
-        dispatch(setIsOnboardingFinished());
-
-        // TODO: COSMETIC IMPROVEMENT: redirect to home only if there is no device connected. In case of device connected,
-        // the redirect is handled in useHandleDeviceConnection hook. in reaction to the `setIsOnboardingFinished` call.
-        navigation.dispatch(
-            CommonActions.reset({
-                index: 0,
-                routes: [
-                    {
-                        name: RootStackRoutes.AppTabs,
-                        params: {
-                            screen: HomeStackRoutes.Home,
-                        },
-                    },
-                ],
-            }),
-        );
+    const handleRedirect = () => {
+        if (shouldDisplayTradingLocationScreen) {
+            navigation.navigate(OnboardingStackRoutes.TradingLocation);
+        } else {
+            exitOnboardingFlow();
+        }
     };
 
     const handleEnableButtonPress = async () => {
         await enableBiometrics();
-        exitOnboardingFlow();
+        handleRedirect();
     };
 
     const handleNotNowButtonPress = () => {
-        exitOnboardingFlow();
+        handleRedirect();
     };
 
     return (
@@ -83,16 +79,12 @@ export const BiometricsScreen = ({
                 <VStack spacing="sp40">
                     <VStack spacing="sp16">
                         <HStack spacing="sp8" alignItems="center">
-                            <Icon
-                                name="fingerprint"
-                                color="textSecondaryHighlight"
-                                size="mediumLarge"
-                            />
-                            <Text color="textSecondaryHighlight">
+                            <Icon name="fingerprint" color="contentBrand" size="mediumLarge" />
+                            <Text color="contentBrand">
                                 <Translation id="moduleOnboarding.biometricsScreen.title" />
                             </Text>
                         </HStack>
-                        <Text style={applyStyle(titleStyle)} variant="titleMedium">
+                        <Text style={applyStyle(titleStyle)} variant="headline-md">
                             <Translation id="moduleOnboarding.biometricsScreen.description" />
                         </Text>
                     </VStack>
@@ -104,7 +96,8 @@ export const BiometricsScreen = ({
                             <Translation id="generic.buttons.enable" />
                         </Button>
                         <Button
-                            colorScheme="tertiaryElevation0"
+                            intent="neutral"
+                            priority="secondary"
                             testID="@onboarding/Biometrics/skipBtn"
                             onPress={handleNotNowButtonPress}
                         >

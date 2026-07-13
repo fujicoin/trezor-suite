@@ -4,19 +4,22 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 
 import { connectPopupActions, selectConnectPopupCall } from '@suite-common/connect-popup';
-import { ConnectPopupCall } from '@suite-common/connect-popup/src/connectPopupTypes';
+// TODO fix deep import
+// eslint-disable-next-line local-rules/no-package-deep-imports
+import { type ConnectPopupCall } from '@suite-common/connect-popup/src/connectPopupTypes';
 import {
-    selectHasRunningDiscovery,
     selectIsDeviceConnectedAndAuthorized,
     selectIsPortfolioTrackerDevice,
-} from '@suite-common/wallet-core';
-import { Box, Button, ErrorMessage, Loader } from '@suite-native/atoms';
+} from '@suite-common/device';
+import { selectHasRunningDiscovery } from '@suite-common/wallet-core';
+import { Box, Loader } from '@suite-native/atoms';
 import { DeviceManager } from '@suite-native/device-manager';
 import { Translation } from '@suite-native/intl';
 import { Screen } from '@suite-native/navigation';
 
 import { AddressConfirmation } from '../components/AddressConfirmation';
 import { ButtonRequestsOverlay } from '../components/ButtonRequestsOverlay';
+import { ConnectErrorMessage } from '../components/ConnectErrorMessage';
 import { PermissionConfirmation } from '../components/PermissionConfirmation';
 import { TxSimulation } from '../components/TxSimulation';
 
@@ -85,49 +88,8 @@ export const ConnectPopupScreen = () => {
             return <TxSimulation />;
         }
 
-        if (popupCall?.state === 'call-error') {
-            const getErrorMessage = () => {
-                switch (popupCall.error.code) {
-                    case 'Deeplink_VersionMismatch':
-                        return <Translation id="moduleConnectPopup.errors.versionUnsupported" />;
-                    case 'Method_NotAllowed':
-                        return <Translation id="moduleConnectPopup.errors.methodNotAllowed" />;
-                    case 'Device_Disconnected':
-                    case 'Device_NotFound':
-                        return <Translation id="moduleConnectPopup.errors.deviceNotConnected" />;
-                    case 'Method_Interrupted':
-                    case 'Method_Cancel':
-                    case 'Failure_ActionCancelled':
-                        return <Translation id="moduleConnectPopup.errors.methodCanceled" />;
-                    case 'Method_InvalidParameter':
-                        return <Translation id="moduleConnectPopup.errors.invalidParams" />;
-                    default:
-                        return (
-                            <Translation
-                                id="moduleConnectPopup.errors.unknownError"
-                                values={{ code: popupCall.error.code }}
-                            />
-                        );
-                }
-            };
-            const onClose = () => {
-                if (navigation.canGoBack()) {
-                    navigation.goBack();
-                }
-            };
-
-            return (
-                <>
-                    <ErrorMessage errorMessage={getErrorMessage()} />
-                    <Button
-                        testID="@popup/close"
-                        onPress={onClose}
-                        colorScheme="tertiaryElevation0"
-                    >
-                        <Translation id="generic.buttons.close" />
-                    </Button>
-                </>
-            );
+        if (popupCall?.state === 'call-error' || popupCall?.state === 'error') {
+            return <ConnectErrorMessage />;
         }
 
         return (
@@ -136,7 +98,7 @@ export const ConnectPopupScreen = () => {
                 title={<Translation id="moduleConnectPopup.connectionStatus.loading" />}
             />
         );
-    }, [validDevice, popupCall, discoveryActive, navigation]);
+    }, [validDevice, popupCall, discoveryActive]);
 
     return (
         <Screen>
@@ -145,7 +107,6 @@ export const ConnectPopupScreen = () => {
             </Box>
 
             <Box
-                padding="sp8"
                 paddingTop="sp16"
                 flex={1}
                 justifyContent={isLoading ? 'center' : 'flex-start'}

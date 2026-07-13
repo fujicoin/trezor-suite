@@ -1,6 +1,5 @@
-import { Locale } from '@suite-common/suite-types';
-import { getLocaleSeparators } from '@trezor/utils';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { type Locale } from '@suite-common/suite-types';
+import { BigNumber, getLocaleSeparators } from '@trezor/utils';
 
 export const localizeNumber = (
     value: number | string | BigNumber,

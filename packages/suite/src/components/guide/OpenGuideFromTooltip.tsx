@@ -1,12 +1,13 @@
-import { MouseEvent } from 'react';
+import { type MouseEvent } from 'react';
 
 import { transparentize } from 'polished';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
+import { Translation } from '@suite/intl';
 import { Icon } from '@trezor/components';
+import { LightbulbIcon } from '@trezor/icons';
 import { borders, spacingsPx, typography } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useGuideOpenNode } from 'src/hooks/guide';
 
 const OpenGuideLink = styled.span`
@@ -16,13 +17,13 @@ const OpenGuideLink = styled.span`
     gap: ${spacingsPx.xxs};
     padding: ${spacingsPx.xxxs} ${spacingsPx.xs};
     border-radius: ${borders.radii.sm};
-    color: ${({ theme }) => theme.iconAlertYellow};
-    ${typography.hint};
+    color: ${({ theme }) => theme.contentWarning};
+    ${typography['body-sm']};
     overflow: visible;
     cursor: pointer;
 
     &:hover {
-        background: ${({ theme }) => transparentize(0.9, theme.backgroundAlertYellowBold)};
+        background: ${({ theme }) => transparentize(0.9, theme.elementFillWarningBold)};
     }
 `;
 
@@ -36,7 +37,6 @@ export const OpenGuideFromTooltip = ({
     'data-testid': dataTest,
 }: OpenGuideFromTooltipProps) => {
     const { openNodeById } = useGuideOpenNode();
-    const theme = useTheme();
 
     return (
         <OpenGuideLink
@@ -46,7 +46,7 @@ export const OpenGuideFromTooltip = ({
                 openNodeById(id);
             }}
         >
-            <Icon size={12} color={theme.iconAlertYellow} name="lightbulb" />
+            <Icon size={12} intent="warning" as={LightbulbIcon} />
             <Translation id="TR_LEARN" />
         </OpenGuideLink>
     );

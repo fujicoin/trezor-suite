@@ -1,7 +1,6 @@
 import * as ERRORS from '../errors';
-import { HEADER_SIZE, MESSAGE_LEN_SIZE, MESSAGE_TYPE } from './constants';
-import { THP_CONTINUATION_PACKET } from '../protocol-thp/constants';
-import { TransportProtocol } from '../types';
+import { HEADER_SIZE, MESSAGE_LEN_SIZE, THP_CONTROL_BYTE } from './constants';
+import { type TransportProtocol } from '../types';
 
 const getChunkHeader = (data: Buffer) => {
     // data should have at least 1 control_byte + 2 bytes channel
@@ -10,7 +9,7 @@ const getChunkHeader = (data: Buffer) => {
     }
 
     const channel = data.subarray(1, HEADER_SIZE);
-    const header = Buffer.concat([Buffer.from([THP_CONTINUATION_PACKET]), channel]);
+    const header = Buffer.concat([Buffer.from([THP_CONTROL_BYTE.CONTINUATION_PACKET]), channel]);
 
     return header;
 };
@@ -23,18 +22,12 @@ export const getHeaders: TransportProtocol['getHeaders'] = data => {
 
 // encode `protocol-thp` message
 export const encode: TransportProtocol['encode'] = (data, options) => {
-    if (options.messageType === MESSAGE_TYPE) {
-        if (!options.header || options.header.byteLength !== HEADER_SIZE) {
-            throw new Error(
-                `${options.messageType} unexpected header ${options.header?.toString('hex')}`,
-            );
-        }
-
-        const length = Buffer.alloc(MESSAGE_LEN_SIZE);
-        length.writeUInt16BE(data.length);
-
-        return Buffer.concat([options.header, length, data]);
+    if (options.header?.byteLength !== HEADER_SIZE) {
+        throw new Error(ERRORS.PROTOCOL_MALFORMED);
     }
 
-    throw new Error(`Use protocol-thp.encode for messageType ${options.messageType}`);
+    const length = Buffer.alloc(MESSAGE_LEN_SIZE);
+    length.writeUInt16BE(data.length);
+
+    return Buffer.concat([options.header, length, data]);
 };

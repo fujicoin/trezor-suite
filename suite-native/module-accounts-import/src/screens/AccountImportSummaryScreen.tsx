@@ -1,19 +1,19 @@
 import { useSelector } from 'react-redux';
 
+import type { DeviceRootState } from '@suite-common/device';
 import {
-    AccountsRootState,
-    DeviceRootState,
+    type AccountsRootState,
     selectDeviceAccountByDescriptorAndNetworkSymbol,
 } from '@suite-common/wallet-core';
 import { ErrorMessage } from '@suite-native/atoms';
 import { selectDiscoveryNetworkSymbols } from '@suite-native/discovery';
 import { Translation } from '@suite-native/intl';
 import {
-    AccountsImportStackParamList,
-    AccountsImportStackRoutes,
-    RootStackParamList,
-    StackToTabCompositeScreenProps,
-    useHandleHardwareBackNavigation,
+    type AccountsImportStackParamList,
+    type AccountsImportStackRoutes,
+    type RootStackParamList,
+    type StackToTabCompositeScreenProps,
+    useInterceptNativeNavigation,
 } from '@suite-native/navigation';
 
 import { AccountAlreadyImportedScreen } from '../components/AccountAlreadyImportedScreen';
@@ -28,7 +28,7 @@ export const AccountImportSummaryScreen = ({
 >) => {
     const { accountInfo, networkSymbol } = route.params;
 
-    useHandleHardwareBackNavigation();
+    useInterceptNativeNavigation();
 
     const account = useSelector((state: AccountsRootState & DeviceRootState) =>
         selectDeviceAccountByDescriptorAndNetworkSymbol(
@@ -39,9 +39,7 @@ export const AccountImportSummaryScreen = ({
     );
     const supportedNetworks = useSelector(selectDiscoveryNetworkSymbols);
 
-    const isAccountImportSupported = supportedNetworks.some(
-        supportedSymbol => supportedSymbol === networkSymbol,
-    );
+    const isAccountImportSupported = supportedNetworks.includes(networkSymbol);
 
     if (!isAccountImportSupported) {
         return (

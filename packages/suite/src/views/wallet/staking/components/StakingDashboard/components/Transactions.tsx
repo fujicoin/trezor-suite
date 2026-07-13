@@ -2,7 +2,6 @@ import {
     selectAccountStakeTypeTransactions,
     selectAccountTransactionsWithNulls,
     selectAreAllTransactionsLoaded,
-    selectIsLoadingAccountTransactions,
 } from '@suite-common/wallet-core';
 
 import { useSelector } from 'src/hooks/suite';
@@ -10,11 +9,8 @@ import { TransactionList } from 'src/views/wallet/transactions/TransactionList/T
 
 export const Transactions = () => {
     const selectedAccount = useSelector(state => state.wallet.selectedAccount);
-    const accountKey = selectedAccount.account?.key ?? '';
+    const accountKey = selectedAccount.account?.key ?? null;
 
-    const transactionsIsLoading = useSelector(state =>
-        selectIsLoadingAccountTransactions(state, accountKey),
-    );
     const areAllTransactionsLoaded = useSelector(state =>
         Boolean(selectAreAllTransactionsLoaded(state, accountKey)),
     );
@@ -31,14 +27,16 @@ export const Transactions = () => {
 
     return (
         <TransactionList
+            key={account.key} // NOTE: ensure that transaction list is unmounted when account key changes
             areAllTransactionsLoaded={areAllTransactionsLoaded}
             allTransactions={allTransactions}
             account={account}
             transactions={stakeTxs}
             symbol={account.symbol}
-            isLoading={transactionsIsLoading || !areAllTransactionsLoaded}
+            isLoading={!areAllTransactionsLoaded}
             customTotalItems={stakeTxs.length}
             isExportable={false}
+            isTxFilteringEnabled={false}
         />
     );
 };

@@ -1,18 +1,17 @@
-import { MouseEventHandler } from 'react';
+import { type MouseEventHandler } from 'react';
 
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
 import { acquireDevice } from '@suite-common/wallet-core';
-import { Button } from '@trezor/components';
+import { Banner } from '@trezor/components';
 
-import { useDevice, useDispatch } from 'src/hooks/suite';
-
-import { Translation } from './Translation';
+import { useDispatch } from 'src/hooks/suite';
 
 type AcquireButtonProps = {
-    className?: string;
     onClick?: MouseEventHandler;
 };
 
-export const AcquireDeviceButton = ({ className, onClick }: AcquireButtonProps) => {
+export const AcquireDeviceButton = ({ onClick }: AcquireButtonProps) => {
     const { isLocked } = useDevice();
     const dispatch = useDispatch();
 
@@ -24,13 +23,8 @@ export const AcquireDeviceButton = ({ className, onClick }: AcquireButtonProps) 
     };
 
     return (
-        <Button
-            isLoading={isDeviceLocked}
-            textWrap={false}
-            onClick={handleClick}
-            className={className}
-        >
+        <Banner.Button isLoading={isDeviceLocked} onClick={handleClick}>
             <Translation id="TR_ACQUIRE_DEVICE" />
-        </Button>
+        </Banner.Button>
     );
 };

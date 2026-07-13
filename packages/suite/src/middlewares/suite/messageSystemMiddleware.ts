@@ -1,3 +1,5 @@
+import { getIsTorEnabled, torActions } from '@suite/tor';
+import { deviceActions, selectSelectedDevice } from '@suite-common/device';
 import { geolocationActions, selectCountryCode } from '@suite-common/geolocation';
 import {
     categorizeMessages,
@@ -6,20 +8,20 @@ import {
     messageSystemActions,
 } from '@suite-common/message-system';
 import { createMiddleware } from '@suite-common/redux-utils';
-import { changeNetworks, deviceActions, selectSelectedDevice } from '@suite-common/wallet-core';
+import { changeNetworks } from '@suite-common/wallet-core';
 import { DEVICE, TRANSPORT } from '@trezor/connect';
 
-import { SUITE } from 'src/actions/suite/constants';
 import { selectActiveTransports } from 'src/selectors/suite/suiteSelectors';
-import { getIsTorEnabled } from 'src/utils/suite/tor';
 
 // actions which can affect message system messages
 const actions = [
     deviceActions.selectDevice.type,
-    SUITE.TOR_STATUS,
+    torActions.setTorStatus.type,
     messageSystemActions.fetchSuccessUpdate.type,
     messageSystemActions.addMessage.type,
     messageSystemActions.removeMessage.type,
+    messageSystemActions.addExperiment.type,
+    messageSystemActions.removeExperiment.type,
     changeNetworks.type,
     TRANSPORT.START,
     DEVICE.CONNECT,
@@ -31,7 +33,7 @@ const messageSystemMiddleware = createMiddleware((action, { next, dispatch, getS
 
     if (actions.includes(action.type)) {
         const { config } = getState().messageSystem;
-        const { torStatus } = getState().suite;
+        const { torStatus } = getState().tor;
         const transports = selectActiveTransports(getState());
         const device = selectSelectedDevice(getState());
         const { enabledNetworks } = getState().wallet.settings;

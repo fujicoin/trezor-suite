@@ -10,8 +10,11 @@ If you need to determine if the JS code is running within a test build, you can 
 
 To run the tests locally, you need to have the following installed:
 
-- for **iOS** build: Installed Xcode with iPhone 11 simulator created
-- for **Android** build: Installed Android Studio with existing emulator device named `Pixel_3a_API_31`. You can do it via Android Studio UI. If you want to do it via the command line, please follow [this guide](https://wix.github.io/Detox/docs/guide/android-dev-env#heres-how-to-install-them-using-the-command-line). You can also use another emulator device, but you have to map its name to the `devices.emulator.device.avdName` value in the `.detoxrc.js` config file.
+- for **iOS** build:
+    - Installed Xcode with iPhone 11 simulator created
+    - Installed applesimutils with `brew tap wix/brew && brew install applesimutils`
+
+- for **Android** build: Installed Android Studio with existing emulator device named `Pixel_6_API_34`. You can do it via Android Studio UI. If you want to do it via the command line, please follow [this guide](https://wix.github.io/Detox/docs/guide/android-dev-env#heres-how-to-install-them-using-the-command-line). You can also use another emulator device, but you have to map its name to the `devices.emulator.device.avdName` value in the `.detoxrc.js` config file.
 
 ### Debug build
 
@@ -24,8 +27,8 @@ With the debug config, the app is running in Expo dev-client and the JavaScript 
     - (**iOS**) `yarn build:e2e ios.sim.debug`
 4. Run Metro server using test ENV variables from `.evn.test`: `yarn start:e2e`
 5. While is Metro server running in a different console, execute the E2E tests:
-    - (**Android**) `yarn test:e2e android.emu.debug`
-    - (**iOS**) `yarn test:e2e ios.sim.debug`
+    - (**Android**) `yarn test:e2e:android`
+    - (**iOS**) `yarn test:e2e:ios`
 
 > BEWARE: Sometimes the first execution of debug build fail, because the bundling on the metro server takes longer for the first time. If you encounter this behavior, just rerun the tests and the second run should go smoothly.
 
@@ -39,26 +42,50 @@ To test the app in the release mode, you need to build the app with the release 
     - (**Android**) `yarn build:e2e android.emu.release`
     - (**iOS**) `yarn build:e2e ios.sim.release`
 4. Execute the E2E tests:
-    - (**Android**) `yarn test:e2e android.emu.release`
-    - (**iOS**) `yarn test:e2e ios.sim.release`
+    - (**Android**) `yarn test:e2e --config e2e/trezorDetoxRunner/config/runner-android-release.config.js`
+    - (**iOS**) `yarn test:e2e --config e2e/trezorDetoxRunner/config/runner-ios-release.config.js`
+
+> Note: For release builds, you must provide the full path to the release runner configuration.
+
+### Custom Runner Arguments
+
+The `detoxRunner.ts` supports several arguments to control the test execution:
+
+- `--config <path>`: (Required) Path to the runner config file.
+- `[testFiles]`: Space-separated list of test files to run. If provided, only these files will be executed.
+- `--project <name>`: Project name to run (can be specified multiple times). If not specified, all projects in the config are run.
+- `--shard <n>`: Current shard index (0-based).
+- `--totalShards <n>`: Total number of shards.
+- `--headless`: Run tests in headless mode (Android only).
+- `--help`: Show help message.
+
+> Note: Sharding arguments (`--shard` and `--totalShards`) cannot be used together with specific test files.
 
 ### Integration with Trezor-user-env
 
 Some tests use Trezor-user-env to simulate the Trezor device. To make these tests work locally, make sure that the trezor-user-env is up and running. To do so, follow the [trezor-user-env documentation](https://github.com/trezor/trezor-user-env/blob/master/README.md).
+
+### Running trading tests locally
+
+To run trading tests, you need to have passphrase wallet on `mnemonic_academic` with some ETH for fees and at least 10 USDC on Ethereum.
+
+Specify passphrase in the `suite-native/app/e2e/.env` as `TRADING_ACADEMIC_SEED_WALLET_PASSPHRASE` env variable.
+
+### Device model and FW version
+
+The Device model and FW version is defined in the custom detox runner config. This config defines projects for each device (similarly as in PW E2E tests). If you want to locally run tests against just one specific device, you can do that by selecting the corresponding project.
+`yarn test:e2e:android --project=T3T1`
 
 ## Test tagging
 
 Since Detox/Jest doesn't natively support test tagging, we are using a common convention to achieve this goal. Tags are added as part of the test describe or test name. Tags are to be prefixed with @ and and wrapped in [] parentheses.
 Example:
 
-```
-describe('Tests with T3T1 device model [@specificModel]', () => {
-    test('Enable, change & disable PIN [@smoke]')
+```typescript
+describe('Tests with T3T1 device model [@T3T1]', () => {
+    test('Enable, change & disable PIN [@androidOnly]')
 }
 ```
-
-Now you can also use these tags to run the tests:
-`yarn test:e2e android.emu.release --testNamePattern @smoke`
 
 ## Working with Launch Arguments
 
@@ -114,7 +141,14 @@ For easier debugging of failing tests on the CI, the screenshot and screen recor
 
 #### How to run only one test?
 
-Add filepath to the command e.g. `yarn test:e2e android.emu.debug ./e2e/tests/accountManagement.test.ts`
+**Local run**
+
+Pass the file path(s) to the command:
+`yarn test:e2e:android e2e/tests/accountManagement.test.ts`
+
+**CI run (Advanced)**
+
+To run specific files in CI you can temporarily change the GH workflow `template-suite-native-e2e-android.yml` and pass the file path(s) to the command. e.g. `yarn test:e2e --config=e2e/trezorDetoxRunner/config/runner-android-release.config.js --shard=${{ matrix.TEST_GROUP }} --totalShards=4 --headles e2e/tests/accountManagement.test.ts`
 
 #### How to make prebuild for one platform only?
 

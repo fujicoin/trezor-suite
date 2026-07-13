@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TextInput } from 'react-native';
+import { type TextInput } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
+import { useFilteredUtxos } from '@suite-common/transaction-search';
 import {
-    AccountsRootState,
+    type AccountsRootState,
     fetchUtxoTransactionsForAccountThunk,
     selectAccountByKey,
 } from '@suite-common/wallet-core';
-import { isSameUtxo, useFilteredUtxos } from '@suite-common/wallet-utils';
-import { BaseSearchInput, SearchInputWithCancel, Text, VStack } from '@suite-native/atoms';
+import { isSameUtxo } from '@suite-common/wallet-utils';
+import { SearchInput, SearchInputWithCancel, Text, VStack } from '@suite-native/atoms';
 import { useTranslate } from '@suite-native/intl';
-import { Screen, SendStackParamList, SendStackRoutes, StackProps } from '@suite-native/navigation';
-import { Utxo } from '@trezor/blockchain-link-types';
+import {
+    Screen,
+    type SendStackParamList,
+    type SendStackRoutes,
+    type StackProps,
+} from '@suite-native/navigation';
+import { type Utxo } from '@trezor/blockchain-link-types';
 import { BigNumber } from '@trezor/utils';
 
 import { SendUtxoScreenFooter } from '../components/CoinControl/SendUtxoScreenFooter';
@@ -116,13 +122,14 @@ export const SendUtxoScreen = ({
                 <SearchInputWithCancel
                     onChange={onSearchChange}
                     placeholder={translate('moduleSend.coinControl.search.placeholder')}
-                    SearchComponent={BaseSearchInput}
+                    SearchComponent={SearchInput}
                     value={searchQuery}
                     searchRef={searchInputRef}
                 />
 
                 {filteredUtxos.length > 0 ? (
                     <UtxoList
+                        deviceStaticSessionId={account.deviceState}
                         utxos={filteredUtxos}
                         selectedUtxos={tempSelectedUtxos}
                         onUtxoToggle={handleUtxoSelect}
@@ -133,7 +140,7 @@ export const SendUtxoScreen = ({
                     <VStack alignContent="center" spacing="sp8" justifyContent="center" flex={1}>
                         <VStack alignItems="center" spacing="sp12" justifyContent="center">
                             <Text>{translate('moduleSend.coinControl.search.noCoins')}</Text>
-                            <Text variant="hint">
+                            <Text variant="body-sm">
                                 {translate('moduleSend.coinControl.search.message')}
                             </Text>
                         </VStack>

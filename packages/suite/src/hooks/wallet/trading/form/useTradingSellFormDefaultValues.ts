@@ -1,79 +1,60 @@
 import { useMemo } from 'react';
 
+import { type CryptoId } from 'invity-api';
+
+import { selectTorState } from '@suite/tor';
 import {
     TRADING_DEFAULT_PAYMENT_METHOD,
-    type TradingPaymentMethodListProps,
-    type TradingSellInfoSelector,
-    cryptoIdToSymbol,
-    enabledTradingCurrencies,
+    type TradingCountryCode,
+    buildTradingBaseCurrencyOptionFromFiat,
+    buildTradingFiatOption,
     getDefaultCountry,
+    getDefaultCountrySubdivision,
+    getSupportedFiatCurrencyWithFallback,
     regional,
-    selectTradingPrefilledFromAccount,
 } from '@suite-common/trading';
 import { DEFAULT_PAYMENT, DEFAULT_VALUES } from '@suite-common/wallet-constants';
 import { selectBaseCurrency } from '@suite-common/wallet-core';
-import { FormState, Output } from '@suite-common/wallet-types';
-import { isArrayMember, typedObjectValues } from '@trezor/utils';
+import { type AccountKey, type FormState, type Output } from '@suite-common/wallet-types';
 
 import { useSelector } from 'src/hooks/suite';
-import { useTradingBuildAccountGroups } from 'src/hooks/wallet/trading/form/common/useTradingBuildAccountGroups';
-import { selectTorState } from 'src/selectors/suite/suiteSelectors';
-import { TradingSellFormDefaultValuesProps } from 'src/types/trading/tradingForm';
-import { Account } from 'src/types/wallet';
-import {
-    buildTradingFiatOption,
-    getAddressAndTokenFromAccountOptionsGroupProps,
-} from 'src/utils/wallet/trading/tradingUtils';
+import { type TradingSellFormDefaultValuesProps } from 'src/types/trading/tradingForm';
+import { resolveAddressAndToken } from 'src/utils/wallet/trading/tradingUtils';
+
+import { useTradingDefaultSellAsset } from './common/useTradingDefaultSellAsset';
 
 export const useTradingSellFormDefaultValues = (
-    account: Account,
-    sellInfo: TradingSellInfoSelector | undefined,
+    accountKey: AccountKey,
+    cryptoId: CryptoId,
+    sellInfoCountry: TradingCountryCode | undefined,
+    sellInfoCountrySubdivision?: string,
 ): TradingSellFormDefaultValuesProps => {
-    const cryptoGroups = useTradingBuildAccountGroups('sell');
-    const prefilledFromAccount = useSelector(selectTradingPrefilledFromAccount);
     const { isTorEnabled } = useSelector(selectTorState);
 
-    const cryptoOptions = useMemo(
-        () => cryptoGroups.flatMap(group => group.options),
-        [cryptoGroups],
-    );
-    const defaultSendCryptoSelect = useMemo(
-        () =>
-            (prefilledFromAccount.cryptoId &&
-                cryptoOptions.find(option => option.value === prefilledFromAccount.cryptoId)) ||
-            cryptoOptions.find(
-                option =>
-                    option.descriptor === account.descriptor &&
-                    account.symbol === cryptoIdToSymbol(option.value),
-            ),
-        [account.descriptor, account.symbol, prefilledFromAccount, cryptoOptions],
-    );
-    const country = !isTorEnabled ? sellInfo?.country : regional.UNKNOWN_COUNTRY;
+    const { account, defaultAsset } = useTradingDefaultSellAsset({
+        accountKey,
+        cryptoId,
+    });
+    const country = !isTorEnabled ? sellInfoCountry : regional.UNKNOWN_COUNTRY;
+    const countrySubdivision = !isTorEnabled ? sellInfoCountrySubdivision : undefined;
     const defaultCountry = useMemo(() => getDefaultCountry(country), [country]);
-    const { address, token } =
-        getAddressAndTokenFromAccountOptionsGroupProps(defaultSendCryptoSelect);
 
-    const defaultPaymentMethod: TradingPaymentMethodListProps = useMemo(
-        () => ({
-            value: TRADING_DEFAULT_PAYMENT_METHOD,
-            label: '',
-        }),
-        [],
+    const defaultSubdivision = useMemo(
+        () => getDefaultCountrySubdivision(countrySubdivision),
+        [countrySubdivision],
     );
+
+    const { address, token } = resolveAddressAndToken(account, defaultAsset?.contractAddress);
+
     const baseCurrencyCode = useSelector(selectBaseCurrency);
     const defaultCurrency = useMemo(
-        () =>
-            buildTradingFiatOption(
-                isArrayMember(baseCurrencyCode, typedObjectValues(enabledTradingCurrencies))
-                    ? baseCurrencyCode
-                    : 'usd',
-            ),
+        () => buildTradingFiatOption(getSupportedFiatCurrencyWithFallback(baseCurrencyCode)),
         [baseCurrencyCode],
     );
     const defaultPayment: Output = useMemo(
         () => ({
             ...DEFAULT_PAYMENT,
-            currency: defaultCurrency,
+            currency: buildTradingBaseCurrencyOptionFromFiat(defaultCurrency.value),
             address,
             token,
         }),
@@ -91,13 +72,19 @@ export const useTradingSellFormDefaultValues = (
     const defaultValues = useMemo(
         () => ({
             ...defaultFormState,
-            sendCryptoSelect: defaultSendCryptoSelect,
+            sendCryptoSelect: defaultAsset,
             countrySelect: defaultCountry,
-            paymentMethod: defaultPaymentMethod,
+            countrySubdivisionSelect: defaultSubdivision,
+            paymentMethod: { value: TRADING_DEFAULT_PAYMENT_METHOD, label: '' },
             amountInCrypto: true,
         }),
-        [defaultSendCryptoSelect, defaultCountry, defaultPaymentMethod, defaultFormState],
+        [defaultFormState, defaultAsset, defaultCountry, defaultSubdivision],
     );
 
-    return { defaultValues, defaultCountry, defaultCurrency, defaultPaymentMethod };
+    return {
+        defaultValues,
+        defaultCountry,
+        defaultSubdivision,
+        defaultCurrency,
+    };
 };

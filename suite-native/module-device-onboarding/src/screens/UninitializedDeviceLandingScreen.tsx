@@ -1,22 +1,25 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 
 import { useSetAtom } from 'jotai';
 
+import { useServices } from '@suite-common/dependency-injection';
 import {
-    selectDeviceModel,
+    deviceActions,
     selectHasDeviceFirmwareInstalled,
+    selectSelectedDevice,
     selectShouldOfferUpdateFirmware,
-} from '@suite-common/wallet-core';
-import { EventType, analytics } from '@suite-native/analytics';
-import { Box, Button, Text, TextButton, TitleHeader, VStack } from '@suite-native/atoms';
-import { SetupSupportingDeviceModel } from '@suite-native/device';
+} from '@suite-common/device';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
+import { Box, Button, Text, TextButton, VStack } from '@suite-native/atoms';
+import { type SetupSupportingDeviceModel, useCoinLabel } from '@suite-native/device';
 import { Translation } from '@suite-native/intl';
 import {
-    DeviceOnboardingStackParamList,
+    type DeviceOnboardingStackParamList,
     DeviceOnboardingStackRoutes,
-    StackProps,
+    type RootStackParamList,
+    type StackToStackCompositeScreenProps,
 } from '@suite-native/navigation';
 
 import { resetOnboardingAnalyticsAtom, updateOnboardingAnalyticsAtom } from '../../atoms';
@@ -25,30 +28,25 @@ import { DeviceOnboardingScreenWithExitButton } from '../components/DeviceOnboar
 import { HeaderUnderlineSvg } from '../components/HeaderUnderlineSvg';
 import { useNavigateToNextScreenAfterFirmwareInstallation } from '../hooks/useNavigateToNextScreenAfterFirmwareInstallation';
 
-const UninitializedDeviceLandingScreenContent = () => {
-    const deviceModel = useSelector(selectDeviceModel) as SetupSupportingDeviceModel;
+const UninitializedDeviceLandingScreenContent = ({
+    deviceModel,
+}: {
+    deviceModel: SetupSupportingDeviceModel;
+}) => {
     const hasDeviceFirmwareInstalled = useSelector(selectHasDeviceFirmwareInstalled);
-
-    if (!deviceModel) {
-        return null;
-    }
+    const coinLabel = useCoinLabel();
 
     return (
         <VStack spacing="sp32">
-            {hasDeviceFirmwareInstalled ? (
-                <TitleHeader
-                    title={
-                        <Translation id="moduleDeviceOnboarding.uninitializedDeviceLandingScreen.firmware.title" />
-                    }
-                    titleVariant="titleMedium"
-                    subtitle={
-                        <Translation id="moduleDeviceOnboarding.uninitializedDeviceLandingScreen.firmware.subtitle" />
-                    }
-                />
-            ) : (
+            {!hasDeviceFirmwareInstalled && (
                 <Box alignItems="center">
-                    <Text variant="titleMedium" textAlign="center" style={{ letterSpacing: -0.5 }}>
-                        <Translation id="moduleDeviceOnboarding.uninitializedDeviceLandingScreen.noFirmware.title" />
+                    <Text variant="headline-md" textAlign="center" style={{ letterSpacing: -0.5 }}>
+                        <Translation
+                            id="moduleDeviceOnboarding.uninitializedDeviceLandingScreen.noFirmware.title"
+                            values={{
+                                coinLabel,
+                            }}
+                        />
                     </Text>
                     <HeaderUnderlineSvg />
                 </Box>
@@ -63,21 +61,31 @@ const UninitializedDeviceLandingScreenContent = () => {
 
 export const UninitializedDeviceLandingScreen = ({
     navigation,
-}: StackProps<
+    route: { params },
+}: StackToStackCompositeScreenProps<
     DeviceOnboardingStackParamList,
-    DeviceOnboardingStackRoutes.UninitializedDeviceLanding
+    DeviceOnboardingStackRoutes.UninitializedDeviceLanding,
+    RootStackParamList
 >) => {
+    const dispatch = useDispatch();
+    const { analytics } = useServices(selectNativeAnalyticsDep);
+    const deviceModel = params.deviceModel as SetupSupportingDeviceModel;
     const hasDeviceFirmwareInstalled = useSelector(selectHasDeviceFirmwareInstalled);
     const shouldOfferUpdateFirmware = useSelector(selectShouldOfferUpdateFirmware);
-    const deviceModel = useSelector(selectDeviceModel);
+    const device = useSelector(selectSelectedDevice);
+    const deviceId = device?.id;
+
     const resetOnboardingAnalytics = useSetAtom(resetOnboardingAnalyticsAtom);
     const updateOnboardingAnalytics = useSetAtom(updateOnboardingAnalyticsAtom);
+
     const { navigateToNextScreenAfterFirmwareInstallation } =
         useNavigateToNextScreenAfterFirmwareInstallation();
+
     const handleConfirmButtonPress = () => {
+        dispatch(deviceActions.setManualDeviceCheckSuccess({ deviceId }));
         if (hasDeviceFirmwareInstalled) {
             if (shouldOfferUpdateFirmware) {
-                navigation.navigate(DeviceOnboardingStackRoutes.ConfirmFirmwareUpdate);
+                navigation.replace(DeviceOnboardingStackRoutes.ConfirmFirmwareUpdate);
             } else {
                 // If user already has the latest firmware installed, skip this update screen and navigate to device auth-check directly.
                 updateOnboardingAnalytics({
@@ -88,7 +96,7 @@ export const UninitializedDeviceLandingScreen = ({
             }
         } else {
             // Security check is relevant for brand new devices without FW only.
-            navigation.navigate(DeviceOnboardingStackRoutes.SecurityCheck);
+            navigation.replace(DeviceOnboardingStackRoutes.SecurityCheck);
         }
     };
 
@@ -99,7 +107,7 @@ export const UninitializedDeviceLandingScreen = ({
         });
 
         analytics.report({
-            type: EventType.DeviceSetupSecurityCheck,
+            type: events.deviceSetupSecurityCheckEvent.name,
             payload: {
                 location: suspicionCause,
             },
@@ -113,7 +121,7 @@ export const UninitializedDeviceLandingScreen = ({
         });
 
         analytics.report({
-            type: EventType.DeviceSetupSecurityCheck,
+            type: events.deviceSetupSecurityCheckEvent.name,
             payload: {
                 location: suspicionCause,
             },
@@ -123,7 +131,7 @@ export const UninitializedDeviceLandingScreen = ({
     useEffect(() => {
         resetOnboardingAnalytics();
         analytics.report({
-            type: EventType.DeviceSetupStarted,
+            type: events.deviceSetupStartedEvent.name,
             payload: {
                 osName: Platform.OS,
                 deviceModel,
@@ -133,11 +141,22 @@ export const UninitializedDeviceLandingScreen = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    const screenHeaderProps = hasDeviceFirmwareInstalled
+        ? {
+              screenHeaderTitle: (
+                  <Translation id="moduleDeviceOnboarding.uninitializedDeviceLandingScreen.firmware.title" />
+              ),
+              screenHeaderSubtitle: (
+                  <Translation id="moduleDeviceOnboarding.uninitializedDeviceLandingScreen.firmware.subtitle" />
+              ),
+          }
+        : {};
+
     return (
-        <DeviceOnboardingScreenWithExitButton>
+        <DeviceOnboardingScreenWithExitButton {...screenHeaderProps}>
             <VStack justifyContent="space-between" flex={1}>
                 <VStack spacing="sp32">
-                    <UninitializedDeviceLandingScreenContent />
+                    <UninitializedDeviceLandingScreenContent deviceModel={deviceModel} />
                     <TextButton
                         isUnderlined
                         onPress={handleDeviceLooksDifferentButtonPress}
@@ -159,7 +178,8 @@ export const UninitializedDeviceLandingScreen = ({
                     </Button>
                     {hasDeviceFirmwareInstalled && (
                         <Button
-                            colorScheme="tertiaryElevation0"
+                            intent="neutral"
+                            priority="secondary"
                             onPress={handleNeverUsedThisDeviceButtonPress}
                             testID="@deviceOnboarding/UninitializedDeviceLandingScreen/declineBtn"
                         >

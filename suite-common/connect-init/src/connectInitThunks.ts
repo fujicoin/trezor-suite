@@ -1,61 +1,59 @@
-import { selectFirmwareUpdateSource } from '@suite-common/firmware/src/firmwareReducer';
+import { events as sharedEvents } from '@suite-common/analytics';
+import {
+    deviceActions,
+    selectDevices,
+    selectIsPendingTransportEvent,
+    selectSelectedDevice,
+} from '@suite-common/device';
+import { selectEffectiveFirmwareChannel } from '@suite-common/firmware';
 import {
     Feature,
     parseTimeoutThresholdsPerModel,
     selectFeatureConfig,
 } from '@suite-common/message-system';
 import { createThunk } from '@suite-common/redux-utils';
-import { TrezorDevice } from '@suite-common/suite-types';
 import {
-    deviceActions,
+    defaultTrezorUIEventHandlerThunk,
     deviceConnectThunks,
-    selectDevices,
     selectEnabledNetworks,
-    selectIsPendingTransportEvent,
-    selectSelectedDevice,
 } from '@suite-common/wallet-core';
 import TrezorConnect, {
     BLOCKCHAIN_EVENT,
     DEVICE,
     DEVICE_EVENT,
-    Device,
     TRANSPORT_EVENT,
-    UI,
     UI_EVENT,
-    UI_REQUEST,
 } from '@trezor/connect';
-import { getBrowserName, isDesktop, isWeb } from '@trezor/env-utils';
+import { isDesktop } from '@trezor/env-utils';
 import { DATA_URL } from '@trezor/urls';
-import { capitalizeFirstLetter, getSynchronize } from '@trezor/utils';
+import { getSynchronize, isArrayMember } from '@trezor/utils';
 
 import { blacklist } from './blacklist';
-import { cardanoConnectPatch } from './cardanoConnectPatch';
-import { ConnectKey, ConnectWebKey } from './types';
+import { type ConnectKey } from './types';
 
 const CONNECT_INIT_MODULE = '@common/connect-init';
 
 // If you are looking where connectInitSettings is defined, it is defined in packages/suite/src/support/extraDependencies.ts
 // or in suite-native/state/src/extraDependencies.ts depends on which platform this connectInitThunk runs.
 
-type ConnectInitHooks = Partial<
-    Record<
-        typeof DEVICE.CONNECT | typeof DEVICE.CONNECT_UNACQUIRED,
-        (device: Device, prevConnectedDevices: TrezorDevice[]) => void
-    >
-> &
-    Partial<Record<typeof UI.INVALID_PIN_ATTEMPTS_DEPLETED, () => void>>;
-
-export const connectInitThunk = createThunk<void, ConnectInitHooks | void, void>(
+export const connectInitThunk = createThunk<void, void, void>(
     `${CONNECT_INIT_MODULE}/initThunk`,
-    async (connectInitHooks, { dispatch, getState, extra }) => {
+    async (_, { dispatch, getState, extra }) => {
         const {
             selectors: { selectDebugSettings, selectThpSettings },
             actions: { lockDevice },
-            utils: { connectInitSettings },
+            services: {
+                connectInitSettings,
+                connectInitHooks,
+                analytics,
+                createLogger,
+                thpHostName,
+            },
         } = extra;
 
-        const getEnabledNetworks = () => selectEnabledNetworks(getState());
-        const getFirmwareUpdateSource = () => selectFirmwareUpdateSource(getState());
+        const getEffectiveFirmwareChannel = selectEffectiveFirmwareChannel(
+            extra.selectors.selectAllowPrerelease,
+        );
 
         // set event listeners and dispatch as
         TrezorConnect.on(DEVICE_EVENT, ({ event: _, ...eventData }) => {
@@ -65,67 +63,32 @@ export const connectInitThunk = createThunk<void, ConnectInitHooks | void, void>
                 const connectedDevices = selectDevices(getState());
                 dispatch(deviceConnectThunks({ type: eventData.type, device: eventData.payload }));
 
-                if (connectInitHooks && eventData.type in connectInitHooks) {
-                    connectInitHooks[eventData.type]?.(eventData.payload, connectedDevices);
-                }
-            }
-            // dispatch event as action
-            else {
+                connectInitHooks.deviceEvent[eventData.type]?.(eventData.payload, connectedDevices);
+            } else {
+                // dispatch event as action
                 dispatch({ type: eventData.type, payload: eventData.payload });
+
+                if (eventData.type === DEVICE.THP_PAIRING_STATUS_CHANGED) {
+                    const { status } = eventData.payload;
+                    if (status === 'finished' || status === 'canceled') {
+                        analytics.report({
+                            type: sharedEvents.deviceConnectionDeviceConfirmationEvent.name,
+                            payload: { option: status },
+                        });
+                    }
+                }
             }
         });
 
         TrezorConnect.on(UI_EVENT, ({ event: _, ...action }) => {
-            if (action.type === 'ui-select_device') {
-                // this is why you received the ui-select_device event.
+            if ('callId' in action && action.callId) {
                 console.warn(
-                    'Hey, it looks like you called a TrezorConnect method without providing device property.',
+                    `[connect-init] UI_EVENT ${action.type} (callId=${action.callId}) swallowed in global scope — handled by a scoped flow.`,
                 );
-            }
 
-            if (action.type === UI_REQUEST.FIRMWARE_DOWNLOADED && !isDesktop()) {
-                // We are in web therefore we ignore `FIRMWARE_DOWNLOADED` action.
                 return;
             }
-
-            // dispatch event as action
-            dispatch(action);
-
-            // this switch is still one more layer of indirection to be removed. connect actions are dispatched
-            // and could be handled directly in reducers
-            switch (action.type) {
-                case UI.REQUEST_PIN:
-                case UI.INVALID_PIN:
-                    dispatch(
-                        deviceActions.addButtonRequest({
-                            // todo: note that this is not 'threadsafe', currently selected device is not necessarily the device
-                            // connect call was made for
-                            device: selectSelectedDevice(getState()),
-                            buttonRequest: {
-                                code: action.payload.type ? action.payload.type : action.type,
-                            },
-                        }),
-                    );
-                    break;
-                case UI.REQUEST_BUTTON: {
-                    const { device: _, ...request } = action.payload;
-                    dispatch(
-                        deviceActions.addButtonRequest({
-                            device: selectSelectedDevice(getState()),
-                            buttonRequest: request,
-                        }),
-                    );
-                    break;
-                }
-            }
-
-            if (
-                action.type === UI.INVALID_PIN_ATTEMPTS_DEPLETED &&
-                connectInitHooks &&
-                UI.INVALID_PIN_ATTEMPTS_DEPLETED in connectInitHooks
-            ) {
-                connectInitHooks?.[UI.INVALID_PIN_ATTEMPTS_DEPLETED]?.();
-            }
+            dispatch(defaultTrezorUIEventHandlerThunk(action));
         });
 
         TrezorConnect.on(TRANSPORT_EVENT, ({ event: _, ...action }) => {
@@ -141,13 +104,14 @@ export const connectInitThunk = createThunk<void, ConnectInitHooks | void, void>
         const synchronize = getSynchronize();
 
         Object.keys(TrezorConnect)
-            .filter(k => !blacklist.includes(k as ConnectWebKey))
+            .filter(k => !isArrayMember(k, blacklist))
             .forEach(key => {
                 // typescript complains about params and return type, need to be "any"
                 const original: any = TrezorConnect[key as ConnectKey];
                 if (!original) return;
                 (TrezorConnect[key as ConnectKey] as any) = async (params: any) => {
                     dispatch(lockDevice(true));
+
                     const result = await synchronize(() => original(params));
 
                     dispatch(lockDevice(false));
@@ -163,8 +127,6 @@ export const connectInitThunk = createThunk<void, ConnectInitHooks | void, void>
                 };
             });
 
-        cardanoConnectPatch(getEnabledNetworks);
-
         const binFilesBaseUrl = isDesktop()
             ? extra.selectors.selectDesktopBinDir(getState())
             : DATA_URL;
@@ -177,11 +139,11 @@ export const connectInitThunk = createThunk<void, ConnectInitHooks | void, void>
             ...firmwareHashCheckTimeoutsOverride,
         };
 
-        const { transports, showConnectLogs } = selectDebugSettings(getState());
+        const { transports, showConnectLogs, definitionsChannel } = selectDebugSettings(getState());
         const thp = selectThpSettings(getState());
         // desktop thp appName/hostName enhanced in ./packages/suite-desktop-core/src/modules/trezor-connect.ts
-        if (isWeb()) {
-            thp.hostName = capitalizeFirstLetter(getBrowserName());
+        if (thpHostName !== undefined) {
+            thp.hostName = thpHostName;
         }
 
         try {
@@ -192,8 +154,12 @@ export const connectInitThunk = createThunk<void, ConnectInitHooks | void, void>
                 transports,
                 thp,
                 debug: showConnectLogs,
+                createLogger,
                 firmwareHashCheckTimeouts,
-                firmwareUpdateSource: getFirmwareUpdateSource(),
+                firmwareChannel: getEffectiveFirmwareChannel(getState()),
+                definitionsChannel,
+                // Suite's enabled coins, declared to Connect one-way (Suite is the source of truth).
+                enabledNetworks: selectEnabledNetworks(getState()).map(coin => ({ coin })),
             });
         } catch (error) {
             let formattedError: string;

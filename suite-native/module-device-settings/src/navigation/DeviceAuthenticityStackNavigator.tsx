@@ -5,17 +5,20 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useDeviceAuthenticityCheck } from '@suite-native/device';
 import {
-    DeviceAuthenticityStackParamList,
+    DeviceConnectionGuardScreen,
+    useDeviceConnectionGuard,
+} from '@suite-native/device-authorization';
+import {
+    type DeviceAuthenticityStackParamList,
     DeviceAuthenticityStackRoutes,
-    DeviceSettingsStackParamList,
+    type DeviceSettingsStackParamList,
     DeviceSettingsStackRoutes,
-    RootStackParamList,
+    type RootStackParamList,
     RootStackRoutes,
-    StackToStackCompositeNavigationProps,
+    type StackToStackCompositeNavigationProps,
     stackNavigationOptionsConfig,
 } from '@suite-native/navigation';
 
-import { useDeviceConnectionGuard } from '../hooks/useDeviceConnectionGuard';
 import { ContinueOnTrezorScreen } from '../screens/ContinueOnTrezorScreen';
 import { DeviceAuthenticitySuccessScreen } from '../screens/DeviceAuthenticitySuccessScreen';
 
@@ -28,34 +31,45 @@ type NavigationProp = StackToStackCompositeNavigationProps<
 >;
 
 export const DeviceAuthenticityStackNavigator = () => {
-    const [isAuthenticityCheckStarted, setIsAuthenticityCheckStarted] = useState(false);
     const navigation = useNavigation<NavigationProp>();
+
+    const { isDeviceConnectionGuardVisible } = useDeviceConnectionGuard();
+    const { checkDeviceAuthenticity } = useDeviceAuthenticityCheck();
+    const [isAuthenticityCheckStarted, setIsAuthenticityCheckStarted] = useState(false);
+
     const handleSuccess = useCallback(() => {
-        navigation.navigate(RootStackRoutes.DeviceSettingsStack, {
-            screen: DeviceSettingsStackRoutes.DeviceAuthenticityStack,
-            params: {
-                screen: DeviceAuthenticityStackRoutes.AuthenticitySuccess,
-            },
+        navigation.navigate(DeviceSettingsStackRoutes.DeviceAuthenticityStack, {
+            screen: DeviceAuthenticityStackRoutes.AuthenticitySuccess,
         });
     }, [navigation]);
 
-    const { checkDeviceAuthenticity } = useDeviceAuthenticityCheck();
-    const { isDeviceConnected } = useDeviceConnectionGuard();
+    const handleFailure = useCallback(() => {
+        navigation.navigate(RootStackRoutes.DeviceCompromisedModal, {
+            failedCheck: 'device-authenticity',
+        });
+    }, [navigation]);
 
     useEffect(() => {
-        if (isDeviceConnected && !isAuthenticityCheckStarted) {
+        if (!isDeviceConnectionGuardVisible && !isAuthenticityCheckStarted) {
             setIsAuthenticityCheckStarted(true);
-            checkDeviceAuthenticity(handleSuccess);
+            checkDeviceAuthenticity({ handleSuccess, handleFailure });
         }
-    }, [checkDeviceAuthenticity, handleSuccess, isAuthenticityCheckStarted, isDeviceConnected]);
-
-    if (!isDeviceConnected) return;
+    }, [
+        isDeviceConnectionGuardVisible,
+        isAuthenticityCheckStarted,
+        checkDeviceAuthenticity,
+        handleSuccess,
+        handleFailure,
+    ]);
 
     return (
-        <DeviceAuthenticityStack.Navigator
-            initialRouteName={DeviceAuthenticityStackRoutes.AuthenticityCheck}
-            screenOptions={stackNavigationOptionsConfig}
-        >
+        <DeviceAuthenticityStack.Navigator screenOptions={stackNavigationOptionsConfig}>
+            {isDeviceConnectionGuardVisible && (
+                <DeviceAuthenticityStack.Screen
+                    name={DeviceAuthenticityStackRoutes.DeviceConnectionGuard}
+                    component={DeviceConnectionGuardScreen}
+                />
+            )}
             <DeviceAuthenticityStack.Screen
                 name={DeviceAuthenticityStackRoutes.AuthenticityCheck}
                 component={ContinueOnTrezorScreen}

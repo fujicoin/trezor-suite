@@ -1,15 +1,19 @@
-import { usePin } from '@suite-common/wallet-core';
+import { Translation } from '@suite/intl';
+import { selectModalRequestId } from '@suite/modal';
+import { usePin } from '@suite-common/device';
 import { Modal } from '@trezor/components';
-import { ConfirmOnDevice } from '@trezor/product-components';
+import { ConfirmOnDevicePill } from '@trezor/product-components';
 
-import { PinMatrix, Translation } from 'src/components/suite';
-import { TrezorDevice } from 'src/types/suite';
+import { PinMatrix } from 'src/components/suite/PinMatrix/PinMatrix';
+import { useSelector } from 'src/hooks/suite';
+import { type TrezorDevice } from 'src/types/suite';
 
 type PinModalProps = {
     device: TrezorDevice;
 };
 
 export const PinModal = ({ device }: PinModalProps) => {
+    const requestId = useSelector(selectModalRequestId);
     const {
         isSettingNewPin,
         isSettingNewWipeCode,
@@ -19,7 +23,7 @@ export const PinModal = ({ device }: PinModalProps) => {
         setPin,
         pin,
         submitted,
-    } = usePin(device.buttonRequests);
+    } = usePin(device.buttonRequests, requestId);
     if (!device.features) return null;
 
     const getHeading = () => {
@@ -41,7 +45,7 @@ export const PinModal = ({ device }: PinModalProps) => {
 
     return (
         <Modal.Backdrop>
-            <ConfirmOnDevice
+            <ConfirmOnDevicePill
                 title={<Translation id="TR_CONFIRM_ON_TREZOR" />}
                 deviceModelInternal={device.features?.internal_model}
                 deviceUnitColor={device?.features?.unit_color}
@@ -51,17 +55,23 @@ export const PinModal = ({ device }: PinModalProps) => {
                 heading={<Translation id={getHeading()} />}
                 onCancel={onCancel}
                 data-testid="@modal/pin"
-                size="tiny"
+                width={400}
                 bottomContent={
                     <>
                         <Modal.Button
                             onClick={handlePinSubmit}
                             data-testid="@pin/submit-button"
                             isDisabled={submitted}
+                            flex="1"
                         >
                             <Translation id="TR_CONFIRM" />
                         </Modal.Button>
-                        <Modal.Button onClick={onCancel} variant="tertiary">
+                        <Modal.Button
+                            onClick={onCancel}
+                            intent="neutral"
+                            priority="secondary"
+                            flex="1"
+                        >
                             <Translation id="TR_CANCEL" />
                         </Modal.Button>
                     </>

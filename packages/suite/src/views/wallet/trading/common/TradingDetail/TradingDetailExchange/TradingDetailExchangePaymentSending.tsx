@@ -1,37 +1,101 @@
-import styled from 'styled-components';
+import { type ExchangeTrade } from 'invity-api';
 
-import { Button, H4, Spinner } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { formatDurationStrict } from '@suite-common/suite-utils';
+import { type TradingComposedTransactionInfo } from '@suite-common/trading';
+import { networks } from '@suite-common/wallet-config';
+import { selectRawNetworkFeeInfo } from '@suite-common/wallet-core';
+import { Card, Column, InfoItem, type StepListItemState } from '@trezor/components';
 
-import { Translation } from 'src/components/suite/Translation';
+import { useLocales } from 'src/hooks/suite';
+import { useSelector } from 'src/hooks/suite/useSelector';
+import { type Account } from 'src/types/wallet';
 
-const Wrapper = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 60px 20px;
-    flex-direction: column;
-`;
+import { TradingDetailStep } from '../TradingDetailStep';
+import { TradingDetailTxId } from '../TradingDetailTxId';
+import { getTxEstimatedTimeSeconds } from '../utils';
 
-interface PaymentSendingProps {
-    supportUrl?: string;
-}
+const getState = (trade: ExchangeTrade): StepListItemState => {
+    switch (trade.status) {
+        case 'CONVERTING':
+        case 'SUCCESS':
+            return 'done';
+        default:
+            return 'active';
+    }
+};
 
-export const TradingDetailExchangePaymentSending = ({ supportUrl }: PaymentSendingProps) => (
-    <Wrapper>
-        <Spinner />
-        <H4 data-testid="@trading/transaction/detail/status" margin={{ top: spacings.xl }}>
-            <Translation id="TR_EXCHANGE_DETAIL_SENDING_TITLE" />
-        </H4>
-        {supportUrl && (
-            <Button
-                variant="tertiary"
-                href={supportUrl}
-                target="_blank"
-                margin={{ top: spacings.xxxxl }}
-            >
-                <Translation id="TR_EXCHANGE_DETAIL_SENDING_SUPPORT" />
-            </Button>
-        )}
-    </Wrapper>
-);
+const getTitleId = (state: StepListItemState): TranslationKey => {
+    switch (state) {
+        case 'active':
+            return 'TR_EXCHANGE_DETAIL_SENDING_TRANSACTION';
+        default:
+            return 'TR_EXCHANGE_DETAIL_TRANSACTION_SENT';
+    }
+};
+
+type TradingDetailExchangePaymentSendingProps = {
+    trade: ExchangeTrade;
+    account?: Account;
+    composedTransaction?: TradingComposedTransactionInfo;
+};
+
+export const TradingDetailExchangePaymentSending = ({
+    trade,
+    account,
+    composedTransaction,
+}: TradingDetailExchangePaymentSendingProps) => {
+    const locale = useLocales();
+    const rawFeeInfo = useSelector(state =>
+        account ? selectRawNetworkFeeInfo(state, account.symbol) : undefined,
+    );
+
+    const state = getState(trade);
+    const networkType = account ? networks[account.symbol]?.networkType : undefined;
+    const estimatedTimeSeconds = getTxEstimatedTimeSeconds(
+        networkType,
+        rawFeeInfo,
+        composedTransaction,
+    );
+    const estimatedTime = estimatedTimeSeconds
+        ? `~${formatDurationStrict(estimatedTimeSeconds, locale)}`
+        : undefined;
+
+    const txId =
+        trade.receiveTxHash && account ? (
+            <TradingDetailTxId
+                intent="neutral"
+                priority={state === 'done' ? 'secondary' : 'primary'}
+                value={trade.receiveTxHash}
+                account={account}
+            />
+        ) : null;
+
+    return (
+        <TradingDetailStep
+            doneContent={txId}
+            state={state}
+            title={<Translation id={getTitleId(state)} />}
+        >
+            {txId || estimatedTime ? (
+                <Card>
+                    <Column gap={8}>
+                        {estimatedTime && (
+                            <InfoItem
+                                label={<Translation id="TR_ESTIMATED_TIME" />}
+                                direction="row"
+                            >
+                                {estimatedTime}
+                            </InfoItem>
+                        )}
+                        {txId && (
+                            <InfoItem label={<Translation id="TR_TXID" />} direction="row">
+                                {txId}
+                            </InfoItem>
+                        )}
+                    </Column>
+                </Card>
+            ) : null}
+        </TradingDetailStep>
+    );
+};

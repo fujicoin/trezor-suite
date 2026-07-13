@@ -1,20 +1,23 @@
 import { combineReducers } from '@reduxjs/toolkit';
-import { SellFiatTrade } from 'invity-api';
+import { type SellFiatTrade } from 'invity-api';
 
 import { createThunk } from '@suite-common/redux-utils';
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
 import { getNetwork } from '@suite-common/wallet-config';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
+import { mockAccountKey } from '@suite-common/wallet-types/mocks';
 
-import { sellThunks, tradingThunks } from '../../';
 import { accountBtc } from '../../../__fixtures__/utils';
 import { invityAPI } from '../../../invityAPI';
-import { TradingSellState, sellInitialState } from '../../../reducers/sellReducer';
-import { initialState, prepareTradingReducer } from '../../../reducers/tradingReducer';
-import { TradingSellFormProps, TradingTransactionSell } from '../../../types';
+import { type TradingSellState, sellInitialState } from '../../../reducers/sellReducer';
+import { initialState } from '../../../reducers/tradingCommonReducer';
+import { prepareTradingReducer } from '../../../reducers/tradingReducer';
+import { type TradingTransactionSell } from '../../../types';
 import { sellUtilsFixtures } from '../../../utils/sell/__fixtures__/sellUtils';
+import { tradingThunks } from '../../common';
+import { sellThunks } from '../index';
 
-const tradingReducer = prepareTradingReducer(extraDependenciesMock);
+const tradingReducer = prepareTradingReducer(extraDependenciesCommonMock);
 
 describe('sendSellTransactionThunk', () => {
     const date = new Date('2025-04-09');
@@ -56,12 +59,12 @@ describe('sendSellTransactionThunk', () => {
             extra: {},
             reducer: combineReducers({
                 wallet: combineReducers({
-                    tradingNew: tradingReducer,
+                    trading: tradingReducer,
                 }),
             }),
             preloadedState: {
                 wallet: {
-                    tradingNew: {
+                    trading: {
                         ...initialState,
                         sell: {
                             ...sellInitialState,
@@ -79,14 +82,11 @@ describe('sendSellTransactionThunk', () => {
             date: new Date().toISOString(),
             key: getQuote().orderId,
             data: getQuote(),
-            sendAccountKey: 'xxx',
+            sendAccountKey: mockAccountKey({ descriptor: 'xxx' }),
         };
         const mockNextStep = jest.fn();
-        const formValues = {
-            setMaxOutputId: undefined,
-        } as TradingSellFormProps;
 
-        return { store, account, trade, formValues, mockNextStep };
+        return { store, account, trade, mockNextStep };
     };
 
     describe('should return error', () => {
@@ -99,7 +99,7 @@ describe('sendSellTransactionThunk', () => {
                 { trade: { orderId: 'orderId', cryptoStringAmount: '1' } },
             ],
         ])('%s', async (_, tradeTest) => {
-            const { store, account, formValues, mockNextStep } = getMocks();
+            const { store, account, mockNextStep } = getMocks();
 
             jest.spyOn(invityAPI, 'doSellConfirm');
 
@@ -111,13 +111,12 @@ describe('sendSellTransactionThunk', () => {
                     },
                     decimals: getNetwork(account.symbol).decimals,
                     shouldSendInSats: false,
-                    formValues,
                     nextStep: mockNextStep,
                     signAndPushSendFormTransaction: jest.fn(),
                 }),
             );
 
-            const tradingState = store.getState().wallet.tradingNew;
+            const tradingState = store.getState().wallet.trading;
 
             expect(tradingState.modalAccountKey).toBe(account.key);
             expect(tradingThunks.recomposeAndSignTxThunk).toHaveBeenCalledTimes(0);
@@ -141,7 +140,7 @@ describe('sendSellTransactionThunk', () => {
             ['when payload contains error', { type: 'error', error: { id: 'TR_ERROR' } }],
             ['when payload is not successful', { success: false }],
         ])('%s', async (_, recomposeAndSignPayload) => {
-            const { store, account, formValues, trade, mockNextStep } = getMocks();
+            const { store, account, trade, mockNextStep } = getMocks();
 
             jest.spyOn(tradingThunks, 'recomposeAndSignTxThunk').mockImplementation(
                 createThunk(
@@ -159,12 +158,11 @@ describe('sendSellTransactionThunk', () => {
                     trade: { ...trade.data },
                     decimals: getNetwork(account.symbol).decimals,
                     shouldSendInSats: false,
-                    formValues,
                     nextStep: mockNextStep,
                     signAndPushSendFormTransaction: jest.fn(),
                 }),
             );
-            const tradingState = store.getState().wallet.tradingNew;
+            const tradingState = store.getState().wallet.trading;
 
             expect(tradingState.modalAccountKey).toBe(account.key);
             expect(tradingThunks.recomposeAndSignTxThunk).toHaveBeenCalledTimes(1);
@@ -205,7 +203,7 @@ describe('sendSellTransactionThunk', () => {
                 { id: 'TR_TRADING_INVALID_RESPONSE' },
             ],
         ])('%s', async (_, response, error) => {
-            const { store, account, formValues, trade, mockNextStep } = getMocks();
+            const { store, account, trade, mockNextStep } = getMocks();
 
             invityAPI.doSellConfirm = () => Promise.resolve(response as unknown as SellFiatTrade);
 
@@ -215,12 +213,11 @@ describe('sendSellTransactionThunk', () => {
                     trade: { ...trade.data },
                     decimals: getNetwork(account.symbol).decimals,
                     shouldSendInSats: false,
-                    formValues,
                     nextStep: mockNextStep,
                     signAndPushSendFormTransaction: jest.fn(),
                 }),
             );
-            const tradingState = store.getState().wallet.tradingNew;
+            const tradingState = store.getState().wallet.trading;
 
             expect(tradingState.modalAccountKey).toBe(account.key);
             expect(tradingThunks.recomposeAndSignTxThunk).toHaveBeenCalledTimes(1);
@@ -238,7 +235,7 @@ describe('sendSellTransactionThunk', () => {
     });
 
     it('should send transaction, save trade and call next step', async () => {
-        const { store, account, formValues, trade, mockNextStep } = getMocks();
+        const { store, account, trade, mockNextStep } = getMocks();
         const responseData = {
             ...trade.data,
             error: undefined,
@@ -254,12 +251,11 @@ describe('sendSellTransactionThunk', () => {
                 trade: { ...trade.data },
                 decimals: getNetwork(account.symbol).decimals,
                 shouldSendInSats: false,
-                formValues,
                 nextStep: mockNextStep,
                 signAndPushSendFormTransaction: jest.fn(),
             }),
         );
-        const tradingState = store.getState().wallet.tradingNew;
+        const tradingState = store.getState().wallet.trading;
 
         expect(tradingState.modalAccountKey).toBe(account.key);
         expect(tradingThunks.recomposeAndSignTxThunk).toHaveBeenCalledTimes(1);
@@ -271,7 +267,7 @@ describe('sendSellTransactionThunk', () => {
                     ...responseData,
                 },
                 key: responseData.orderId,
-                sendAccountKey: 'btc-descriptor-btc',
+                sendAccountKey: accountBtc.key,
             },
         ]);
         expect(tradingState.sell.transactionId).toBe('orderId');
@@ -280,7 +276,7 @@ describe('sendSellTransactionThunk', () => {
     });
 
     it('should send transaction, save trade and call next step with shouldSendInSats true', async () => {
-        const { store, account, formValues, trade, mockNextStep } = getMocks();
+        const { store, account, trade, mockNextStep } = getMocks();
         const responseData = {
             ...trade.data,
             error: undefined,
@@ -296,12 +292,11 @@ describe('sendSellTransactionThunk', () => {
                 trade: { ...trade.data },
                 decimals: getNetwork(account.symbol).decimals,
                 shouldSendInSats: true,
-                formValues,
                 nextStep: mockNextStep,
                 signAndPushSendFormTransaction: jest.fn(),
             }),
         );
-        const tradingState = store.getState().wallet.tradingNew;
+        const tradingState = store.getState().wallet.trading;
         const mockedRecomposeAndSignTxThunk =
             tradingThunks.recomposeAndSignTxThunk as unknown as jest.Mock;
 
@@ -316,7 +311,7 @@ describe('sendSellTransactionThunk', () => {
                     ...responseData,
                 },
                 key: responseData.orderId,
-                sendAccountKey: 'btc-descriptor-btc',
+                sendAccountKey: accountBtc.key,
             },
         ]);
         expect(tradingState.sell.transactionId).toBe('orderId');
@@ -330,13 +325,6 @@ describe('sendSellTransactionThunk', () => {
                 ...getQuote(),
                 exchange: undefined,
             },
-            sellInfo: {
-                providerInfos: {
-                    cexdirect: {
-                        lockSendAmount: false,
-                    },
-                },
-            } as any,
         });
         const responseData = {
             ...trade.data,
@@ -353,21 +341,17 @@ describe('sendSellTransactionThunk', () => {
                 trade: undefined,
                 decimals: getNetwork(account.symbol).decimals,
                 shouldSendInSats: true,
-                formValues: {
-                    setMaxOutputId: 0,
-                } as TradingSellFormProps,
                 nextStep: mockNextStep,
                 signAndPushSendFormTransaction: jest.fn(),
             }),
         );
-        const tradingState = store.getState().wallet.tradingNew;
+        const tradingState = store.getState().wallet.trading;
         const mockedRecomposeAndSignTxThunk =
             tradingThunks.recomposeAndSignTxThunk as unknown as jest.Mock;
 
         expect(tradingState.modalAccountKey).toBe(account.key);
         expect(tradingThunks.recomposeAndSignTxThunk).toHaveBeenCalledTimes(1);
         expect(mockedRecomposeAndSignTxThunk.mock.calls[0][0].amount).toBe('1000000');
-        expect(mockedRecomposeAndSignTxThunk.mock.calls[0][0].setMaxOutputId).toBe(0);
         expect(tradingState.trades).toEqual([
             {
                 tradeType: 'sell',
@@ -376,62 +360,7 @@ describe('sendSellTransactionThunk', () => {
                     ...responseData,
                 },
                 key: responseData.orderId,
-                sendAccountKey: 'btc-descriptor-btc',
-            },
-        ]);
-        expect(tradingState.sell.transactionId).toBe('orderId');
-        expect(mockNextStep).toHaveBeenCalledTimes(1);
-        expect(result.meta.requestStatus).toEqual('fulfilled');
-    });
-
-    it('should send transaction, save trade and call next step with fallback selectedQuote with set lockSendAmount', async () => {
-        const { store, account, trade, formValues, mockNextStep } = getMocks({
-            selectedQuote: getQuote(),
-            sellInfo: {
-                providerInfos: {
-                    cexdirect: {
-                        lockSendAmount: true,
-                    },
-                },
-            } as any,
-        });
-        const responseData = {
-            ...trade.data,
-            error: undefined,
-            status: 'SUBMITTED',
-            orderId: 'orderId',
-        } as SellFiatTrade;
-
-        invityAPI.doSellConfirm = () => Promise.resolve(responseData);
-
-        const result = await store.dispatch(
-            sellThunks.sendTransactionThunk({
-                account,
-                trade: undefined,
-                decimals: getNetwork(account.symbol).decimals,
-                shouldSendInSats: true,
-                formValues,
-                nextStep: mockNextStep,
-                signAndPushSendFormTransaction: jest.fn(),
-            }),
-        );
-        const tradingState = store.getState().wallet.tradingNew;
-        const mockedRecomposeAndSignTxThunk =
-            tradingThunks.recomposeAndSignTxThunk as unknown as jest.Mock;
-
-        expect(tradingState.modalAccountKey).toBe(account.key);
-        expect(tradingThunks.recomposeAndSignTxThunk).toHaveBeenCalledTimes(1);
-        expect(mockedRecomposeAndSignTxThunk.mock.calls[0][0].amount).toBe('1000000');
-        expect(mockedRecomposeAndSignTxThunk.mock.calls[0][0].setMaxOutputId).toBeUndefined();
-        expect(tradingState.trades).toEqual([
-            {
-                tradeType: 'sell',
-                date: dateISO,
-                data: {
-                    ...responseData,
-                },
-                key: responseData.orderId,
-                sendAccountKey: 'btc-descriptor-btc',
+                sendAccountKey: accountBtc.key,
             },
         ]);
         expect(tradingState.sell.transactionId).toBe('orderId');

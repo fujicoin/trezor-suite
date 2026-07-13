@@ -1,4 +1,5 @@
 import { DeviceModelInternal } from '@trezor/device-utils';
+import { bufferUtils } from '@trezor/utils';
 
 import {
     dataUrlToImage,
@@ -14,8 +15,8 @@ import {
 import * as fixtures from '../__fixtures__/homescreen';
 
 describe('homescreen', () => {
-    describe('fileToDataUrl', () => {
-        it('should convert a JPG file to a data URL', async () => {
+    describe(fileToDataUrl.name, () => {
+        it('converts a JPG file to a data URL', async () => {
             const jpegFile = new File(['dummy image'], 'test.jpg', { type: 'image/jpeg' });
 
             const dataUrl = await fileToDataUrl(jpegFile);
@@ -23,7 +24,7 @@ describe('homescreen', () => {
             expect(dataUrl.startsWith('data:image/jpeg;base64,')).toBe(true);
         });
 
-        it('should convert a PNG file to a data URL', async () => {
+        it('converts a PNG file to a data URL', async () => {
             const pngFile = new File(['dummy image'], 'test.png', { type: 'image/png' });
 
             const dataUrl = await fileToDataUrl(pngFile);
@@ -32,8 +33,8 @@ describe('homescreen', () => {
         });
     });
 
-    describe('fileToArrayBuffer', () => {
-        it('should convert a JPG file to an ArrayBuffer', async () => {
+    describe(fileToArrayBuffer.name, () => {
+        it('converts a JPG file to an ArrayBuffer', async () => {
             const imageFile = new File(['dummy data'], 'test.jpg', { type: 'image/jpeg' });
 
             const arrayBuffer = await fileToArrayBuffer(imageFile);
@@ -44,7 +45,7 @@ describe('homescreen', () => {
         });
     });
 
-    describe('dataUrlToImage', () => {
+    describe(dataUrlToImage.name, () => {
         const originalCreateElement = document.createElement;
         beforeAll(() => {
             (document.createElement as any) = ((create: typeof originalCreateElement) =>
@@ -68,7 +69,7 @@ describe('homescreen', () => {
             document.createElement = originalCreateElement;
         });
 
-        it('should convert a data URL to an image', async () => {
+        it('converts a data URL to an image', async () => {
             // mock image 1x1
             const dataUrl =
                 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z/C/HgAGBQF/yw+3HwAAAABJRU5ErkJggg==';
@@ -79,7 +80,7 @@ describe('homescreen', () => {
         });
     });
 
-    describe('isValidImageFormat', () => {
+    describe(isValidImageFormat.name, () => {
         fixtures.isValidImageFormat.forEach(fixture => {
             it(fixture.description, () => {
                 const result = isValidImageFormat(fixture.dataUrl, fixture.deviceModelInternal);
@@ -88,7 +89,7 @@ describe('homescreen', () => {
         });
     });
 
-    describe('isValidImageWidth', () => {
+    describe(isValidImageWidth.name, () => {
         fixtures.isValidImageWidth.forEach(fixture => {
             it(fixture.description, () => {
                 const image = new Image();
@@ -99,7 +100,7 @@ describe('homescreen', () => {
         });
     });
 
-    describe('isValidImageHeigh', () => {
+    describe(isValidImageHeight.name, () => {
         fixtures.isValidImageHeight.forEach(fixture => {
             it(fixture.description, () => {
                 const image = new Image();
@@ -110,23 +111,24 @@ describe('homescreen', () => {
         });
     });
 
-    describe('isProgressiveJPG', () => {
+    describe(isProgressiveJPG.name, () => {
         fixtures.isProgressiveJPG.forEach(fixture => {
             it(fixture.description, () => {
-                const result = isProgressiveJPG(fixture.buffer, fixture.deviceModelInternal);
+                const rawBytes = bufferUtils.bufferToBytes(Buffer.from(fixture.buffer));
+                const result = isProgressiveJPG(rawBytes, fixture.deviceModelInternal);
                 expect(result).toBe(fixture.result);
             });
         });
     });
 
-    describe('isValidImageSize', () => {
-        it('should return true for non-T2T1 device models', () => {
+    describe(isValidImageSize.name, () => {
+        it('returns true for non-T2T1 device models', () => {
             const file = new File([], 'test.png', { type: 'image/png', lastModified: 0 });
             expect(isValidImageSize(file, DeviceModelInternal.T3B1)).toBe(true);
             expect(isValidImageSize(file, DeviceModelInternal.T1B1)).toBe(true);
         });
 
-        it('should return true for touch devices when file size is less than or equal to 16384 bytes', () => {
+        it('returns true for touch devices when file size is less than or equal to 16384 bytes', () => {
             const file = new File([], 'test.png', {
                 type: 'image/png',
                 lastModified: 0,
@@ -137,7 +139,7 @@ describe('homescreen', () => {
             expect(isValidImageSize(file, DeviceModelInternal.T3T1)).toBe(true);
         });
 
-        it('should return false for touch devices models when file size is greater than 16384 bytes', () => {
+        it('returns false for touch devices models when file size is greater than 16384 bytes', () => {
             const file = new File([], 'test.png', {
                 type: 'image/png',
                 lastModified: 0,

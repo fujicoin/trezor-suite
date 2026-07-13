@@ -1,14 +1,12 @@
-import { MouseEventHandler, useEffect } from 'react';
+import { type MouseEventHandler } from 'react';
 
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
 import { acquireDevice } from '@suite-common/wallet-core';
-import { Button } from '@trezor/components';
+import { Banner } from '@trezor/components';
 
-import { Translation, TroubleshootingTips } from 'src/components/suite';
-import {
-    TROUBLESHOOTING_TIP_CLOSE_ALL_TABS,
-    TROUBLESHOOTING_TIP_RECONNECT,
-} from 'src/components/suite/troubleshooting/tips';
-import { useDevice, useDispatch } from 'src/hooks/suite';
+import { TroubleshootingTips } from 'src/components/suite/troubleshooting/TroubleshootingTips';
+import { useDispatch } from 'src/hooks/suite';
 
 export const DeviceTrezorHostProtocolPair = () => {
     const { isLocked, device } = useDevice();
@@ -21,29 +19,21 @@ export const DeviceTrezorHostProtocolPair = () => {
     };
 
     const ctaButton = (
-        <Button
+        <Banner.Button
             data-testid="@device-acquire"
             isLoading={isDeviceLocked}
             onClick={handleStartPairing}
         >
             <Translation id="TR_CONTINUE" />
-        </Button>
+        </Banner.Button>
     );
-
-    const tips = [TROUBLESHOOTING_TIP_CLOSE_ALL_TABS, TROUBLESHOOTING_TIP_RECONNECT];
-
-    // if possible, prompt for THP pairing right away
-    useEffect(() => {
-        if (!isDeviceLocked) {
-            dispatch(acquireDevice({ requestedDevice: device }));
-        }
-    });
 
     return (
         <TroubleshootingTips
-            label={<Translation id="TR_NEEDS_TREZOR_HOST_PROTOCOL_PAIRING_DESCRIPTION" />}
+            label={<Translation id="TR_THP_CREATE_SECURE_CONNECTION" />}
             cta={ctaButton}
-            items={tips}
+            intent="info"
+            items={[]}
         />
     );
 };

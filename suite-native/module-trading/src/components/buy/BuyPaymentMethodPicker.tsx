@@ -1,17 +1,18 @@
 import { useSelector } from 'react-redux';
 
-import { BuyTrade } from 'invity-api';
+import type { BuyTrade } from 'invity-api';
 
+import { useServices } from '@suite-common/dependency-injection';
 import { selectTradingBuyIsLoading } from '@suite-common/trading';
-import { EventType, analytics } from '@suite-native/analytics';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { Text } from '@suite-native/atoms';
 import { Translation, useTranslate } from '@suite-native/intl';
+import { OverviewRow, OverviewValueSkeleton } from '@suite-native/trading-atoms';
+import { selectBuyBestQuotesForAvailablePaymentMethods } from '@suite-native/trading-state';
 
 import { useBuyFormContext } from '../../hooks/buy/useBuyFormContext';
 import { useSheetControls } from '../../hooks/general/useSheetControls';
-import { selectBuyBestQuotesForAvailablePaymentMethods } from '../../selectors/buySelectors';
-import { OverviewRow } from '../general/OverviewRow';
-import { OverviewValueSkeleton } from '../general/OverviewValueSkeleton';
+import { PaymentMethodPickerValue } from '../general/PaymentMethodPickerValue';
 import { PaymentMethodSheet } from '../general/PaymentMethodSheet/PaymentMethodSheet';
 
 const PAYMENT_METHOD_PICKER_TEST_ID = '@trading/buy/payment-method-picker';
@@ -33,21 +34,19 @@ const BuyPaymentMethodPickerRight = ({
 
     if (selectedValue) {
         return (
-            <Text
-                color="textSubdued"
-                variant="body"
+            <PaymentMethodPickerValue
+                paymentMethod={selectedValue.paymentMethod}
+                paymentMethodName={selectedValue.paymentMethodName}
                 accessibilityLabel={translate('moduleTrading.tradingScreen.selectedPaymentMethod')}
                 testID={PAYMENT_METHOD_PICKER_TEST_ID + '/value'}
-            >
-                {selectedValue.paymentMethodName}
-            </Text>
+            />
         );
     }
 
     return (
         <Text
-            color="textDisabled"
-            variant="body"
+            color="contentDisabled"
+            variant="body-sm"
             accessibilityLabel={translate('moduleTrading.tradingScreen.noPaymentMethod')}
         >
             <Translation id="moduleTrading.notSelected" />
@@ -57,6 +56,7 @@ const BuyPaymentMethodPickerRight = ({
 
 export const BuyPaymentMethodPicker = () => {
     const { translate } = useTranslate();
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const form = useBuyFormContext();
     const quotes = useSelector(selectBuyBestQuotesForAvailablePaymentMethods);
     const isLoading = useSelector(selectTradingBuyIsLoading);
@@ -81,7 +81,7 @@ export const BuyPaymentMethodPicker = () => {
         if (selectedValue?.paymentMethod === quote.paymentMethod) return;
 
         analytics.report({
-            type: EventType.TradingParameterChanged,
+            type: events.tradingParameterChangedEvent.name,
             payload: {
                 type: 'buy',
                 parameter: 'paymentMethod',

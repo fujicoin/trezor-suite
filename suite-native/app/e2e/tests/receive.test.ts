@@ -1,31 +1,32 @@
-import { conditionalDescribe } from '@suite-common/test-utils';
-import { TrezorUserEnvLink } from '@trezor/trezor-user-env-link';
+import { Model, TrezorUserEnvLink } from '@trezor/trezor-user-env-link';
 
-import { onboardingCompleted } from '../fixtures/onboardingCompleted';
+import { btcDiscoveryFinishedStateT3T1 } from '../fixtures/btcDiscoveryFinishedStateT3T1';
+import { btcDiscoveryFinishedStateT3W1 } from '../fixtures/btcDiscoveryFinishedStateT3W1';
+import { onboardingCompletedState } from '../fixtures/onboardingCompletedState';
 import { onAccountDetail } from '../pageObjects/accountDetailActions';
 import { onAccountReceive } from '../pageObjects/accountReceiveActions';
-import { onCoinEnabling } from '../pageObjects/coinEnablingActions';
+import { onDeviceManager } from '../pageObjects/deviceManagerActions';
 import { onHome } from '../pageObjects/homeActions';
 import { onMyAssets } from '../pageObjects/myAssetsActions';
 import { onTabBar } from '../pageObjects/tabBarActions';
-import { disconnectTrezorUserEnv, openApp, prepareTrezorEmulator } from '../utils';
+import { openApp, preparePreloadedReduxState, prepareTrezorEmulator } from '../support/setup';
+import { getModelFromEnv } from '../support/utils';
 
-conditionalDescribe(device.getPlatform() === 'android', 'Receive', () => {
-    beforeAll(async () => {
+const preloadedState = preparePreloadedReduxState(
+    onboardingCompletedState,
+    getModelFromEnv() === Model.T3W1
+        ? btcDiscoveryFinishedStateT3W1
+        : btcDiscoveryFinishedStateT3T1,
+);
+
+describe('Receive [@androidOnly @T3T1 @T3W1]', () => {
+    beforeEach(async () => {
         await prepareTrezorEmulator();
-        await openApp({ newInstance: true, args: { preloadedState: onboardingCompleted } });
-    });
-
-    afterAll(async () => {
-        await disconnectTrezorUserEnv();
-        await device.terminateApp();
+        await openApp({ args: { preloadedState } });
+        await onDeviceManager.assertDeviceSwitcherState({ title: 'Connected' });
     });
 
     it('Generate device confirmed receive address.', async () => {
-        await onCoinEnabling.waitForInitScreen();
-        await onCoinEnabling.toggleNetwork('btc');
-        await onCoinEnabling.clickOnConfirmButton();
-
         await onHome.waitForScreen();
         await onTabBar.navigateToMyAssets();
 
@@ -36,6 +37,8 @@ conditionalDescribe(device.getPlatform() === 'android', 'Receive', () => {
 
         await onAccountReceive.tapShowAddressButton();
         await TrezorUserEnvLink.pressYes();
-        await onAccountReceive.verifyReceiveAddress('bc1qa55m6kz3crfse5xg2rukulyap4eyp75w0puawz');
+        await onAccountReceive.verifyReceiveAddress(
+            'bc1q s9al wrln 4e28 se4t q2nc 8dnn vskg 83qe xuj7 s9',
+        );
     });
 });

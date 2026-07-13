@@ -1,13 +1,14 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import {
-    OnboardingStackParamList,
+    type OnboardingStackParamList,
     OnboardingStackRoutes,
     stackNavigationOptionsConfig,
 } from '@suite-native/navigation';
 
 import { AnalyticsConsentScreen } from '../screens/AnalyticsConsentScreen';
 import { BiometricsScreen } from '../screens/BiometricsScreen';
+import { TradingLocationScreen } from '../screens/TradingLocationScreen';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 
 export const OnboardingStack = createNativeStackNavigator<OnboardingStackParamList>();
@@ -25,6 +26,10 @@ export const OnboardingStackNavigator = () => (
         <OnboardingStack.Screen
             name={OnboardingStackRoutes.Biometrics}
             component={BiometricsScreen}
+        />
+        <OnboardingStack.Screen
+            name={OnboardingStackRoutes.TradingLocation}
+            component={TradingLocationScreen}
         />
     </OnboardingStack.Navigator>
 );

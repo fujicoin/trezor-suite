@@ -1,9 +1,9 @@
 import { Box, Button, PictogramTitleHeader, VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import {
-    DeviceCheckBackupStackParamList,
+    type DeviceCheckBackupStackParamList,
     DeviceCheckBackupStackRoutes,
-    StackProps,
+    type StackProps,
 } from '@suite-native/navigation';
 
 import { CheckBackupScreenWithExitButton } from '../components/CheckBackupScreenWithExitButton';
@@ -23,7 +23,7 @@ export const DeviceCheckBackupSuccessScreen = ({
             <VStack flex={1} justifyContent="space-between" alignItems="center">
                 <Box flex={1} justifyContent="center" alignItems="center">
                     <PictogramTitleHeader
-                        titleVariant="titleMedium"
+                        titleVariant="headline-md"
                         variant="success"
                         title={
                             <Translation id="moduleCheckBackup.checkBackupSuccessScreen.title" />

@@ -1,27 +1,28 @@
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 
-import { MAX_DEACTIVATE_ACCOUNTS_WITH_SPLIT, claim, unstake } from '@suite-common/staking-solana';
+import { Translation } from '@suite/intl';
 import { getDisplaySymbol } from '@suite-common/wallet-config';
-import { WALLET_SDK_SOURCE } from '@suite-common/wallet-constants';
 import { selectBlockchainState } from '@suite-common/wallet-core';
-import { Account, PrecomposedLevels } from '@suite-common/wallet-types';
+import { type Account, type PrecomposedLevels } from '@suite-common/wallet-types';
 import {
+    type SolanaStakingLimit,
+    estimateSolanaStakingLimit,
     formatNetworkAmount,
     getOutputTxAmount,
-    getSolanaStakingAccountsByStatus,
+    getSolanaDeactivatedRentReserves,
 } from '@suite-common/wallet-utils';
-import { StakeState } from '@trezor/blockchain-link-types/src/solana';
+import { MAX_DEACTIVATE_ACCOUNTS_WITH_SPLIT } from '@trezor/coins-solana/constants';
 import { Banner } from '@trezor/components';
-import { BigNumber } from '@trezor/utils';
-
-import { Translation } from 'src/components/suite';
+import { getSuiteVersion } from '@trezor/env-utils';
 
 interface SolanaStakingLimitBannerProps {
     account: Account;
     composedLevels?: PrecomposedLevels;
     type: 'claim' | 'unstake';
 }
+
+const NO_LIMIT: SolanaStakingLimit = { isLimitExceeded: false, estimatedAmount: '0' };
 
 export const SolanaStakingLimitBanner = ({
     account,
@@ -30,80 +31,63 @@ export const SolanaStakingLimitBanner = ({
 }: SolanaStakingLimitBannerProps) => {
     const blockchain = useSelector(selectBlockchainState);
 
-    const [estimatedAmount, setEstimatedAmount] = useState<string>('0');
-    const [isAccountLimitExeeded, setIsAccountLimitExeeded] = useState<boolean>(false);
+    const [limit, setLimit] = useState<SolanaStakingLimit>(NO_LIMIT);
 
     const selectedBlockchain = blockchain[account.symbol];
 
     useEffect(() => {
-        if (account.networkType !== 'solana') return;
+        if (account.networkType !== 'solana') {
+            return;
+        }
 
         const outputTxAmount = getOutputTxAmount(composedLevels);
         if (!outputTxAmount || !selectedBlockchain?.url) return;
 
-        const estimateTx = async () => {
-            if (type === 'unstake') {
-                const { unstakeAmount } = await unstake({
-                    network: account.symbol,
-                    sender: account.descriptor,
-                    lamports: BigInt(outputTxAmount),
-                    source: WALLET_SDK_SOURCE,
-                    url: selectedBlockchain.url,
-                });
-                const estimatedAmount = unstakeAmount.toString();
-                setEstimatedAmount(estimatedAmount);
+        let isActive = true;
 
-                // If the estimated transaction amount is less than the output,
-                // we assume the account limit has been exceeded
-                const isLimitExeeded = new BigNumber(estimatedAmount).lt(outputTxAmount);
-                setIsAccountLimitExeeded(isLimitExeeded);
-            }
+        estimateSolanaStakingLimit({
+            descriptor: account.descriptor,
+            deactivatedRentReserves: getSolanaDeactivatedRentReserves(account),
+            blockchainUrl: selectedBlockchain.url,
+            userAgent: `Trezor Suite ${getSuiteVersion()}`,
+            type,
+            outputAmount: outputTxAmount.toString(),
+        })
+            .then(resolved => {
+                if (isActive) {
+                    setLimit(resolved);
+                }
+            })
+            .catch(() => {
+                if (isActive) {
+                    setLimit(NO_LIMIT);
+                }
+            });
 
-            if (type === 'claim') {
-                const { totalClaimAmount } = await claim({
-                    network: account.symbol,
-                    sender: account.descriptor,
-                    url: selectedBlockchain.url,
-                });
-
-                const estimatedAmount = totalClaimAmount.toString();
-                setEstimatedAmount(estimatedAmount);
-
-                const stakingAccounts = getSolanaStakingAccountsByStatus(
-                    account,
-                    StakeState.Deactivated,
-                );
-                // estimatedAmount for claims includes rent-exempt reserves.
-                // We subtract rent from each account to get the real claimable amount.
-                const claimableAmount = stakingAccounts.reduce(
-                    (acc, { rentExemptReserve }) => acc.minus(rentExemptReserve),
-                    new BigNumber(estimatedAmount),
-                );
-
-                const isLimitExeeded = claimableAmount.lt(outputTxAmount);
-                setIsAccountLimitExeeded(isLimitExeeded);
-            }
+        return () => {
+            isActive = false;
         };
-
-        estimateTx();
     }, [account, composedLevels, selectedBlockchain?.url, type]);
 
-    if (!isAccountLimitExeeded) return null;
+    if (!limit.isLimitExceeded) return null;
 
     return (
-        <Banner variant="info">
-            <Translation
-                id={
-                    type === 'claim'
-                        ? 'TR_STAKE_CAN_CLAIM_FROM_ACCOUNTS'
-                        : 'TR_STAKE_CAN_UNSTAKE_FROM_ACCOUNTS'
-                }
-                values={{
-                    limit: MAX_DEACTIVATE_ACCOUNTS_WITH_SPLIT,
-                    amount: formatNetworkAmount(estimatedAmount, account.symbol),
-                    symbol: getDisplaySymbol(account.symbol),
-                }}
-            />
-        </Banner>
+        <Banner
+            intent="info"
+            description={
+                <Translation
+                    id={
+                        type === 'claim'
+                            ? 'TR_STAKE_CAN_CLAIM_FROM_ACCOUNTS'
+                            : 'TR_STAKE_CAN_UNSTAKE_FROM_ACCOUNTS'
+                    }
+                    values={{
+                        limit: MAX_DEACTIVATE_ACCOUNTS_WITH_SPLIT,
+                        amount: formatNetworkAmount(limit.estimatedAmount, account.symbol),
+                        symbol: getDisplaySymbol(account.symbol),
+                    }}
+                />
+            }
+        />
     );
 };

@@ -1,64 +1,75 @@
-import { A, G, pipe } from '@mobily/ts-belt';
+import { A, pipe } from '@mobily/ts-belt';
 
-import { revisionCheckErrorScenarios } from '@suite-common/firmware-authenticity';
 import {
-    Feature,
-    MessageSystemRootState,
-    selectIsFeatureEnabled,
-} from '@suite-common/message-system';
-import { createWeakMapSelector, returnStableArrayIfEmpty } from '@suite-common/redux-utils';
-import { isDeviceAcquired } from '@suite-common/suite-utils';
-import {
-    AccountsRootState,
-    DeviceRootState,
-    DiscoveryRootState,
-    FiatRatesRootState,
+    type DeviceRootState,
     PORTFOLIO_TRACKER_DEVICE_ID,
-    WalletSettingsRootState,
-    getAccountsByDeviceState,
-    selectAccounts,
-    selectAccountsByDeviceState,
-    selectBaseCurrency,
-    selectCurrentFiatRates,
-    selectDeviceAccounts,
+    getIsDeviceIdValid,
+    selectDeviceAuthenticityByDeviceId,
     selectDeviceFirmwareVersionArray,
     selectDeviceInstances,
     selectDeviceModel,
     selectDevices,
     selectHasDeviceFirmwareInstalled,
     selectIsConnectedDeviceUninitialized,
+    selectIsDeviceConnected,
     selectIsDeviceConnectedAndAuthorized,
     selectIsDeviceInBootloader,
-    selectIsDiscoveredDeviceAccountless,
+    selectIsDeviceInvariabilityCheckSuccess,
+    selectIsDeviceThpLocked,
     selectIsEntropyCheckFailed,
     selectIsFirmwareAuthenticityCheckDismissed,
     selectIsUnacquiredDevice,
     selectSelectedDevice,
-    selectSelectedDeviceAuthenticity,
+} from '@suite-common/device';
+import {
+    getFirmwareAuthenticityCheckErrors,
+    getIsHardRevisionCheckError,
+} from '@suite-common/firmware-authenticity';
+import {
+    Feature,
+    type MessageSystemRootState,
+    selectIsFeatureEnabled,
+} from '@suite-common/message-system';
+import { createWeakMapSelector, returnStableArrayIfEmpty } from '@suite-common/redux-utils';
+import { type ThpRootState, selectThpAutoconnectStep } from '@suite-common/thp';
+import {
+    type AccountsRootState,
+    type DiscoveryRootState,
+    type FiatRatesRootState,
+    type WalletSettingsRootState,
+    getAccountsByDeviceState,
+    selectAccounts,
+    selectAccountsByDeviceState,
+    selectBaseCurrency,
+    selectCurrentFiatRates,
+    selectDeviceAccounts,
+    selectHasRunningDiscovery,
+    selectIsDiscoveredDeviceAccountless,
 } from '@suite-common/wallet-core';
-import { Account, RatesByKey } from '@suite-common/wallet-types';
 import {
-    BaseCurrencyAmount,
+    type Account,
+    type BaseCurrencyAmount,
+    type RatesByKey,
     asBaseCurrencyAmount,
-    getAccountFiatBalance,
-} from '@suite-common/wallet-utils';
+} from '@suite-common/wallet-types';
+import { getAccountFiatBalance, isStakingSymbol } from '@suite-common/wallet-utils';
+import { type DeviceOnboardingSliceRootState } from '@suite-native/device-onboarding';
+import { type FeatureFlagsRootState } from '@suite-native/feature-flags';
+import { type NativeFirmwareRootState } from '@suite-native/firmware';
 import {
-    FeatureFlag,
-    FeatureFlagsRootState,
-    selectIsFeatureFlagEnabled,
-} from '@suite-native/feature-flags';
-import { NativeFirmwareRootState } from '@suite-native/firmware';
-import {
-    SettingsSliceRootState,
+    type SettingsSliceRootState,
+    selectAreDeviceMetaChecksEnabled,
     selectIsDeviceAuthenticityCheckEnabled,
+    selectIsFirmwareRevisionCheckEnabled,
 } from '@suite-native/settings';
-import { doesCoinSupportStaking } from '@suite-native/staking';
 import type { BaseCurrencyCode } from '@trezor/blockchain-link-types';
-import { BigNumber } from '@trezor/utils';
+import { type Device } from '@trezor/connect';
+import { BigNumber, isNotNullOrUndefined } from '@trezor/utils';
 
-import { isDeviceSetupSupported, isFirmwareVersionSupported } from './utils';
+import { getIsDeviceSetupSupported, isFirmwareVersionSupported } from './utils';
 
 export type NativeDeviceRootState = DeviceRootState &
+    ThpRootState &
     AccountsRootState &
     DiscoveryRootState &
     SettingsSliceRootState &
@@ -66,7 +77,8 @@ export type NativeDeviceRootState = DeviceRootState &
     FiatRatesRootState &
     FeatureFlagsRootState &
     NativeFirmwareRootState &
-    MessageSystemRootState;
+    MessageSystemRootState &
+    DeviceOnboardingSliceRootState;
 
 const createMemoizedSelector = createWeakMapSelector.withTypes<NativeDeviceRootState>();
 
@@ -97,6 +109,12 @@ export const selectIsDeviceReadyToUseAndAuthorized = (
     return isDeviceReadyToUse && isDeviceConnectedAndAuthorized && !isDiscoveredDeviceAccountless;
 };
 
+export const selectIsDeviceConnectedAndThpUnlocked = createMemoizedSelector(
+    [selectIsDeviceConnected, selectIsDeviceThpLocked, selectThpAutoconnectStep],
+    (isDeviceConnected, isDeviceThpLocked, thpAutoconnectStep) =>
+        isDeviceConnected && !isDeviceThpLocked && thpAutoconnectStep === null,
+);
+
 export const selectDeviceError = (
     state: DeviceRootState & AccountsRootState & DiscoveryRootState,
 ) => {
@@ -124,7 +142,7 @@ const getTotalFiatBalanceNative = ({
                 account: a,
                 baseCurrencyCode: localCurrency,
                 rates,
-                shouldIncludeStaking: doesCoinSupportStaking(a.symbol),
+                shouldIncludeStaking: isStakingSymbol(a.symbol),
             }) ?? '0';
         instanceBalance = instanceBalance.plus(accountFiatBalance);
     });
@@ -133,9 +151,12 @@ const getTotalFiatBalanceNative = ({
 };
 
 export const selectSelectedDeviceTotalFiatBalance = createMemoizedSelector(
-    [selectDeviceAccounts, selectCurrentFiatRates, selectBaseCurrency],
-    (deviceAccounts, rates, localCurrency) =>
-        getTotalFiatBalanceNative({ deviceAccounts, localCurrency, rates }),
+    [selectDeviceAccounts, selectCurrentFiatRates, selectBaseCurrency, selectHasRunningDiscovery],
+    (deviceAccounts, rates, localCurrency, hasRunningDiscovery) =>
+        // do not return any value before discovery is finished to prevent unnecessary rerenders of portfolio graph.
+        hasRunningDiscovery
+            ? undefined
+            : getTotalFiatBalanceNative({ deviceAccounts, localCurrency, rates }),
 );
 
 export const selectDeviceTotalFiatBalanceByDeviceState = createMemoizedSelector(
@@ -168,57 +189,34 @@ export const selectHasNoDeviceWithEmptyPassphrase = createMemoizedSelector(
     deviceInstances => A.isEmpty(deviceInstances.filter(d => d.useEmptyPassphrase)),
 );
 
-/**
- * Get firmware revision check error, or null if check was successful / skipped.
- */
-export const selectFirmwareRevisionCheckError = (state: DeviceRootState) => {
-    const device = selectSelectedDevice(state);
-    if (!isDeviceAcquired(device) || !device.authenticityChecks) return null;
-    const checkResult = device.authenticityChecks.firmwareRevision;
-
-    // null means not performed, then don't consider it failed
-    if (!checkResult || checkResult.success) return null;
-
-    return checkResult.error;
-};
-
 type FwAuthenticityCheckState = NativeDeviceRootState &
     FeatureFlagsRootState &
     MessageSystemRootState;
 /**
  * Get firmware revision check error, or null if check was successful / skipped, if the check is enabled in settings and through message system.
  */
-export const selectFirmwareRevisionCheckErrorIfEnabled = (state: FwAuthenticityCheckState) => {
-    const revisionCheckError = selectFirmwareRevisionCheckError(state);
-    const { isFirmwareRevisionCheckEnabled } = state.appSettings;
-    const isDeviceConnectEnabled = selectIsFeatureFlagEnabled(
-        state,
-        FeatureFlag.IsDeviceConnectEnabled,
-    );
+export const selectFirmwareRevisionCheckErrorIfEnabled = (
+    state: FwAuthenticityCheckState,
+    device: Device,
+) => {
+    const { revisionCheckError } = getFirmwareAuthenticityCheckErrors(device);
+    const isFirmwareRevisionCheckEnabled = selectIsFirmwareRevisionCheckEnabled(state);
     const isMessageSystemFeatureEnabled = selectIsFeatureEnabled(
         state,
         Feature.firmwareRevisionCheckMobile,
         true,
     );
-    const isCheckEnabled =
-        isFirmwareRevisionCheckEnabled && isDeviceConnectEnabled && isMessageSystemFeatureEnabled;
+    const isCheckEnabled = isFirmwareRevisionCheckEnabled && isMessageSystemFeatureEnabled;
 
     return isCheckEnabled ? revisionCheckError : null;
 };
+export const selectSelectedDeviceFirmwareRevisionCheckErrorIfEnabled = (
+    state: FwAuthenticityCheckState,
+) => {
+    const device = selectSelectedDevice(state);
+    if (!device) return null;
 
-export const selectIsSkippedRevisionCheckError = (state: FwAuthenticityCheckState): boolean => {
-    const revisionCheckError = selectFirmwareRevisionCheckErrorIfEnabled(state);
-    if (revisionCheckError === null) return false;
-    if (revisionCheckErrorScenarios[revisionCheckError].type === 'skipped') return true;
-
-    // Special handling for offline error, which is handled as softWarning (top-screen banner),
-    // but the banner is rendered separately in useIsOfflineBannerVisible.
-    // So consider it skipped when rendering the banner centrally.
-    return (
-        revisionCheckError === 'cannot-perform-check-offline' &&
-        // if TS throws error, it means that the aforementioned logic is no longer valid, and it should be reworked
-        revisionCheckErrorScenarios[revisionCheckError].type === 'softWarning'
-    );
+    return selectFirmwareRevisionCheckErrorIfEnabled(state, device);
 };
 
 /**
@@ -226,16 +224,17 @@ export const selectIsSkippedRevisionCheckError = (state: FwAuthenticityCheckStat
  */
 export const selectHasFirmwareAuthenticityCheckHardFailed = createMemoizedSelector(
     [selectFirmwareRevisionCheckErrorIfEnabled],
-    revisionError => {
-        const isRevisionHardError =
-            revisionError !== null &&
-            revisionCheckErrorScenarios[revisionError].type === 'hardModal';
-
-        // FW hash check to be implemented
-
-        return isRevisionHardError;
-    },
+    revisionError => getIsHardRevisionCheckError(revisionError), // FW hash check to be implemented
 );
+
+export const selectHasFirmwareAuthenticityCheckHardFailedForSelectedDevice = (
+    state: FwAuthenticityCheckState,
+) => {
+    const device = selectSelectedDevice(state);
+    if (!device) return false;
+
+    return selectHasFirmwareAuthenticityCheckHardFailed(state, device);
+};
 
 export const selectIsEntropyCheckEnabledAndFailed = createMemoizedSelector(
     [
@@ -245,15 +244,44 @@ export const selectIsEntropyCheckEnabledAndFailed = createMemoizedSelector(
     ],
     (isFeatureEnabled, isEntropyCheckFailed) => isFeatureEnabled && isEntropyCheckFailed,
 );
+export const selectIsEntropyCheckEnabledAndFailedForSelectedDevice = (
+    state: FwAuthenticityCheckState,
+) => {
+    const device = selectSelectedDevice(state);
+    if (!device) return false;
+
+    return selectIsEntropyCheckEnabledAndFailed(state, device.id);
+};
+
+export const selectIsDeviceIdCheckEnabledAndFailed = createMemoizedSelector(
+    [
+        selectAreDeviceMetaChecksEnabled,
+        (state: FwAuthenticityCheckState) => selectIsFeatureEnabled(state, Feature.idCheck, true),
+        (_state: NativeDeviceRootState, device: Device) => device,
+    ],
+    (areDeviceMetaChecksEnabled, isFeatureEnabled, device) =>
+        areDeviceMetaChecksEnabled && isFeatureEnabled && !getIsDeviceIdValid(device),
+);
+
+export const selectIsDeviceInvariabilityEnabledAndFailed = createMemoizedSelector(
+    [
+        selectAreDeviceMetaChecksEnabled,
+        (state: FwAuthenticityCheckState) =>
+            selectIsFeatureEnabled(state, Feature.invariabilityCheck, true),
+        selectIsDeviceInvariabilityCheckSuccess,
+    ],
+    (areDeviceMetaChecksEnabled, isFeatureEnabled, isDeviceInvariabilityCheckSuccessful) =>
+        areDeviceMetaChecksEnabled && isFeatureEnabled && !isDeviceInvariabilityCheckSuccessful,
+);
 
 export const selectIsDeviceAuthenticityCheckFailed = createMemoizedSelector(
-    [selectSelectedDeviceAuthenticity],
-    selectedDeviceAuthenticity => selectedDeviceAuthenticity?.valid === false,
+    [selectDeviceAuthenticityByDeviceId],
+    authenticityCheckResult => authenticityCheckResult?.valid === false,
 );
 
 export const selectIsDeviceSetupSupported = createMemoizedSelector(
     [selectDeviceModel],
-    model => G.isNotNullable(model) && isDeviceSetupSupported(model),
+    model => isNotNullOrUndefined(model) && getIsDeviceSetupSupported(model),
 );
 
 export const selectShouldFactoryResetBeVisible = createMemoizedSelector(
@@ -262,56 +290,39 @@ export const selectShouldFactoryResetBeVisible = createMemoizedSelector(
         isDeviceInBootloader && hasDeviceFirmwareInstalled,
 );
 
-export const selectIsDeviceCompromised = createMemoizedSelector(
-    [
-        selectIsDeviceAuthenticityCheckEnabled,
-        selectIsDeviceAuthenticityCheckFailed,
-        selectIsEntropyCheckEnabledAndFailed,
-        selectIsFirmwareAuthenticityCheckDismissed,
-        selectHasFirmwareAuthenticityCheckHardFailed,
-    ],
-    (
-        isDeviceAuthenticityCheckEnabled,
-        isDeviceAuthenticityCheckFailed,
-        isEntropyCheckEnabledAndFailed,
-        isFirmwareAuthenticityCheckDismissed,
-        hasFirmwareAuthenticityCheckHardFailed,
-    ) => {
-        const isDeviceAuthenticityEnabledAndFailed =
-            isDeviceAuthenticityCheckEnabled && isDeviceAuthenticityCheckFailed;
+export const selectCompromisedDeviceFailedCheck = (
+    state: NativeDeviceRootState,
+    device: Device,
+) => {
+    const deviceId = device?.id;
+    const isDeviceAuthenticityCheckEnabled = selectIsDeviceAuthenticityCheckEnabled(state);
+    const isDeviceAuthenticityCheckFailed = selectIsDeviceAuthenticityCheckFailed(state, deviceId);
+    const isEntropyCheckEnabledAndFailed = selectIsEntropyCheckEnabledAndFailed(state, deviceId);
+    const isFirmwareAuthenticityCheckDismissed = selectIsFirmwareAuthenticityCheckDismissed(
+        state,
+        deviceId,
+    );
+    const hasFirmwareAuthenticityCheckHardFailed = selectHasFirmwareAuthenticityCheckHardFailed(
+        state,
+        device,
+    );
+    const isDeviceIdCheckEnabledAndFailed = selectIsDeviceIdCheckEnabledAndFailed(state, device);
+    const isDeviceInvariabilityEnabledAndFailed = selectIsDeviceInvariabilityEnabledAndFailed(
+        state,
+        device,
+    );
+    const isDeviceAuthenticityEnabledAndFailed =
+        isDeviceAuthenticityCheckEnabled && isDeviceAuthenticityCheckFailed;
 
-        const isFirmwareAuthenticityCheckHardFailedAndNotDismissed =
-            hasFirmwareAuthenticityCheckHardFailed && !isFirmwareAuthenticityCheckDismissed;
+    if (isDeviceAuthenticityEnabledAndFailed) return 'device-authenticity';
+    if (isEntropyCheckEnabledAndFailed) return 'entropy';
 
-        return (
-            isDeviceAuthenticityEnabledAndFailed ||
-            isEntropyCheckEnabledAndFailed ||
-            isFirmwareAuthenticityCheckHardFailedAndNotDismissed
-        );
-    },
-);
+    // All the following checks are dismissable together by a shared mechanism
+    if (!isFirmwareAuthenticityCheckDismissed) {
+        if (isDeviceIdCheckEnabledAndFailed) return 'device-id';
+        if (isDeviceInvariabilityEnabledAndFailed) return 'device-invariability';
+        if (hasFirmwareAuthenticityCheckHardFailed) return 'firmware-authenticity';
+    }
 
-export const selectCompromisedDeviceFailedCheck = createMemoizedSelector(
-    [
-        selectIsDeviceAuthenticityCheckEnabled,
-        selectIsDeviceAuthenticityCheckFailed,
-        selectIsEntropyCheckEnabledAndFailed,
-    ],
-    (
-        isDeviceAuthenticityCheckEnabled,
-        isDeviceAuthenticityCheckFailed,
-        isEntropyCheckEnabledAndFailed,
-    ) => {
-        const isDeviceAuthenticityEnabledAndFailed =
-            isDeviceAuthenticityCheckEnabled && isDeviceAuthenticityCheckFailed;
-
-        if (isDeviceAuthenticityEnabledAndFailed) {
-            return 'device-authenticity';
-        }
-        if (isEntropyCheckEnabledAndFailed) {
-            return 'entropy';
-        }
-
-        return 'firmware-authenticity';
-    },
-);
+    return null;
+};

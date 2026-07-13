@@ -1,9 +1,11 @@
-import { Network } from '@suite-common/wallet-config';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { type Network } from '@suite-common/wallet-config';
 import { changeCoinVisibility } from '@suite-common/wallet-core';
+import { PlusIcon, WarningIcon } from '@trezor/icons';
 
-import { Translation } from 'src/components/suite';
 import { AccountExceptionLayout } from 'src/components/wallet';
-import { useDevice, useDispatch } from 'src/hooks/suite';
+import { useDispatch } from 'src/hooks/suite';
 
 interface AccountNotEnabledProps {
     network: Network;
@@ -28,11 +30,11 @@ export const AccountNotEnabled = ({ network }: AccountNotEnabledProps) => {
                     values={{ networkName: network.name }}
                 />
             }
-            iconName="warning"
+            icon={WarningIcon}
             iconVariant="warning"
             actions={[
                 {
-                    icon: 'plus',
+                    iconLeft: PlusIcon,
                     key: '1',
                     isLoading: isLocked(),
                     onClick: handleClick,

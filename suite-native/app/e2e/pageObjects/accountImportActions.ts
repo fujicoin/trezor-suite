@@ -1,10 +1,10 @@
 import { expect as detoxExpect } from 'detox';
 
-import { scrollUntilVisible } from '../utils';
 import { onTabBar } from './tabBarActions';
+import { inputTextToElement, scrollUntilVisible, waitForVisible } from '../support/utils';
 
 class AccountImportActions {
-    async importAccount({
+    async importAccountAndVerifyVisibility({
         networkSymbol,
         xpub,
         accountName,
@@ -28,41 +28,53 @@ class AccountImportActions {
         const coinItemElement = element(
             by.id(`@onboarding/select-coin/${networkSymbol.toLowerCase()}`),
         );
-        await scrollUntilVisible(coinItemElement);
+        // Espresso's native search-scroll loop (waitFor+whileElement+scroll) fires rapid scroll
+        // events that flood the JS bridge on API 34 with the non-virtualized coin list, causing
+        // the JS thread to become unresponsive (ANR) and the app to crash. A JS-controlled loop
+        // with async/await boundaries lets the event loop drain scroll callbacks between steps.
+        //
+        // 1500 px per step ensures coins deep in the list (e.g. ZEC at y≈3066 px) become visible
+        // in a single scroll. The first scroll triggers the ScrollDivider FadeIn (Reanimated), which
+        // temporarily elevates swiftshader memory usage. A second scroll on top of that elevated
+        // baseline OOM-kills the QEMU emulator process on memory-constrained CI runners. One large
+        // scroll avoids a second scroll entirely.
+        const scrollView = element(by.id('@screen/mainScrollView'));
+        for (let i = 0; i < 5; i++) {
+            try {
+                await detoxExpect(coinItemElement).toBeVisible(75);
+                break;
+            } catch {
+                await scrollView.scroll(1500, 'down');
+            }
+        }
         await coinItemElement.tap();
-        await detoxExpect(element(by.id('`@screen/XpubScan`')));
+        await detoxExpect(element(by.id('@screen/XpubScan'))).toBeVisible();
     }
 
     async submitXpub({ xpub, isValid }: { xpub: string; isValid: boolean }) {
-        await element(by.id('@accounts-import/sync-coins/xpub-input')).replaceText(xpub);
+        const xpubInput = element(by.id('@accounts-import/sync-coins/xpub-input'));
+        await inputTextToElement(xpubInput, xpub);
 
         const xpubSubmitButton = element(by.id('@accounts-import/sync-coins/xpub-submit'));
-
-        // Submit button is not visible without scrolling
-        await waitFor(xpubSubmitButton)
-            .toBeVisible()
-            .whileElement(by.id('@screen/mainScrollView'))
-            .scroll(50, 'down');
-
+        await scrollUntilVisible(xpubSubmitButton);
         await xpubSubmitButton.tap();
 
         if (isValid) {
-            await waitFor(element(by.id('@screen/AccountImportSummary')))
-                .toBeVisible()
-                .withTimeout(20000); // it may take a while to load data from blockchain
+            await waitForVisible(by.id('@screen/AccountImportSummary'));
         }
     }
 
     async setAccountName({ accountName }: { accountName: string }) {
-        await element(by.id('@account-import/coin-synced/label-input')).replaceText(accountName);
+        const accountNameInput = element(by.id('@account-import/coin-synced/label-input'));
+        await accountNameInput.clearText();
+        await accountNameInput.typeText(accountName);
     }
 
     async confirmAddAccount() {
-        // confirm button is not visible for some coins e.g. eth
-        await element(by.id('@screen/mainScrollView')).scrollTo('bottom');
-        await element(by.id('@account-import/coin-synced/confirm-button')).tap();
-
-        await detoxExpect(element(by.id('@screen/Home')));
+        const confirmButton = element(by.id('@account-import/coin-synced/confirm-button'));
+        await scrollUntilVisible(confirmButton);
+        await confirmButton.tap();
+        await detoxExpect(element(by.id('@screen/Accounts'))).toBeVisible();
     }
 }
 

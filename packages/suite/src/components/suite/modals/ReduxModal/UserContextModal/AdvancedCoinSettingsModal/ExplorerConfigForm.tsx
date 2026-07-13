@@ -1,12 +1,14 @@
-import { ReactNode, useMemo } from 'react';
-import { RefCallBack } from 'react-hook-form';
+import { type ReactNode, useMemo } from 'react';
+import { type RefCallBack } from 'react-hook-form';
 
-import { Explorer } from '@suite-common/wallet-config';
+import { Translation } from '@suite/intl';
+import { type Explorer } from '@suite-common/wallet-config';
 import { Button, Column, InfoItem, Input, Row, Text } from '@trezor/components';
+import { ChangeIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
+import { typedObjectKeys } from '@trezor/utils';
 
-import { Translation } from 'src/components/suite';
-import { useExplorerForm } from 'src/hooks/settings/useExplorerForm';
+import { type useExplorerForm } from 'src/hooks/settings/useExplorerForm';
 
 type InputRowProps = {
     value: { ref: RefCallBack; field: Omit<RefCallBack, 'ref'>; error?: string };
@@ -21,14 +23,14 @@ const InputRow = ({ value, title, placeholder, base, defaultBase }: InputRowProp
         <Row gap={spacings.sm} alignItems="flex-start">
             <Input value={base} type="text" placeholder={defaultBase} isDisabled={true} />
 
-            <Text variant="tertiary" margin={{ top: spacings.md }}>
+            <Text intent="neutral" priority="secondary" margin={{ top: spacings.md }}>
                 /
             </Text>
 
             <Input
                 type="text"
                 innerRef={value.ref}
-                inputState={value.error ? 'error' : undefined}
+                hasError={!!value.error}
                 bottomText={value.error}
                 placeholder={placeholder}
                 {...value.field}
@@ -45,7 +47,7 @@ export const ExplorerConfigForm = ({ form }: ExplorerConfigProps) => {
     const { explorerConfig, setDefaultValues, usesDefaultExplorer, input, explorer } = form;
 
     const explorerKeys = useMemo(() => {
-        const keys = Object.keys(explorer) as (keyof Explorer)[];
+        const keys = typedObjectKeys(explorer);
 
         return keys.filter(key => key !== 'base' && input.fields[key].value !== undefined);
     }, [explorer, input]);
@@ -54,8 +56,6 @@ export const ExplorerConfigForm = ({ form }: ExplorerConfigProps) => {
         switch (key) {
             case 'tx':
                 return <Translation id="TR_EXPLORER_TX" />;
-            case 'account':
-                return <Translation id="TR_EXPLORER_ACCOUNT" />;
             case 'address':
                 return <Translation id="TR_EXPLORER_ADDRESS" />;
             case 'nft':
@@ -74,13 +74,14 @@ export const ExplorerConfigForm = ({ form }: ExplorerConfigProps) => {
                     type="text"
                     placeholder={explorerConfig.default.base}
                     innerRef={input.fields.base.ref}
-                    inputState={input.fields.base.error ? 'error' : undefined}
+                    hasError={!!input.fields.base.error}
                     bottomText={input.fields.base.error}
-                    innerAddon={
+                    rightContent={
                         <Button
-                            variant="tertiary"
+                            intent="neutral"
+                            priority="secondary"
                             size="small"
-                            icon="change"
+                            iconLeft={ChangeIcon}
                             isDisabled={usesDefaultExplorer}
                             onClick={setDefaultValues}
                         >

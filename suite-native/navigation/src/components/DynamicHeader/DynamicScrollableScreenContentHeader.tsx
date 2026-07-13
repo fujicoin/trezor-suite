@@ -1,10 +1,10 @@
-import { ReactNode } from 'react';
-import { LayoutChangeEvent } from 'react-native';
+import { type ReactNode } from 'react';
+import { type LayoutChangeEvent } from 'react-native';
 
 import { Text, VStack } from '@suite-native/atoms';
 
 import { useDynamicHeader } from './DynamicScreenHeaderContext';
-import { ScreenHeaderProps } from '../ScreenHeader';
+import { type ScreenHeaderProps } from '../ScreenHeader';
 
 type DynamicScrollableScreenContentHeaderProps = {
     subtitle?: ReactNode;
@@ -23,10 +23,10 @@ export const DynamicScrollableScreenContentHeader = ({
 
     return (
         <VStack paddingHorizontal="sp16" marginTop="sp16" marginBottom="sp32">
-            <Text variant="titleMedium" onLayout={handleLayout}>
+            <Text variant="headline-md" onLayout={handleLayout}>
                 {title}
             </Text>
-            {subtitle && <Text color="textSubdued">{subtitle}</Text>}
+            {subtitle && <Text color="contentSecondary">{subtitle}</Text>}
         </VStack>
     );
 };

@@ -1,5 +1,7 @@
-import { BridgeProtocolMessage } from '../src/types';
-import { validateProtocolMessage } from '../src/utils/bridgeProtocolMessage';
+import {
+    type BridgeProtocolMessage,
+    validateProtocolMessage,
+} from '../src/utils/bridgeProtocolMessage';
 
 type Fixture = {
     description: string;
@@ -8,9 +10,9 @@ type Fixture = {
 
 const fixtures: Fixture[] = [
     {
-        description: 'valid hex, with data=true',
+        description: 'raw hex without a protocol envelope is rejected (legacy format dropped)',
         params: ['09AF', true],
-        result: { data: '09AF' },
+        throws: 'Invalid BridgeProtocolMessage body',
     },
     {
         description: 'empty body with data=true',
@@ -20,7 +22,7 @@ const fixtures: Fixture[] = [
     {
         description: 'empty body with data=false',
         params: ['', false],
-        result: { data: '' },
+        throws: 'Invalid BridgeProtocolMessage body',
     },
     {
         description: 'parsable and valid protocol message as a string',

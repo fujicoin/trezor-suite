@@ -1,20 +1,21 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
+
+import * as generatedIcons from '@trezor/icons';
 
 import {
     CollapsibleBox as CollapsibleBoxComponent,
     allowedCollapsibleBoxFrameProps,
 } from './CollapsibleBox';
 import { fillTypes, headingSizes, paddingTypes } from './types';
-import { variables } from '../../config';
 import { getFramePropsStory } from '../../utils/frameProps';
 
-const meta: Meta = {
+const meta: Meta<typeof CollapsibleBoxComponent> = {
     title: 'CollapsibleBox',
     component: CollapsibleBoxComponent,
-} as Meta;
+};
 export default meta;
 
-export const CollapsibleBox: StoryObj = {
+export const CollapsibleBox: StoryObj<typeof meta> = {
     args: {
         heading: 'Heading',
         children: (
@@ -34,7 +35,7 @@ export const CollapsibleBox: StoryObj = {
         heading: {
             type: 'string',
         },
-        isOpen: { type: 'boolean' },
+        defaultIsOpen: { type: 'boolean' },
         hasDivider: { type: 'boolean' },
         fillType: {
             control: {
@@ -60,13 +61,9 @@ export const CollapsibleBox: StoryObj = {
         toggleLabel: {
             type: 'string',
         },
-        toggleComponent: { control: { disable: true } },
-        toggleIconName: {
-            options: ['none', ...variables.ICONS],
-            mapping: {
-                ...variables.ICONS,
-                none: undefined,
-            },
+        toggleIcon: {
+            options: ['none', ...Object.keys(generatedIcons)],
+            mapping: { none: undefined, ...generatedIcons },
             control: {
                 type: 'select',
             },

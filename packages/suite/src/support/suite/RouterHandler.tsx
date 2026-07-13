@@ -1,51 +1,50 @@
 import { useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router';
 
-import { useDidUpdate } from '@trezor/react-utils';
+import { Action } from 'history';
 
-import { onBeforePopState, onLocationChange } from 'src/actions/suite/routerActions';
+import {
+    onLocationChange,
+    selectCanNavigate,
+    selectRouterLoaded,
+    selectSuiteRouterHistoryDep,
+} from '@suite/router';
+import { useServices } from '@suite-common/dependency-injection';
+
 import { useDispatch, useSelector } from 'src/hooks/suite';
 
-import { setLocation, setNavigate } from './navigationService';
-
 export const RouterHandler = () => {
-    const routerLoaded = useSelector(state => state.router.loaded);
     const dispatch = useDispatch();
-
-    const location = useLocation();
-    const navigate = useNavigate();
-
-    useDidUpdate(() => {
-        // Let router to be initialized properly
-        if (routerLoaded) {
-            // Handle browser navigation (back button)
-            const url = location.pathname + location.hash;
-            dispatch(onLocationChange(url));
-        }
-    }, [dispatch, location.pathname, location.hash]);
-
-    // Make navigate available globally (useful in actions)
-    useEffect(() => {
-        setNavigate(navigate);
-    }, [navigate]);
-
-    // Make location available globally (useful in actions)
-    useEffect(() => {
-        setLocation(location);
-    }, [location]);
+    const routerLoaded = useSelector(selectRouterLoaded);
+    const { suiteRouterHistory } = useServices(selectSuiteRouterHistoryDep);
+    const canGoBack = useSelector(selectCanNavigate);
 
     useEffect(() => {
-        const onPopState = () => {
-            const canGoBack = dispatch(onBeforePopState());
-            if (!canGoBack) {
-                navigate(1);
+        const emitLocation = () => {
+            if (routerLoaded) {
+                const location = suiteRouterHistory.getLocation();
+                dispatch(onLocationChange(location));
             }
         };
 
-        window.addEventListener('popstate', onPopState);
+        // initial sync
+        emitLocation();
 
-        return () => window.removeEventListener('popstate', onPopState);
-    }, [dispatch, navigate]);
+        const unlisten = suiteRouterHistory.listen(update => {
+            // If back navigation is blocked, re-go forward by 1 to cancel it
+            if (update.action === Action.Pop) {
+                if (!canGoBack) {
+                    history.go(1);
+
+                    return;
+                }
+            }
+            emitLocation();
+        });
+
+        return unlisten;
+    }, [canGoBack, dispatch, routerLoaded, suiteRouterHistory]);
 
     return null;
 };
+
+RouterHandler.displayName = 'RouterHandler';

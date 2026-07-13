@@ -1,18 +1,28 @@
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 
-import { selectAnalyticsInstanceId } from '@suite-common/analytics';
+import { selectAnalyticsInstanceId } from '@suite-common/analytics-redux';
 
-import { getActiveExperimentGroup } from './experimentUtils';
-import { selectExperimentByKey } from './messageSystemSelectors';
-import { ExperimentKey } from './messageSystemTypes';
+import { getActiveExperimentGroup, getExperimentGroupByInclusion } from './experimentUtils';
+import {
+    selectExperimentById,
+    selectExperimentInclusionOverrideById,
+} from './messageSystemSelectors';
+import type { ExperimentId } from './messageSystemTypes';
 
-export const useExperiment = (experimentKey: ExperimentKey) => {
+export const useExperiment = (experimentId: ExperimentId) => {
     const instanceId = useSelector(selectAnalyticsInstanceId);
-    const experiment = useSelector(selectExperimentByKey(experimentKey));
+    const experiment = useSelector(selectExperimentById(experimentId));
+    const inclusionOverride = useSelector(selectExperimentInclusionOverrideById(experimentId));
     const activeExperimentVariant = useMemo(
-        () => getActiveExperimentGroup({ instanceId, experiment }),
-        [instanceId, experiment],
+        () =>
+            experiment && inclusionOverride != null
+                ? getExperimentGroupByInclusion({
+                      groups: experiment.groups,
+                      inclusion: inclusionOverride,
+                  })
+                : getActiveExperimentGroup({ instanceId, experiment }),
+        [instanceId, experiment, inclusionOverride],
     );
 
     return {

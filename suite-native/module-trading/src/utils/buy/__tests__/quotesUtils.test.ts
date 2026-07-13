@@ -1,25 +1,33 @@
-import { BuyTrade } from 'invity-api';
+import type { BuyTrade, CryptoId } from 'invity-api';
 
-import { act, renderHookWithStoreProviderAsync } from '@suite-native/test-utils';
+import { deviceInitialState } from '@suite-common/device';
+import { type TradingAssetOption } from '@suite-common/trading';
+import { act, renderHookWithStoreProvider } from '@suite-native/test-utils-store';
+import {
+    btc1NormalAccount,
+    btcAsset,
+    coins,
+    getInitializedTradingState,
+    mercuryoApplePayBuyQuote,
+} from '@suite-native/trading-fixtures';
+import { type BuyFormType } from '@suite-native/trading-types';
 
-import quotes from '../../../__fixtures__/buyQuotes.json';
-import coins from '../../../__fixtures__/coins.json';
-import { btcAsset } from '../../../__fixtures__/tradeableAssets';
-import { getInitializedTradingState } from '../../../__fixtures__/tradingState';
 import { useBuyForm } from '../../../hooks/buy/useBuyForm';
-import { BuyFormType } from '../../../types/buy';
 import { getPaymentMethodFromBuyForm, tradingBuyFormToTradingBuyFormProps } from '../quotesUtils';
 
 describe('quotesUtils', () => {
     let form: BuyFormType;
 
     const renderUseTradingBuyForm = () =>
-        renderHookWithStoreProviderAsync(() => useBuyForm(), {
-            preloadedState: { wallet: { tradingNew: getInitializedTradingState() } },
+        renderHookWithStoreProvider(() => useBuyForm(), {
+            preloadedState: {
+                device: deviceInitialState,
+                wallet: { trading: getInitializedTradingState() },
+            },
         });
 
-    beforeEach(async () => {
-        const { result } = await renderUseTradingBuyForm();
+    beforeEach(() => {
+        const { result } = renderUseTradingBuyForm();
         form = result.current;
     });
 
@@ -30,7 +38,7 @@ describe('quotesUtils', () => {
 
         it('should return TradingPaymentMethodListProps object when quote is set', () => {
             act(() => {
-                form.setValue('quote', quotes[0] as BuyTrade);
+                form.setValue('quote', mercuryoApplePayBuyQuote);
             });
 
             expect(getPaymentMethodFromBuyForm(form)).toEqual({
@@ -42,9 +50,9 @@ describe('quotesUtils', () => {
 
     describe('tradingBuyFormToTradingBuyFormProps', () => {
         it('should throw when crypto value is not selected', () => {
-            expect(() => tradingBuyFormToTradingBuyFormProps(form, coins.bitcoin)).toThrow(
-                'Asset is required',
-            );
+            expect(() =>
+                tradingBuyFormToTradingBuyFormProps(form, coins.bitcoin, undefined),
+            ).toThrow('Asset is required');
         });
 
         describe('with buy form populated', () => {
@@ -53,21 +61,30 @@ describe('quotesUtils', () => {
                     form.setValue('fiatValue', '100');
                     form.setValue('asset', btcAsset);
                     form.setValue('country', {
+                        codeAlpha3: 'USA',
+                        flag: '🇺🇸',
+                        name: 'United States of America',
                         value: 'US',
-                        label: 'United States of America',
+                        label: '🇺🇸 United States',
+                        shortLabel: '🇺🇸 USA',
                     });
-                    form.setValue('quote', quotes[0] as BuyTrade);
+                    form.setValue('countrySubdivision', {
+                        label: 'California',
+                        value: 'CA',
+                        name: 'California',
+                    });
+                    form.setValue('quote', mercuryoApplePayBuyQuote);
                 });
             });
 
             it('should throw when info is not defined', () => {
-                expect(() => tradingBuyFormToTradingBuyFormProps(form, undefined)).toThrow(
-                    'CoinInfo is required',
-                );
+                expect(() =>
+                    tradingBuyFormToTradingBuyFormProps(form, undefined, undefined),
+                ).toThrow('CoinInfo is required');
             });
 
             it('should return correct props', () => {
-                const props = tradingBuyFormToTradingBuyFormProps(form, coins.bitcoin);
+                const props = tradingBuyFormToTradingBuyFormProps(form, coins.bitcoin, undefined);
                 expect(props).toEqual({
                     fiatInput: '100',
                     cryptoInput: '0.001000168',
@@ -76,35 +93,65 @@ describe('quotesUtils', () => {
                         label: 'Czech Koruna',
                     },
                     cryptoSelect: {
+                        id: 'bitcoin' as CryptoId,
+                        isNativeToken: true,
+                        displaySymbolName: 'Bitcoin',
                         coingeckoId: 'bitcoin',
                         contractAddress: null,
-                        cryptoName: 'Bitcoin',
-                        label: 'BTC',
+                        name: 'Bitcoin',
                         symbol: 'btc',
-                        type: 'currency',
-                        value: 'bitcoin',
-                    },
+                        displaySymbol: 'BTC',
+                        networkName: 'Bitcoin',
+                        networkSymbol: 'btc',
+                    } satisfies TradingAssetOption,
                     countrySelect: {
+                        label: '🇺🇸 United States',
+                        codeAlpha3: 'USA',
+                        flag: '🇺🇸',
+                        name: 'United States of America',
+                        shortLabel: '🇺🇸 USA',
                         value: 'US',
-                        label: 'United States of America',
+                    },
+                    countrySubdivisionSelect: {
+                        label: 'California',
+                        value: 'CA',
+                        name: 'California',
                     },
                     paymentMethod: {
                         value: 'applePay',
                         label: 'Apple Pay',
                     },
                     amountInCrypto: false,
+                    receiveAddress: undefined,
                 });
+            });
+
+            it('should set receiveAddress from address', () => {
+                act(() => {
+                    form.setValue('receiveAccount', {
+                        account: btc1NormalAccount,
+                        address: btc1NormalAccount.addresses!.unused[0],
+                    });
+                });
+
+                const props = tradingBuyFormToTradingBuyFormProps(form, coins.bitcoin, undefined);
+
+                expect(props).toEqual(
+                    expect.objectContaining({
+                        receiveAddress: 'UNUSED1',
+                    }),
+                );
             });
 
             it('should set paymentMethod to undefined when provided quote is not complete', () => {
                 act(() => {
                     form.setValue('quote', {
-                        ...quotes[0],
+                        ...mercuryoApplePayBuyQuote,
                         paymentMethodName: undefined,
                     } as unknown as BuyTrade);
                 });
 
-                const props = tradingBuyFormToTradingBuyFormProps(form, coins.bitcoin);
+                const props = tradingBuyFormToTradingBuyFormProps(form, coins.bitcoin, undefined);
 
                 expect(props).toEqual(
                     expect.objectContaining({

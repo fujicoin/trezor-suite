@@ -1,11 +1,14 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 
-import { FrameProps, FramePropsKeys } from '../../utils/frameProps';
-import { IconName } from '../Icon/Icon';
-import { DropdownMenuItemProps, Menu, MenuProps } from '../Menu/Menu';
-import { Popover, PopoverRef } from '../Popover/Popover';
-import { PopoverPlacement } from '../Popover/utils';
-import { IconButton } from '../buttons/IconButton/IconButton';
+import { DotsThreeIcon } from '@trezor/icons';
+
+import { type FrameProps, type FramePropsKeys } from '../../utils/frameProps';
+import { type IconComponent } from '../Icon/Icon';
+import { type DropdownMenuItemProps, Menu, type MenuProps } from '../Menu/Menu';
+import { Popover, type PopoverRef } from '../Popover/Popover';
+import { type PopoverPlacement } from '../Popover/utils';
+import { IconButton, type IconButtonProps } from '../buttons/IconButton/IconButton';
+import { type ButtonSize } from '../buttons/types';
 
 export const allowedDropdownFrameProps = ['width', 'minWidth'] as const satisfies FramePropsKeys[];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedDropdownFrameProps)[number]>;
@@ -14,9 +17,12 @@ export type DropdownProps = Omit<MenuProps, 'onClose'> &
     AllowedFrameProps & {
         placement?: PopoverPlacement;
         isDisabled?: boolean;
+        iconSize?: ButtonSize;
         isLoading?: boolean;
-        iconName?: IconName;
-        className?: string;
+        icon?: IconComponent;
+        intent?: IconButtonProps['intent'];
+        priority?: IconButtonProps['priority'];
+        tooltip?: IconButtonProps['tooltip'];
         'data-testid'?: string;
     };
 
@@ -32,14 +38,18 @@ export const Dropdown = forwardRef(
         {
             items,
             content,
+            iconSize,
             isDisabled,
             isLoading,
             placement,
-            iconName = 'dotsThree',
+            icon = DotsThreeIcon,
+            intent = 'neutral',
+            priority = 'secondary',
             'data-testid': dataTest,
             minWidth,
             maxWidth,
             width,
+            tooltip = { isActive: false },
         }: DropdownProps,
         ref,
     ) => {
@@ -72,13 +82,15 @@ export const Dropdown = forwardRef(
                 }
             >
                 <IconButton
-                    size="small"
-                    variant="tertiary"
-                    icon={iconName}
+                    intent={intent}
+                    priority={priority}
+                    icon={icon}
+                    size={iconSize}
                     tabIndex={-1}
                     isDisabled={isDisabled}
                     isLoading={isLoading}
                     data-testid={dataTest}
+                    tooltip={tooltip}
                 />
             </Popover>
         );

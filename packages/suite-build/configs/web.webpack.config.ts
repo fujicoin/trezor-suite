@@ -1,64 +1,81 @@
 import CopyWebpackPlugin from 'copy-webpack-plugin';
-import CssMinimizerPlugin from 'css-minimizer-webpack-plugin';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import path from 'path';
 import webpack from 'webpack';
 
-import { FLAGS, routes } from '@suite-common/suite-config';
+import { routes } from '@suite/router-config';
+import { FLAGS } from '@suite-common/suite-config';
 
 import { assetPrefix, isDev } from '../utils/env';
 import { getPathForProject } from '../utils/path';
 
-const baseDir = getPathForProject('web');
+export const baseDir = getPathForProject('web');
+
 const config: webpack.Configuration = {
     target: 'browserslist',
-    entry: [path.join(baseDir, 'src', 'index.ts')],
+    entry: {
+        main: [path.join(baseDir, 'src', 'index.ts')],
+        'sessions-background-sharedworker': {
+            filename: 'js/workers/[name].js',
+            import: path.resolve(
+                __dirname,
+                '../../transport-web/src/sessions/background-sharedworker.ts',
+            ),
+            // Use importScripts-based chunk loading so vendor/runtime chunks load in a worker context
+            chunkLoading: 'import-scripts',
+        },
+        'connect-popup-bootstrap': {
+            filename: 'connect-popup/bootstrap.[hash].js',
+            import: path.resolve(__dirname, '../../connect-web/src/bootstrap/index.ts'),
+        },
+    },
     output: {
         path: path.join(baseDir, 'build'),
     },
-    resolve: {
-        fallback: { vm: require.resolve('vm-browserify') },
-    },
     plugins: [
         new CopyWebpackPlugin({
-            patterns: ['browser-detection', 'fonts', 'images', 'oauth', 'videos', 'guide/assets']
-                .map(dir => ({
+            patterns: [
+                ...[
+                    'browser-detection',
+                    'fonts',
+                    'images',
+                    'oauth',
+                    'videos',
+                    'guide/assets',
+                    'favicon.js',
+                ].map(dir => ({
                     from: path.join(__dirname, '..', '..', 'suite-data', 'files', dir),
                     to: path.join(baseDir, 'build', 'static', dir),
-                }))
-                .concat([
-                    {
-                        from: path.join(
-                            __dirname,
-                            '../../../',
-                            'suite-common',
-                            'message-system',
-                            'files',
-                            'config.v1.ts',
-                        ),
-                        to: path.join(baseDir, 'build', 'static', 'message-system'),
-                    },
-                ]),
-            options: {
-                concurrency: 100,
-            },
-        }),
-        new CopyWebpackPlugin({
-            patterns: [
+                })),
                 {
                     from: path.join(
                         __dirname,
-                        '../../',
-                        'connect-iframe/build/workers/sessions-background-sharedworker.js',
+                        '../../../',
+                        'suite-common',
+                        'message-system',
+                        'files',
+                        'config.v1.ts',
                     ),
-                    to: path.join(baseDir, 'build/workers/sessions-background-sharedworker.js'),
+                    to: path.join(baseDir, 'build', 'static', 'message-system'),
+                },
+                {
+                    from: path.join(
+                        path.dirname(require.resolve('@suite-common/flags/package.json')),
+                        'assets',
+                        'flags',
+                    ),
+                    to: path.join(baseDir, 'build', 'static', 'flags'),
                 },
             ],
+            options: {
+                concurrency: 100,
+            },
         }),
         // Html files
         ...routes.map(
             route =>
                 new HtmlWebpackPlugin({
+                    chunks: ['main'],
                     minify: isDev
                         ? false
                         : {
@@ -74,7 +91,6 @@ const config: webpack.Configuration = {
                     templateParameters: {
                         assetPrefix,
                         isOnionLocation: FLAGS.ONION_LOCATION_META,
-                        isCrowdinEnabled: FLAGS.CROWDIN_IN_ENABLED,
                     },
                     inject: 'body' as const,
                     scriptLoading: 'blocking' as const,
@@ -82,12 +98,18 @@ const config: webpack.Configuration = {
                     filename: path.join(baseDir, 'build', route.pattern, 'index.html'),
                 }),
         ),
-        // imports from @trezor/connect in @trezor/suite package need to be replaced by imports from @trezor/connect-web/src/module
-        new webpack.NormalModuleReplacementPlugin(
-            /@trezor\/connect$/,
-            '@trezor/connect-web/src/module',
-        ),
-        ...(!isDev ? [new CssMinimizerPlugin()] : []),
+        new HtmlWebpackPlugin({
+            chunks: ['connect-popup-bootstrap'],
+            minify: false,
+            templateParameters: {
+                assetPrefix,
+                isOnionLocation: FLAGS.ONION_LOCATION_META,
+            },
+            inject: 'body' as const,
+            scriptLoading: 'blocking' as const,
+            template: path.resolve(__dirname, '../../connect-web/src/bootstrap/bootstrap.html'),
+            filename: path.join(baseDir, 'build/connect-popup/bootstrap.html'),
+        }),
     ],
 };
 

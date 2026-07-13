@@ -1,12 +1,12 @@
-import { PayloadAction, isAnyOf } from '@reduxjs/toolkit';
+import { type PayloadAction, isAnyOf } from '@reduxjs/toolkit';
 
-import { AnyAction, createSliceWithExtraDeps } from '@suite-common/redux-utils';
 import {
-    DeviceReducerState,
+    type DeviceReducerState,
     deviceInitialState as commonInitialState,
     deviceActions,
     prepareDeviceReducer,
-} from '@suite-common/wallet-core';
+} from '@suite-common/device';
+import { type AnyAction, createSliceWithExtraDeps } from '@suite-common/redux-utils';
 
 type ConnectionMode = 'cable' | 'bluetooth';
 
@@ -47,7 +47,7 @@ export const deviceSlice = createSliceWithExtraDeps({
                 isAnyOf(deviceActions.connectDevice, deviceActions.connectUnacquiredDevice),
                 (state, action) => {
                     state.isConnectionModalOpen = false;
-                    commonReducer(state, action as AnyAction);
+                    commonReducer(state, action);
                 },
             )
             .addDefaultCase((state, action) => {

@@ -1,14 +1,20 @@
+import { openModal } from '@suite/modal';
+import { selectIsEntropyCheckEnabled } from '@suite/settings';
+import { selectSelectedDevice, selectSimulatedEntropyCheckFail } from '@suite-common/device';
 import { FIRMWARE_MODULE_PREFIX } from '@suite-common/firmware';
 import { Feature, selectIsFeatureDisabled } from '@suite-common/message-system';
 import { createThunk } from '@suite-common/redux-utils';
 import { notificationsActions } from '@suite-common/toast-notifications';
-import { failEntropyCheckThunk, selectSelectedDevice } from '@suite-common/wallet-core';
-import TrezorConnect, { ERRORS } from '@trezor/connect';
+import { processEntropyCheckResultThunk } from '@suite-common/wallet-core';
+import TrezorConnect from '@trezor/connect';
+import { type ERRORS } from '@trezor/connect-common/src/constants';
 
-import * as modalActions from 'src/actions/suite/modalActions';
-import * as DEVICE from 'src/constants/suite/device';
-import { selectIsEntropyCheckEnabled } from 'src/selectors/suite/suiteSelectors';
-import { Dispatch, GetState } from 'src/types/suite';
+import {
+    DEFAULT_PASSPHRASE_PROTECTION,
+    DEFAULT_SKIP_BACKUP,
+    DEFAULT_STRENGTH,
+} from 'src/constants/suite/device';
+import { type Dispatch, type GetState } from 'src/types/suite';
 
 export const applySettings =
     (params: Parameters<typeof TrezorConnect.applySettings>[0]) =>
@@ -24,7 +30,7 @@ export const applySettings =
         if (result.success) {
             dispatch(notificationsActions.addToast({ type: 'settings-applied' }));
         } else {
-            dispatch(notificationsActions.addToast({ type: 'error', error: result.payload.error }));
+            dispatch(notificationsActions.addToast({ type: 'error', error: result.error.message }));
         }
 
         return result;
@@ -47,9 +53,9 @@ export const changePin =
             if (!skipSuccessToast) {
                 dispatch(notificationsActions.addToast({ type: 'pin-changed' }));
             }
-        } else if (result.payload.code === 'Failure_PinMismatch') {
-            dispatch(modalActions.openModal({ type: 'pin-mismatch' }));
-        } else if (result.payload.error.includes('string overflow')) {
+        } else if (result.error.code === 'Failure_PinMismatch') {
+            dispatch(openModal({ type: 'pin-mismatch' }));
+        } else if (result.error.message.includes('string overflow')) {
             // this is a workaround for FW < 1.10.0
             // translate generic error from the device if the entered PIN is longer than 9 digits
             dispatch(
@@ -59,7 +65,7 @@ export const changePin =
                 }),
             );
         } else {
-            dispatch(notificationsActions.addToast({ type: 'error', error: result.payload.error }));
+            dispatch(notificationsActions.addToast({ type: 'error', error: result.error.message }));
         }
     };
 
@@ -82,10 +88,10 @@ export const changeWipeCode =
                     type: remove ? 'wipe-code-removed' : 'wipe-code-changed',
                 }),
             );
-        } else if (result.payload.code === 'Failure_WipeCodeMismatch') {
-            dispatch(modalActions.openModal({ type: 'pin-mismatch' }));
+        } else if (result.error.code === 'Failure_WipeCodeMismatch') {
+            dispatch(openModal({ type: 'pin-mismatch' }));
         } else {
-            dispatch(notificationsActions.addToast({ type: 'error', error: result.payload.error }));
+            dispatch(notificationsActions.addToast({ type: 'error', error: result.error.message }));
         }
     };
 
@@ -93,13 +99,12 @@ export const resetDevice =
     (params: Parameters<typeof TrezorConnect.resetDevice>[0] = {}) =>
     async (dispatch: Dispatch, getState: GetState) => {
         const device = selectSelectedDevice(getState());
-        const isEntropyCheckEnabled = selectIsEntropyCheckEnabled(getState());
+        const isEntropyCheckEnabledInSettings = selectIsEntropyCheckEnabled(getState());
         const isEntropyCheckDisabledByMessageSystem = selectIsFeatureDisabled(
             getState(),
             Feature.entropyCheck,
         );
 
-        // todo: this should be handled most likely in a component somewhere above
         if (device?.status === 'used' || device?.status === 'occupied') {
             const features = await TrezorConnect.getFeatures({ device: { path: device.path } });
             if (!features.success) {
@@ -113,8 +118,7 @@ export const resetDevice =
                 return;
             }
             if (features.payload.initialized) {
-                // todo: decide what should happen next UX wise. At the moment, user only gets an error toast
-                // and stays stuck on the 'create new wallet' screen;
+                // Note that user gets stuck on this page. It's a rare edge case; a solution would have its own drawbacks.
                 dispatch(
                     notificationsActions.addToast({
                         type: 'error',
@@ -126,19 +130,29 @@ export const resetDevice =
             }
         }
 
-        if (!device || !device.features) return;
+        if (!device?.features) return;
 
         if (device.mode !== 'initialize') {
-            console.error('resetDevice: device in invalid mode', device.mode);
+            dispatch(
+                notificationsActions.addToast({
+                    type: 'error',
+                    error: 'Device is not in initialization mode.',
+                }),
+            );
 
             return;
         }
 
         const defaults = {
-            strength: DEVICE.DEFAULT_STRENGTH[device.features.internal_model],
-            skip_backup: DEVICE.DEFAULT_SKIP_BACKUP,
-            passphrase_protection: DEVICE.DEFAULT_PASSPHRASE_PROTECTION,
+            strength: DEFAULT_STRENGTH[device.features.internal_model],
+            skip_backup: DEFAULT_SKIP_BACKUP,
+            passphrase_protection: DEFAULT_PASSPHRASE_PROTECTION,
         };
+
+        const isEntropyCheckEnabled =
+            isEntropyCheckEnabledInSettings && !isEntropyCheckDisabledByMessageSystem;
+        // Used only in tests! See deviceReducer for the property definition.
+        const simulatedFailResult = selectSimulatedEntropyCheckFail(getState());
 
         const result = await TrezorConnect.resetDevice({
             ...defaults,
@@ -146,12 +160,16 @@ export const resetDevice =
             device: {
                 path: device.path,
             },
-            entropy_check: isEntropyCheckEnabled && !isEntropyCheckDisabledByMessageSystem,
+            entropy_check: isEntropyCheckEnabled,
         });
 
-        if (!result.success) {
-            dispatch(notificationsActions.addToast({ type: 'error', error: result.payload.error }));
-            dispatch(failEntropyCheckThunk({ device, error: result.payload }));
+        if (isEntropyCheckEnabled) {
+            if (simulatedFailResult) {
+                dispatch(processEntropyCheckResultThunk({ device, result: simulatedFailResult }));
+
+                return simulatedFailResult;
+            }
+            dispatch(processEntropyCheckResultThunk({ device, result }));
         }
 
         return result;
@@ -176,9 +194,9 @@ export const changeLanguage = createThunk(
         } else {
             // Different errors for desktop/Chrome/Firefox
             const isFetchError =
-                result.payload.code === ('ENOTFOUND' as ERRORS.ErrorCode) ||
+                result.error.code === ('ENOTFOUND' as ERRORS.ErrorCode) ||
                 ['Failed to fetch', 'NetworkError when attempting to fetch resource.'].includes(
-                    result.payload.error,
+                    result.error.message,
                 );
             if (isFetchError) {
                 dispatch(notificationsActions.addToast({ type: 'firmware-language-fetch-error' }));
@@ -186,7 +204,7 @@ export const changeLanguage = createThunk(
                 dispatch(
                     notificationsActions.addToast({
                         type: 'error',
-                        error: result.payload.error,
+                        error: result.error.message,
                     }),
                 );
             }

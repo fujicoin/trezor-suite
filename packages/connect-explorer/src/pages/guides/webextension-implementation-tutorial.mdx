@@ -3,14 +3,7 @@ auto_sections: false
 description: Create a webextension that interacts with Trezor devices using TypeScript and Webpack
 ---
 
-import styled from 'styled-components';
-
-import { Card as TrezorCard } from '@trezor/components';
-import { spacingsPx } from '@trezor/theme';
-
-export const SectionCard = styled(TrezorCard)`
-    margin-bottom: ${spacingsPx.xl};
-`;
+import { SectionCard } from '../../components/IndexPageComponents';
 
 # Create a webextension that interacts with Trezor devices using TypeScript and Webpack
 
@@ -100,9 +93,6 @@ export const SectionCard = styled(TrezorCard)`
     // Import using ES6 module TrezorConnect and the DEVICE_EVENT constant from the Trezor Connect WebExtension package
     import TrezorConnect, { DEVICE_EVENT, DeviceEventMessage } from '@trezor/connect-webextension';
 
-    // URL of the Trezor Connect
-    const connectSrc = 'https://connect.trezor.io/9/';
-
     chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails) => {
         console.log('details', details);
 
@@ -113,8 +103,6 @@ export const SectionCard = styled(TrezorCard)`
                 appName: 'Trezor Connect Example',
                 appUrl: 'https://yourAppUrl.com/',
             },
-            transports: ['WebUsbTransport'], // Transport protocols to be used
-            connectSrc,
             _extendWebextensionLifetime: true, // Makes the service worker in @trezor/connect-webextension stay alive longer.
         });
 
@@ -287,12 +275,19 @@ export const SectionCard = styled(TrezorCard)`
         "background": {
             "service_worker": "service-worker.js"
         },
-        "permissions": ["scripting"],
+        "externally_connectable": {
+            "matches": [
+                "https://suite.trezor.io/*",
+            ]
+        },
         "host_permissions": [
-            "*://connect.trezor.io/9/*"
+            "https://suite.trezor.io/*",
         ]
     }
     ```
+
+    The popup flow no longer relies on `connect-script` or iframe injection. The Suite Web popup communicates with the
+    service worker via `externally_connectable`.
 
 </SectionCard>
 

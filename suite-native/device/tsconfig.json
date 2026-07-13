@@ -3,6 +3,19 @@
     "compilerOptions": { "outDir": "libDev" },
     "references": [
         {
+            "path": "../../suite-common/analytics"
+        },
+        {
+            "path": "../../suite-common/bluetooth"
+        },
+        {
+            "path": "../../suite-common/dependency-injection"
+        },
+        { "path": "../../suite-common/device" },
+        {
+            "path": "../../suite-common/device-authenticity"
+        },
+        {
             "path": "../../suite-common/firmware-authenticity"
         },
         {
@@ -12,10 +25,20 @@
             "path": "../../suite-common/redux-utils"
         },
         {
+            "path": "../../suite-common/suite-types"
+        },
+        {
             "path": "../../suite-common/suite-utils"
         },
         {
+            "path": "../../suite-common/test-utils"
+        },
+        { "path": "../../suite-common/thp" },
+        {
             "path": "../../suite-common/wallet-core"
+        },
+        {
+            "path": "../../suite-common/wallet-types"
         },
         {
             "path": "../../suite-common/wallet-utils"
@@ -23,9 +46,9 @@
         { "path": "../alerts" },
         { "path": "../analytics" },
         { "path": "../atoms" },
-        { "path": "../biometrics" },
-        { "path": "../device-authorization" },
+        { "path": "../bluetooth" },
         { "path": "../device-mutex" },
+        { "path": "../device-onboarding" },
         { "path": "../feature-flags" },
         { "path": "../firmware" },
         { "path": "../icons" },
@@ -34,12 +57,26 @@
         { "path": "../navigation" },
         { "path": "../sentry" },
         { "path": "../settings" },
+        { "path": "../theme" },
         { "path": "../toasts" },
+        {
+            "path": "../../packages/analytics-uploader"
+        },
+        {
+            "path": "../../packages/blockchain-link-types"
+        },
         { "path": "../../packages/connect" },
+        {
+            "path": "../../packages/connect-common"
+        },
         { "path": "../../packages/device-utils" },
         { "path": "../../packages/env-utils" },
-        { "path": "../../packages/styles" },
+        {
+            "path": "../../packages/styles-native"
+        },
+        { "path": "../../packages/theme" },
         { "path": "../../packages/type-utils" },
+        { "path": "../../packages/urls" },
         { "path": "../../packages/utils" }
     ],
     "include": [".", "**/*.json"]

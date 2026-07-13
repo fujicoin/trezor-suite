@@ -1,48 +1,161 @@
 import { useCallback } from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 
-import { selectTradingSellIsLoading } from '@suite-common/trading';
+import type { BankAccount, SellFiatTrade, SellFiatTradeResponse } from 'invity-api';
 
-import { SellFormType } from '../../types/sell';
-import { useConsent } from '../general/useConsent';
+import {
+    selectTradingSellInfo,
+    selectTradingSellSelectedQuote,
+    sellThunks,
+    sellUtils,
+} from '@suite-common/trading';
+import { buildTradingUrl, useBrowserAuth } from '@suite-native/trading-browser-auth';
+import { selectSellSelectedSendAccount } from '@suite-native/trading-state';
 
-type SellFlowReturn = {
-    canProceed: boolean;
-    selectQuote: () => Promise<void>;
-    isConsentRequested: boolean;
-    giveConsent: () => void;
-    cancelConsent: () => void;
-};
+import { useTradingTransaction } from '../general/useTradingTransaction';
 
-export const useSellFlow = ({ watch }: SellFormType): SellFlowReturn => {
-    const isLoading = useSelector(selectTradingSellIsLoading);
-    const { isConsentRequested, waitForConsent, resolveConsent } = useConsent();
+export const useSellFlow = () => {
+    const dispatch = useDispatch();
+    const sellInfo = useSelector(selectTradingSellInfo);
 
-    const candidateQuote = watch('quote');
+    const selectedQuote = useSelector(selectTradingSellSelectedQuote);
 
-    const canProceed = !!candidateQuote && !isLoading;
+    const sendAccount = useSelector(selectSellSelectedSendAccount);
 
-    const selectQuote = useCallback(async () => {
-        if (!candidateQuote) {
+    const { openBrowserForFormData } = useBrowserAuth('sell');
+
+    const getCommonFunctions = useCallback(
+        (trade?: SellFiatTrade) => {
+            const tradeToUse = trade ?? selectedQuote;
+
+            if (!tradeToUse) {
+                console.warn('No trade to use for get common functions');
+
+                return;
+            }
+
+            const returnUrl = buildTradingUrl({
+                actionType: 'trade',
+                tradeType: 'sell',
+                orderId: tradeToUse.orderId,
+            });
+
+            const triggerAnalyticsTradeConfirmation = () => {
+                // TODO: add analytics
+            };
+
+            const processResponseData = (response: SellFiatTradeResponse) =>
+                openBrowserForFormData(response.tradeForm?.form, returnUrl);
+
+            return {
+                returnUrl,
+                triggerAnalyticsTradeConfirmation,
+                processResponseData,
+            };
+        },
+        [openBrowserForFormData, selectedQuote],
+    );
+
+    const {
+        txnErrorString,
+        composeTradingTransaction,
+        signAndSendTransaction,
+        serializedTx,
+        resolveTransactionSendConsent,
+        isTransactionSendConsentRequested,
+    } = useTradingTransaction({
+        tradeType: 'sell',
+        returnUrl: getCommonFunctions(selectedQuote)?.returnUrl,
+        processResponseData: getCommonFunctions(selectedQuote)?.processResponseData,
+        triggerAnalyticsTradeConfirmation:
+            getCommonFunctions(selectedQuote)?.triggerAnalyticsTradeConfirmation,
+    });
+
+    const doSellTrade = useCallback(
+        async (trade: SellFiatTrade) => {
+            const commonFunctions = getCommonFunctions(trade);
+            if (!commonFunctions || !sendAccount) {
+                console.warn('No common functions or send account for do sell trade');
+
+                return;
+            }
+
+            const { processResponseData, returnUrl } = commonFunctions;
+
+            await dispatch(
+                sellThunks.handleTradeThunk({
+                    account: sendAccount,
+                    trade,
+                    returnUrl,
+                    processResponseData,
+                }),
+            );
+        },
+        [dispatch, getCommonFunctions, sendAccount],
+    );
+
+    const confirmTrade = useCallback(
+        async (bankAccount: BankAccount) => {
+            if (!selectedQuote) {
+                console.warn('No selected quote for confirm trade');
+
+                return;
+            }
+
+            const quote = { ...selectedQuote, bankAccount };
+
+            const commonFunctions = getCommonFunctions(quote);
+            if (!commonFunctions || !sendAccount) {
+                console.warn('No common functions or send account for confirm trade');
+
+                return;
+            }
+
+            const { processResponseData, triggerAnalyticsTradeConfirmation, returnUrl } =
+                commonFunctions;
+
+            await dispatch(
+                sellThunks.confirmTradeThunk({
+                    account: sendAccount,
+                    bankAccount,
+                    returnUrl,
+                    triggerAnalyticsTradeConfirmation,
+                    processResponseData,
+                }),
+            );
+        },
+        [dispatch, getCommonFunctions, selectedQuote, sendAccount],
+    );
+
+    const doBankAccountVerificationCheck = useCallback(async () => {
+        if (!selectedQuote) {
+            console.warn('No selected quote for bank account check');
+
             return;
         }
 
-        await waitForConsent();
-    }, [waitForConsent, candidateQuote]);
-
-    const giveConsent = useCallback(() => {
-        resolveConsent(true);
-    }, [resolveConsent]);
-
-    const cancelConsent = useCallback(() => {
-        resolveConsent(false);
-    }, [resolveConsent]);
+        // empty quoteId means the partner requests login first, requestTrade to get login screen
+        if (
+            (sellInfo &&
+                sellUtils.needToRegisterOrVerifyBankAccount({
+                    quote: selectedQuote,
+                    sellInfo,
+                })) ||
+            !selectedQuote.quoteId
+        ) {
+            await doSellTrade(selectedQuote);
+        }
+    }, [selectedQuote, sellInfo, doSellTrade]);
 
     return {
-        canProceed,
-        selectQuote,
-        isConsentRequested,
-        giveConsent,
-        cancelConsent,
+        txnErrorString,
+        composeTradingTransaction,
+        signAndSendTransaction,
+        serializedTx,
+        resolveTransactionSendConsent,
+        isTransactionSendConsentRequested,
+        doSellTrade,
+        confirmTrade,
+        doBankAccountVerificationCheck,
     };
 };

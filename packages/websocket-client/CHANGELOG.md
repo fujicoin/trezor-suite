@@ -1,3 +1,20 @@
+# 1.3.0
+
+- npm-prerelease: @trezor/websocket-client 1.2.5-beta.2 (5ec3213e06)
+- refactor(connect): new replace-imports.sh script using babel (2128d273f3)
+- npm-prerelease: @trezor/websocket-client 1.2.5-beta.1 (4943bc22e6)
+
+# 1.2.4
+
+- npm-prerelease: @trezor/websocket-client 1.2.4-beta.1 (bdf6f0860f)
+
+# 1.2.3
+
+- fix: add missin @types/ws (7b89dc607b)
+- fix: add TON of missing dependecies in package.json (7027213e3f)
+- npm-prerelease: @trezor/websocket-client 1.2.3-beta.1 (a96fea80e1)
+- feat(websocket-client): configurable sendMessage timeout handler (c23ff42f9c)
+
 # 1.2.2
 
 - npm-prerelease: @trezor/websocket-client 1.2.2-beta.2 (86961cbbff)

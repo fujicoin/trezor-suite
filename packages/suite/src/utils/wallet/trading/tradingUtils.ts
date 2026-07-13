@@ -1,43 +1,23 @@
-import { CryptoId, FiatCurrencyCode } from 'invity-api';
-
-import { DefinitionType, isTokenDefinitionKnown } from '@suite-common/token-definitions';
+import { type ExtendedMessageDescriptor } from '@suite/intl';
+import type { TradingType } from '@suite-common/trading';
+import { type Network, type NetworkSymbol, getNetworkType } from '@suite-common/wallet-config';
 import {
-    TradingCryptoSelectItemProps,
-    type TradingType,
-    cryptoIdToSymbol,
-    toTokenCryptoId,
-} from '@suite-common/trading';
-import {
-    Network,
-    getNetwork,
-    getNetworkDisplaySymbol,
-    getNetworkDisplaySymbolName,
-    getNetworkFeatures,
-    getNetworkType,
-} from '@suite-common/wallet-config';
-import {
-    getContractAddressForNetworkSymbol,
-    sortByCoin,
-    substituteBip43Path,
-} from '@suite-common/wallet-utils';
-import TrezorConnect from '@trezor/connect';
+    type Output,
+    type PrecomposedLevels,
+    type PrecomposedLevelsCardano,
+    type TokenAddress,
+} from '@suite-common/wallet-types';
+import { asAmountSubunit, substituteBip43Path, subunitsToUnits } from '@suite-common/wallet-utils';
+import TrezorConnect, { type FeeLevel, type TokenInfo } from '@trezor/connect';
+import { exhaustive } from '@trezor/type-utils';
 import { BigNumber } from '@trezor/utils';
 
-import { ExtendedMessageDescriptor, Route, TrezorDevice } from 'src/types/suite';
+import { type TrezorDevice } from 'src/types/suite';
 import {
-    TradingAccountOptionsGroupOptionProps,
-    TradingAccountsOptionsGroupProps,
-    TradingBuildAccountOptionsProps,
-    TradingGetAmountLabelsProps,
-    TradingGetAmountLabelsReturnProps,
-    TradingGetSortedAccountsProps,
+    type TradingGetAmountLabelsProps,
+    type TradingGetAmountLabelsReturnProps,
 } from 'src/types/trading/trading';
-import { Account } from 'src/types/wallet';
-
-interface TradingGetDecimalsProps {
-    sendCryptoSelect?: TradingAccountOptionsGroupOptionProps;
-    network?: Network | null;
-}
+import { type Account } from 'src/types/wallet';
 
 export const translationKeys: Record<
     TradingType,
@@ -46,55 +26,6 @@ export const translationKeys: Record<
     buy: 'TR_BUY',
     sell: 'TR_TRADING_SELL',
     exchange: 'TR_TRADING_SWAP',
-};
-
-export const getTradingCryptoInfo = (
-    cryptoSelect:
-        | TradingAccountOptionsGroupOptionProps
-        | TradingCryptoSelectItemProps
-        | null
-        | undefined,
-) => {
-    const label = cryptoSelect?.label ?? undefined;
-    const networkSymbol = cryptoSelect ? cryptoIdToSymbol(cryptoSelect.value) : undefined;
-    const contractAddress = cryptoSelect?.contractAddress ?? undefined;
-
-    return { label, networkSymbol, contractAddress };
-};
-
-export const getTradingNetworkDecimals = ({
-    sendCryptoSelect,
-    network,
-}: TradingGetDecimalsProps) => {
-    if (sendCryptoSelect) {
-        return sendCryptoSelect.decimals;
-    }
-
-    return network?.decimals ?? 8;
-};
-
-export const buildTradingFiatOption = (currency: FiatCurrencyCode) => ({
-    value: currency,
-    label: currency.toUpperCase(),
-});
-
-export const getCountryLabelParts = (label: string) => {
-    try {
-        const parts = label.split(' ');
-        if (parts.length === 1) {
-            return {
-                flag: '',
-                text: label,
-            };
-        }
-        const flag = parts[0];
-        parts.shift();
-        const text = parts.join(' ');
-
-        return { flag, text };
-    } catch {
-        return null;
-    }
 };
 
 export const getComposeAddressPlaceholder = async (
@@ -129,7 +60,6 @@ export const getComposeAddressPlaceholder = async (
                     device,
                     coin: account.symbol,
                     path: `${substituteBip43Path(bip43Path)}/0/0`,
-                    useEmptyPassphrase: device.useEmptyPassphrase,
                     showOnTrezor: false,
                     chunkify,
                 });
@@ -139,7 +69,11 @@ export const getComposeAddressPlaceholder = async (
             }
 
             // as a fallback, use the change address of current account
-            return account.addresses?.change[0].address;
+            const change = account.addresses?.change;
+            // @ts-expect-error: indexing with noUncheckedIndexedAccess
+            const firstChange: NonNullable<typeof change>[number] = change?.[0];
+
+            return firstChange.address;
         }
         case 'ethereum':
             // ethereum address is not used as it breaks calculating fee logic;
@@ -153,132 +87,12 @@ export const getComposeAddressPlaceholder = async (
         case 'ripple':
         case 'stellar':
             return account.descriptor;
-        // no default
+        case 'tron':
+            // keep the form address empty; the fee uses composeContext.feeEstimationRecipient
+            return '';
+        default:
+            return exhaustive(networkType);
     }
-};
-
-export const tradingGetSortedAccounts = ({
-    accounts,
-    deviceState,
-}: TradingGetSortedAccountsProps) => {
-    if (!deviceState) return [];
-
-    return sortByCoin(
-        accounts.filter(
-            a => a.deviceState === deviceState && a.visible && a.accountType !== 'coinjoin',
-        ),
-    );
-};
-
-export const tradingBuildAccountOptions = ({
-    deviceState,
-    accounts,
-    accountLabels,
-    tokenDefinitions,
-    supportedCryptoIds,
-    getDefaultAccountLabel,
-}: TradingBuildAccountOptionsProps): TradingAccountsOptionsGroupProps[] => {
-    const accountsSorted = tradingGetSortedAccounts({
-        accounts,
-        deviceState,
-    });
-
-    const groups: TradingAccountsOptionsGroupProps[] = [];
-
-    accountsSorted.forEach(account => {
-        const {
-            descriptor,
-            tokens,
-            symbol: accountSymbol,
-            formattedBalance,
-            index,
-            accountType,
-        } = account;
-
-        const network = getNetwork(accountSymbol);
-
-        if (!network.tradeCryptoId) {
-            return;
-        }
-
-        const groupLabel =
-            accountLabels[account.key] ??
-            getDefaultAccountLabel({
-                accountType,
-                symbol: accountSymbol,
-                index,
-            });
-
-        const accountDecimals = network.decimals;
-        const option: TradingAccountOptionsGroupOptionProps = {
-            value: network.tradeCryptoId as CryptoId,
-            label: getNetworkDisplaySymbol(accountSymbol),
-            cryptoName: getNetworkDisplaySymbolName(accountSymbol),
-            descriptor,
-            balance: formattedBalance ?? '',
-            accountType: account.accountType,
-            decimals: accountDecimals,
-        };
-        const options: TradingAccountOptionsGroupOptionProps[] = [option];
-
-        const hasNativeToken = options.length > 0;
-
-        // add crypto tokens to options
-        if (tokens && tokens.length > 0) {
-            const hasCoinDefinitions = getNetworkFeatures(account.symbol).includes(
-                'coin-definitions',
-            );
-            const coinDefinitions = tokenDefinitions?.[account.symbol]?.[DefinitionType.COIN];
-
-            tokens.forEach(token => {
-                const { symbol, balance, contract, name } = token;
-                if (!symbol || !balance || balance === '0') {
-                    return;
-                }
-
-                const contractAddress = getContractAddressForNetworkSymbol(accountSymbol, contract);
-
-                const tokenCryptoId = toTokenCryptoId(accountSymbol, contractAddress);
-                if (supportedCryptoIds && !supportedCryptoIds.has(tokenCryptoId)) {
-                    return;
-                }
-
-                // exclude unknown tokens
-                if (
-                    hasCoinDefinitions &&
-                    coinDefinitions &&
-                    !isTokenDefinitionKnown(coinDefinitions.data, account.symbol, token.contract)
-                ) {
-                    return;
-                }
-
-                options.push({
-                    value: tokenCryptoId,
-                    label: symbol.toUpperCase(),
-                    cryptoName: name,
-                    contractAddress: contract,
-                    descriptor,
-                    accountType,
-                    balance: balance ?? '',
-                    decimals: token.decimals,
-                });
-            });
-        }
-
-        const hasTokens = hasNativeToken && options.length > 1;
-
-        // exclude account if the native token has 0 balance and has no other tokens
-        if (!hasTokens && hasNativeToken && options[0].balance === '0') {
-            return;
-        }
-
-        groups.push({
-            label: groupLabel,
-            options,
-        });
-    });
-
-    return groups.filter(group => group.options.length > 0);
 };
 
 export const tradingGetAmountLabels = ({
@@ -345,57 +159,68 @@ export const tradingGetSectionActionLabel = (
     return 'TR_TRADING_SWAP';
 };
 
-interface GetAddressAndTokenFromAccountOptionsGroupProps {
+interface ResolveAddressAndTokenProps {
     address: string;
     token: string | null;
 }
 
-export const getAddressAndTokenFromAccountOptionsGroupProps = (
-    selected: TradingAccountOptionsGroupOptionProps | undefined,
-): GetAddressAndTokenFromAccountOptionsGroupProps => {
-    if (!selected) {
+export const resolveAddressAndToken = <A extends Pick<Account, 'symbol' | 'descriptor'>>(
+    account: A | undefined | null,
+    tokenContractAddress: TokenInfo['contract'] | undefined | null,
+): ResolveAddressAndTokenProps => {
+    if (!account) {
         return { address: '', token: null };
     }
-
-    const symbol = cryptoIdToSymbol(selected.value);
-    const networkType = symbol ? getNetworkType(symbol) : null;
+    const networkType = getNetworkType(account.symbol);
 
     // set token address for ERC20 transaction to estimate the fees more precisely
     if (networkType === 'ethereum') {
         return {
-            address: selected.contractAddress ?? '',
-            token: selected.contractAddress ?? null,
+            address: tokenContractAddress ?? '',
+            token: tokenContractAddress ?? null,
         };
     }
 
-    if (networkType === 'solana' && !selected.contractAddress) {
-        return { address: selected.descriptor, token: null };
+    if (networkType === 'solana' && !tokenContractAddress) {
+        return { address: account.descriptor, token: null };
     }
 
-    return { address: '', token: selected.contractAddress ?? null };
+    return { address: '', token: tokenContractAddress ?? null };
 };
 
-export const getTradeTypeByRoute = (
-    routeName: Route['name'] | undefined,
-): TradingType | undefined => {
-    if (routeName?.startsWith('wallet-trading-buy')) {
-        return 'buy';
+interface GetFeeInUnitsProps {
+    symbol: NetworkSymbol;
+    composedLevels?: PrecomposedLevels | PrecomposedLevelsCardano;
+    selectedFee?: FeeLevel['label'];
+}
+
+export const getFeeInUnits = ({
+    symbol,
+    composedLevels,
+    selectedFee = 'normal',
+}: GetFeeInUnitsProps): string => {
+    const selectedFeeLevel = composedLevels?.[selectedFee];
+    if (!selectedFeeLevel) return '0';
+
+    if (selectedFeeLevel.type !== 'final' && selectedFeeLevel.type !== 'nonfinal') {
+        return '0';
     }
 
-    if (routeName?.startsWith('wallet-trading-sell')) {
-        return 'sell';
-    }
+    const { fee } = selectedFeeLevel;
 
-    if (routeName?.startsWith('wallet-trading-exchange')) {
-        return 'exchange';
-    }
+    const feeInUnits = subunitsToUnits({
+        value: asAmountSubunit(new BigNumber(fee)),
+        symbol,
+    }).toString();
+
+    return feeInUnits;
 };
 
-export const tokenSupportsIncreasingAllowance = (contractAddress?: string) => {
-    const ethereumUsdtContractAddress = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
+export const getTradingFirstOutput = (outputs: Output[] | undefined) => {
+    const firstOutput = outputs?.[0];
+    const amount = firstOutput?.amount ?? '';
+    const token = firstOutput?.token ?? null;
+    const tokenAddress = token as TokenAddress | null;
 
-    return (
-        contractAddress &&
-        contractAddress.trim().toLowerCase() !== ethereumUsdtContractAddress.toLowerCase()
-    );
+    return { amount, token, tokenAddress };
 };

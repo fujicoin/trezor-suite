@@ -3,7 +3,12 @@ import { View } from 'react-native';
 
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { AccountType } from '@suite-common/wallet-config';
+import { type AccountType } from '@suite-common/wallet-config';
+import {
+    type AddCoinEnabledAccountType,
+    accountTypeTranslationKeys,
+    useAddCoinAccount,
+} from '@suite-native/add-coin-account';
 import {
     Box,
     BulletListItem,
@@ -13,30 +18,22 @@ import {
     VStack,
     useBannerAwareSafeAreaInsets,
 } from '@suite-native/atoms';
-import { Translation, TxKeyPath, useTranslate } from '@suite-native/intl';
+import { Translation, type TxKeyPath, useTranslate } from '@suite-native/intl';
 import { useOpenLink } from '@suite-native/link';
 import {
-    AddCoinAccountStackParamList,
-    AddCoinAccountStackRoutes,
+    type AddCoinAccountStackParamList,
+    type AddCoinAccountStackRoutes,
     Screen,
     ScreenHeader,
-    StackProps,
+    type StackProps,
 } from '@suite-native/navigation';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-
-import {
-    AddCoinEnabledAccountType,
-    accountTypeTranslationKeys,
-    useAddCoinAccount,
-} from '../hooks/useAddCoinAccount';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+import { TREZOR_SUPPORT_MULTIPLE_ACCOUNTS } from '@trezor/urls';
 
 const GRADIENT_HEIGHT = 48;
 
 // for extra space on the bottom due to android showing odd SafeAreaInsets.bottom
 const EXTRA_BOTTOM_PADDING = 48;
-
-const ACCOUNT_TYPES_URL =
-    'https://trezor.io/guides/trezor-suite/trezor-suite-desktop/multiple-accounts-in-trezor-suite';
 
 const bulletsForKeyPath = (keyPath: TxKeyPath) => (
     <Box paddingLeft="sp8">
@@ -47,7 +44,11 @@ const bulletsForKeyPath = (keyPath: TxKeyPath) => (
                     chunks.map(
                         row =>
                             row && (
-                                <BulletListItem key={`${row}`} variant="hint" color="textSubdued">
+                                <BulletListItem
+                                    key={`${row}`}
+                                    variant="body-sm"
+                                    color="contentSecondary"
+                                >
                                     {row}
                                 </BulletListItem>
                             ),
@@ -75,7 +76,7 @@ const gradientStyle = prepareNativeStyle(_ => ({
 
 const buttonWrapperStyle = prepareNativeStyle(utils => ({
     paddingHorizontal: utils.spacings.sp16,
-    backgroundColor: utils.colors.backgroundSurfaceElevation0,
+    backgroundColor: utils.colors.surfaceFillPage,
 }));
 
 const aboutStyle = prepareNativeStyle((utils, { bottomInset }: { bottomInset: number }) => ({
@@ -113,7 +114,7 @@ export const SelectAccountTypeScreen = ({
 
     const accountTypeKey = getAccountTypeTranslations(selectedAccountType)?.titleKey;
 
-    const handleMoreTap = () => openLink(ACCOUNT_TYPES_URL);
+    const handleMoreTap = () => openLink(TREZOR_SUPPORT_MULTIPLE_ACCOUNTS);
 
     const handleConfirmTap = () =>
         addCoinAccount({ symbol: networkSymbol, accountType: selectedAccountType, flowType });
@@ -146,17 +147,17 @@ export const SelectAccountTypeScreen = ({
                                 content={bulletsForKeyPath(descKey)}
                                 isSelected={selectedAccountType === item}
                                 isDefault={defaultType === item}
-                                data-testID={`@add-account/select-type/${item}`}
+                                testID={`@add-account/select-type/${item}`}
                                 onSelected={() => setSelectedAccountType(item)}
                             />
                         );
                     })}
                 </VStack>
                 <View style={applyStyle(aboutStyle, { bottomInset: insets.bottom })}>
-                    <Text variant="hint" color="textSubdued" textAlign="center">
+                    <Text variant="body-sm" color="contentSecondary" textAlign="center">
                         <Translation id="moduleAddAccounts.selectAccountTypeScreen.aboutTypesLabel" />
                     </Text>
-                    <Button size="medium" colorScheme="tertiaryElevation0" onPress={handleMoreTap}>
+                    <Button intent="neutral" priority="secondary" onPress={handleMoreTap}>
                         <Translation id="moduleAddAccounts.selectAccountTypeScreen.buttons.more" />
                     </Button>
                 </View>
@@ -165,12 +166,12 @@ export const SelectAccountTypeScreen = ({
                 <LinearGradient
                     style={applyStyle(gradientStyle)}
                     colors={[
-                        utils.transparentize(1, utils.colors.backgroundSurfaceElevation0),
-                        utils.colors.backgroundSurfaceElevation0,
+                        utils.transparentize(1, utils.colors.surfaceFillPage),
+                        utils.colors.surfaceFillPage,
                     ]}
                 />
                 <View style={applyStyle(buttonWrapperStyle)}>
-                    <Button size="medium" onPress={handleConfirmTap}>
+                    <Button onPress={handleConfirmTap}>
                         <Translation
                             id="moduleAddAccounts.selectAccountTypeScreen.buttons.confirm"
                             values={{

@@ -1,4 +1,7 @@
-import { DeviceModelInternal } from './deviceModelInternal';
+import type { MessagesSchema as PROTO } from '@trezor/protobuf';
+import type { VersionArray } from '@trezor/utils/src/versionUtils';
+
+import { type DeviceModelInternal } from './deviceModelInternal';
 
 export type FirmwareVersionString = `${number}.${number}.${number}`;
 
@@ -6,8 +9,6 @@ export enum FirmwareType {
     BitcoinOnly = 'bitcoin-only',
     Universal = 'universal',
 }
-
-export type VersionArray = [number, number, number];
 
 export type FeaturesNarrowing =
     | {
@@ -44,6 +45,17 @@ export type FeaturesNarrowing =
           major_version: 1;
           minor_version: number;
           patch_version: number;
+          // Old T1B1 versions do not report FW version in bootloader mode, then it cannot be known
+          fw_major: 1 | null;
+          fw_minor: number | null;
+          fw_patch: number | null;
+          bootloader_mode: true;
+          firmware_present: true;
+      }
+    | {
+          major_version: 1;
+          minor_version: number;
+          patch_version: number;
           fw_major: null;
           fw_minor: null;
           fw_patch: null;
@@ -57,11 +69,10 @@ export type FeaturesNarrowing =
           fw_major: null;
           fw_minor: null;
           fw_patch: null;
-          bootloader_mode: true;
-          firmware_present: true;
+          bootloader_mode: null;
+          firmware_present: null;
       };
 
-// todo: this is copy-pasted from packages/protobuf/src/messages
 export type PartialDevice = {
     firmwareType?: FirmwareType;
     authenticityChecks?: {
@@ -70,20 +81,7 @@ export type PartialDevice = {
     };
     mode?: 'normal' | 'bootloader' | 'initialize' | 'seedless';
 
-    features?: {
-        major_version: number;
-        minor_version: number;
-        patch_version: number;
-        bootloader_mode: boolean | null;
-        initialized: boolean | null;
-        revision: string | null;
-        bootloader_hash: string | null;
-        fw_major: number | null;
-        fw_minor: number | null;
-        fw_patch: number | null;
-        no_backup: boolean | null;
-        unit_btconly?: boolean;
-    };
+    features?: PROTO.Features;
 };
 
 export type FirmwareSource = 'official' | 'unknown' | 'NA - bootloader';
@@ -98,6 +96,7 @@ export type FirmwareRelease = {
     min_bootloader_version: VersionArray;
     translations: Record<string, string>;
     firmware_revision?: string;
+    bootloader_hash?: string;
     fingerprint: string;
     changelog?: string;
 };
@@ -121,8 +120,6 @@ export interface IntermediaryReleaseConfig {
     min_firmware_version: VersionArray;
     min_bootloader_version: VersionArray;
     version: number;
-    firmware_revision: string;
-    url: string;
 }
 
 export interface FirmwareReleaseConfig {

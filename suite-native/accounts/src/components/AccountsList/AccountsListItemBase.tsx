@@ -1,17 +1,19 @@
 import React from 'react';
-import { TouchableOpacity, TouchableOpacityProps } from 'react-native';
+import { type PressableProps } from 'react-native';
 
-import { Box, HStack, Text } from '@suite-native/atoms';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { Box, HStack, PressableOpacity, Text } from '@suite-native/atoms';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
-export type AccountListItemBaseProps = {
+type AccountListItemBaseProps = {
     icon: React.ReactNode;
     title: React.ReactNode;
+    titleBadge?: React.ReactNode;
+    secondaryTitle?: React.ReactNode;
     mainValue: React.ReactNode;
     secondaryValue: React.ReactNode;
     badges?: React.ReactNode;
 
-    onPress?: TouchableOpacityProps['onPress'];
+    onPress?: PressableProps['onPress'];
     disabled?: boolean;
 
     hasBackground?: boolean;
@@ -36,7 +38,7 @@ const accountListItemStyle = prepareNativeStyle<{
     extend: {
         condition: hasBackground,
         style: {
-            backgroundColor: utils.colors.backgroundSurfaceElevation1,
+            backgroundColor: utils.colors.surfaceFillRaised,
             paddingTop: utils.spacings.sp16,
             paddingBottom: utils.spacings.sp16,
 
@@ -62,7 +64,7 @@ const accountListItemStyle = prepareNativeStyle<{
                     condition: !isLast && showDivider,
                     style: {
                         borderBottomWidth: utils.borders.widths.small,
-                        borderBottomColor: utils.colors.borderElevation1,
+                        borderBottomColor: utils.colors.borderNeutral,
                     },
                 },
             ],
@@ -74,17 +76,26 @@ const accountDescriptionStyle = prepareNativeStyle(_ => ({
     flexShrink: 1,
 }));
 
+const titleStyle = prepareNativeStyle(_ => ({
+    flexShrink: 1,
+}));
+
 const valuesContainerStyle = prepareNativeStyle(utils => ({
     maxWidth: '40%',
     flexShrink: 0,
     alignItems: 'flex-end',
     justifyContent: 'center',
     paddingLeft: utils.spacings.sp8,
+    // body-md line height (24) + body-sm line height (20) — ensures consistent height
+    // when mainValue is absent so secondaryValue stays vertically centred
+    minHeight: utils.spacings.sp24 + utils.spacings.sp20,
 }));
 
 export const AccountsListItemBase = ({
     icon,
     title,
+    titleBadge,
+    secondaryTitle,
     badges,
     mainValue,
     secondaryValue,
@@ -97,7 +108,7 @@ export const AccountsListItemBase = ({
 }: AccountListItemBaseProps) => {
     const { applyStyle } = useNativeStyles();
 
-    const BaseComponent = onPress ? TouchableOpacity : Box;
+    const BaseComponent = onPress ? PressableOpacity : Box;
 
     return (
         <BaseComponent
@@ -113,7 +124,18 @@ export const AccountsListItemBase = ({
             <Box flexDirection="row" alignItems="center" flex={1}>
                 <Box marginRight="sp16">{icon}</Box>
                 <Box style={applyStyle(accountDescriptionStyle)}>
-                    <Text>{title}</Text>
+                    <HStack spacing="sp4" alignItems="center">
+                        <Text
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                            style={applyStyle(titleStyle)}
+                            testID="@accountList/item/title"
+                        >
+                            {title}
+                        </Text>
+                        {titleBadge}
+                    </HStack>
+                    {secondaryTitle}
                     <HStack spacing="sp4" alignItems="center">
                         {badges}
                     </HStack>

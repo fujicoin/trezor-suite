@@ -1,11 +1,12 @@
-import { AccountBalanceHistory } from '@trezor/blockchain-link';
+import { type AccountKey } from '@suite-common/wallet-types';
+import { type AccountBalanceHistory } from '@trezor/blockchain-link';
 
 import {
     formatBalanceMovementEventsAmounts,
     groupBalanceMovementEvents,
     mergeGroups,
 } from '../graphBalanceEvents';
-import { BalanceMovementEvent, GroupedBalanceMovementEvent } from '../types';
+import { type BalanceMovementEvent, type GroupedBalanceMovementEvent } from '../types';
 
 describe('formatBalanceMovementEventsAmounts', () => {
     it('should calculate received and sent values for each balance movement', () => {
@@ -231,7 +232,7 @@ describe('mergeGroups', () => {
                     sentTransactionsCount: 2,
                     receivedTransactionsCount: 2,
                     symbol,
-                    accountKey: 'accountKey',
+                    accountKey: 'accountKey' as AccountKey, // Todo: create properly via `createAccountKey()`
                 },
             },
             {
@@ -242,12 +243,16 @@ describe('mergeGroups', () => {
                     sentTransactionsCount: 1,
                     receivedTransactionsCount: 1,
                     symbol,
-                    accountKey: 'accountKey',
+                    accountKey: 'accountKey' as AccountKey, // Todo: create properly via `createAccountKey()`
                 },
             },
         ];
 
-        const result = mergeGroups({ groups, symbol, accountKey: 'accountKey' });
+        const result = mergeGroups({
+            groups,
+            symbol,
+            accountKey: 'accountKey' as AccountKey, // Todo: create properly via `createAccountKey()`
+        });
         expect(result).toEqual(expectedMergedGroups);
     });
 
@@ -257,7 +262,11 @@ describe('mergeGroups', () => {
 
         const expectedMergedGroups: GroupedBalanceMovementEvent[] = [];
 
-        const result = mergeGroups({ groups, symbol, accountKey: 'accountKey' });
+        const result = mergeGroups({
+            groups,
+            symbol,
+            accountKey: 'accountKey' as AccountKey, // Todo: create properly via `createAccountKey()`
+        });
         expect(result).toEqual(expectedMergedGroups);
     });
 });

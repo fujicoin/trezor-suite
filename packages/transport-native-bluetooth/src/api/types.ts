@@ -4,12 +4,23 @@ export type DeviceConnectionStatus =
     | { type: 'paired' }
     | { type: 'connecting' }
     | { type: 'connected' }
+    | { type: 'pairing-canceled' }
     | { type: 'pairing-error'; error: string }
     | { type: 'connection-error'; error: string };
 
 export type DeviceConnectionStatusChangeEvent = {
     deviceId: string;
     connectionStatus: DeviceConnectionStatus;
+};
+
+export type DevicePushNotificationEvent = {
+    deviceId: string;
+    data: number[];
+};
+
+export type DeviceBatteryLevelChangeEvent = {
+    deviceId: string;
+    data: number[];
 };
 
 export interface BluetoothDevice {

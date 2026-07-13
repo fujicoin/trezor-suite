@@ -1,30 +1,18 @@
 import { useEffect, useState } from 'react';
 
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { AccountLabel } from '@suite/account';
+import { Translation } from '@suite/intl';
+import { onReceiveAccount } from '@suite/modal';
 import { selectAccounts } from '@suite-common/wallet-core';
-import {
-    Card,
-    Column,
-    Icon,
-    Modal,
-    Row,
-    SkeletonCircle,
-    SkeletonRectangle,
-    SubTabs,
-    Table,
-} from '@trezor/components';
-import { UiRequestSelectAccount } from '@trezor/connect';
-import { CoinLogo } from '@trezor/product-components';
-import { NETWORK_ICONS } from '@trezor/product-components/src/components/CoinLogo/networks';
+import { Card, Column, Icon, Modal, Row, Skeleton, SubTabs, Table } from '@trezor/components';
+import { type UiRequestSelectAccount } from '@trezor/connect';
+import { CaretRightIcon } from '@trezor/icons';
+import { CoinLogo, isNetworkSymbolWithIcon } from '@trezor/product-components';
 import { spacings } from '@trezor/theme';
 
-import { onReceiveAccount } from 'src/actions/suite/modalActions';
-import { AccountLabel } from 'src/components/suite/AccountLabel';
 import { ConnectCallSource } from 'src/components/suite/ConnectCallSource';
 import { ConnectModalBackdrop } from 'src/components/suite/ConnectModalBackdrop';
-import { Translation } from 'src/components/suite/Translation';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectAccountLabels } from 'src/reducers/suite/metadataReducer';
 
 interface SelectAccountModalProps {
     data: UiRequestSelectAccount['payload'];
@@ -33,7 +21,6 @@ interface SelectAccountModalProps {
 export const SelectAccountModal = ({ data }: SelectAccountModalProps) => {
     const dispatch = useDispatch();
     const suiteAccounts = useSelector(selectAccounts);
-    const suiteAccountLabels = useSelector(selectAccountLabels);
 
     const [accounts, setAccounts] = useState(data.accounts);
     const [accountTypes, setAccountTypes] = useState(data.accountTypes);
@@ -56,18 +43,21 @@ export const SelectAccountModal = ({ data }: SelectAccountModalProps) => {
         }
     }, [data.accountTypes, data.defaultAccountType, data.accounts]);
     const typeLabels = {
-        p2wpkh: <Translation id="TR_NORMAL_ACCOUNTS" />,
-        p2tr: <Translation id="TR_TAPROOT_ACCOUNTS" />,
-        p2sh: <Translation id="TR_LEGACY_SEGWIT_ACCOUNTS" />,
-        p2pkh: <Translation id="TR_LEGACY_ACCOUNTS" />,
+        p2wpkh: <Translation id="TR_ACCOUNT_TYPE_DEFAULT" />,
+        p2tr: <Translation id="TR_ACCOUNT_TYPE_TAPROOT" />,
+        p2sh: <Translation id="TR_ACCOUNT_TYPE_SEGWIT" />,
+        p2pkh: <Translation id="TR_ACCOUNT_TYPE_LEGACY" />,
     };
-    const filteredAccounts = accounts?.filter(account => account.type === selectedAccountType);
+    const indexedAccounts = accounts?.map((account, index) => ({ ...account, index }));
+    const filteredAccounts = indexedAccounts?.filter(
+        account => account.type === selectedAccountType,
+    );
 
     return (
         <ConnectModalBackdrop onClick={close} canSwitchDevice>
             <Modal.ModalBase
                 onCancel={close}
-                variant="primary"
+                intent="brand"
                 heading={
                     <Translation
                         id="TR_SELECT_ACCOUNT"
@@ -113,7 +103,7 @@ export const SelectAccountModal = ({ data }: SelectAccountModalProps) => {
                                 </Table.Row>
                             </Table.Header>
                             <Table.Body>
-                                {filteredAccounts?.map((account, index) => {
+                                {filteredAccounts?.map(account => {
                                     const symbol = data.coinInfo.shortcut.toLowerCase();
                                     const suiteAccount = suiteAccounts.find(
                                         a =>
@@ -124,28 +114,20 @@ export const SelectAccountModal = ({ data }: SelectAccountModalProps) => {
                                     return (
                                         <Table.Row
                                             key={account.descriptor}
-                                            onClick={() => confirm(index)}
-                                            data-testid={`@select-account-modal/accounts/${account.type}/${index}`}
+                                            onClick={() => confirm(account.index)}
+                                            data-testid={`@select-account-modal/accounts/${account.type}/${account.index}`}
                                         >
                                             <Table.Cell>
                                                 <Row gap={spacings.sm}>
-                                                    {symbol in NETWORK_ICONS && (
+                                                    {isNetworkSymbolWithIcon(symbol) && (
                                                         <CoinLogo
                                                             type="network"
-                                                            symbol={symbol as NetworkSymbol}
+                                                            symbol={symbol}
                                                             size={24}
                                                         />
                                                     )}
                                                     {suiteAccount ? (
-                                                        <AccountLabel
-                                                            account={{
-                                                                ...suiteAccount,
-                                                                accountLabel:
-                                                                    suiteAccountLabels[
-                                                                        suiteAccount.key
-                                                                    ],
-                                                            }}
-                                                        />
+                                                        <AccountLabel account={suiteAccount} />
                                                     ) : (
                                                         account.label
                                                     )}
@@ -159,21 +141,21 @@ export const SelectAccountModal = ({ data }: SelectAccountModalProps) => {
                                                 )}
                                             </Table.Cell>
                                             <Table.Cell align="end">
-                                                <Icon size="large" name="caretRight" />
+                                                <Icon size={24} as={CaretRightIcon} />
                                             </Table.Cell>
                                         </Table.Row>
                                     );
                                 })}
-                                {data.type !== 'end' && (
+                                {data.type !== 'end' && data.type !== 'complete' && (
                                     <Table.Row>
                                         <Table.Cell>
-                                            <SkeletonRectangle width="100px" animate />
+                                            <Skeleton width={100} animate />
                                         </Table.Cell>
                                         <Table.Cell>
-                                            <SkeletonRectangle width="80px" animate />
+                                            <Skeleton width={80} animate />
                                         </Table.Cell>
                                         <Table.Cell align="end">
-                                            <SkeletonCircle size="24px" />
+                                            <Skeleton type="circle" size={24} />
                                         </Table.Cell>
                                     </Table.Row>
                                 )}

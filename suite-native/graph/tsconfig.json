@@ -3,6 +3,13 @@
     "compilerOptions": { "outDir": "libDev" },
     "references": [
         {
+            "path": "../../suite-common/dependency-injection"
+        },
+        { "path": "../../suite-common/device" },
+        {
+            "path": "../../suite-common/discreet-mode"
+        },
+        {
             "path": "../../suite-common/formatters"
         },
         { "path": "../../suite-common/graph" },
@@ -33,11 +40,15 @@
         { "path": "../icons" },
         { "path": "../intl" },
         { "path": "../react-native-graph" },
+        { "path": "../services" },
         { "path": "../storage" },
         { "path": "../theme" },
         { "path": "../tokens" },
-        { "path": "../../packages/styles" },
+        {
+            "path": "../../packages/styles-native"
+        },
         { "path": "../../packages/theme" },
+        { "path": "../../packages/type-utils" },
         { "path": "../../packages/utils" }
     ]
 }

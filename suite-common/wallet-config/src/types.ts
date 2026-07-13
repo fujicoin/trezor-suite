@@ -1,9 +1,10 @@
+import { type TokenDtoV2 } from '@suite-common/earn-stablecoin-defs';
 import { type DeviceModelInternal } from '@trezor/device-utils';
-import { RequiredKey } from '@trezor/type-utils';
 
 export type NetworkSymbol =
     | 'btc'
     | 'ltc'
+    | 'fjc'
     | 'eth'
     | 'etc'
     | 'xrp'
@@ -17,24 +18,34 @@ export type NetworkSymbol =
     | 'arb'
     | 'base'
     | 'op'
+    | 'avax'
     | 'xlm'
     | 'test'
     | 'regtest'
+    | 'trx'
+    | 'ttrx'
     | 'tsep'
-    | 'thol'
+    | 'thod'
     | 'txrp'
     | 'txlm'
-    | 'tada'
     | 'dsol';
+
+export const asNetworkSymbol = (value: string) => value as NetworkSymbol;
+
 /**
  * Used for some edge cases where extension of NetworkSymbol is necessary.
  * Autocomplete is working as expected but can be passed any string.
  */
 export type NetworkSymbolExtended = NetworkSymbol | (string & {});
 
-export type StakingNetworkSymbol = Extract<NetworkSymbol, 'eth' | 'sol'>;
-
-export type NetworkType = 'bitcoin' | 'ethereum' | 'ripple' | 'cardano' | 'solana' | 'stellar';
+export type NetworkType =
+    | 'bitcoin'
+    | 'ethereum'
+    | 'ripple'
+    | 'cardano'
+    | 'solana'
+    | 'stellar'
+    | 'tron';
 
 type UtilityAccountType = 'normal' | 'imported' | 'placeholder'; // reserved accountTypes to stand in for a real accountType
 type RealAccountType = 'legacy' | 'segwit' | 'coinjoin' | 'taproot' | 'ledger';
@@ -47,13 +58,19 @@ export const TREZOR_CONNECT_BACKENDS = [
     'blockfrost',
     'solana',
     'stellar',
+    'evm-rpc',
 ] as const;
 
-export const NON_STANDARD_BACKENDS = ['coinjoin'] as const;
-
 export type TrezorConnectBackendType = (typeof TREZOR_CONNECT_BACKENDS)[number];
-export type NonStandardBackendType = (typeof NON_STANDARD_BACKENDS)[number];
+type NonStandardBackendType = 'coinjoin';
 export type BackendType = TrezorConnectBackendType | NonStandardBackendType;
+export type ServerType = BackendType | 'default';
+
+export type BackendOption = {
+    type: BackendType;
+    // Backend whose nodes run on third-party infrastructure Trezor pays for, not Trezor's own.
+    isExternalBackend?: boolean;
+};
 
 export type NetworkFeature =
     | 'rbf'
@@ -68,7 +85,9 @@ export type NetworkFeature =
     | 'coin-definitions'
     | 'nft-definitions'
     | 'eip1559'
-    | 'mev-protection';
+    | 'mev-protection'
+    | 'graph'
+    | 'claim-rewards';
 
 type Level = `/${number}'`;
 type MaybeApostrophe = `'` | '';
@@ -83,7 +102,6 @@ export type Bip43Path = `m${Level}${Level}${Level}${MaybeLevel}${MaybeLevel}`;
 export type Explorer = {
     base: string;
     tx: string;
-    account: string;
     address: string;
     nft?: string;
     token?: string;
@@ -98,13 +116,12 @@ type NetworkAccountWithSpecificKey<TKey extends AccountType> = {
     isDebugOnlyAccountType?: boolean;
 };
 export type NetworkAccount = NetworkAccountWithSpecificKey<AccountType>;
-export type NormalizedNetworkAccount = RequiredKey<NetworkAccount, 'features'>;
 
-export type NetworkAccountTypes = Partial<{
+type NetworkAccountTypes = Partial<{
     [key in AccountType]: NetworkAccountWithSpecificKey<key>;
 }>;
 
-export type NetworkDeviceSupport = Partial<Record<DeviceModelInternal, string>>;
+type NetworkDeviceSupport = Partial<Record<DeviceModelInternal, string>>;
 
 type NetworkWithSpecificKey<TKey extends NetworkSymbol> = {
     symbol: TKey;
@@ -121,12 +138,19 @@ type NetworkWithSpecificKey<TKey extends NetworkSymbol> = {
     isHidden?: boolean; // not used here, but supported elsewhere
     chainId?: number;
     features: NetworkFeature[];
-    backendTypes: BackendType[];
+    backendOptions: BackendOption[];
     support?: NetworkDeviceSupport;
     isDebugOnlyNetwork?: boolean;
+    isExperimentalOnlyNetwork?: boolean;
     coingeckoId?: string;
     tradeCryptoId?: string;
     caipId?: string; // CAIP-2 chain id, used by WalletConnect
+    nativeTokenReserve?: string;
+    /**
+     * Network ID used by Yield.xyz
+     * @url https://yield.xyz
+     */
+    yieldXyzId: TokenDtoV2['network'] | null;
 };
 export type Network = NetworkWithSpecificKey<NetworkSymbol>;
 

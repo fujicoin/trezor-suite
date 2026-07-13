@@ -1,8 +1,12 @@
 import { createAction } from '@reduxjs/toolkit';
 
-import { Account, WalletAccountTransaction } from '@suite-common/wallet-types';
+import {
+    type Account,
+    type AccountKey,
+    type WalletAccountTransaction,
+} from '@suite-common/wallet-types';
 import { enhanceTransaction } from '@suite-common/wallet-utils';
-import { AccountTransaction } from '@trezor/connect';
+import { type AccountTransaction } from '@trezor/connect';
 
 export const TRANSACTIONS_MODULE_PREFIX = '@common/wallet-core/transactions';
 
@@ -13,12 +17,17 @@ const resetTransaction = createAction(
 
 const replaceTransaction = createAction(
     `${TRANSACTIONS_MODULE_PREFIX}/replaceTransaction`,
-    (payload: { key: string; txid: string; tx: WalletAccountTransaction }) => ({ payload }),
+    (payload: { key: AccountKey; txid: string; tx: WalletAccountTransaction }) => ({ payload }),
 );
 
 const removeTransaction = createAction(
     `${TRANSACTIONS_MODULE_PREFIX}/removeTransaction`,
     (payload: { account: Account; txs: { txid: string }[] }) => ({ payload }),
+);
+
+const markTransactionAsNotScam = createAction(
+    `${TRANSACTIONS_MODULE_PREFIX}/markTransactionAsNotScam`,
+    (payload: { key: AccountKey; txid: string; isMarkedAsNotScam: boolean }) => ({ payload }),
 );
 
 type AddTransactionActionProps = {
@@ -59,4 +68,5 @@ export const transactionsActions = {
     replaceTransaction,
     removeTransaction,
     resetTransaction,
+    markTransactionAsNotScam,
 } as const;

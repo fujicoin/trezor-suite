@@ -1,27 +1,30 @@
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
 import { Banner } from '@trezor/components';
 
 import { applySettings } from 'src/actions/settings/deviceSettingsActions';
-import { Translation } from 'src/components/suite';
-import { useDevice, useDispatch } from 'src/hooks/suite';
+import { useDispatch } from 'src/hooks/suite';
 
 export const DeviceUnavailable = () => {
     const dispatch = useDispatch();
     const { device, isLocked } = useDevice();
+    const passphraseProtection = !!device?.features?.passphrase_protection;
 
-    if (!device?.connected || device.available) return null;
+    if (!device?.connected || device.available || !device.features || passphraseProtection) {
+        return null;
+    }
 
     const handleButtonClick = () => dispatch(applySettings({ use_passphrase: true }));
 
     return (
         <Banner
-            variant="info"
+            intent="info"
             rightContent={
                 <Banner.Button onClick={handleButtonClick} isLoading={isLocked()}>
                     <Translation id="TR_ACCOUNT_ENABLE_PASSPHRASE" />
                 </Banner.Button>
             }
-        >
-            <Translation id="TR_ACCOUNT_PASSPHRASE_DISABLED" />
-        </Banner>
+            description={<Translation id="TR_ACCOUNT_PASSPHRASE_DISABLED" />}
+        />
     );
 };

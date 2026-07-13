@@ -1,6 +1,3 @@
-// TODO: suite-common imports in non-suite packages should not be allowed
-// eslint-disable-next-line @typescript-eslint/no-restricted-imports
-import { icons } from '@suite-common/icons/src/icons';
 import { aboveBreakpoint, belowBreakpoint, breakpoints } from '@trezor/theme';
 
 /**
@@ -28,35 +25,7 @@ export const SCREEN_QUERY = {
 } as const;
 
 export const LAYOUT_SIZE = {
-    MENU_SECONDARY_WIDTH: '300px',
-    /** Guide width including border */
-    GUIDE_PANEL_WIDTH: '350px',
-    /** Guide width without border */
-    GUIDE_PANEL_CONTENT_WIDTH: '349px',
+    GUIDE_PANEL_DEFAULT_WIDTH: 350,
+    GUIDE_PANEL_MIN_WIDTH: 300,
+    GUIDE_PANEL_MAX_WIDTH: 1200,
 } as const;
-
-/**
- * @deprecated This key is deprecated. Please use e.g. `typography.hint` or different typographic style.
- */
-export const FONT_SIZE = {
-    BIG: '18px',
-    NORMAL: '16px',
-    SMALL: '14px',
-    TINY: '12px',
-    H1: '36px',
-    H2: '24px',
-    H3: '20px',
-} as const;
-
-/**
- * @deprecated This key is deprecated. Please use e.g. `typography.hint` or different typographic style.
- */
-export const FONT_WEIGHT = {
-    LIGHT: 300,
-    REGULAR: 400,
-    MEDIUM: 500,
-    DEMI_BOLD: 600,
-    BOLD: 700,
-} as const;
-
-export const ICONS = Object.keys(icons).sort();

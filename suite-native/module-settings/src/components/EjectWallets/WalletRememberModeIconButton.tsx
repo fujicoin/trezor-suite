@@ -1,12 +1,9 @@
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { TrezorDevice } from '@suite-common/suite-types';
-import {
-    deviceActions,
-    selectIsDeviceAutoEjectEnabled,
-    toggleRememberDevice,
-} from '@suite-common/wallet-core';
+import { deviceActions } from '@suite-common/device';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { selectIsDeviceAutoEjectEnabled } from '@suite-common/wallet-core';
 import { IconButton } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import { useToast } from '@suite-native/toasts';
@@ -20,10 +17,10 @@ export const WalletRememberModeIconButton = ({ device }: { device: TrezorDevice 
 
     const handleEjectWallet = () => {
         if (device.connected) {
-            dispatch(toggleRememberDevice({ device }));
+            dispatch(deviceActions.setRememberDevice({ device, remember: !device.remember }));
             if (device.remember) {
                 showToast({
-                    variant: 'default',
+                    intent: 'neutral',
                     message: (
                         <Translation id="moduleSettings.viewOnly.autoEject.toast.walletsWillBeEjected" />
                     ),
@@ -32,7 +29,7 @@ export const WalletRememberModeIconButton = ({ device }: { device: TrezorDevice 
         } else {
             dispatch(deviceActions.forgetDevice({ device }));
             showToast({
-                variant: 'default',
+                intent: 'neutral',
                 message: <Translation id="moduleSettings.viewOnly.autoEject.toast.walletEjected" />,
             });
         }
@@ -45,8 +42,8 @@ export const WalletRememberModeIconButton = ({ device }: { device: TrezorDevice 
             <IconButton
                 iconName={device.remember ? 'ejectSimple' : 'arrowUUpLeft'}
                 onPress={handleEjectWallet}
-                colorScheme="tertiaryElevation1"
-                size="extraSmall"
+                intent="neutral"
+                priority="secondary"
                 testID="@settings/eject-single-wallet"
             />
         </Animated.View>

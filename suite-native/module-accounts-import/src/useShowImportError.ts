@@ -2,12 +2,12 @@ import { useCallback } from 'react';
 
 import { type NetworkSymbol, getNetworkType } from '@suite-common/wallet-config';
 import { useAlert } from '@suite-native/alerts';
-import { IconName } from '@suite-native/icons';
+import { type IconName } from '@suite-native/icons';
 import {
-    AccountsImportStackParamList,
+    type AccountsImportStackParamList,
     AccountsImportStackRoutes,
-    RootStackParamList,
-    StackToStackCompositeNavigationProps,
+    type RootStackParamList,
+    type StackToStackCompositeNavigationProps,
 } from '@suite-native/navigation';
 
 type AlertError = 'invalidXpub' | 'invalidReceiveAddress' | 'networkError' | 'unknownError';
@@ -15,26 +15,31 @@ type AlertErrorOptions = {
     title: string;
     description: string;
     icon?: IconName;
+    isRetryEnabled: boolean;
 };
 
 const alertErrorMap: Record<AlertError, AlertErrorOptions> = {
     invalidXpub: {
         title: 'Invalid Public address (XPUB)',
         description: 'Check and correct the public address (XPUB).',
+        isRetryEnabled: false,
     },
     invalidReceiveAddress: {
         title: 'Receive address invalid',
         description: 'Check and correct the receive address.',
+        isRetryEnabled: false,
     },
     networkError: {
         title: 'Network error',
         description:
             'We were unable to retrieve the data from the blockchain due to a network error.',
         icon: 'wifiX',
+        isRetryEnabled: true,
     },
     unknownError: {
         title: 'Something went wrong',
         description: 'We are unable to gather the data right now. Please try again.',
+        isRetryEnabled: true,
     },
 };
 
@@ -66,9 +71,14 @@ export const useShowImportError = (symbol: NetworkSymbol, navigation: Navigation
                 }
             }
 
-            const { title, description, icon } = alertErrorMap[alertError];
+            const handleGoBack = () =>
+                navigation.popTo(AccountsImportStackRoutes.XpubScan, {
+                    networkSymbol: symbol,
+                });
 
-            if (onRetry) {
+            const { title, description, icon, isRetryEnabled } = alertErrorMap[alertError];
+
+            if (onRetry && isRetryEnabled) {
                 showAlert({
                     title,
                     description,
@@ -77,7 +87,7 @@ export const useShowImportError = (symbol: NetworkSymbol, navigation: Navigation
                     primaryButtonTitle: 'Try Again',
                     onPressPrimaryButton: onRetry,
                     secondaryButtonTitle: 'Go back',
-                    onPressSecondaryButton: navigation.goBack,
+                    onPressSecondaryButton: handleGoBack,
                 });
             } else {
                 showAlert({
@@ -86,7 +96,7 @@ export const useShowImportError = (symbol: NetworkSymbol, navigation: Navigation
                     icon,
                     pictogramVariant: 'critical',
                     primaryButtonTitle: 'Go back',
-                    onPressPrimaryButton: navigation.goBack,
+                    onPressPrimaryButton: handleGoBack,
                     testID: `@alert-sheet/error/${alertError}`,
                 });
             }

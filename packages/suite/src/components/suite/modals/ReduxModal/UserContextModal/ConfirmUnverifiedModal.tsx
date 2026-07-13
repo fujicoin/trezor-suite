@@ -1,14 +1,16 @@
 import { useEffect } from 'react';
 
-import { selectSelectedDeviceLabelOrName } from '@suite-common/wallet-core';
-import { Button, H3, Modal, Paragraph, Tooltip } from '@trezor/components';
+import { useDevice } from '@suite/device';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { closeModal } from '@suite/modal';
+import { selectSelectedDeviceLabelOrName } from '@suite-common/device';
+import { type ExtraDependencies } from '@suite-common/redux-utils';
+import { H3, Modal, Paragraph, Tooltip } from '@trezor/components';
+import { ShieldWarningIcon } from '@trezor/icons';
 
 import { applySettings } from 'src/actions/settings/deviceSettingsActions';
-import { onCancel } from 'src/actions/suite/modalActions';
-import { Translation } from 'src/components/suite';
-import { TranslationKey } from 'src/components/suite/Translation';
-import { useDevice, useDispatch, useSelector } from 'src/hooks/suite';
-import { Dispatch, GetState } from 'src/types/suite';
+import { useDispatch, useSelector } from 'src/hooks/suite';
+import { type Dispatch, type GetState } from 'src/types/suite';
 
 interface ConfirmUnverifiedModalProps {
     action: {
@@ -16,7 +18,11 @@ interface ConfirmUnverifiedModalProps {
         title: TranslationKey;
         closeAfterEventTriggered?: boolean;
     };
-    verifyProcess?: () => (dispatch: Dispatch, getState: GetState) => Promise<void>;
+    verifyProcess?: () => (
+        dispatch: Dispatch,
+        getState: GetState,
+        extra: ExtraDependencies,
+    ) => Promise<void>;
     warningText: TranslationKey;
 }
 
@@ -39,7 +45,7 @@ export const ConfirmUnverifiedModal = ({
         ? 'TR_PLEASE_ENABLE_PASSPHRASE'
         : 'TR_PLEASE_CONNECT_YOUR_DEVICE';
 
-    const handleClose = () => dispatch(onCancel());
+    const handleClose = () => dispatch(closeModal());
     const handleEvent = () => {
         dispatch(action.event());
 
@@ -50,8 +56,7 @@ export const ConfirmUnverifiedModal = ({
 
     const enablePassphraseAndContinue = async () => {
         if (!device?.available) {
-            const result = await dispatch(applySettings({ use_passphrase: true }));
-            if (!result || !result.success) return;
+            await dispatch(applySettings({ use_passphrase: true }));
         }
     };
 
@@ -64,15 +69,15 @@ export const ConfirmUnverifiedModal = ({
 
     return (
         <Modal
-            variant="warning"
-            size="small"
-            iconName="shieldWarning"
+            intent="warning"
+            width={600}
+            icon={ShieldWarningIcon}
             onCancel={handleClose}
             bottomContent={
                 <>
-                    <Button variant="warning" onClick={handleEvent}>
+                    <Modal.Button intent="warning" onClick={handleEvent}>
                         <Translation id={action.title} />
-                    </Button>
+                    </Modal.Button>
                     {isPassphraseRequired && (
                         <Tooltip
                             isActive={isDeviceLocked}
@@ -80,18 +85,18 @@ export const ConfirmUnverifiedModal = ({
                                 <Translation id="TR_SETTINGS_DEVICE_BANNER_TITLE_REMEMBERED" />
                             }
                         >
-                            <Button
-                                variant="primary"
+                            <Modal.Button
+                                intent="brand"
                                 onClick={enablePassphraseAndContinue}
                                 isDisabled={isDeviceLocked}
                             >
                                 <Translation id="TR_ACCOUNT_ENABLE_PASSPHRASE" />
-                            </Button>
+                            </Modal.Button>
                         </Tooltip>
                     )}
-                    <Button onClick={handleClose} variant="tertiary">
+                    <Modal.Button onClick={handleClose} intent="neutral" priority="secondary">
                         <Translation id="TR_DISMISS" />
-                    </Button>
+                    </Modal.Button>
                 </>
             }
         >

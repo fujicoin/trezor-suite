@@ -1,12 +1,12 @@
+import { AccountLabel } from '@suite/account';
+import { selectDevices, selectSelectedDevice } from '@suite-common/device';
 import { isSelectedDevice } from '@suite-common/suite-utils';
-import { selectDevices, selectSelectedDevice } from '@suite-common/wallet-core';
 import { findAccountDevice } from '@suite-common/wallet-utils';
-import { BadgeProps } from '@trezor/components';
+import { type BadgeProps, type FlexProps } from '@trezor/components';
+import { type TypographyStyle } from '@trezor/theme';
 
-import { AccountLabel } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
-import { selectLabelingDataForAccount } from 'src/reducers/suite/metadataReducer';
-import { Account as WalletAccount } from 'src/types/wallet';
+import { type Account as WalletAccount } from 'src/types/wallet';
 
 import { WalletLabeling } from './WalletLabeling';
 
@@ -14,36 +14,41 @@ interface AccountProps {
     account: WalletAccount | WalletAccount[];
     accountTypeBadgeSize?: BadgeProps['size'];
     showAccountTypeBadge?: boolean;
+    accountLabelRowProps?: Omit<FlexProps, 'children'>;
+    typographyStyle?: TypographyStyle;
 }
 
 export const AccountLabeling = ({
     account,
     accountTypeBadgeSize,
     showAccountTypeBadge,
+    accountLabelRowProps,
+    typographyStyle,
 }: AccountProps) => {
     const device = useSelector(selectSelectedDevice);
     const devices = useSelector(selectDevices);
 
     const accounts = !Array.isArray(account) ? [account] : account;
 
-    const labels = useSelector(state => selectLabelingDataForAccount(state, accounts[0].key));
-
     if (accounts.length < 1) return null;
+
+    const firstAccount = accounts[0];
+
+    if (!firstAccount) return null;
 
     const accountLabel = (
         <AccountLabel
-            account={{
-                ...accounts[0],
-                accountLabel: labels.accountLabel,
-            }}
+            account={firstAccount}
             showAccountTypeBadge={showAccountTypeBadge}
             accountTypeBadgeSize={accountTypeBadgeSize}
+            rowProps={accountLabelRowProps}
+            typographyStyle={typographyStyle}
         />
     );
 
-    if (device && !accounts.find(a => a.deviceState === device.state?.staticSessionId)) {
+    if (device && !accounts.some(a => a.deviceState === device.state?.staticSessionId)) {
         // account is not associated with selected device, add wallet label
-        const accountDevice = findAccountDevice(accounts[0], devices);
+        const accountDevice = findAccountDevice(firstAccount, devices);
         if (accountDevice) {
             return (
                 <span>

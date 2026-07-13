@@ -2,13 +2,12 @@ import { useDispatch } from 'react-redux';
 
 import styled from 'styled-components';
 
+import { coinjoinAccountToggleSkipRounds, selectCurrentCoinjoinSession } from '@suite/coinjoin';
+import { Translation } from '@suite/intl';
 import { H3, Paragraph, Switch, Text } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
-import { coinjoinAccountToggleSkipRounds } from 'src/actions/wallet/coinjoinAccountActions';
-import { Translation } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { selectCurrentCoinjoinSession } from 'src/reducers/wallet/coinjoinReducer';
 
 const Row = styled.div`
     display: flex;
@@ -42,10 +41,10 @@ export const SkipRoundsSetup = ({ accountKey, skipRounds }: SkipRoundsSetupProps
                     margin={{ top: spacings.sm }}
                 />
                 <div>
-                    <Text as="div" typographyStyle="body" margin={{ bottom: spacings.xxs }}>
+                    <Text as="div" typographyStyle="body-md" margin={{ bottom: spacings.xxs }}>
                         <Translation id="TR_SKIP_ROUNDS_HEADING" />
                     </Text>
-                    <Paragraph variant="tertiary" typographyStyle="hint">
+                    <Paragraph intent="neutral" priority="secondary" typographyStyle="body-sm">
                         <Translation id="TR_SKIP_ROUNDS_DESCRIPTION" />
                     </Paragraph>
                 </div>

@@ -1,13 +1,13 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { useSelector } from 'react-redux';
 
 import { getNetwork } from '@suite-common/wallet-config';
-import { AccountsRootState, selectAccountNetworkSymbol } from '@suite-common/wallet-core';
-import { AccountKey, TokenAddress } from '@suite-common/wallet-types';
+import { type AccountsRootState, selectAccountNetworkSymbol } from '@suite-common/wallet-core';
+import { type AccountKey, type TokenAddress } from '@suite-common/wallet-types';
 import { InlineAlertBox, Text, VStack } from '@suite-native/atoms';
 import { CryptoIconWithNetwork } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
-import { TokensRootState, selectAccountTokenSymbol } from '@suite-native/tokens';
+import { type TokensRootState, selectAccountTokenSymbol } from '@suite-native/tokens';
 
 type ParagraphProps = {
     header: ReactNode;
@@ -16,8 +16,8 @@ type ParagraphProps = {
 
 const Paragraph = ({ header, body }: ParagraphProps) => (
     <VStack spacing="sp4">
-        <Text variant="highlight">{header}</Text>
-        <Text color="textSubdued">{body}</Text>
+        <Text variant="body-md-strong">{header}</Text>
+        <Text color="contentSecondary">{body}</Text>
     </VStack>
 );
 
@@ -46,7 +46,7 @@ export const TokenOfNetworkAlertBody = ({
                 contractAddress={tokenContract}
                 size="extraLarge"
             />
-            <Text variant="titleSmall">
+            <Text variant="headline-sm">
                 <Translation
                     id="moduleSend.outputs.tokenOfNetworkSheet.title"
                     values={{ tokenSymbol, networkName }}
@@ -76,7 +76,7 @@ export const TokenOfNetworkAlertBody = ({
             />
             <InlineAlertBox
                 title={<Translation id="moduleSend.outputs.tokenOfNetworkSheet.warning" />}
-                variant="warning"
+                intent="warning"
             />
         </VStack>
     );

@@ -1,42 +1,62 @@
-import styled from 'styled-components';
+import { Translation } from '@suite/intl';
+import { type Network, type NetworkSymbol } from '@suite-common/wallet-config';
+import { Button, Column, H4, Tooltip } from '@trezor/components';
 
-import { Network, NetworkSymbol } from '@suite-common/wallet-config';
-import { Paragraph } from '@trezor/components';
-import { spacingsPx } from '@trezor/theme';
-
-import { CoinList } from 'src/components/suite';
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const Title = styled(Paragraph)`
-    color: ${({ theme }) => theme.textSubdued};
-    margin-bottom: ${spacingsPx.sm};
-`;
+import { NetworkList } from 'src/components/suite/NetworkList/NetworkList';
 
 type SelectNetworkProps = {
     heading: React.ReactNode;
     networks: Network[];
-    selectedNetworks: NetworkSymbol[];
-    handleNetworkSelection: (symbol?: NetworkSymbol) => void;
+    handleNetworkSelection?: (symbol?: NetworkSymbol) => void;
+    onSettings?: (symbol: NetworkSymbol) => void;
+    getAddDisabledMessage?: (network: Network) => React.ReactNode;
+    dataTestId?: string;
 };
 
 export const SelectNetwork = ({
     heading,
     networks,
-    selectedNetworks,
     handleNetworkSelection,
+    onSettings,
+    getAddDisabledMessage,
+    dataTestId,
 }: SelectNetworkProps) => {
     if (!networks.length) {
         return null;
     }
 
     return (
-        <div>
-            <Title typographyStyle="hint">{heading}</Title>
-            <CoinList
-                onToggle={handleNetworkSelection}
+        <Column gap={12} data-testid={dataTestId}>
+            <H4 intent="neutral" priority="secondary" typographyStyle="body-sm">
+                {heading}
+            </H4>
+            <NetworkList
+                onClick={handleNetworkSelection}
                 networks={networks}
-                enabledNetworks={selectedNetworks}
+                isCardClickable={false}
+                onSettings={onSettings}
+                renderRightContent={
+                    handleNetworkSelection
+                        ? ({ network }) => {
+                              const disabledMessage = getAddDisabledMessage?.(network);
+
+                              return (
+                                  <Tooltip tooltipMaxWidth={285} content={disabledMessage}>
+                                      <Button
+                                          size="small"
+                                          intent="brand"
+                                          isDisabled={!!disabledMessage}
+                                          data-testid={`@settings/wallet/network/${network.symbol}/add-button`}
+                                          onClick={() => handleNetworkSelection(network.symbol)}
+                                      >
+                                          <Translation id="TR_ADD" />
+                                      </Button>
+                                  </Tooltip>
+                              );
+                          }
+                        : undefined
+                }
             />
-        </div>
+        </Column>
     );
 };

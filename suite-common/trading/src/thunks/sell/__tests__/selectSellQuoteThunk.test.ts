@@ -1,16 +1,16 @@
 import { combineReducers } from '@reduxjs/toolkit';
-import { CryptoId, SellFiatTradeQuoteRequest } from 'invity-api';
+import { type CryptoId, type SellFiatTradeQuoteRequest } from 'invity-api';
 
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
 
-import { sellThunks } from '../../';
+import { sellThunks } from '../';
 import { invityAPI } from '../../../invityAPI';
-import { SellInfo, TradingSellState } from '../../../reducers/sellReducer';
-import { initialState, prepareTradingReducer } from '../../../reducers/tradingReducer';
+import { type SellInfo, type TradingSellState } from '../../../reducers/sellReducer';
+import { initialState } from '../../../reducers/tradingCommonReducer';
+import { prepareTradingReducer } from '../../../reducers/tradingReducer';
 import { sellUtilsFixtures } from '../../../utils/sell/__fixtures__/sellUtils';
-import { SelectSellQuoteThunkProps } from '../selectSellQuoteThunk';
 
-const tradingReducer = prepareTradingReducer(extraDependenciesMock);
+const tradingReducer = prepareTradingReducer(extraDependenciesCommonMock);
 
 describe('selectSellQuoteThunk', () => {
     afterEach(() => {
@@ -24,6 +24,7 @@ describe('selectSellQuoteThunk', () => {
 
     const getDataMocks = () => {
         const quote = sellUtilsFixtures.MIN_MAX_QUOTES_LOW[0];
+        if (!quote) throw new Error('Missing test fixture');
         const quoteExchange = quote.exchange as string;
         const cryptoCurrency = quote.cryptoCurrency as CryptoId;
         const fiatCurrency = quote.fiatCurrency as string;
@@ -45,6 +46,7 @@ describe('selectSellQuoteThunk', () => {
                     type: 'Fiat',
                     supportedCountries: ['CZ'],
                     flow: 'BANK_ACCOUNT',
+                    supportedSubdivisions: {},
                 },
             },
             country: 'CZ',
@@ -71,12 +73,12 @@ describe('selectSellQuoteThunk', () => {
             extra: {},
             reducer: combineReducers({
                 wallet: combineReducers({
-                    tradingNew: tradingReducer,
+                    trading: tradingReducer,
                 }),
             }),
             preloadedState: {
                 wallet: {
-                    tradingNew: {
+                    trading: {
                         ...initialState,
                         sell: {
                             ...initialState.sell,
@@ -87,84 +89,58 @@ describe('selectSellQuoteThunk', () => {
             },
         });
 
-        const mockTimerStop = jest.fn();
-        const mockTimer = {
-            stop: mockTimerStop,
-        } as unknown as SelectSellQuoteThunkProps['timer'];
-
         const mockNextStep = jest.fn();
-        const mockUserConsent = jest.fn(() => Promise.resolve(true));
-        const mockOnCancel = jest.fn();
 
         return {
             store,
-            mockTimer,
-            mockTimerStop,
             mockNextStep,
-            mockUserConsent,
-            mockOnCancel,
         };
     };
 
     it('should successfully select quote', async () => {
         const { quote, state } = getDataMocks();
-        const { store, mockTimer, mockNextStep, mockTimerStop, mockUserConsent, mockOnCancel } =
-            getMocks(state);
+        const { store, mockNextStep } = getMocks(state);
 
         await store
             .dispatch(
                 sellThunks.selectQuoteThunk({
                     quote,
-                    timer: mockTimer,
-                    userConsent: mockUserConsent,
                     nextStep: mockNextStep,
-                    onCancel: mockOnCancel,
                 }),
             )
             .unwrap();
 
-        expect(mockUserConsent).toHaveBeenCalledTimes(1);
         expect(mockNextStep).toHaveBeenCalledTimes(1);
-        expect(mockTimerStop).toHaveBeenCalledTimes(1);
-        expect(mockOnCancel).toHaveBeenCalledTimes(0);
-        expect(store.getState().wallet.tradingNew.sell.selectedQuote).toEqual(quote);
+        expect(store.getState().wallet.trading.sell.selectedQuote).toEqual(quote);
     });
 
     describe('should not be possible to save selected quote', () => {
         it('when sellInfo is undefined', async () => {
             const { quote, state } = getDataMocks();
-            const { store, mockTimer, mockNextStep, mockTimerStop, mockUserConsent, mockOnCancel } =
-                getMocks({
-                    ...state,
-                    sellInfo: undefined,
-                });
+            const { store, mockNextStep } = getMocks({
+                ...state,
+                sellInfo: undefined,
+            });
 
             await store
                 .dispatch(
                     sellThunks.selectQuoteThunk({
                         quote,
-                        timer: mockTimer,
-                        userConsent: mockUserConsent,
                         nextStep: mockNextStep,
-                        onCancel: mockOnCancel,
                     }),
                 )
                 .unwrap();
 
-            expect(mockUserConsent).toHaveBeenCalledTimes(0);
             expect(mockNextStep).toHaveBeenCalledTimes(0);
-            expect(mockTimerStop).toHaveBeenCalledTimes(0);
-            expect(mockOnCancel).toHaveBeenCalledTimes(0);
-            expect(store.getState().wallet.tradingNew.sell.selectedQuote).toEqual(undefined);
+            expect(store.getState().wallet.trading.sell.selectedQuote).toEqual(undefined);
         });
 
         it('when quote exchange is undefined', async () => {
             const { quote, state } = getDataMocks();
-            const { store, mockTimer, mockNextStep, mockTimerStop, mockUserConsent, mockOnCancel } =
-                getMocks({
-                    ...state,
-                    quotesRequest: undefined,
-                });
+            const { store, mockNextStep } = getMocks({
+                ...state,
+                quotesRequest: undefined,
+            });
 
             await store
                 .dispatch(
@@ -173,52 +149,38 @@ describe('selectSellQuoteThunk', () => {
                             ...quote,
                             exchange: undefined,
                         },
-                        timer: mockTimer,
-                        userConsent: mockUserConsent,
                         nextStep: mockNextStep,
-                        onCancel: mockOnCancel,
                     }),
                 )
                 .unwrap();
 
-            expect(mockUserConsent).toHaveBeenCalledTimes(0);
             expect(mockNextStep).toHaveBeenCalledTimes(0);
-            expect(mockTimerStop).toHaveBeenCalledTimes(0);
-            expect(mockOnCancel).toHaveBeenCalledTimes(0);
-            expect(store.getState().wallet.tradingNew.sell.selectedQuote).toEqual(undefined);
+            expect(store.getState().wallet.trading.sell.selectedQuote).toEqual(undefined);
         });
 
         it('when quoteRequest is undefined', async () => {
             const { quote, state } = getDataMocks();
-            const { store, mockTimer, mockNextStep, mockTimerStop, mockUserConsent, mockOnCancel } =
-                getMocks({
-                    ...state,
-                    quotesRequest: undefined,
-                });
+            const { store, mockNextStep } = getMocks({
+                ...state,
+                quotesRequest: undefined,
+            });
 
             await store
                 .dispatch(
                     sellThunks.selectQuoteThunk({
                         quote,
-                        timer: mockTimer,
-                        userConsent: mockUserConsent,
                         nextStep: mockNextStep,
-                        onCancel: mockOnCancel,
                     }),
                 )
                 .unwrap();
 
-            expect(mockUserConsent).toHaveBeenCalledTimes(0);
             expect(mockNextStep).toHaveBeenCalledTimes(0);
-            expect(mockTimerStop).toHaveBeenCalledTimes(0);
-            expect(mockOnCancel).toHaveBeenCalledTimes(0);
-            expect(store.getState().wallet.tradingNew.sell.selectedQuote).toEqual(undefined);
+            expect(store.getState().wallet.trading.sell.selectedQuote).toEqual(undefined);
         });
 
         it('when quote cryptoCurrency is undefined', async () => {
             const { quote, state } = getDataMocks();
-            const { store, mockTimer, mockNextStep, mockTimerStop, mockUserConsent, mockOnCancel } =
-                getMocks(state);
+            const { store, mockNextStep } = getMocks(state);
 
             await store
                 .dispatch(
@@ -227,44 +189,13 @@ describe('selectSellQuoteThunk', () => {
                             ...quote,
                             cryptoCurrency: undefined,
                         },
-                        timer: mockTimer,
-                        userConsent: mockUserConsent,
                         nextStep: mockNextStep,
-                        onCancel: mockOnCancel,
                     }),
                 )
                 .unwrap();
 
-            expect(mockUserConsent).toHaveBeenCalledTimes(0);
             expect(mockNextStep).toHaveBeenCalledTimes(0);
-            expect(mockTimerStop).toHaveBeenCalledTimes(0);
-            expect(mockOnCancel).toHaveBeenCalledTimes(0);
-            expect(store.getState().wallet.tradingNew.sell.selectedQuote).toEqual(undefined);
-        });
-
-        it('when user cancels consent', async () => {
-            const { quote, state } = getDataMocks();
-            const { store, mockTimer, mockNextStep, mockTimerStop, mockOnCancel } = getMocks(state);
-
-            const mockUserConsent = jest.fn(() => Promise.resolve(false));
-
-            await store
-                .dispatch(
-                    sellThunks.selectQuoteThunk({
-                        quote,
-                        timer: mockTimer,
-                        userConsent: mockUserConsent,
-                        nextStep: mockNextStep,
-                        onCancel: mockOnCancel,
-                    }),
-                )
-                .unwrap();
-
-            expect(mockUserConsent).toHaveBeenCalledTimes(1);
-            expect(mockNextStep).toHaveBeenCalledTimes(0);
-            expect(mockTimerStop).toHaveBeenCalledTimes(0);
-            expect(mockOnCancel).toHaveBeenCalledTimes(1);
-            expect(store.getState().wallet.tradingNew.sell.selectedQuote).toEqual(undefined);
+            expect(store.getState().wallet.trading.sell.selectedQuote).toEqual(undefined);
         });
     });
 });

@@ -1,9 +1,14 @@
 // input checks for high-level transports
 
-import type { Descriptor, Session } from '../types';
+import {
+    type Descriptor,
+    TRANSPORT_ERROR as ERRORS,
+    type Session,
+    error,
+    success,
+} from '@trezor/transport-common';
+
 import { validateProtocolMessage } from './bridgeProtocolMessage';
-import { error, success } from './result';
-import * as ERRORS from '../errors';
 
 type UnknownPayload = string | Record<string, unknown>;
 
@@ -13,32 +18,22 @@ function isString(payload: UnknownPayload): payload is string {
 
 export function info(res: UnknownPayload) {
     if (isString(res)) {
-        return error({ error: ERRORS.WRONG_RESULT_TYPE });
+        return error({ code: ERRORS.WRONG_RESULT_TYPE });
     }
     const { version } = res;
     if (typeof version !== 'string') {
-        return error({ error: ERRORS.WRONG_RESULT_TYPE });
-    }
-    const configured = !!res.configured;
-    const protocolMessages = !!res.protocolMessages;
-
-    return success({ version, configured, protocolMessages });
-}
-
-export function version(res: UnknownPayload) {
-    if (!isString(res)) {
-        return error({ error: ERRORS.WRONG_RESULT_TYPE });
+        return error({ code: ERRORS.WRONG_RESULT_TYPE });
     }
 
-    return success(res.trim());
+    return success({ version });
 }
 
 export function devices(res: UnknownPayload) {
     if (isString(res)) {
-        return error({ error: ERRORS.WRONG_RESULT_TYPE });
+        return error({ code: ERRORS.WRONG_RESULT_TYPE });
     }
     if (!(res instanceof Array)) {
-        return error({ error: ERRORS.WRONG_RESULT_TYPE });
+        return error({ code: ERRORS.WRONG_RESULT_TYPE });
     }
     if (
         res.some(
@@ -49,7 +44,7 @@ export function devices(res: UnknownPayload) {
                 (typeof o.session !== 'string' && o.session !== null),
         )
     ) {
-        return error({ error: ERRORS.WRONG_RESULT_TYPE });
+        return error({ code: ERRORS.WRONG_RESULT_TYPE });
     }
 
     return success(
@@ -63,6 +58,9 @@ export function devices(res: UnknownPayload) {
                 vendor: o.vendor,
                 debug: o.debug,
                 debugSession: o.debugSession,
+                id: o.id,
+                apiType: o.apiType || 'usb', // no other option is implemented at this moment
+                model: o.model,
             }),
         ),
     );
@@ -70,11 +68,11 @@ export function devices(res: UnknownPayload) {
 
 export function acquire(res: UnknownPayload) {
     if (isString(res)) {
-        return error({ error: ERRORS.WRONG_RESULT_TYPE });
+        return error({ code: ERRORS.WRONG_RESULT_TYPE });
     }
     const { session } = res;
     if (typeof session !== 'string') {
-        return error({ error: ERRORS.WRONG_RESULT_TYPE });
+        return error({ code: ERRORS.WRONG_RESULT_TYPE });
     }
 
     return success(session as Session);
@@ -84,7 +82,7 @@ export function call(res: UnknownPayload) {
     try {
         return success(validateProtocolMessage(res, true));
     } catch {
-        return error({ error: ERRORS.WRONG_RESULT_TYPE });
+        return error({ code: ERRORS.WRONG_RESULT_TYPE });
     }
 }
 
@@ -92,12 +90,12 @@ export function post(res: UnknownPayload) {
     try {
         return success(validateProtocolMessage(res, false));
     } catch {
-        return error({ error: ERRORS.WRONG_RESULT_TYPE });
+        return error({ code: ERRORS.WRONG_RESULT_TYPE });
     }
 }
 
 export function empty(res: UnknownPayload) {
     return res != null && JSON.stringify(res) === '{}'
-        ? error({ error: ERRORS.WRONG_RESULT_TYPE })
+        ? error({ code: ERRORS.WRONG_RESULT_TYPE })
         : success(undefined);
 }

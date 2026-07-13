@@ -1,21 +1,29 @@
 import ElectronStore from 'electron-store';
 
-import { SuiteThemeVariant } from '@trezor/suite-desktop-api';
+import { type SuiteThemeVariant } from '@trezor/suite-desktop-api';
 
 import { getInitialWindowSize } from './screen';
 
 type OnDidChangeCallback<T> = (newValue?: T, oldValue?: T) => void;
+type Unsubscribe = () => void;
+
+export type WinBoundsCoords = WinBounds & {
+    x?: number;
+    y?: number;
+};
 
 export class Store {
     private static instance: Store;
     private readonly store: ElectronStore<{
-        winBounds: WinBounds;
+        winBounds: WinBoundsCoords;
         updateSettings: UpdateSettings;
         themeSettings: SuiteThemeVariant;
         torSettings: TorSettings;
         bridgeSettings: BridgeSettings;
         traySettings: TraySettings;
-        connectSettings: ConnectSettings;
+        connectSettings: ElectronConnectSettings;
+        bioAuthSettings: BioAuthSettings;
+        mcpSettings: McpSettings;
     }>;
 
     private constructor() {
@@ -34,7 +42,7 @@ export class Store {
         return this.store.get('winBounds', getInitialWindowSize());
     }
 
-    public setWinBounds(winBounds: WinBounds) {
+    public setWinBounds(winBounds: WinBoundsCoords) {
         // save only non zero dimensions
         if (winBounds.width > 0 && winBounds.height > 0) {
             this.store.set('winBounds', winBounds);
@@ -76,7 +84,7 @@ export class Store {
         this.store.set('torSettings', torSettings);
     }
 
-    public onTorSettingsChange(callback: OnDidChangeCallback<TorSettings>) {
+    public onTorSettingsChange(callback: OnDidChangeCallback<TorSettings>): Unsubscribe {
         return this.store.onDidChange('torSettings', callback);
     }
 
@@ -109,10 +117,41 @@ export class Store {
         });
     }
 
-    public setConnectSettings(connectSettings: Partial<ConnectSettings>) {
+    public setConnectSettings(connectSettings: Partial<ElectronConnectSettings>) {
         this.store.set('connectSettings', {
             ...this.store.get('connectSettings'),
             ...connectSettings,
+        });
+    }
+
+    public getBioAuthSettings() {
+        // back-compatibility: previously stored in redux, now in electron store. this is the reason why we don't setup default explicitly but keep it undefined,
+        // after the first start of the application, this value should be set to the old stored value.
+        return this.store.get('bioAuthSettings', { enabled: undefined });
+    }
+
+    public setBioAuthSettings(bioAuthSettings: Partial<BioAuthSettings>) {
+        this.store.set('bioAuthSettings', {
+            ...this.store.get('bioAuthSettings'),
+            ...bioAuthSettings,
+        });
+    }
+
+    public onBioAuthSettingsChange(callback: OnDidChangeCallback<BioAuthSettings>): Unsubscribe {
+        return this.store.onDidChange('bioAuthSettings', callback);
+    }
+
+    public getMcpSettings() {
+        return this.store.get('mcpSettings', {
+            enabled: false,
+            port: 21340,
+        });
+    }
+
+    public setMcpSettings(mcpSettings: Partial<McpSettings>) {
+        this.store.set('mcpSettings', {
+            ...this.getMcpSettings(),
+            ...mcpSettings,
         });
     }
 

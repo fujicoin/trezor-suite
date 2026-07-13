@@ -1,10 +1,11 @@
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 
-import { FeesFormContext, feesFormValidationSchema } from '../feesFormSchema';
+import { type FeesFormContext, feesFormValidationSchema } from '../feesFormSchema';
 
 describe('feesFormValidationSchema', () => {
     const createContext = (overrides: Partial<FeesFormContext> = {}): FeesFormContext => ({
         symbol: 'eth' as NetworkSymbol,
+        isEip1559Fee: false,
         networkFeeInfo: {
             minFee: 100,
             maxFee: 1000000,
@@ -65,7 +66,11 @@ describe('feesFormValidationSchema', () => {
                 customFeePerUnit: '500000', // Valid for Ethereum and within maxFee limit
                 customFeeLimit: '10000',
             };
-            const context = createContext({ minimalFeeLimit: '21000' });
+
+            const context = createContext({
+                minimalFeeLimit: '21000',
+                translate: () => 'Value is too low.',
+            });
 
             await expect(feesFormValidationSchema.validate(data, { context })).rejects.toThrow(
                 'Value is too low.',
@@ -98,7 +103,7 @@ describe('feesFormValidationSchema', () => {
 
         it('should reject too many decimals for bitcoin', async () => {
             const data = { feeLevel: 'custom', customFeePerUnit: '100.123' };
-            const context = createContext({ symbol: 'btc' });
+            const context = createContext({ symbol: 'btc', translate: () => 'Too many decimals.' });
 
             await expect(feesFormValidationSchema.validate(data, { context })).rejects.toThrow(
                 'Too many decimals.',

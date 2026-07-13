@@ -1,9 +1,9 @@
 // origin: https://github.com/trezor/connect/blob/develop/src/js/utils/hdnodeUtils.js
 
+import type { PROTO } from '@trezor/connect-common';
+import { ERRORS } from '@trezor/connect-common/src/constants';
 import { bip32 } from '@trezor/utxo-lib';
 import type { BIP32Interface, Network } from '@trezor/utxo-lib';
-
-import { ERRORS, PROTO } from '../constants';
 
 const pubNode2bjsNode = (node: PROTO.HDNodeType, network?: Network) => {
     const chainCode = Buffer.from(node.chain_code, 'hex');
@@ -33,20 +33,6 @@ export const convertXpub = (
         // override network of BIP32Interface
         node.network = requestedNetwork;
     }
-
-    return node.toBase58();
-};
-
-// stupid hack, because older (1.7.1, 2.0.8) trezor FW serializes all xpubs with bitcoin magic
-export const convertBitcoinXpub = (xpub: string, network: Network) => {
-    if (network.bip32.public === 0x0488b21e) {
-        // it's bitcoin-like => return xpub
-        return xpub;
-    }
-    const node = bip32.fromBase58(xpub); // use default bitcoin magic
-
-    // override network of BIP32Interface
-    node.network = network;
 
     return node.toBase58();
 };

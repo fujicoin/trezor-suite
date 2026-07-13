@@ -1,14 +1,16 @@
-import { MouseEventHandler } from 'react';
+import { type MouseEventHandler } from 'react';
 
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
 import { acquireDevice } from '@suite-common/wallet-core';
-import { Button } from '@trezor/components';
+import { Banner } from '@trezor/components';
 
-import { Translation, TroubleshootingTips } from 'src/components/suite';
+import { TroubleshootingTips } from 'src/components/suite/troubleshooting/TroubleshootingTips';
 import {
     TROUBLESHOOTING_TIP_CLOSE_ALL_TABS,
     TROUBLESHOOTING_TIP_RECONNECT,
 } from 'src/components/suite/troubleshooting/tips';
-import { useDevice, useDispatch } from 'src/hooks/suite';
+import { useDispatch } from 'src/hooks/suite';
 
 export const DeviceAcquire = () => {
     const { isLocked } = useDevice();
@@ -22,21 +24,21 @@ export const DeviceAcquire = () => {
     };
 
     const ctaButton = (
-        <Button
+        <Banner.Button
             data-testid="@device-acquire"
             isLoading={isDeviceLocked}
             onClick={handleClick}
             size="small"
         >
             <Translation id="TR_TRY_AGAIN" />
-        </Button>
+        </Banner.Button>
     );
 
     const tips = [TROUBLESHOOTING_TIP_CLOSE_ALL_TABS, TROUBLESHOOTING_TIP_RECONNECT];
 
     return (
         <TroubleshootingTips
-            label={<Translation id="TR_NEEDS_ATTENTION_UNABLE_TO_CONNECT" />}
+            label={<Translation id="TR_NEEDS_ATTENTION_CONNECT_USB_OR_BLUETOOTH" />}
             cta={ctaButton}
             items={tips}
         />

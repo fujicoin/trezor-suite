@@ -3,7 +3,7 @@ import Animated, { FadeIn, FadeOut, SlideInLeft, SlideOutLeft } from 'react-nati
 
 import { Box, HStack, SearchInput, TextButton } from '@suite-native/atoms';
 import { Translation, useTranslate } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 type AccountsSearchFormProps = {
     onPressCancel: () => void;
@@ -11,7 +11,7 @@ type AccountsSearchFormProps = {
 };
 
 export const SEARCH_INPUT_ANIMATION_DURATION = 100;
-export const SEARCH_INPUT_ANIMATION_DELAY = 100;
+const SEARCH_INPUT_ANIMATION_DELAY = 100;
 const MAX_SEARCH_VALUE_LENGTH = 30;
 const KEYBOARD_INACTIVITY_TIMEOUT = 200;
 
@@ -41,6 +41,13 @@ export const AccountsSearchForm = ({ onPressCancel, onInputChange }: AccountsSea
         };
     }, [inputText, onInputChange]);
 
+    useEffect(
+        () => () => {
+            onInputChange('');
+        },
+        [onInputChange],
+    );
+
     return (
         <Animated.View
             entering={FadeIn.duration(SEARCH_INPUT_ANIMATION_DURATION).delay(
@@ -48,7 +55,7 @@ export const AccountsSearchForm = ({ onPressCancel, onInputChange }: AccountsSea
             )}
             exiting={FadeOut.duration(SEARCH_INPUT_ANIMATION_DURATION)}
         >
-            <HStack marginHorizontal="sp16" spacing="sp16" justifyContent="space-between">
+            <HStack marginRight="sp16" spacing="sp16" justifyContent="space-between">
                 <Animated.View
                     entering={SlideInLeft.duration(SEARCH_INPUT_ANIMATION_DURATION).delay(
                         SEARCH_INPUT_ANIMATION_DELAY,
@@ -60,6 +67,8 @@ export const AccountsSearchForm = ({ onPressCancel, onInputChange }: AccountsSea
                         placeholder={translate('accounts.searchForm.placeholder')}
                         onChange={setInputText}
                         maxLength={MAX_SEARCH_VALUE_LENGTH}
+                        //  eslint-disable-next-line jsx-a11y/no-autofocus
+                        autoFocus
                     />
                 </Animated.View>
 

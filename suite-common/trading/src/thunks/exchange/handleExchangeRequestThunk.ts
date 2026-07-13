@@ -1,19 +1,23 @@
-import { ExchangeTrade, ExchangeTradeQuoteRequest } from 'invity-api';
+import { type ExchangeTrade, type ExchangeTradeQuoteRequest } from 'invity-api';
 
 import { createThunk } from '@suite-common/redux-utils';
-import { Network } from '@suite-common/wallet-config';
+import { type Network } from '@suite-common/wallet-config';
+import { selectAccountByKey } from '@suite-common/wallet-core';
+import { type AccountKey } from '@suite-common/wallet-types';
 import { convertAmountSubunitsToUnits } from '@suite-common/wallet-utils';
+import { isAddressValid } from '@trezor/address-validator';
 
 import { TRADING_EXCHANGE_THUNK_PREFIX } from '../../constants';
 import { invityAPI } from '../../invityAPI';
 import { tradingExchangeActions } from '../../reducers/exchangeReducer';
+import { tradingActions } from '../../reducers/tradingCommonReducer';
 import { selectTradingCoinSymbolByCryptoId } from '../../selectors/tradingSelectors';
 import {
-    HandleExchangeRequestThunkProps,
-    MinimalExchangeFormProps,
-    TradingExchangeType,
+    type HandleExchangeRequestThunkProps,
+    type MinimalExchangeFormProps,
+    type TradingExchangeType,
 } from '../../types';
-import { addIdsToQuotes, getTradingNetworkDecimals } from '../../utils';
+import { addIdsToQuotes, cryptoIdToSymbol, getNetworkDecimalsWithFallback } from '../../utils';
 import { exchangeUtils } from '../../utils/exchange/exchangeUtils';
 
 type GetQuotesRequest = {
@@ -35,18 +39,21 @@ export const getQuoteRequestData = ({
     network,
     shouldSendInSats,
 }: GetQuoteRequestData): ExchangeTradeQuoteRequest | undefined => {
-    const { outputs, receiveCryptoSelect, sendCryptoSelect } = formValues;
-    const decimals = getTradingNetworkDecimals({ network });
+    const { outputs, receiveCryptoSelect, sendCryptoSelect, receiveAddress, fromAddress } =
+        formValues;
+    const decimals = getNetworkDecimalsWithFallback(network.symbol);
 
-    const unformattedOutputAmount = outputs[0].amount ?? '';
+    // @ts-expect-error: indexing with noUncheckedIndexedAccess
+    const firstOutput: (typeof outputs)[number] = outputs[0];
+    const unformattedOutputAmount = firstOutput.amount ?? '';
     const sendStringAmount =
         unformattedOutputAmount && shouldSendInSats
             ? convertAmountSubunitsToUnits(unformattedOutputAmount, decimals)
             : unformattedOutputAmount;
 
     if (
-        !receiveCryptoSelect?.value ||
-        !sendCryptoSelect?.value ||
+        !receiveCryptoSelect?.id ||
+        !sendCryptoSelect?.id ||
         !sendStringAmount ||
         Number(sendStringAmount) === 0
     ) {
@@ -54,13 +61,62 @@ export const getQuoteRequestData = ({
     }
 
     const request: ExchangeTradeQuoteRequest = {
-        receive: receiveCryptoSelect.value,
-        send: sendCryptoSelect.value,
+        receive: receiveCryptoSelect.id,
+        send: sendCryptoSelect.id,
         sendStringAmount,
         dex: 'enable',
+        receiveAddress,
+        fromAddress,
     };
 
     return request;
+};
+
+const isReceiveAddressValid = (
+    receiveAddress: string,
+    receiveSymbol: NonNullable<ReturnType<typeof cryptoIdToSymbol>>,
+): boolean => {
+    try {
+        return isAddressValid(receiveAddress, receiveSymbol);
+    } catch {
+        return false;
+    }
+};
+
+// Prevent stale receive addresses after TO-network changes (#28143).
+// Account keys prove selected-account chain membership for same-format networks,
+// but the submitted address must still be valid for the receive network.
+const isReceiveAddressCoherent = ({
+    receiveAddress,
+    receiveCryptoSelectId,
+    receiveAccountKey,
+    state,
+}: {
+    receiveAddress: string | undefined;
+    receiveCryptoSelectId: ExchangeTradeQuoteRequest['receive'];
+    receiveAccountKey: AccountKey | undefined;
+    state: Parameters<typeof selectAccountByKey>[0];
+}): boolean => {
+    if (!receiveAddress) {
+        return true;
+    }
+
+    const receiveSymbol = cryptoIdToSymbol(receiveCryptoSelectId);
+    if (!receiveSymbol) {
+        return false;
+    }
+
+    if (!isReceiveAddressValid(receiveAddress, receiveSymbol)) {
+        return false;
+    }
+
+    if (receiveAccountKey) {
+        const receiveAccount = selectAccountByKey(state, receiveAccountKey);
+
+        return receiveAccount?.symbol === receiveSymbol;
+    }
+
+    return true;
 };
 
 export const handleExchangeRequestThunk = createThunk<
@@ -75,14 +131,11 @@ export const handleExchangeRequestThunk = createThunk<
         {
             formValues,
             network,
-            timer,
             shouldSendInSats,
             composeRequestCallback,
         }: HandleExchangeRequestThunkProps,
         { dispatch, getState, fulfillWithValue, rejectWithValue, signal },
     ) => {
-        timer.loading();
-
         const requestData = getQuoteRequestData({
             formValues,
             network,
@@ -90,21 +143,43 @@ export const handleExchangeRequestThunk = createThunk<
         });
 
         if (!requestData) {
-            timer.stop();
+            dispatch(tradingActions.stopRefetchQuotes());
 
             return rejectWithValue('Invalid request data');
         }
 
-        const allQuotes = await getQuotesRequest({ requestData, signal });
+        if (
+            !isReceiveAddressCoherent({
+                receiveAddress: requestData.receiveAddress,
+                receiveCryptoSelectId: requestData.receive,
+                receiveAccountKey: formValues.receiveAccountKey,
+                state: getState(),
+            })
+        ) {
+            dispatch(tradingActions.stopRefetchQuotes());
+
+            return rejectWithValue('Invalid request data');
+        }
+
+        let allQuotes: ExchangeTrade[] = [];
+        let requestSucceeded = false;
+        try {
+            allQuotes = (await getQuotesRequest({ requestData, signal })) ?? [];
+            requestSucceeded = true;
+        } finally {
+            if (!requestSucceeded) {
+                dispatch(tradingActions.stopRefetchQuotes());
+            }
+        }
 
         if (signal.aborted) {
-            timer.reset();
+            dispatch(tradingActions.stopRefetchQuotes());
 
             return rejectWithValue('Request was aborted');
         }
 
         if (!Array.isArray(allQuotes) || allQuotes.length === 0) {
-            timer.stop();
+            dispatch(tradingActions.stopRefetchQuotes());
             dispatch(tradingExchangeActions.saveQuotes([]));
 
             return fulfillWithValue([]);
@@ -133,7 +208,7 @@ export const handleExchangeRequestThunk = createThunk<
             composeRequestCallback();
         }
 
-        timer.reset();
+        dispatch(tradingActions.setRefetchQuotesTimestamp(Date.now()));
 
         return fulfillWithValue(successQuotes);
     },

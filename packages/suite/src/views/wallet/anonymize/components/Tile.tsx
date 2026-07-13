@@ -1,8 +1,9 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 import styled, { css } from 'styled-components';
 
-import { Card, Image, PngImage, variables } from '@trezor/components';
+import { Card, IconCircle, type IconComponent, variables } from '@trezor/components';
+import { spacingsPx, typography } from '@trezor/theme';
 
 const containerGridStyle = css`
     display: grid;
@@ -10,11 +11,9 @@ const containerGridStyle = css`
     gap: 0 14px;
 `;
 
-// eslint-disable-next-line local-rules/no-override-ds-component
-const Container = styled(Card)`
-    background: ${({ theme }) => theme.legacy.BG_GREY};
-    box-shadow: none;
-    display: block;
+const Container = styled.div`
+    padding: ${spacingsPx.md};
+    background: ${({ theme }) => theme.surfaceFillRaised};
 
     ${variables.SCREEN_QUERY.BELOW_LAPTOP} {
         ${containerGridStyle}
@@ -32,8 +31,7 @@ const imageGridStyle = css`
     grid-row: 1/3;
 `;
 
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledImage = styled(Image)`
+const Image = styled.div`
     ${variables.SCREEN_QUERY.BELOW_LAPTOP} {
         ${imageGridStyle}
     }
@@ -58,8 +56,7 @@ const titleGridStyle = css`
 
 const Title = styled.h3`
     align-self: end;
-    font-size: ${variables.FONT_SIZE.NORMAL};
-    font-weight: ${variables.FONT_WEIGHT.DEMI_BOLD};
+    ${typography['body-md-strong']}
     margin: 16px 0 8px;
 
     ${variables.SCREEN_QUERY.BELOW_LAPTOP} {
@@ -84,9 +81,8 @@ const descriptionGridStyle = css`
 `;
 
 const Description = styled.p`
-    color: ${({ theme }) => theme.legacy.TYPE_LIGHT_GREY};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-    font-size: ${variables.FONT_SIZE.SMALL};
+    color: ${({ theme }) => theme.contentSecondary};
+    ${typography['body-sm']}
 
     ${variables.SCREEN_QUERY.BELOW_LAPTOP} {
         ${descriptionGridStyle}
@@ -105,14 +101,18 @@ const Description = styled.p`
 
 export interface TileProps {
     description: ReactNode;
-    image: PngImage;
+    iconName: IconComponent;
     title: ReactNode;
 }
 
-export const Tile = ({ description, image, title }: TileProps) => (
-    <Container>
-        <StyledImage image={image} height={72} />
-        <Title>{title}</Title>
-        <Description>{description}</Description>
-    </Container>
+export const Tile = ({ description, iconName, title }: TileProps) => (
+    <Card paddingType="none">
+        <Container>
+            <Image>
+                <IconCircle icon={iconName} size={96} />
+            </Image>
+            <Title>{title}</Title>
+            <Description>{description}</Description>
+        </Container>
+    </Card>
 );

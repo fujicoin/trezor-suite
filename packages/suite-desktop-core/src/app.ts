@@ -1,4 +1,6 @@
+import { randomBytes } from 'crypto';
 import { BrowserWindow, app, nativeTheme } from 'electron';
+import debounce from 'lodash/debounce';
 import path from 'path';
 
 import { isDevEnv } from '@suite-common/suite-utils';
@@ -6,24 +8,26 @@ import { isMacOs } from '@trezor/env-utils';
 import { validateIpcMessage } from '@trezor/ipc-proxy';
 import type { HandshakeClient } from '@trezor/suite-desktop-api';
 import { colorVariants } from '@trezor/theme';
-import { TimerId } from '@trezor/type-utils';
 import { createDeferred, resolveAfter } from '@trezor/utils';
 
-import { hangDetect } from './hang-detect';
-import { processStatePatch, removeElectronAppData, restartApp } from './libs/app-utils';
+import { handshakeAndHangDetect } from './handshake-and-hang-detect';
+import { processStatePatch, restartApp } from './libs/app-utils';
+import { isAutoStartEnabled, promptForAutoStartBeforeQuit } from './libs/auto-start';
 import { APP_NAME } from './libs/constants';
+import { createElectronSessionInterceptor } from './libs/create-electron-session-interceptor';
 import { getBuildInfo, getComputerInfo } from './libs/info';
+import { loadIndex } from './libs/loadIndex';
 import { Logger } from './libs/logger';
 import { MainWindowProxy } from './libs/main-window-proxy';
 import { hasSwitch } from './libs/process-switches';
-import { createInterceptor } from './libs/request-interceptor';
 import { MIN_HEIGHT, MIN_WIDTH } from './libs/screen';
 import { initSentry } from './libs/sentry';
-import { Store } from './libs/store';
-import { clearAppCache, initUserData } from './libs/user-data';
-import { initBackgroundModules, initModules, mainThreadEmitter } from './modules';
-import { isAutoStartEnabled, promptForAutoStartBeforeQuit } from './modules/auto-start';
+import { Store, type WinBoundsCoords } from './libs/store';
+import { clearAppCache, clearUserDataOptimistically, initUserData } from './libs/user-data';
+import { initBackgroundModules, initModules } from './modules';
+// todo: why is this separated here? shoudlnt it be part of modules?
 import { initBioAuthModule } from './modules/bioAuthModule';
+import { mainThreadEmitter } from './modules/module';
 import { init as initTorModule } from './modules/tor';
 import { ipcMain } from './typed-electron';
 
@@ -39,12 +43,21 @@ global.resourcesPath = isDevEnv
 
 const parseRemoveUserDataSwitch = () => {
     if (hasSwitch('remove-user-data-on-start')) {
-        removeElectronAppData();
+        clearUserDataOptimistically();
     }
 };
 parseRemoveUserDataSwitch();
 
-const createMainWindow = (winBounds: WinBounds, store: Store) => {
+type CreateMainWindowParams = {
+    winBounds: WinBoundsCoords;
+    store: Store;
+    cspNonce: string;
+};
+
+const isMainWindowUsable = (mainWindow: BrowserWindow | undefined): mainWindow is BrowserWindow =>
+    !!mainWindow && !mainWindow.isDestroyed();
+
+const createMainWindow = ({ winBounds, cspNonce, store }: CreateMainWindowParams) => {
     const darkTheme =
         store.getThemeSettings() === 'dark' ||
         (store.getThemeSettings() === 'system' && nativeTheme.shouldUseDarkColors);
@@ -55,6 +68,8 @@ const createMainWindow = (winBounds: WinBounds, store: Store) => {
         height: winBounds.height,
         minWidth: MIN_WIDTH,
         minHeight: MIN_HEIGHT,
+        x: winBounds.x,
+        y: winBounds.y,
         ...(isMacOs()
             ? {
                   titleBarStyle: 'hidden',
@@ -62,31 +77,43 @@ const createMainWindow = (winBounds: WinBounds, store: Store) => {
               }
             : {}),
         webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: true,
             webSecurity: !isDevEnv,
             allowRunningInsecureContent: isDevEnv,
             preload: path.join(__dirname, 'preload.js'),
+            additionalArguments: [
+                // This will pass nonce to Renderer process, so it can be used
+                `--csp-nonce=${cspNonce}`,
+                ...(hasSwitch('expose-store') ? ['--expose-store'] : []),
+            ],
         },
         icon: path.join(global.resourcesPath, 'images', 'icons', '512x512.png'),
-        backgroundColor: colorVariants[darkTheme ? 'dark' : 'standard'].backgroundSurfaceElevation0,
+        backgroundColor: colorVariants[darkTheme ? 'dark' : 'standard'].surfaceFillPage,
     });
 
-    let resizeDebounce: TimerId | null = null;
+    // Ensure all network requests from the renderer report a custom user-agent identifying Suite and its version.
+    mainWindow.webContents.setUserAgent(`Trezor Suite ${app.getVersion()}`);
 
-    mainWindow.on('resize', () => {
-        if (resizeDebounce) return;
-        resizeDebounce = setTimeout(() => {
-            resizeDebounce = null;
-            if (!mainWindow) return;
-            const winBound = mainWindow.getBounds() as WinBounds;
-            Store.getStore().setWinBounds(winBound);
-            logger.debug('app', 'new winBounds saved');
-        }, 1000);
-    });
+    const debouncedStoreWinBounds = debounce(() => {
+        // The trailing debounced call can fire after the window was destroyed within the debounce
+        // window; getBounds() on a destroyed BrowserWindow throws "Object has been destroyed".
+        if (!isMainWindowUsable(mainWindow)) return;
+        const winBound = mainWindow.getBounds();
+        Store.getStore().setWinBounds(winBound);
+        logger.debug('app', 'new winBounds saved');
+    }, 500);
+
+    mainWindow.on('resize', debouncedStoreWinBounds);
+    mainWindow.on('maximize', debouncedStoreWinBounds);
+    mainWindow.on('move', debouncedStoreWinBounds);
 
     mainWindow.on('closed', () => {
-        if (resizeDebounce) {
-            clearTimeout(resizeDebounce);
-        }
+        debouncedStoreWinBounds.cancel();
+        mainWindow.off('resize', debouncedStoreWinBounds);
+        mainWindow.off('maximize', debouncedStoreWinBounds);
+        mainWindow.off('move', debouncedStoreWinBounds);
     });
 
     return mainWindow;
@@ -114,10 +141,9 @@ const init = async () => {
 
     const store = Store.getStore();
 
-    initSentry({
-        store,
-        mainThreadEmitter,
-    });
+    const cspNonce = randomBytes(16).toString('base64');
+
+    initSentry({ store, mainThreadEmitter });
 
     app.name = APP_NAME; // overrides @trezor/suite-desktop app name in menu
 
@@ -159,7 +185,7 @@ const init = async () => {
     await app.whenReady();
 
     // Load bridge module first, it is required in both UI and daemon mode
-    const interceptor = createInterceptor();
+    const interceptor = createElectronSessionInterceptor();
     const mainWindowProxy = new MainWindowProxy();
     const { loadModules: loadBackgroundModules, quitModules: quitBackgroundModules } =
         initBackgroundModules({
@@ -167,7 +193,11 @@ const init = async () => {
             store,
             interceptor,
             mainThreadEmitter,
+            cspNonce,
         });
+
+    // todo:
+    // @ts-expect-error ClientHanshake is no longer any. But I can't make loadmodules inner the same type since it called sooner
     const backgroundModulesResponse = await loadBackgroundModules(undefined);
 
     // Daemon mode with no UI
@@ -211,9 +241,12 @@ const init = async () => {
 
     const widthArg = parseInt(app.commandLine.getSwitchValue('width'), 10);
     const heightArg = parseInt(app.commandLine.getSwitchValue('height'), 10);
+    const storedBounds = store.getWinBounds();
     const winBounds = {
-        width: !isNaN(widthArg) ? Math.max(widthArg, MIN_WIDTH) : store.getWinBounds().width,
-        height: !isNaN(heightArg) ? Math.max(heightArg, MIN_HEIGHT) : store.getWinBounds().height,
+        width: !isNaN(widthArg) ? Math.max(widthArg, MIN_WIDTH) : storedBounds.width,
+        height: !isNaN(heightArg) ? Math.max(heightArg, MIN_HEIGHT) : storedBounds.height,
+        x: storedBounds.x,
+        y: storedBounds.y,
     };
     logger.debug('init', `Create Browser Window (${winBounds.width}x${winBounds.height})`);
 
@@ -223,6 +256,7 @@ const init = async () => {
         store,
         interceptor,
         mainThreadEmitter,
+        cspNonce,
     });
 
     const reactivateWindow = () => {
@@ -231,7 +265,7 @@ const init = async () => {
         let mainWindow = mainWindowProxy.getInstance();
         if (!mainWindow || mainWindow.isDestroyed()) {
             logger.info('main', 'Main window destroyed, recreating');
-            mainWindow = createMainWindow(winBounds, store);
+            mainWindow = createMainWindow({ winBounds, store, cspNonce });
             mainWindowProxy.setInstance(mainWindow);
         }
 
@@ -266,7 +300,16 @@ const init = async () => {
 
     // repeated during app lifecycle (e.g. Ctrl+R)
     ipcMain.handle('handshake/load-modules', (ipcEvent, payload) => {
-        validateIpcMessage(ipcEvent);
+        validateIpcMessage({ ipcEvent });
+
+        // one time back-wards compatibility migration from redux to electron store. this can be deleted after some time
+        // storageLoadBioAuth should be removed as well
+        if (
+            typeof store.getBioAuthSettings().enabled === 'undefined' &&
+            typeof payload.legacyBioAuthEnabled === 'boolean'
+        ) {
+            store.setBioAuthSettings({ enabled: payload.legacyBioAuthEnabled });
+        }
 
         return loadModulesResponse(payload);
     });
@@ -278,19 +321,24 @@ const init = async () => {
         store,
         interceptor,
         mainThreadEmitter,
+        cspNonce,
     });
 
     const { onLoad: loadBioAuthModule, onQuit: quitBioAuthModule } = initBioAuthModule({
         mainWindowProxy,
         store,
-        interceptor,
-        mainThreadEmitter,
+    });
+
+    ipcMain.handle('browser-window/reload', ipcEvent => {
+        validateIpcMessage({ ipcEvent });
+
+        mainWindowProxy.getInstance()?.webContents.reload();
     });
 
     loadBioAuthModule();
 
     ipcMain.handle('handshake/load-tor-module', ipcEvent => {
-        validateIpcMessage(ipcEvent);
+        validateIpcMessage({ ipcEvent });
 
         return loadTorModule();
     });
@@ -307,18 +355,21 @@ const init = async () => {
 
         const mainWindow = mainWindowProxy.getInstance();
         const windowExists =
-            mainWindow &&
-            !mainWindow.isDestroyed() &&
+            isMainWindowUsable(mainWindow) &&
             mainWindow.isClosable() &&
             (!isMacOs() || !app.isHidden());
         logger.info('main', `Before quit, window exists: ${windowExists}`);
 
         if (windowExists) {
             const continued = await promptForAutoStartBeforeQuit(mainWindow, store);
+
+            // Immediately hide the main window for the better closing UX.
+            // For daemon mode, it doesn't matter.
             logger.info('main', 'Hiding main window');
-            // NOTE: immediatly hide the main window for the better closing UX
-            // for daemon mode, it doesn't matter
-            mainWindow?.hide();
+            // Check again after async/await call.
+            if (isMainWindowUsable(mainWindow)) {
+                mainWindow.hide();
+            }
             if (!continued) return;
         }
 
@@ -331,7 +382,9 @@ const init = async () => {
             // Prevent quitting app when in daemon mode, unless the UI is already closed
             logger.info('main', 'Preventing app quit in daemon mode');
             app.dock?.hide();
-            mainWindow?.close();
+            if (isMainWindowUsable(mainWindow)) {
+                mainWindow.close();
+            }
 
             return;
         }
@@ -346,10 +399,12 @@ const init = async () => {
 
         // global cleanup
         logger.info('modules', 'All modules quit, exiting');
-        mainWindow?.removeAllListeners();
+        if (isMainWindowUsable(mainWindow)) {
+            mainWindow.removeAllListeners();
+        }
         logger.exit();
 
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await resolveAfter(1000);
 
         readyToQuit = true;
         app.quit();
@@ -359,7 +414,20 @@ const init = async () => {
         logger.info('main', 'Main window initialized - calling handshake');
         const statePatch = processStatePatch();
         // load and wait for handshake message from renderer
-        const { handshake, cleanup } = hangDetect(mainWindow, statePatch);
+
+        // Refresh if it failed to load
+        mainWindow.webContents.on(
+            'did-fail-load',
+            (_event, errorCode, _desc, _url, isMainFrame) => {
+                // ERR_ABORTED (-3) fires when a new load cancels an in-progress one — ignore it to avoid an infinite loop.
+                // https://source.chromium.org/chromium/chromium/src/+/main:net/base/net_error_list.h
+                if (!isMainFrame || errorCode === -3) return;
+                // Delay retry to avoid a busy loop if the failure persists.
+                setTimeout(() => loadIndex(mainWindow), 1000);
+            },
+        );
+
+        const { handshake, cleanup } = handshakeAndHangDetect({ mainWindow, statePatch });
         mainWindowProxy.once('destroy', cleanup);
         const handshakeResult = await handshake;
 
@@ -382,7 +450,7 @@ const init = async () => {
     });
 
     // Create main window last, so all listeners are set up
-    mainWindowProxy.setInstance(createMainWindow(winBounds, store));
+    mainWindowProxy.setInstance(createMainWindow({ winBounds, store, cspNonce }));
 };
 
 init();

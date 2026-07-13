@@ -1,13 +1,26 @@
 import { G } from '@mobily/ts-belt';
-import { UnknownAction } from '@reduxjs/toolkit';
 import * as semver from 'semver';
 
-import { AnyAction } from '@suite-common/redux-utils';
-import { thpActions } from '@suite-common/thp';
-import { deviceConnectThunks } from '@suite-common/wallet-core';
-import { Device, DeviceEvent, VersionArray } from '@trezor/connect';
-import { DeviceModelInternal } from '@trezor/device-utils';
+import { type AnyAction } from '@suite-common/redux-utils';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import {
+    getDeviceInternalModel,
+    getDeviceLanguage,
+    getDeviceMode,
+    getIsDeviceDescriptorApiTypeBluetooth,
+    getIsDevicePinProtected,
+} from '@suite-common/suite-utils';
+import type { AnalyticsNativeEvents } from '@suite-native/analytics';
+import { events } from '@suite-native/analytics';
+import { type Analytics } from '@trezor/analytics-uploader';
+import { type Device, type DeviceEvent } from '@trezor/connect';
+import {
+    DeviceModelInternal,
+    getFirmwareVersionArray,
+    hasBitcoinOnlyFirmware,
+} from '@trezor/device-utils';
 import { exhaustive } from '@trezor/type-utils';
+import type { VersionArray } from '@trezor/utils';
 
 export const minimalSupportedFirmwareVersion = {
     UNKNOWN: [0, 0, 0] as VersionArray,
@@ -24,6 +37,7 @@ export const isFirmwareVersionSupported = (
     model: DeviceModelInternal | null,
 ) => {
     if (G.isNullable(version) || G.isNullable(model)) return true;
+    if (model === DeviceModelInternal.UNKNOWN) return true;
 
     const minimalVersion = minimalSupportedFirmwareVersion[model];
 
@@ -40,7 +54,7 @@ export const isDeviceEventAction = <T extends DeviceEvent['type']>(
     actionType: T,
 ): action is { type: T; payload: Device } => action.type === actionType;
 
-export const isDeviceSetupSupported = (model: DeviceModelInternal) => {
+export const getIsDeviceSetupSupported = (model: DeviceModelInternal) => {
     // Exhaustive check for case that new model is introduced later it won't be forgotten.
     switch (model) {
         case DeviceModelInternal.T2B1:
@@ -57,20 +71,20 @@ export const isDeviceSetupSupported = (model: DeviceModelInternal) => {
     }
 };
 
-export const isDeviceConnectAction = (action: UnknownAction) => {
-    // For THP, we don't use deviceConnectThunks, because THP confirmation is required before we can communicate with the device,
-    // therefore we postpone until THP flow is finished.
-    if (thpActions.finishThpFlow.match(action)) {
-        return true;
-    }
-
-    if (deviceConnectThunks.fulfilled.match(action)) {
-        const { device } = action.meta.arg;
-
-        if (device.thp === undefined) {
-            return true;
-        }
-    }
-
-    return false;
+export const reportDeviceConnectionAnalytics = (
+    device: TrezorDevice,
+    analytics: Analytics<AnalyticsNativeEvents>,
+) => {
+    analytics.report({
+        type: events.deviceConnectEvent.name,
+        payload: {
+            mode: getDeviceMode(device),
+            firmwareVersion: getFirmwareVersionArray(device),
+            pinProtection: getIsDevicePinProtected(device),
+            isBitcoinOnly: hasBitcoinOnlyFirmware(device),
+            deviceLanguage: getDeviceLanguage(device),
+            deviceModel: getDeviceInternalModel(device),
+            connectionType: getIsDeviceDescriptorApiTypeBluetooth(device) ? 'bluetooth' : 'cable',
+        },
+    });
 };

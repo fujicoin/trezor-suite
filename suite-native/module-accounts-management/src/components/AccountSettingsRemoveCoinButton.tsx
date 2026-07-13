@@ -1,13 +1,13 @@
 import { useDispatch, useSelector } from 'react-redux';
 
 import {
-    AccountsRootState,
-    forgetAccountsThunk,
+    type AccountsRootState,
+    accountsActions,
     selectAccountByKey,
 } from '@suite-common/wallet-core';
-import { AccountKey } from '@suite-common/wallet-types';
+import { type AccountKey } from '@suite-common/wallet-types';
 import { useAlert } from '@suite-native/alerts';
-import { Button, TrezorSuiteLiteHeader } from '@suite-native/atoms';
+import { Button, TrezorSuiteHeader } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import { useNavigateToInitialScreen } from '@suite-native/navigation';
 
@@ -29,7 +29,7 @@ export const AccountSettingsRemoveCoinButton = ({
     if (!account) return null;
 
     const handleRemoveAccount = () => {
-        dispatch(forgetAccountsThunk({ accountsToRemove: [account] }));
+        dispatch(accountsActions.removeAccount([account]));
         navigateToInitialScreen();
     };
 
@@ -39,7 +39,7 @@ export const AccountSettingsRemoveCoinButton = ({
             title: (
                 <Translation
                     id="moduleAccountManagement.accountSettingsScreen.removeAccountAlert.title"
-                    values={{ trezorSuiteLiteHeader: <TrezorSuiteLiteHeader /> }}
+                    values={{ trezorSuiteHeader: <TrezorSuiteHeader /> }}
                 />
             ),
             description: (
@@ -48,19 +48,19 @@ export const AccountSettingsRemoveCoinButton = ({
             primaryButtonTitle: (
                 <Translation id="moduleAccountManagement.accountSettingsScreen.removeAccountAlert.primaryButton" />
             ),
-            primaryButtonVariant: 'redBold',
+            primaryButtonColorProps: { intent: 'critical', priority: 'primary' },
             onPressPrimaryButton: handleRemoveAccount,
             secondaryButtonTitle: <Translation id="generic.buttons.cancel" />,
-            secondaryButtonVariant: 'redElevation0',
-            onPressSecondaryButton: () => hideAlert(),
+            secondaryButtonColorProps: { intent: 'critical', priority: 'secondary' },
+            onPressSecondaryButton: hideAlert,
         });
     };
 
     return (
         <Button
-            size="large"
             onPress={handleShowAlert}
-            colorScheme="redElevation0"
+            intent="critical"
+            priority="secondary"
             testID="@account-detail/settings/remove-coin-button"
         >
             <Translation id="moduleAccountManagement.accountSettingsScreen.removeAccountAlert.primaryButton" />

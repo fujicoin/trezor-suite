@@ -1,74 +1,58 @@
 import React, { useCallback } from 'react';
-import { useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
-import { selectIsFirmwareUpgradable } from '@suite-common/wallet-core';
-import { Box, useBottomSheetModal } from '@suite-native/atoms';
-import {
-    ConfirmBottomSheet,
-    ConfirmFirmwareUpdateScreenContent,
-    ConfirmFirmwareUpdateScreenFooter,
-} from '@suite-native/firmware';
+import { useDeviceLowBatteryAlert } from '@suite-native/device';
+import { FirmwareInfoScreenContent, FirmwareInfoScreenFooter } from '@suite-native/firmware';
 import { Translation } from '@suite-native/intl';
-import { useNavigateToCheckBackup } from '@suite-native/module-check-backup';
 import {
+    type DeviceSettingsStackParamList,
     DynamicScreenHeader,
-    FirmwareUpdateStackParamList,
+    type FirmwareUpdateStackParamList,
     FirmwareUpdateStackRoutes,
     Screen,
-    StackNavigationProps,
+    type StackToStackCompositeNavigationProps,
 } from '@suite-native/navigation';
 
-import { useDeviceConnectionGuard } from '../hooks/useDeviceConnectionGuard';
-
-type NavigationProp = StackNavigationProps<
+type NavigationProps = StackToStackCompositeNavigationProps<
     FirmwareUpdateStackParamList,
-    FirmwareUpdateStackRoutes.ConfirmFirmwareUpdate
+    FirmwareUpdateStackRoutes.ConfirmFirmwareUpdate,
+    DeviceSettingsStackParamList
 >;
 
 export const ConfirmFirmwareUpdateScreen = () => {
-    const navigation = useNavigation<NavigationProp>();
-    const { isDeviceConnected } = useDeviceConnectionGuard();
-    const isFirmwareUpgradable = useSelector(selectIsFirmwareUpgradable);
-
-    const { openModal, bottomSheetRef, closeModal } = useBottomSheetModal();
-    const { navigateToCheckBackup } = useNavigateToCheckBackup();
-
-    const withModalClose = (callback: () => void) => () => {
-        closeModal();
-        callback();
-    };
+    const navigation = useNavigation<NavigationProps>();
+    const { showLowBatteryAlertIfNecessary } = useDeviceLowBatteryAlert();
 
     const handleUpdateConfirmation = useCallback(() => {
-        navigation.navigate(FirmwareUpdateStackRoutes.FirmwareInstallation);
-    }, [navigation]);
+        if (showLowBatteryAlertIfNecessary()) {
+            return;
+        }
+        navigation.replace(FirmwareUpdateStackRoutes.FirmwareInstallation);
+    }, [navigation, showLowBatteryAlertIfNecessary]);
 
-    if (!isDeviceConnected) return;
+    const handleCancel = () => {
+        navigation.goBack();
+    };
 
     return (
         <Screen
             header={
                 <DynamicScreenHeader
-                    title={<Translation id="firmware.firmwareUpdateScreen.title" />}
-                    subtitle={<Translation id="firmware.firmwareUpdateScreen.subtitle" />}
+                    title={<Translation id="firmware.firmwareInfoScreen.title.update" />}
+                    subtitle={<Translation id="firmware.firmwareInfoScreen.subtitle" />}
                     closeActionType="close"
+                    closeAction={handleCancel}
                 />
             }
             footer={
-                isFirmwareUpgradable && (
-                    <ConfirmFirmwareUpdateScreenFooter onUpdateConfirmation={openModal} />
-                )
+                <FirmwareInfoScreenFooter
+                    onUpdateConfirmation={handleUpdateConfirmation}
+                    onCancel={handleCancel}
+                />
             }
         >
-            <Box flex={1}>
-                <ConfirmFirmwareUpdateScreenContent />
-            </Box>
-            <ConfirmBottomSheet
-                ref={bottomSheetRef}
-                onConfirm={withModalClose(handleUpdateConfirmation)}
-                onCheckBackup={withModalClose(navigateToCheckBackup)}
-            />
+            <FirmwareInfoScreenContent />
         </Screen>
     );
 };

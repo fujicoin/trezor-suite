@@ -1,47 +1,44 @@
-import { useEffect } from 'react';
+import { useCallback } from 'react';
 import { useSelector } from 'react-redux';
 
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
+import { type NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { selectThpStep } from '@suite-common/thp';
-import { selectIsDeviceThpRequired } from '@suite-common/wallet-core';
+import { selectThpAutoconnectStep, selectThpStep } from '@suite-common/thp';
 import { ContinueOnTrezorScreenContent } from '@suite-native/device';
 import {
-    AuthorizeDeviceStackParamList,
+    type AuthorizeDeviceStackParamList,
     AuthorizeDeviceStackRoutes,
     Screen,
-    useNavigateToInitialScreen,
+    useInterceptNativeNavigation,
 } from '@suite-native/navigation';
-import { useThpAlerts } from '@suite-native/thp';
+import { useThpAutoconnectAlert } from '@suite-native/thp';
 
 import { ThpScreenHeader } from '../../components/thp/ThpScreenHeader';
+import { useThpScreenDismissal } from '../../hooks/useThpScreenDismissal';
 
 export const ThpConfirmationScreen = ({
     navigation,
 }: {
     navigation: NativeStackNavigationProp<AuthorizeDeviceStackParamList>;
 }) => {
-    const navigateToInitialScreen = useNavigateToInitialScreen();
-    const { showThpAutoconnectAlert } = useThpAlerts();
+    const { showEnableThpAutoconnectAlert } = useThpAutoconnectAlert();
 
-    const isDeviceThpRequired = useSelector(selectIsDeviceThpRequired);
     const thpStep = useSelector(selectThpStep);
+    const thpAutoconnectStep = useSelector(selectThpAutoconnectStep);
 
-    useEffect(() => {
-        if (isDeviceThpRequired && thpStep === null) {
-            navigateToInitialScreen();
-        } else if (thpStep === 'CodeEntry') {
-            navigation.navigate(AuthorizeDeviceStackRoutes.ThpCodeEntry);
-        } else if (thpStep === 'AutoconnectInfo') {
-            showThpAutoconnectAlert();
-        }
-    }, [
-        isDeviceThpRequired,
-        thpStep,
-        navigateToInitialScreen,
-        navigation,
-        showThpAutoconnectAlert,
-    ]);
+    useInterceptNativeNavigation();
+    useThpScreenDismissal();
+
+    useFocusEffect(
+        useCallback(() => {
+            if (thpStep === 'CodeEntry') {
+                navigation.replace(AuthorizeDeviceStackRoutes.ThpCodeEntry);
+            } else if (thpAutoconnectStep === 'AutoconnectInfo') {
+                showEnableThpAutoconnectAlert();
+            }
+        }, [thpStep, thpAutoconnectStep, showEnableThpAutoconnectAlert, navigation]),
+    );
 
     return (
         <Screen

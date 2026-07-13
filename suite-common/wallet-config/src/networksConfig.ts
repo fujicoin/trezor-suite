@@ -1,7 +1,8 @@
 import { DeviceModelInternal } from '@trezor/device-utils';
+import { typedObjectEntries } from '@trezor/utils';
 
 import { getExplorerUrls } from './getExplorerUrls';
-import { Networks } from './types';
+import { type NetworkFeature, type Networks } from './types';
 
 export const networks = {
     btc: {
@@ -12,9 +13,9 @@ export const networks = {
         bip43Path: "m/84'/0'/i'",
         decimals: 8,
         testnet: false,
-        explorer: getExplorerUrls('https://btc1.trezor.io', 'bitcoin'),
-        features: ['rbf', 'sign-verify', 'amount-unit'],
-        backendTypes: ['blockbook', 'electrum'],
+        explorer: getExplorerUrls('https://mempool.space', 'bitcoin'),
+        features: ['rbf', 'sign-verify', 'amount-unit', 'graph'],
+        backendOptions: [{ type: 'blockbook' }, { type: 'electrum' }],
         accountTypes: {
             coinjoin: {
                 accountType: 'coinjoin',
@@ -39,6 +40,7 @@ export const networks = {
         coingeckoId: 'bitcoin',
         tradeCryptoId: 'bitcoin',
         caipId: 'bip122:000000000019d6689c085ae165831e93',
+        yieldXyzId: null,
     },
     eth: {
         symbol: 'eth',
@@ -60,8 +62,10 @@ export const networks = {
             'staking',
             'eip1559',
             'mev-protection',
+            'graph',
+            'claim-rewards',
         ],
-        backendTypes: ['blockbook'],
+        backendOptions: [{ type: 'blockbook' }, { type: 'evm-rpc' }],
         accountTypes: {
             ledger: {
                 // ledger (live), #1 acc is same as Trezor, so it is skipped
@@ -79,6 +83,7 @@ export const networks = {
         coingeckoId: 'ethereum',
         tradeCryptoId: 'ethereum',
         caipId: 'eip155:1',
+        yieldXyzId: 'ethereum',
     },
     pol: {
         symbol: 'pol',
@@ -99,8 +104,9 @@ export const networks = {
             'coin-definitions',
             'nft-definitions',
             'eip1559',
+            'graph',
         ],
-        backendTypes: ['blockbook'],
+        backendOptions: [{ type: 'blockbook', isExternalBackend: true }, { type: 'evm-rpc' }],
         accountTypes: {
             ledger: {
                 // ledger (live), #1 acc is same as Trezor, so it is skipped
@@ -112,6 +118,7 @@ export const networks = {
         coingeckoId: 'polygon-pos',
         tradeCryptoId: 'polygon-ecosystem-token',
         caipId: 'eip155:137',
+        yieldXyzId: 'polygon',
     },
     bsc: {
         symbol: 'bsc',
@@ -132,8 +139,9 @@ export const networks = {
             'coin-definitions',
             'nft-definitions',
             'mev-protection',
+            'graph',
         ],
-        backendTypes: ['blockbook'],
+        backendOptions: [{ type: 'blockbook', isExternalBackend: true }, { type: 'evm-rpc' }],
         accountTypes: {
             ledger: {
                 // ledger (live), #1 acc is same as Trezor, so it is skipped
@@ -145,6 +153,7 @@ export const networks = {
         coingeckoId: 'binance-smart-chain',
         tradeCryptoId: 'binancecoin',
         caipId: 'eip155:56',
+        yieldXyzId: 'binance',
     },
     arb: {
         symbol: 'arb',
@@ -165,9 +174,11 @@ export const networks = {
             'nfts',
             'coin-definitions',
             'nft-definitions',
+            'mev-protection',
             'eip1559',
+            'graph',
         ],
-        backendTypes: ['blockbook'],
+        backendOptions: [{ type: 'blockbook', isExternalBackend: true }, { type: 'evm-rpc' }],
         accountTypes: {
             ledger: {
                 // ledger (live), #1 acc is same as Trezor, so it is skipped
@@ -179,6 +190,7 @@ export const networks = {
         coingeckoId: 'arbitrum-one',
         tradeCryptoId: 'arbitrum-one--0x0000000000000000000000000000000000000000',
         caipId: 'eip155:42161',
+        yieldXyzId: 'arbitrum',
     },
     base: {
         symbol: 'base',
@@ -201,8 +213,9 @@ export const networks = {
             'nft-definitions',
             'eip1559',
             'mev-protection',
+            'graph',
         ],
-        backendTypes: ['blockbook'],
+        backendOptions: [{ type: 'blockbook', isExternalBackend: true }, { type: 'evm-rpc' }],
         accountTypes: {
             ledger: {
                 // ledger (live), #1 acc is same as Trezor, so it is skipped
@@ -214,6 +227,8 @@ export const networks = {
         coingeckoId: 'base',
         tradeCryptoId: 'base--0x0000000000000000000000000000000000000000',
         caipId: 'eip155:8453',
+        nativeTokenReserve: '0.0002',
+        yieldXyzId: 'base',
     },
     op: {
         symbol: 'op',
@@ -235,8 +250,9 @@ export const networks = {
             'coin-definitions',
             'nft-definitions',
             'eip1559',
+            'graph',
         ],
-        backendTypes: ['blockbook'],
+        backendOptions: [{ type: 'blockbook', isExternalBackend: true }, { type: 'evm-rpc' }],
         accountTypes: {
             ledger: {
                 // ledger (live), #1 acc is same as Trezor, so it is skipped
@@ -248,6 +264,43 @@ export const networks = {
         coingeckoId: 'optimistic-ethereum',
         tradeCryptoId: 'optimistic-ethereum--0x0000000000000000000000000000000000000000',
         caipId: 'eip155:10',
+        nativeTokenReserve: '0.0002',
+        yieldXyzId: 'optimism',
+    },
+    avax: {
+        symbol: 'avax',
+        displaySymbol: 'AVAX',
+        displaySymbolName: 'Avalanche',
+        name: 'Avalanche C-Chain',
+        networkType: 'ethereum',
+        chainId: 43114,
+        bip43Path: "m/44'/60'/0'/0/i",
+        decimals: 18,
+        testnet: false,
+        explorer: getExplorerUrls('https://snowscan.xyz/', 'ethereum'),
+        features: [
+            'rbf',
+            'sign-verify',
+            'tokens',
+            'nfts',
+            'coin-definitions',
+            'nft-definitions',
+            'eip1559',
+            'graph',
+        ],
+        backendOptions: [{ type: 'blockbook', isExternalBackend: true }, { type: 'evm-rpc' }],
+        accountTypes: {
+            ledger: {
+                // ledger (live), #1 acc is same as Trezor, so it is skipped
+                accountType: 'ledger',
+                bip43Path: "m/44'/60'/i'/0/0",
+                isDebugOnlyAccountType: true,
+            },
+        },
+        coingeckoId: 'avalanche',
+        tradeCryptoId: 'avalanche-2',
+        caipId: 'eip155:43114',
+        yieldXyzId: 'avalanche-c',
     },
     sol: {
         symbol: 'sol',
@@ -266,7 +319,7 @@ export const networks = {
             [DeviceModelInternal.T3T1]: '2.0.0',
             [DeviceModelInternal.T3W1]: '2.0.0',
         },
-        backendTypes: ['solana'],
+        backendOptions: [{ type: 'solana', isExternalBackend: true }],
         accountTypes: {
             ledger: {
                 // bip44Change - Ledger Live
@@ -278,6 +331,39 @@ export const networks = {
         coingeckoId: 'solana',
         tradeCryptoId: 'solana',
         caipId: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
+        nativeTokenReserve: '0.003',
+        yieldXyzId: 'solana',
+    },
+    trx: {
+        symbol: 'trx',
+        displaySymbol: 'TRX',
+        name: 'Tron',
+        networkType: 'tron',
+        bip43Path: "m/44'/195'/0'/0/i",
+        decimals: 6,
+        testnet: false,
+        features: ['tokens', 'coin-definitions', 'graph', 'nfts', 'staking'],
+        explorer: getExplorerUrls('https://tronscan.org/#', 'tron'),
+        support: {
+            [DeviceModelInternal.T2T1]: '2.11.0',
+            [DeviceModelInternal.T2B1]: '2.11.0',
+            [DeviceModelInternal.T3B1]: '2.11.0',
+            [DeviceModelInternal.T3T1]: '2.11.0',
+            [DeviceModelInternal.T3W1]: '2.11.0',
+        },
+        backendOptions: [{ type: 'blockbook' }],
+        accountTypes: {
+            ledger: {
+                // ledger (live), #1 acc is same as Trezor, so it is skipped
+                accountType: 'ledger',
+                bip43Path: "m/44'/195'/i'/0/0",
+                isDebugOnlyAccountType: true,
+            },
+        },
+        coingeckoId: 'tron',
+        tradeCryptoId: 'tron',
+        yieldXyzId: 'tron',
+        caipId: 'tron:0x2b6653dc',
     },
     ada: {
         // icarus derivation
@@ -297,7 +383,7 @@ export const networks = {
             [DeviceModelInternal.T3T1]: '2.0.0',
             [DeviceModelInternal.T3W1]: '2.0.0',
         },
-        backendTypes: ['blockfrost'],
+        backendOptions: [{ type: 'blockfrost' }],
         accountTypes: {
             legacy: {
                 // icarus-trezor derivation, differs from default just for 24 words seed
@@ -314,6 +400,7 @@ export const networks = {
         },
         coingeckoId: 'cardano',
         tradeCryptoId: 'cardano',
+        yieldXyzId: 'cardano',
     },
     etc: {
         symbol: 'etc',
@@ -324,12 +411,13 @@ export const networks = {
         bip43Path: "m/44'/61'/0'/0/i",
         decimals: 18,
         testnet: false,
-        explorer: getExplorerUrls('https://etc1.trezor.io', 'ethereum'),
-        features: ['sign-verify', 'tokens', 'coin-definitions'],
-        backendTypes: ['blockbook'],
+        explorer: getExplorerUrls('https://etc.trezor.io', 'ethereum'),
+        features: ['sign-verify', 'tokens', 'coin-definitions', 'graph'],
+        backendOptions: [{ type: 'blockbook' }, { type: 'evm-rpc' }],
         accountTypes: {},
         coingeckoId: 'ethereum-classic',
         tradeCryptoId: 'ethereum-classic',
+        yieldXyzId: null,
     },
     xrp: {
         symbol: 'xrp',
@@ -341,10 +429,11 @@ export const networks = {
         testnet: false,
         explorer: getExplorerUrls('https://xrpscan.com', 'ripple'),
         features: [],
-        backendTypes: ['ripple'],
+        backendOptions: [{ type: 'ripple' }],
         accountTypes: {},
         coingeckoId: 'ripple',
         tradeCryptoId: 'ripple',
+        yieldXyzId: null,
     },
     xlm: {
         symbol: 'xlm',
@@ -356,10 +445,12 @@ export const networks = {
         testnet: false,
         explorer: getExplorerUrls('https://stellar.expert/explorer/public', 'stellar'),
         features: ['tokens', 'coin-definitions'],
-        backendTypes: ['stellar'],
+        backendOptions: [{ type: 'stellar' }],
         accountTypes: {},
         coingeckoId: 'stellar',
         tradeCryptoId: 'stellar',
+        yieldXyzId: 'stellar',
+        caipId: 'stellar:pubnet',
     },
     ltc: {
         symbol: 'ltc',
@@ -369,9 +460,9 @@ export const networks = {
         bip43Path: "m/84'/2'/i'",
         decimals: 8,
         testnet: false,
-        explorer: getExplorerUrls('https://ltc1.trezor.io', 'bitcoin'),
-        features: ['sign-verify'],
-        backendTypes: ['blockbook'],
+        explorer: getExplorerUrls('https://blockchair.com/litecoin', 'bitcoin'),
+        features: ['sign-verify', 'graph'],
+        backendOptions: [{ type: 'blockbook' }],
         accountTypes: {
             segwit: {
                 accountType: 'segwit',
@@ -385,6 +476,36 @@ export const networks = {
         coingeckoId: 'litecoin',
         tradeCryptoId: 'litecoin',
         caipId: 'bip122:12a765e31ffd4059bada1e25190f6e98',
+        yieldXyzId: null,
+    },
+    fjc: {
+        symbol: 'fjc',
+        displaySymbol: 'FJC',
+        name: 'Fujicoin',
+        networkType: 'bitcoin',
+        bip43Path: "m/84'/75'/i'",
+        decimals: 8,
+        testnet: false,
+        explorer: getExplorerUrls('https://explorer.fujicoin.org', 'bitcoin'),
+        features: ['rbf', 'sign-verify'],
+        backendTypes: ['blockbook', 'electrum'],
+        accountTypes: {
+            taproot: {
+                accountType: 'taproot',
+                bip43Path: "m/86'/75'/i'",
+                features: ['rbf'],
+            },
+            segwit: {
+                accountType: 'segwit',
+                bip43Path: "m/49'/75'/i'",
+            },
+            legacy: {
+                accountType: 'legacy',
+                bip43Path: "m/44'/75'/i'",
+            },
+        },
+        coingeckoId: 'fujicoin',
+        tradeCryptoId: 'fujicoin',
     },
     bch: {
         symbol: 'bch',
@@ -394,12 +515,13 @@ export const networks = {
         bip43Path: "m/44'/145'/i'",
         decimals: 8,
         testnet: false,
-        explorer: getExplorerUrls('https://bch1.trezor.io', 'bitcoin'),
-        features: ['sign-verify'],
-        backendTypes: ['blockbook'],
+        explorer: getExplorerUrls('https://blockchair.com/bitcoin-cash', 'bitcoin'),
+        features: ['sign-verify', 'graph'],
+        backendOptions: [{ type: 'blockbook' }],
         accountTypes: {},
         coingeckoId: 'bitcoin-cash',
         tradeCryptoId: 'bitcoin-cash',
+        yieldXyzId: null,
     },
     doge: {
         symbol: 'doge',
@@ -409,13 +531,14 @@ export const networks = {
         bip43Path: "m/44'/3'/i'",
         decimals: 8,
         testnet: false,
-        explorer: getExplorerUrls('https://doge1.trezor.io', 'bitcoin'),
-        features: ['sign-verify'],
-        backendTypes: ['blockbook'],
+        explorer: getExplorerUrls('https://blockchair.com/dogecoin', 'bitcoin'),
+        features: ['sign-verify', 'graph'],
+        backendOptions: [{ type: 'blockbook' }],
         accountTypes: {},
         coingeckoId: 'dogecoin',
         tradeCryptoId: 'dogecoin',
         caipId: 'bip122:1a91e3dace36e2be3bf030a65679fe82',
+        yieldXyzId: null,
     },
     zec: {
         symbol: 'zec',
@@ -425,12 +548,13 @@ export const networks = {
         bip43Path: "m/44'/133'/i'",
         decimals: 8,
         testnet: false,
-        explorer: getExplorerUrls('https://zec1.trezor.io', 'bitcoin'),
-        features: ['sign-verify'],
-        backendTypes: ['blockbook'],
+        explorer: getExplorerUrls('https://blockchair.com/zcash', 'bitcoin'),
+        features: ['sign-verify', 'graph'],
+        backendOptions: [{ type: 'blockbook' }],
         accountTypes: {},
         coingeckoId: 'zcash',
         tradeCryptoId: 'zcash',
+        yieldXyzId: null,
     },
     // testnets
     test: {
@@ -441,9 +565,9 @@ export const networks = {
         bip43Path: "m/84'/1'/i'",
         decimals: 8,
         testnet: true,
-        explorer: getExplorerUrls('https://tbtc4-1.trezor.io', 'bitcoin'),
-        features: ['rbf', 'sign-verify', 'amount-unit'],
-        backendTypes: ['blockbook', 'electrum'],
+        explorer: getExplorerUrls('https://mempool.space/testnet4', 'bitcoin'),
+        features: ['rbf', 'sign-verify', 'amount-unit', 'graph'],
+        backendOptions: [{ type: 'blockbook' }, { type: 'electrum' }],
         accountTypes: {
             coinjoin: {
                 accountType: 'coinjoin',
@@ -468,6 +592,7 @@ export const networks = {
         coingeckoId: undefined,
         tradeCryptoId: 'test-bitcoin', // fake, coingecko does not have testnets
         caipId: 'bip122:000000000933ea01ad0ee984209779ba',
+        yieldXyzId: null,
     },
     regtest: {
         symbol: 'regtest',
@@ -478,8 +603,8 @@ export const networks = {
         decimals: 8,
         testnet: true,
         explorer: getExplorerUrls('http://localhost:19121', 'bitcoin'),
-        features: ['rbf', 'sign-verify', 'amount-unit'],
-        backendTypes: ['blockbook', 'electrum'],
+        features: ['rbf', 'sign-verify', 'amount-unit', 'graph'],
+        backendOptions: [{ type: 'blockbook' }, { type: 'electrum' }],
         accountTypes: {
             coinjoin: {
                 accountType: 'coinjoin',
@@ -504,38 +629,53 @@ export const networks = {
         isDebugOnlyNetwork: true,
         coingeckoId: undefined,
         tradeCryptoId: undefined,
+        yieldXyzId: null,
     },
     tsep: {
         symbol: 'tsep',
         displaySymbol: 'tETH',
         name: 'Ethereum Sepolia',
         networkType: 'ethereum',
-        bip43Path: "m/44'/1'/0'/0/i",
+        bip43Path: "m/44'/60'/0'/0/i",
         chainId: 11155111,
         decimals: 18,
         testnet: true,
         explorer: getExplorerUrls('https://sepolia.etherscan.io', 'ethereum'),
-        features: ['rbf', 'sign-verify', 'tokens', 'nfts', 'nft-definitions', 'eip1559'],
-        backendTypes: ['blockbook'],
-        accountTypes: {},
+        features: ['rbf', 'sign-verify', 'tokens', 'nfts', 'eip1559', 'graph'],
+        backendOptions: [{ type: 'blockbook' }, { type: 'evm-rpc' }],
+        accountTypes: {
+            legacy: {
+                accountType: 'legacy',
+                bip43Path: "m/44'/1'/0'/0/i",
+                isDebugOnlyAccountType: true,
+            },
+        },
         coingeckoId: 'sepolia-test-ethereum', // fake, coingecko does not have testnets
         tradeCryptoId: 'sepolia-test-ethereum', // fake, coingecko does not have testnets
+        yieldXyzId: 'ethereum-sepolia',
     },
-    thol: {
-        symbol: 'thol',
+    thod: {
+        symbol: 'thod',
         displaySymbol: 'tETH',
-        name: 'Ethereum Holesky',
+        name: 'Ethereum Hoodi',
         networkType: 'ethereum',
-        bip43Path: "m/44'/1'/0'/0/i",
-        chainId: 17000,
+        bip43Path: "m/44'/60'/0'/0/i",
+        chainId: 560048,
         decimals: 18,
         testnet: true,
-        explorer: getExplorerUrls('https://holesky.etherscan.io', 'ethereum'),
-        features: ['rbf', 'sign-verify', 'tokens', 'staking', 'nfts', 'nft-definitions', 'eip1559'],
-        backendTypes: ['blockbook'],
-        accountTypes: {},
-        coingeckoId: 'holesky-test-ethereum', // fake, coingecko does not have testnets
-        tradeCryptoId: 'holesky-test-ethereum', // fake, coingecko does not have testnets
+        explorer: getExplorerUrls('https://hoodi.etherscan.io/', 'ethereum'),
+        features: ['rbf', 'sign-verify', 'tokens', 'staking', 'nfts', 'eip1559', 'graph'],
+        backendOptions: [{ type: 'blockbook' }, { type: 'evm-rpc' }],
+        accountTypes: {
+            legacy: {
+                accountType: 'legacy',
+                bip43Path: "m/44'/1'/0'/0/i",
+                isDebugOnlyAccountType: true,
+            },
+        },
+        coingeckoId: 'hoodi-test-ethereum', // fake, coingecko does not have testnets
+        tradeCryptoId: 'hoodi-test-ethereum', // fake, coingecko does not have testnets
+        yieldXyzId: 'ethereum-hoodi',
     },
     dsol: {
         symbol: 'dsol',
@@ -554,45 +694,12 @@ export const networks = {
             [DeviceModelInternal.T3T1]: '2.0.0',
             [DeviceModelInternal.T3W1]: '2.0.0',
         },
-        backendTypes: ['solana'],
+        backendOptions: [{ type: 'solana', isExternalBackend: true }],
         accountTypes: {},
         coingeckoId: undefined,
         tradeCryptoId: undefined,
         caipId: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
-    },
-    tada: {
-        // icarus derivation
-        symbol: 'tada',
-        displaySymbol: 'tADA',
-        name: 'Cardano Testnet',
-        networkType: 'cardano',
-        bip43Path: "m/1852'/1815'/i'",
-        decimals: 6,
-        testnet: true,
-        features: ['tokens', 'staking'],
-        explorer: getExplorerUrls('https://preview.cexplorer.io', 'cardano'),
-        support: {
-            [DeviceModelInternal.T2T1]: '2.4.3',
-            [DeviceModelInternal.T2B1]: '2.6.1',
-            [DeviceModelInternal.T3B1]: '2.0.0',
-            [DeviceModelInternal.T3T1]: '2.0.0',
-            [DeviceModelInternal.T3W1]: '2.0.0',
-        },
-        backendTypes: ['blockfrost'],
-        accountTypes: {
-            legacy: {
-                // icarus-trezor derivation
-                accountType: 'legacy',
-                bip43Path: "m/1852'/1815'/i'",
-            },
-            ledger: {
-                // ledger derivation
-                accountType: 'ledger',
-                bip43Path: "m/1852'/1815'/i'",
-            },
-        },
-        coingeckoId: undefined,
-        tradeCryptoId: undefined,
+        yieldXyzId: 'solana-devnet',
     },
     txrp: {
         symbol: 'txrp',
@@ -604,10 +711,11 @@ export const networks = {
         testnet: true,
         explorer: getExplorerUrls('https://test.bithomp.com', 'ripple'),
         features: ['tokens'],
-        backendTypes: [],
+        backendOptions: [],
         accountTypes: {},
         coingeckoId: undefined,
         tradeCryptoId: 'test-ripple', // fake, coingecko does not have testnets
+        yieldXyzId: null,
     },
     txlm: {
         symbol: 'txlm',
@@ -619,11 +727,69 @@ export const networks = {
         testnet: true,
         explorer: getExplorerUrls('https://stellar.expert/explorer/testnet', 'stellar'),
         features: ['tokens'],
-        backendTypes: ['stellar'],
+        backendOptions: [{ type: 'stellar' }],
         accountTypes: {},
         coingeckoId: undefined,
         tradeCryptoId: undefined,
+        yieldXyzId: 'stellar-testnet',
+        caipId: 'stellar:testnet',
+    },
+    ttrx: {
+        symbol: 'ttrx',
+        displaySymbol: 'tTRX',
+        name: 'Tron Nile',
+        networkType: 'tron',
+        bip43Path: "m/44'/195'/0'/0/i",
+        decimals: 6,
+        testnet: true,
+        features: ['tokens', 'graph', 'nfts'],
+        explorer: getExplorerUrls('https://nile.tronscan.org/#', 'tron'),
+        backendOptions: [{ type: 'blockbook' }],
+        accountTypes: {},
+        coingeckoId: undefined,
+        tradeCryptoId: 'test-tron',
+        yieldXyzId: null,
     },
 } as const satisfies Networks;
 
-export type NetworkDisplaySymbol = (typeof networks)[keyof typeof networks]['displaySymbol'];
+type NetworksConfigs = typeof networks;
+
+export type NetworkConfig = NetworksConfigs[keyof NetworksConfigs];
+
+export type NetworkConfigWithoutTestnets = Exclude<NetworkConfig, { testnet: true }>;
+
+export type NetworkDisplaySymbol = NetworkConfig['displaySymbol'];
+
+type NetworkWithFeature<TFeature extends NetworkFeature> = {
+    [S in keyof NetworksConfigs]: TFeature extends NetworksConfigs[S]['features'][number]
+        ? NetworksConfigs[S]
+        : never;
+}[keyof NetworksConfigs];
+
+export type StakingNetworkSymbol = NetworkWithFeature<'staking'>['symbol'];
+
+export type StakingNetworkType = NetworksConfigs[StakingNetworkSymbol]['networkType'];
+
+export const [STAKING_SYMBOLS, STAKING_TYPES, PROD_STAKING_SYMBOLS] = typedObjectEntries(
+    networks,
+).reduce<[StakingNetworkSymbol[], StakingNetworkType[], StakingNetworkSymbol[]]>(
+    (acc, [symbol, { features, networkType, testnet }]) => {
+        if ((features as readonly string[]).includes('staking')) {
+            acc[0].push(symbol as StakingNetworkSymbol);
+
+            if (!testnet) {
+                acc[2].push(symbol as StakingNetworkSymbol);
+            }
+
+            const t = networkType as StakingNetworkType;
+            if (!acc[1].includes(t)) acc[1].push(t);
+        }
+
+        return acc;
+    },
+    [[], [], []],
+) as readonly [
+    readonly StakingNetworkSymbol[],
+    readonly StakingNetworkType[],
+    readonly (StakingNetworkSymbol & NetworkConfigWithoutTestnets['symbol'])[],
+];

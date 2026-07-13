@@ -1,16 +1,25 @@
 import { combineReducers } from '@reduxjs/toolkit';
-import { CryptoId, SellFiatTrade, SellFiatTradeResponse } from 'invity-api';
+import { type CryptoId, type SellFiatTrade, type SellFiatTradeResponse } from 'invity-api';
 
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
-import { Account } from '@suite-common/wallet-types';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
+import { type Account } from '@suite-common/wallet-types';
 
 import { accountBtc } from '../../../__fixtures__/utils';
 import { invityAPI } from '../../../invityAPI';
-import { TradingSellState } from '../../../reducers/sellReducer';
-import { initialState, prepareTradingReducer } from '../../../reducers/tradingReducer';
+import { type TradingSellState } from '../../../reducers/sellReducer';
+import { initialState } from '../../../reducers/tradingCommonReducer';
+import { prepareTradingReducer } from '../../../reducers/tradingReducer';
+import type { LogErrorThunkProps } from '../../common/logErrorThunk';
 import { handleSellTradeThunk } from '../handleSellTradeThunk';
 
-const tradingReducer = prepareTradingReducer(extraDependenciesMock);
+const tradingReducer = prepareTradingReducer(extraDependenciesCommonMock);
+
+jest.mock('../../common/logErrorThunk', () => ({
+    logErrorThunk: (props: LogErrorThunkProps) => ({
+        type: 'mockedLogErrorThunk',
+        payload: props,
+    }),
+}));
 
 describe('handleSellTradeThunk', () => {
     const date = new Date('2025-04-09');
@@ -35,12 +44,12 @@ describe('handleSellTradeThunk', () => {
             extra: {},
             reducer: combineReducers({
                 wallet: combineReducers({
-                    tradingNew: tradingReducer,
+                    trading: tradingReducer,
                 }),
             }),
             preloadedState: {
                 wallet: {
-                    tradingNew: {
+                    trading: {
                         ...initialState,
                         sell: {
                             ...initialState.sell,
@@ -83,7 +92,6 @@ describe('handleSellTradeThunk', () => {
 
     describe('should return undefined', () => {
         it.each([
-            ['when quotesRequest is undefined', { quotesRequest: undefined }, {}],
             ['when provider is undefined', { sellInfo: {} }, {}],
             [
                 'when quote`s provider was not found',
@@ -117,7 +125,7 @@ describe('handleSellTradeThunk', () => {
                 )
                 .unwrap();
 
-            const tradingState = store.getState().wallet.tradingNew;
+            const tradingState = store.getState().wallet.trading;
 
             expect(invityAPI.doSellTrade).not.toHaveBeenCalled();
             expect(result).toBeUndefined();
@@ -146,11 +154,13 @@ describe('handleSellTradeThunk', () => {
 
         const actionToast = store
             .getActions()
-            .find(action => action.type === '@common/in-app-notifications/addToast');
-        const tradingState = store.getState().wallet.tradingNew;
+            .find(action => action.type === 'mockedLogErrorThunk');
+        const tradingState = store.getState().wallet.trading;
 
-        expect(actionToast?.payload?.type).toEqual('error');
-        expect(actionToast?.payload?.error).toEqual('No response from the server');
+        expect(actionToast?.payload).toEqual({
+            tradingType: 'sell',
+            errorMessage: 'No response from the server',
+        });
         expect(result).toBeUndefined();
         expect(tradingState.sell.transactionId).toBeUndefined();
         expect(tradingState.sell.selectedQuote).toBeUndefined();
@@ -179,11 +189,13 @@ describe('handleSellTradeThunk', () => {
 
         const actionToast = store
             .getActions()
-            .find(action => action.type === '@common/in-app-notifications/addToast');
-        const tradingState = store.getState().wallet.tradingNew;
+            .find(action => action.type === 'mockedLogErrorThunk');
+        const tradingState = store.getState().wallet.trading;
 
-        expect(actionToast?.payload?.type).toEqual('error');
-        expect(actionToast?.payload?.error).toEqual('Trade error');
+        expect(actionToast?.payload).toEqual({
+            tradingType: 'sell',
+            errorMessage: 'Trade error',
+        });
         expect(result).toBeUndefined();
         expect(tradingState.sell.transactionId).toBeUndefined();
         expect(tradingState.sell.selectedQuote).toBeUndefined();
@@ -210,7 +222,7 @@ describe('handleSellTradeThunk', () => {
                 }),
             )
             .unwrap();
-        const tradingState = store.getState().wallet.tradingNew;
+        const tradingState = store.getState().wallet.trading;
 
         expect(result).toEqual(quoteData);
         expect(tradingState.sell.transactionId).toBeUndefined();
@@ -242,7 +254,7 @@ describe('handleSellTradeThunk', () => {
             )
             .unwrap();
 
-        const tradingState = store.getState().wallet.tradingNew;
+        const tradingState = store.getState().wallet.trading;
 
         expect(result).toBeUndefined();
         expect(tradingState.sell.transactionId).toBe(mockResponse.trade.orderId);
@@ -254,7 +266,7 @@ describe('handleSellTradeThunk', () => {
                 data: mockResponse.trade,
                 key: mockResponse.trade.orderId,
                 date: dateISO,
-                sendAccountKey: 'btc-descriptor-btc',
+                sendAccountKey: accountBtc.key,
             },
         ]);
         expect(mockProcessResponseData).not.toHaveBeenCalled();
@@ -290,7 +302,7 @@ describe('handleSellTradeThunk', () => {
             )
             .unwrap();
 
-        const tradingState = store.getState().wallet.tradingNew;
+        const tradingState = store.getState().wallet.trading;
 
         expect(result).toBeUndefined();
         expect(tradingState.sell.transactionId).toBe(mockResponse.trade.orderId);
@@ -302,7 +314,7 @@ describe('handleSellTradeThunk', () => {
                 data: mockResponse.trade,
                 key: mockResponse.trade.orderId,
                 date: dateISO,
-                sendAccountKey: 'btc-descriptor-btc',
+                sendAccountKey: accountBtc.key,
             },
         ]);
         expect(mockProcessResponseData).toHaveBeenCalledTimes(1);
@@ -322,6 +334,7 @@ describe('handleSellTradeThunk', () => {
                         tradedCoins: ['bitcoin'] as CryptoId[],
                         supportedCountries: ['CZ'],
                         flow: 'BANK_ACCOUNT',
+                        supportedSubdivisions: {},
                     },
                 },
                 supportedCryptoCurrencies: ['bitcoin'] as CryptoId[],
@@ -351,7 +364,7 @@ describe('handleSellTradeThunk', () => {
             )
             .unwrap();
 
-        const tradingState = store.getState().wallet.tradingNew;
+        const tradingState = store.getState().wallet.trading;
 
         expect(result).toBeUndefined();
         expect(tradingState.sell.transactionId).toBeUndefined();

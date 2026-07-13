@@ -1,88 +1,49 @@
 import { useCallback } from 'react';
 
+import { selectAccountIncludingChosenInTrading } from '@suite/account';
+import { Translation } from '@suite/intl';
+import { showAddressThunk } from '@suite/receive';
 import { selectConnectPopupCall } from '@suite-common/connect-popup';
-import {
-    cryptoIdToSymbol,
-    selectTradingModalAccountKey,
-    useTradingInfo,
-} from '@suite-common/trading';
-import { getDisplaySymbol, getNetwork } from '@suite-common/wallet-config';
+import { selectSelectedDevice } from '@suite-common/device';
 import { getNetworkDisplaySymbol } from '@suite-common/wallet-config/src/utils';
-import { selectSelectedDevice } from '@suite-common/wallet-core';
 import { hasNetworkFeatures } from '@suite-common/wallet-utils';
 
-import { showAddress } from 'src/actions/wallet/receiveActions';
-import { Translation } from 'src/components/suite';
 import {
     ConfirmValueModal,
-    ConfirmValueModalProps,
+    type ConfirmValueModalProps,
 } from 'src/components/suite/modals/ReduxModal/ConfirmValueModal/ConfirmValueModal';
 import { useSelector } from 'src/hooks/suite';
-import { selectAccountIncludingChosenInTrading } from 'src/reducers/wallet/selectedAccountReducer';
-import { selectIsDebugModeActive } from 'src/selectors/suite/suiteSelectors';
 
 import { ConnectAddressConfirmation } from './UserContextModal/ConnectAddressConfirmation';
+import { ConnectSelectAccount } from './UserContextModal/ConnectSelectAccount/ConnectSelectAccount';
 
-interface ConfirmAddressModalProps
-    extends Pick<ConfirmValueModalProps, 'isConfirmed' | 'onCancel' | 'value'> {
+interface ConfirmAddressModalProps extends Pick<
+    ConfirmValueModalProps,
+    'isConfirmed' | 'onCancel' | 'value'
+> {
     addressPath: string;
 }
 
 export const ConfirmAddressModal = ({ addressPath, value, ...props }: ConfirmAddressModalProps) => {
     const device = useSelector(selectSelectedDevice);
     const account = useSelector(selectAccountIncludingChosenInTrading);
-    const isTradingFlow = useSelector(selectTradingModalAccountKey);
-    const { modalCryptoId } = useSelector(state => state.wallet.tradingNew);
-    const { cryptoIdToSymbolAndContractAddress } = useTradingInfo();
-    const isConnectPopup = useSelector(
-        state => selectConnectPopupCall(state)?.state === 'address-confirmation',
-    );
-    const isDebugModeActive = useSelector(selectIsDebugModeActive);
+    const popupCallState = useSelector(state => selectConnectPopupCall(state)?.state);
 
     const validateAddress = useCallback(
-        () => showAddress(addressPath, value),
+        () => showAddressThunk({ path: addressPath, address: value }),
         [addressPath, value],
     );
 
-    if (isConnectPopup) return <ConnectAddressConfirmation />;
+    if (popupCallState === 'address-confirmation') return <ConnectAddressConfirmation />;
+    if (popupCallState === 'select-account') return <ConnectSelectAccount />;
     if (!device) return null;
 
     const getHeading = () => {
-        if (modalCryptoId) {
-            const symbol = cryptoIdToSymbol(modalCryptoId);
-            const { coinSymbol, contractAddress } =
-                cryptoIdToSymbolAndContractAddress(modalCryptoId);
-            const networkCurrencyName = coinSymbol && getDisplaySymbol(coinSymbol, contractAddress);
-
-            if (contractAddress) {
-                const networkName = symbol ? getNetwork(symbol).name : coinSymbol?.toUpperCase();
-
-                return (
-                    <Translation
-                        id="TR_ADDRESS_MODAL_TITLE_EXCHANGE"
-                        values={{
-                            networkName,
-                            networkCurrencyName,
-                        }}
-                    />
-                );
-            }
-
-            return (
-                <Translation
-                    id="TR_ADDRESS_MODAL_TITLE"
-                    values={{
-                        networkName: networkCurrencyName,
-                    }}
-                />
-            );
-        }
-
         if (!account) {
             return <Translation id="TR_RECEIVE" />;
         }
 
-        const hasTokens = hasNetworkFeatures(account, 'tokens', isDebugModeActive);
+        const hasTokens = hasNetworkFeatures(account, 'tokens');
         if (hasTokens) {
             return (
                 <Translation
@@ -110,9 +71,8 @@ export const ConfirmAddressModal = ({ addressPath, value, ...props }: ConfirmAdd
             heading={getHeading()}
             label={<Translation id="TR_ADDRESS" />}
             validateOnDevice={validateAddress}
-            areStepsVisible={!isTradingFlow}
-            isCopyButtonVisible={!isTradingFlow}
             value={value}
+            isAddress={true}
             data-testid="@metadata/copy-address-button"
             {...props}
         />

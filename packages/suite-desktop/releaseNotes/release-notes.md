@@ -1,18 +1,25 @@
 ### 🚀 New features
 
-- Bitcoin can now be set as the primary currency unit, offering greater control over how values are displayed.
-- “View-only” wallets are now enabled by default, making it easier to monitor balances without connecting your device.
-- Biometric authentication with auto-lock has been added to experimental features, enhancing both security and convenience.
-- WalletConnect is now officially supported—securely connect your Trezor to dApps, with transaction simulations included for added transparency.
-- Trezor Connect has graduated from experimental—seamlessly link your Trezor to supported apps via a secure Trezor Suite interface (availability depends on third-party wallet support).
+- TRON (TRX) is now available to all users, with full account management support.
+- Your Trezor’s device name and color now sync automatically during THP pairing.
 
 ### 🎨 Improvements
 
-- The minimum Bitcoin fee rate has been reduced to 0.1 sat/vB, allowing for more cost-effective transaction options.
-- The "Speed up" transaction feature has been improved for better performance and reliability.
-- Locktime functionality has been enhanced for increased precision in transaction timing.
-- Send options have been streamlined—Locktime and Broadcast settings are now neatly organized under Advanced Send.
+- The minimum ETH staking amount has been reduced to 0.01 ETH.
+- The UX of approval steps within the Earn stablecoin yield flow has improved.
+- Swap is now accessible directly from the main navigation.
+- Contract verification is now available across all EVM networks.
+- Coin activation has been redesigned with a faster, pill-style network selector.
+- EVM testnets now use the same derivation paths as their mainnets.
+- Bitcoin is now included in the phishing detection.
+- Currency flags are now displayed in desktop trading forms.
+- The wallet and device switcher is disabled during account discovery to prevent interruptions.
+- The Guide experience has been refined with usability improvements.
+- Bitcoin fee customization warnings have been streamlined for a cleaner send flow.
 
 ### 🔧 Bug fixes
 
+- Fixed a crash that could occur when retrying certain Solana swaps.
+- Fixed a crash when all wallets were ejected during an active trading session.
+- Fixed an issue preventing device wallpaper changes.
 - Minor bugs have been resolved, along with general usability enhancements for a more reliable and seamless experience.

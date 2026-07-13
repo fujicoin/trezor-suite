@@ -1,19 +1,31 @@
+import { AccountLabel } from '@suite/account';
+import { DebugOnlyBadge, selectIsDebugModeActive } from '@suite/debug';
+import { Translation } from '@suite/intl';
 import { selectConnectPopupCall } from '@suite-common/connect-popup';
 import { formatDurationStrict } from '@suite-common/suite-utils';
-import { NetworkType, networks } from '@suite-common/wallet-config';
+import { type NetworkType, networks } from '@suite-common/wallet-config';
 import { selectRawNetworkFeeInfo } from '@suite-common/wallet-core';
-import { FeeInfo, GeneralPrecomposedTransactionFinal, StakeType } from '@suite-common/wallet-types';
-import { getFee, hasEip1559MaxPriorityFee, isEip1559 } from '@suite-common/wallet-utils';
+import {
+    type FeeInfo,
+    type GeneralPrecomposedTransactionFinal,
+    type SendFormDraftKey,
+    type StakeType,
+} from '@suite-common/wallet-types';
+import { asAmountUnit, getFee, unitsToSubunits } from '@suite-common/wallet-utils';
 import { Box, IconButton, Note, Row, Text } from '@trezor/components';
+import { BroadcastIcon, ClockIcon, ComputerTowerIcon, InfoIcon, ReceiptIcon } from '@trezor/icons';
 import { CoinLogo, FeeRate } from '@trezor/product-components';
 import { spacings } from '@trezor/theme';
+import { BigNumber } from '@trezor/utils';
 
-import { AccountLabel, Translation } from 'src/components/suite';
 import { ConnectCallSource } from 'src/components/suite/ConnectCallSource';
 import { useLocales } from 'src/hooks/suite';
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { selectLabelingDataForSelectedAccount } from 'src/reducers/suite/metadataReducer';
-import { Account } from 'src/types/wallet';
+import { type AppState } from 'src/types/suite';
+import { type Account } from 'src/types/wallet';
+
+import { TransactionReviewEthereumNotes } from './TransactionReviewEthereumNotes';
+import { TransactionReviewTronFeeNotes } from './TransactionReviewTronFeeNotes';
 
 const getEstimatedTime = (
     networkType: NetworkType,
@@ -30,12 +42,16 @@ const getEstimatedTime = (
     return matchedFeeLevel.blocks * feeInfo.blockTime * 60;
 };
 
+const selectSendFormDrafts = (state: AppState) => state.wallet.send.drafts;
+const selectCurrentAccountKey = (state: AppState) => state.wallet.selectedAccount.account?.key;
+
 type TransactionReviewSummaryProps = {
     tx: GeneralPrecomposedTransactionFinal;
     account: Account;
     broadcast?: boolean;
     onDetailsClick: () => void;
     stakeType?: StakeType | null;
+    timer?: React.JSX.Element;
 };
 
 export const TransactionReviewSummary = ({
@@ -44,12 +60,10 @@ export const TransactionReviewSummary = ({
     broadcast,
     onDetailsClick,
     stakeType,
+    timer,
 }: TransactionReviewSummaryProps) => {
-    const drafts = useSelector(state => state.wallet.send.drafts);
-    const { accountLabel } = useSelector(selectLabelingDataForSelectedAccount);
-    const currentAccountKey = useSelector(
-        state => state.wallet.selectedAccount.account?.key,
-    ) as string;
+    const drafts = useSelector(selectSendFormDrafts);
+    const currentAccountKey = useSelector(selectCurrentAccountKey) as string;
     const rawFeeInfo = useSelector(state => selectRawNetworkFeeInfo(state, account.symbol));
     const locale = useLocales();
     const { symbol, networkType } = account;
@@ -57,98 +71,103 @@ export const TransactionReviewSummary = ({
     const fee = getFee(account.networkType, tx);
     const estimateTime = getEstimatedTime(networkType, rawFeeInfo, tx);
     const connectPopupCall = useSelector(selectConnectPopupCall);
+    const isDebug = useSelector(selectIsDebugModeActive);
 
-    const formFeeRate = drafts[currentAccountKey]?.feePerUnit;
-    const isFeeCustom = drafts[currentAccountKey]?.selectedFee === 'custom';
+    const formFeeRate = drafts[currentAccountKey as SendFormDraftKey]?.feePerUnit; // Todo: is this cast correct? https://github.com/trezor/trezor-suite/issues/24918
+    const isFeeCustom = drafts[currentAccountKey as SendFormDraftKey]?.selectedFee === 'custom'; // Todo: is this cast correct? https://github.com/trezor/trezor-suite/issues/24918
     const isComposedFeeRateDifferent = isFeeCustom && formFeeRate !== fee;
 
     const isEthereumNetworkType = networkType === 'ethereum';
 
     return (
-        <Row columnGap={spacings.md} rowGap={spacings.xxs} flexWrap="wrap">
-            <Row gap={spacings.xxs}>
-                <CoinLogo size={14} symbol={symbol} />
-                <AccountLabel
-                    account={{
-                        ...account,
-                        accountLabel: accountLabel || account.accountLabel,
-                    }}
-                    showAccountTypeBadge
-                    accountTypeBadgeSize="small"
-                />
-            </Row>
+        <>
+            <Row justifyContent="space-between">
+                <Row columnGap={spacings.md} rowGap={spacings.xxs} flexWrap="wrap">
+                    <Row gap={spacings.xxs}>
+                        <CoinLogo size={16} symbol={symbol} />
+                        <AccountLabel
+                            account={account}
+                            showAccountTypeBadge
+                            accountTypeBadgeSize="small"
+                        />
+                    </Row>
 
-            {estimateTime !== undefined && (
-                <Note iconName="clock">
-                    {'≈ '}
-                    {formatDurationStrict(estimateTime, locale)}
-                </Note>
-            )}
-
-            {isEthereumNetworkType && (
-                <>
-                    <Note data-testid="@modal/ethereum/gas-limit" iconName="gasPump">
-                        <Translation id="TR_GAS_LIMIT" />
-                        {': '}
-                        {tx.feeLimit}
-                    </Note>
-                    <Note data-testid="@modal/ethereum/fee" iconName="gasPump">
-                        {isEip1559(tx) ? (
-                            <Translation id="TR_MAX_FEE_PER_GAS" />
-                        ) : (
-                            <Translation id="TR_GAS_PRICE" />
-                        )}
-                        {': '}
-                        <FeeRate feeRate={fee} networkType={network.networkType} symbol={symbol} />
-                    </Note>
-                    {hasEip1559MaxPriorityFee(tx) ? (
-                        <Note data-testid="@modal/ethereum/priority-fee" iconName="gasPump">
-                            <Translation id="TR_MAX_PRIORITY_FEE_PER_GAS" />
-
-                            {': '}
-                            <FeeRate
-                                feeRate={tx.maxPriorityFeePerGas}
-                                networkType={network.networkType}
-                                symbol={symbol}
-                            />
+                    {estimateTime !== undefined && (
+                        <Note icon={ClockIcon}>
+                            {'≈ '}
+                            {formatDurationStrict(estimateTime, locale)}
                         </Note>
-                    ) : undefined}
-                </>
-            )}
+                    )}
 
-            {!['ethereum', 'solana'].includes(networkType) && (
-                <Note iconName="receipt">
-                    <FeeRate feeRate={fee} networkType={network.networkType} symbol={symbol} />
-                </Note>
-            )}
+                    {isEthereumNetworkType && (
+                        <TransactionReviewEthereumNotes account={account} tx={tx} />
+                    )}
 
-            {isComposedFeeRateDifferent && network.networkType === 'bitcoin' && (
-                <Translation id="TR_FEE_RATE_CHANGED" />
-            )}
+                    {!['ethereum', 'solana', 'tron'].includes(networkType) && (
+                        <Note icon={ReceiptIcon}>
+                            <FeeRate feeRate={fee} networkType={network.networkType} />
+                        </Note>
+                    )}
 
-            {!stakeType && !broadcast && connectPopupCall?.state !== 'ongoing' && (
-                <Note iconName="broadcast">
-                    <Translation id="BROADCAST" />
-                    {': '}
-                    <Text variant="destructive">
-                        <Translation id="TR_OFF" />
-                    </Text>
-                </Note>
-            )}
+                    {networkType === 'tron' && (
+                        <TransactionReviewTronFeeNotes tx={tx} account={account} />
+                    )}
 
-            {connectPopupCall?.state === 'ongoing' && <ConnectCallSource />}
+                    {isComposedFeeRateDifferent && network.networkType === 'bitcoin' && (
+                        <Translation id="TR_FEE_RATE_CHANGED" />
+                    )}
 
-            {tx.inputs.length > 0 && (
-                // TODO: IconButton doesn't take margin even though it should
-                <Box margin={{ left: 'auto' }}>
-                    <IconButton
-                        size="tiny"
-                        onClick={() => onDetailsClick()}
-                        variant="tertiary"
-                        icon="info"
-                    />
-                </Box>
+                    {!stakeType && !broadcast && connectPopupCall?.state !== 'ongoing' && (
+                        <Note icon={BroadcastIcon}>
+                            <Translation id="BROADCAST" />
+                            {': '}
+                            <Text intent="critical">
+                                <Translation id="TR_OFF" />
+                            </Text>
+                        </Note>
+                    )}
+
+                    {connectPopupCall?.state === 'ongoing' && <ConnectCallSource />}
+
+                    {tx.inputs.length > 0 && (
+                        // TODO: IconButton doesn't take margin even though it should
+                        <Box margin={{ left: 'auto' }}>
+                            <IconButton
+                                onClick={() => onDetailsClick()}
+                                intent="neutral"
+                                priority="secondary"
+                                icon={InfoIcon}
+                                tooltip={{
+                                    content: <Translation id="TR_TRANSACTION_DETAILS" />,
+                                }}
+                            />
+                        </Box>
+                    )}
+                </Row>
+                {timer}
+            </Row>
+            {networkType === 'solana' && isDebug && (
+                <Row margin={{ top: spacings.xs }} gap={spacings.xs}>
+                    <DebugOnlyBadge />
+                    <Note icon={ComputerTowerIcon}>
+                        CU Limit
+                        {': '}
+                        {tx.feeLimit} CU
+                    </Note>
+                    <Note icon={ComputerTowerIcon}>
+                        CU Price
+                        {': '}
+                        <FeeRate
+                            feeRate={unitsToSubunits({
+                                value: asAmountUnit(new BigNumber(tx.feePerByte)),
+                                decimals: -6,
+                            })}
+                            networkType={network.networkType}
+                        />
+                        /CU
+                    </Note>
+                </Row>
             )}
-        </Row>
+        </>
     );
 };

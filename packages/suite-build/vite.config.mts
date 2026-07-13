@@ -1,4 +1,5 @@
 import { viteCommonjs } from '@originjs/vite-plugin-commonjs';
+import babel from '@rolldown/plugin-babel';
 import react from '@vitejs/plugin-react';
 import { execSync } from 'child_process';
 import fs, { readdirSync } from 'fs';
@@ -8,7 +9,12 @@ import { Plugin, ViteDevServer, build, defineConfig } from 'vite';
 import wasm from 'vite-plugin-wasm';
 
 import { suiteVersion } from '../suite/package.json';
-import { assetPrefix, project } from './utils/env';
+import {
+    assetPrefix,
+    isTanstackReactQueryDevTools,
+    project,
+    transportBrowserPing,
+} from './utils/env';
 
 const require = createRequire(import.meta.url);
 
@@ -27,6 +33,76 @@ const staticAliasPlugin = (): Plugin => ({
     },
 });
 
+// Plugin to serve flag SVGs from `@suite-common/flags` at `/static/flags/*.svg`
+// (flags moved out of `suite-data/files` so they need an explicit middleware +
+// build-time copy).
+const flagsPlugin = (): Plugin => {
+    const flagsAssetsDir = resolve(
+        require.resolve('@suite-common/flags/package.json'),
+        '../assets/flags',
+    );
+    let outDir: string | null = null;
+
+    return {
+        name: 'suite-flags',
+        enforce: 'pre',
+        configResolved(config) {
+            outDir = config.build.outDir;
+        },
+        configureServer(server: ViteDevServer) {
+            server.middlewares.use((req, res, next) => {
+                const match = req.url?.match(/^\/static\/flags\/([a-z0-9-]+\.svg)$/i);
+                if (!match) {
+                    next();
+
+                    return;
+                }
+                // @ts-expect-error: noUncheckedIndexedAccess
+                const secondMatch: string = match[1];
+                const filePath = resolve(flagsAssetsDir, secondMatch.toLowerCase());
+                if (!fs.existsSync(filePath)) {
+                    next();
+
+                    return;
+                }
+                res.setHeader('Content-Type', 'image/svg+xml');
+                fs.createReadStream(filePath).pipe(res);
+            });
+        },
+        closeBundle() {
+            if (!outDir) return;
+            const dest = resolve(outDir, 'static/flags');
+            fs.mkdirSync(dest, { recursive: true });
+            fs.cpSync(flagsAssetsDir, dest, { recursive: true });
+        },
+    };
+};
+
+const trezorLogosRequirePlugin = (): Plugin => ({
+    name: 'trezor-logos-require',
+    enforce: 'pre',
+    transform(code, id) {
+        const cleanId = id.split('?')[0] ?? id;
+        if (
+            !cleanId.includes(
+                'packages/product-components/src/components/TrezorLogo/trezorLogos.ts',
+            )
+        ) {
+            return null;
+        }
+
+        const transformed = code.replace(
+            /require\((['"`])([^'"`]+\.svg)\1\)/g,
+            'new URL($1$2$1, import.meta.url).href',
+        );
+
+        return {
+            code: transformed,
+            map: null,
+        };
+    },
+});
+
 // Function to process the HTML template with template variables
 const processTemplate = (template: string): string =>
     template
@@ -35,11 +111,7 @@ const processTemplate = (template: string): string =>
         // Remove the webpack template conditional (opening + closing statements as well as the HTML in between)
         .replace(/<%\s*if\([^%]*%>[\s\S]*?<%\s*}\s*%>/g, '')
         // Add the script tag for vite-index.ts
-        .replace('</head>', '<script type="module" src="./vite-index.ts"></script></head>')
-        // Add the app div to the body, the browser detection does work in vite
-        .replace('</body>', '<div id="app"></div></body>')
-        // in case if the id="app" is added multiple times
-        .replace('<div id="app"></div><div id="app"></div>', '<div id="app"></div>');
+        .replace('</head>', '<script type="module" src="./vite-index.ts"></script></head>');
 
 // Custom plugin to use the same template as webpack
 const htmlTemplatePlugin = (): Plugin => ({
@@ -69,13 +141,20 @@ const createWorkspaceAliases = () => {
             replacement: resolve(__dirname, '../', dirent.name),
         }));
 
-    return [...suiteCommonAliases, ...trezorPackagesAliases];
+    const suiteAliases = readdirSync(resolve(__dirname, '../../suite'), { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => ({
+            find: `@suite/${dirent.name}`,
+            replacement: resolve(__dirname, '../../suite', dirent.name),
+        }));
+
+    return [...suiteCommonAliases, ...trezorPackagesAliases, ...suiteAliases];
 };
 
 const alias = [
     {
-        find: /@trezor\/connect$/,
-        replacement: '@trezor/connect-web/src/module',
+        find: 'core-js/actual',
+        replacement: 'noop-core-js-actual',
     },
     {
         find: 'src',
@@ -105,7 +184,7 @@ const sessionsSharedWorkerPlugin = () => {
     const workerOutDir = resolve(__dirname, '../suite-web/dist/workers');
     const workerEntryPath = resolve(
         __dirname,
-        '../transport/src/sessions/background-sharedworker.ts',
+        '../transport-web/src/sessions/background-sharedworker.ts',
     );
     const workerFileName = 'sessions-background-sharedworker';
     const workerOutputPath = resolve(workerOutDir, `${workerFileName}.js`);
@@ -137,7 +216,7 @@ const sessionsSharedWorkerPlugin = () => {
                         fileName: () => `${workerFileName}.js`,
                         name: 'TrezorSharedWorker',
                     },
-                    rollupOptions: {
+                    rolldownOptions: {
                         output: {
                             inlineDynamicImports: true,
                         },
@@ -211,50 +290,160 @@ const sessionsSharedWorkerPlugin = () => {
     };
 };
 
-// Plugin to handle workers similar to webpack's worker-loader
-const workerPlugin = (): Plugin => ({
-    name: 'worker-loader',
-    transform(_code, id) {
-        if (/\/workers\/[^/]+\/index\.ts$/.test(id)) {
-            // Return a virtual module that creates a web worker
+// Plugin to build favicon.js from suite-data for /static/favicon.js usage
+const faviconPlugin = (): Plugin => {
+    const faviconOutDir = resolve(__dirname, '../suite-data/files');
+    const faviconEntryPath = resolve(__dirname, '../suite-data/src/favicon.ts');
+    const faviconFileName = 'favicon.js';
+    const faviconOutputPath = resolve(faviconOutDir, faviconFileName);
 
-            return {
-                code: `
-                    const worker = () => new Worker(new URL('${id}', import.meta.url), { type: 'module' });
-                    export default worker;
-                `,
-                // Use an empty source map to preserve the original file's mapping
-                map: { mappings: '' },
-            };
+    let buildInFlight: Promise<string | null> | null = null;
+    let hasBuilt = false;
+
+    const buildFavicon = () => {
+        if (buildInFlight) {
+            return buildInFlight;
         }
 
-        return null;
-    },
-});
-
-// Plugin to serve core.js in dev mode
-const serveCorePlugin = () => ({
-    name: 'serve-core',
-    configureServer(server: ViteDevServer) {
-        server.middlewares.use(async (req, res, next) => {
-            if (req.url?.endsWith('/js/core.js')) {
-                const code = await server.transformRequest(
-                    resolve(__dirname, '../connect/src/core/index.ts'),
-                    { ssr: false },
-                );
-                if (code?.code) {
-                    res.setHeader('Content-Type', 'application/javascript');
-                    res.end(code.code);
-
-                    return;
-                }
+        buildInFlight = (async () => {
+            if (!fs.existsSync(faviconOutDir)) {
+                fs.mkdirSync(faviconOutDir, { recursive: true });
             }
-            next();
-        });
+
+            console.log(`Building favicon from ${faviconEntryPath}...`);
+
+            try {
+                await build({
+                    configFile: false,
+                    resolve: {
+                        alias,
+                    },
+                    build: {
+                        outDir: faviconOutDir,
+                        emptyOutDir: false,
+                        lib: {
+                            entry: faviconEntryPath,
+                            formats: ['iife'],
+                            fileName: () => faviconFileName,
+                            name: 'TrezorSuiteFavicon',
+                        },
+                        rolldownOptions: {
+                            output: {
+                                inlineDynamicImports: true,
+                            },
+                        },
+                        minify: true,
+                        target: 'es2020',
+                        write: true,
+                    },
+                    define: {
+                        'process.env.ASSET_PREFIX': JSON.stringify(assetPrefix),
+                        'process.env.NODE_ENV': JSON.stringify(
+                            process.env.NODE_ENV ?? 'development',
+                        ),
+                    },
+                });
+
+                console.log(`Favicon built successfully at ${faviconOutputPath}`);
+                hasBuilt = true;
+
+                return faviconOutputPath;
+            } catch (error) {
+                console.error('Failed to build favicon:', error);
+
+                return null;
+            } finally {
+                buildInFlight = null;
+            }
+        })();
+
+        return buildInFlight;
+    };
+
+    return {
+        name: 'favicon-build',
+        async configureServer(server: ViteDevServer) {
+            if (!hasBuilt) {
+                await buildFavicon();
+            }
+
+            server.watcher.add(faviconEntryPath);
+            server.watcher.on('change', async (changedPath: string) => {
+                if (changedPath === faviconEntryPath) {
+                    console.log('Favicon source changed, rebuilding...');
+                    await buildFavicon();
+                }
+            });
+        },
+        async buildStart() {
+            if (!hasBuilt) {
+                await buildFavicon();
+            }
+        },
+    };
+};
+
+// Plugin to resolve bare module specifiers (e.g. @trezor/blockchain-link/src/workers/blockbook)
+// inside new Worker(new URL(..., import.meta.url)) calls.
+// In dev mode, Vite doesn't bundle — the browser constructs the URL at runtime and has no way to
+// resolve bare package specifiers, so we must expand them to /@fs/ paths that the dev server
+// can serve directly. In production, rolldown resolves them through the alias config at build time.
+const resolveWorkerUrlsPlugin = (): Plugin => ({
+    name: 'resolve-worker-urls',
+    enforce: 'pre',
+    apply: 'serve',
+    transform(code) {
+        if (!code.includes('new Worker') || !code.includes('import.meta.url')) return null;
+
+        let changed = false;
+        const transformed = code.replace(
+            /new URL\(\s*(?:\/\*.*?\*\/)?\s*(['"])(@[^'"]+)\1,\s*import\.meta\.url,?\s*\)/gm,
+            (match, _quote, specifier) => {
+                for (const a of alias) {
+                    if (
+                        typeof a.find === 'string' &&
+                        typeof a.replacement === 'string' &&
+                        specifier.startsWith(a.find)
+                    ) {
+                        const rest = specifier.slice(a.find.length);
+                        const abs = a.replacement + rest;
+                        // Append index.ts if no file extension present
+                        const withExt = /\.[cm]?[jt]sx?$/.test(abs) ? abs : `${abs}/index.ts`;
+                        changed = true;
+
+                        return `new URL('/@fs${withExt}', import.meta.url)`;
+                    }
+                }
+
+                return match;
+            },
+        );
+
+        return changed ? { code: transformed, map: null } : null;
     },
 });
 
 const commitId = execSync('git rev-parse HEAD').toString().trim();
+
+// Plugin to provide a no-op replacement for core-js/actual as a virtual module
+const noopCoreJsPlugin = (): Plugin => {
+    const virtualModuleId = 'noop-core-js-actual';
+    const resolvedVirtualModuleId = '\0' + virtualModuleId;
+
+    return {
+        name: 'noop-core-js-actual',
+        resolveId(id) {
+            if (id === virtualModuleId) {
+                return resolvedVirtualModuleId;
+            }
+        },
+        load(id) {
+            if (id === resolvedVirtualModuleId) {
+                return '// No-op replacement for core-js/actual\nexport default {};';
+            }
+        },
+    };
+};
 
 // Plugin to provide Buffer polyfill via a virtual module
 const bufferPolyfillPlugin = (): Plugin => {
@@ -264,6 +453,47 @@ const bufferPolyfillPlugin = (): Plugin => {
     const polyfillCode = `
 // Ensure Buffer is available globally
 import { Buffer as ImportedBuffer } from 'buffer';
+
+const base64UrlToBase64 = (input) => {
+    const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = base64.length % 4;
+    if (pad === 0) return base64;
+    return base64 + '='.repeat(4 - pad);
+};
+
+const base64ToBase64Url = (input) => input.replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');
+
+const patchBase64Url = (BufferCtor) => {
+    if (!BufferCtor?.prototype?.toString) return;
+
+    const originalToString = BufferCtor.prototype.toString;
+    if (!BufferCtor.prototype.__trezorPatchedBase64UrlToString) {
+        Object.defineProperty(BufferCtor.prototype, '__trezorPatchedBase64UrlToString', {
+            value: true,
+            enumerable: false,
+        });
+        BufferCtor.prototype.toString = function (encoding, start, end) {
+            if (encoding === 'base64url') {
+                return base64ToBase64Url(originalToString.call(this, 'base64', start, end));
+            }
+            return originalToString.call(this, encoding, start, end);
+        };
+    }
+
+    const originalFrom = BufferCtor.from;
+    if (!BufferCtor.__trezorPatchedBase64UrlFrom) {
+        Object.defineProperty(BufferCtor, '__trezorPatchedBase64UrlFrom', {
+            value: true,
+            enumerable: false,
+        });
+        BufferCtor.from = function (value, encodingOrOffset, length) {
+            if (encodingOrOffset === 'base64url' && typeof value === 'string') {
+                return originalFrom.call(this, base64UrlToBase64(value), 'base64');
+            }
+            return originalFrom.call(this, value, encodingOrOffset, length);
+        };
+    }
+};
 
 // Define Buffer in all possible global scopes
 if (typeof window !== 'undefined') {
@@ -278,6 +508,11 @@ if (typeof globalThis !== 'undefined') {
     globalThis.Buffer = globalThis.Buffer || ImportedBuffer;
 };
 
+patchBase64Url(ImportedBuffer);
+if (typeof window !== 'undefined' && window.Buffer) patchBase64Url(window.Buffer);
+if (typeof global !== 'undefined' && global.Buffer) patchBase64Url(global.Buffer);
+if (typeof globalThis !== 'undefined' && globalThis.Buffer) patchBase64Url(globalThis.Buffer);
+
 // Make sure global is defined
 if (typeof window !== 'undefined' && typeof global === 'undefined') {
     window.global = window;
@@ -287,6 +522,14 @@ if (typeof window !== 'undefined' && typeof global === 'undefined') {
 if (typeof window !== 'undefined' && typeof globalThis === 'undefined') {
     window.globalThis = window;
 };
+// Polyfill process.nextTick for jws.createVerify
+if (
+    typeof window !== 'undefined' &&
+    typeof window.process !== 'undefined' &&
+    typeof window.process.nextTick === 'undefined'
+) {
+    window.process.nextTick = cb => Promise.resolve().then(cb);
+}
 
 // Export nothing - this module is only for side effects
 export {};
@@ -319,6 +562,35 @@ ${code}`,
     };
 };
 
+// TODO: after migration to Vite, remove this completely and FIX THE GUIDE LOADING
+// Temporary and hacky plugin to handle the markdown guide apperance in vite dev env
+// It finds and transforms the code to use fetch instead of imports so
+// when we run vite dev the .md files are properly loaded
+const guideMarkdownPlugin = (): Plugin => ({
+    name: 'guide-md-dev',
+    apply: 'serve',
+    enforce: 'pre',
+    transform(code, id) {
+        if (!id.endsWith('useGuideLoadArticle.ts')) return null;
+
+        // This transform the hook logic to use fetch so that
+        // with Vite build md guides are displayed properly
+        const transformed = code.replace(
+            /const\s+file\s*=\s*await\s*import\([^)]*`@trezor\/suite-data\/files\/guide\/\$\{language\.toLowerCase\(\)\}\$\{id\}`[^)]*\);\s*const\s+md\s*=\s*(?:await\s*)?file\.default;?\s*return\s+md;?/s,
+            `
+const response = await fetch(\`/guide/\${language.toLowerCase()}\${id}\`);
+if (!response.ok) throw new Error('Failed to load markdown');
+return await response.text();
+          `.trim(),
+        );
+
+        return {
+            code: transformed,
+            map: null,
+        };
+    },
+});
+
 export default defineConfig({
     root: '../suite-web/src/static',
     cacheDir: resolve(__dirname, '../../node_modules/.vite'),
@@ -328,24 +600,27 @@ export default defineConfig({
     plugins: [
         htmlTemplatePlugin(),
         bufferPolyfillPlugin(),
+        noopCoreJsPlugin(),
+        guideMarkdownPlugin(),
+        trezorLogosRequirePlugin(),
+        flagsPlugin(),
         staticAliasPlugin(),
-        serveCorePlugin(),
         sessionsSharedWorkerPlugin(),
+        faviconPlugin(),
         viteCommonjs(),
-        workerPlugin(),
+        resolveWorkerUrlsPlugin(),
         wasm(),
-        react({
-            babel: {
-                plugins: [
-                    [
-                        'babel-plugin-styled-components',
-                        {
-                            displayName: true,
-                            fileName: false,
-                        },
-                    ],
+        react(),
+        babel({
+            plugins: [
+                [
+                    'babel-plugin-styled-components',
+                    {
+                        displayName: true,
+                        fileName: false,
+                    },
                 ],
-            },
+            ],
         }),
     ],
     resolve: {
@@ -360,21 +635,29 @@ export default defineConfig({
         'process.env.SUITE_TYPE': JSON.stringify(project ?? 'web'),
         'process.env.NODE_ENV': JSON.stringify('development'),
         'process.env.ASSET_PREFIX': JSON.stringify(assetPrefix),
+        'process.env.TANSTACK_REACT_QUERY_DEV_TOOLS': JSON.stringify(isTanstackReactQueryDevTools),
+        'process.env.TRANSPORT_BROWSER_PING': JSON.stringify(transportBrowserPing),
         global: 'globalThis',
         __DEV__: true,
         ENABLE_REDUX_LOGGER: true,
     },
     optimizeDeps: {
-        include: ['@trezor/connect', '@trezor/suite', 'buffer'],
+        include: ['@trezor/suite', 'buffer'],
         exclude: [
             // Exclude WebAssembly modules
             '@trezor/crypto-utils',
             '@trezor/utxo-lib',
+            // Exclude connect and transport to prevent pre-bundling issues with bridge URL construction and exports
+            '@trezor/connect',
+            '@trezor/transport',
         ],
     },
     server: {
         port: 8000,
         open: false,
         host: true,
+        watch: {
+            ignored: ['**/node_modules/**', '**/dist/**', '**/.nx/**', '**/.git/**'],
+        },
     },
 });

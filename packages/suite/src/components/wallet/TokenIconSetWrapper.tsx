@@ -1,13 +1,13 @@
 import { selectCoinDefinitions } from '@suite-common/token-definitions';
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 import { selectBaseCurrency, selectCurrentFiatRates } from '@suite-common/wallet-core';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
 import { TokenIconSet } from '@trezor/product-components';
 import { BigNumber } from '@trezor/utils';
 
 import { useSelector } from 'src/hooks/suite';
 import {
-    TokensWithRates,
+    type TokensWithRates,
     enhanceTokensWithRates,
     getTokens,
     sortTokensWithRates,
@@ -29,11 +29,11 @@ export const TokenIconSetWrapper = ({ accounts, symbol }: TokenIconSetWrapperPro
 
     if (!allTokensWithRates.length) return null;
 
-    const tokens = getTokens({
+    const tokens = getTokens<TokensWithRates>({
         tokens: allTokensWithRates,
         symbol,
         tokenDefinitions: coinDefinitions,
-    })?.shownWithBalance as TokensWithRates[];
+    })?.shownWithBalance;
 
     const aggregatedTokens = Object.values(
         tokens.reduce((acc: Record<string, TokensWithRates>, token) => {
@@ -58,6 +58,15 @@ export const TokenIconSetWrapper = ({ accounts, symbol }: TokenIconSetWrapperPro
     );
 
     const sortedAggregatedTokens = aggregatedTokens.sort(sortTokensWithRates);
+    const size = sortedAggregatedTokens.length === 1 ? 24 : 20;
 
-    return <TokenIconSet symbol={symbol} tokens={sortedAggregatedTokens} />;
+    return (
+        <TokenIconSet
+            size={size}
+            gap={6}
+            symbol={symbol}
+            tokens={sortedAggregatedTokens}
+            isCentered
+        />
+    );
 };

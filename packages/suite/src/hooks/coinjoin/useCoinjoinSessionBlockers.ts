@@ -1,11 +1,13 @@
+import { selectCoinjoinSessionBlockerByAccountKey } from '@suite/coinjoin';
+import { useTranslation } from '@suite/intl';
+import { selectLanguage } from '@suite/settings';
 import { Feature, selectFeatureMessageContent } from '@suite-common/message-system';
+import { type AccountKey } from '@suite-common/wallet-types';
 
-import { useSelector, useTranslation } from 'src/hooks/suite';
-import { selectCoinjoinSessionBlockerByAccountKey } from 'src/reducers/wallet/coinjoinReducer';
-import { selectLanguage } from 'src/selectors/suite/suiteSelectors';
+import { useSelector } from 'src/hooks/suite';
 
 export const useCoinjoinSessionBlockers = (
-    accountKey: string,
+    accountKey: AccountKey,
 ): {
     coinjoinSessionBlocker: ReturnType<typeof selectCoinjoinSessionBlockerByAccountKey>;
     coinjoinSessionBlockedMessage?: string;

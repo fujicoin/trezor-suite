@@ -1,11 +1,13 @@
 // origin: https://github.com/trezor/connect/blob/develop/src/js/core/methods/blockchain/BlockchainGetFiatRatesForTimestamps.js
 
-import { ERRORS } from '../constants';
-import { AbstractMethod, Payload } from '../core/AbstractMethod';
+import type { CoinInfo, PermissionRequest } from '@trezor/connect-common';
+import { ERRORS } from '@trezor/connect-common/src/constants';
+
+import type { MethodContext, MethodMessage, Payload } from '../core/AbstractMethod';
+import { AbstractMethod } from '../core/AbstractMethod';
 import { validateParams } from './common/paramsValidator';
 import { initBlockchain, isBackendSupported } from '../backend/BlockchainLink';
 import { getCoinInfo } from '../data/coinInfo';
-import type { CoinInfo } from '../types';
 
 type Params = {
     coinInfo: CoinInfo;
@@ -19,11 +21,8 @@ export default class BlockchainGetFiatRatesForTimestamps extends AbstractMethod<
     'blockchainGetFiatRatesForTimestamps',
     Params
 > {
-    init() {
-        this.useDevice = false;
-        this.useUi = false;
-
-        const { payload } = this;
+    constructor(message: MethodMessage<'blockchainGetFiatRatesForTimestamps'>) {
+        const { payload } = message;
 
         // validate incoming parameters
         validateParams(payload, [
@@ -41,19 +40,27 @@ export default class BlockchainGetFiatRatesForTimestamps extends AbstractMethod<
         // validate backend
         isBackendSupported(coinInfo);
 
-        this.params = {
+        const params = {
             currencies: payload.currencies,
             timestamps: payload.timestamps,
             token: payload.token,
             coinInfo,
             identity: payload.identity,
         };
+
+        super(message, params);
+        this.useDevice = false;
+        this.useUi = false;
     }
 
-    async run() {
+    get requiredPermissions(): PermissionRequest[] {
+        return [];
+    }
+
+    async run({ sendCoreMessage }: MethodContext) {
         const backend = await initBlockchain(
             this.params.coinInfo,
-            this.postMessage,
+            sendCoreMessage,
             this.params.identity,
         );
 

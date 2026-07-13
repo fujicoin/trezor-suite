@@ -1,23 +1,37 @@
-import { ComponentProps, JSX } from 'react';
+import { type ComponentProps, type JSX } from 'react';
 
-import { NetworkType, getNetwork } from '@suite-common/wallet-config';
-import { restartDiscoveryThunk } from '@suite-common/wallet-core';
-import { DiscoveryStatus, FailedAccount } from '@suite-common/wallet-types';
-import { Button, Column, H3, IconCircle, IconName, Row, Text } from '@trezor/components';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useDevice } from '@suite/device';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { openModal } from '@suite/modal';
+import { useServices } from '@suite-common/dependency-injection';
+import { type NetworkType, getNetwork } from '@suite-common/wallet-config';
+import { startOrRestartDiscoveryThunk } from '@suite-common/wallet-core';
+import { type DiscoveryStatus, type FailedAccount } from '@suite-common/wallet-types';
+import {
+    Button,
+    Column,
+    H3,
+    IconCircle,
+    type IconComponent,
+    Illustration,
+    Paragraph,
+    Row,
+} from '@trezor/components';
+import { PlusIcon, RepeatIcon, WarningIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
 import { applySettings } from 'src/actions/settings/deviceSettingsActions';
-import { goto } from 'src/actions/suite/routerActions';
-import { Translation } from 'src/components/suite';
-import { TranslationKey } from 'src/components/suite/Translation';
-import { useDevice, useDispatch } from 'src/hooks/suite';
-import { DiscoveryStatusType } from 'src/types/wallet';
+import { useDispatch } from 'src/hooks/suite';
+import { type DiscoveryStatusType } from 'src/types/wallet';
 
 interface CTA {
     label?: TranslationKey;
-    variant?: ComponentProps<typeof Button>['variant'];
+    intent?: ComponentProps<typeof Button>['intent'];
     action: () => void;
-    icon?: IconName;
+    icon?: IconComponent;
+    isDisabled?: boolean;
+    size?: ComponentProps<typeof Button>['size'];
 }
 
 interface ContainerProps {
@@ -25,37 +39,46 @@ interface ContainerProps {
     description?: TranslationKey | JSX.Element;
     cta: CTA | CTA[];
     dataTestBase: string;
+    image?: React.ReactNode;
 }
 
 // Common wrapper for all views
-const Container = ({ title, description, cta, dataTestBase }: ContainerProps) => {
+const Container = ({ title, description, cta, dataTestBase, image }: ContainerProps) => {
     const { isLocked } = useDevice();
     const actions = Array.isArray(cta) ? cta : [cta];
 
     return (
         <Column gap={spacings.xxs} data-testid={`@exception/${dataTestBase}`} alignItems="center">
-            <IconCircle name="warning" size={90} variant="warning" />
-            <H3 margin={{ top: spacings.md }}>
+            {image ? image : <IconCircle icon={WarningIcon} size={96} intent="warning" />}
+            <H3 data-testid={`@exception/${dataTestBase}/header`} margin={{ top: spacings.md }}>
                 <Translation id={title} />
             </H3>
             {description && (
-                <Text variant="tertiary" typographyStyle="hint">
+                <Paragraph
+                    data-testid={`@exception/${dataTestBase}/description`}
+                    intent="neutral"
+                    priority="secondary"
+                    typographyStyle="body-sm"
+                    maxWidth={500}
+                    align="center"
+                >
                     {typeof description === 'string' ? (
                         <Translation id={description} />
                     ) : (
                         description
                     )}
-                </Text>
+                </Paragraph>
             )}
             <Row gap={spacings.sm} margin={{ top: spacings.md }}>
                 {actions.map(a => (
                     <Button
                         key={a.label || 'TR_RETRY'}
-                        variant={a.variant || 'warning'}
-                        icon={a.icon || 'plus'}
-                        isLoading={isLocked()}
+                        intent={a.intent || 'warning'}
+                        iconLeft={a.icon}
+                        isLoading={a.isDisabled ?? isLocked()}
                         onClick={a.action}
-                        data-testid={`@exception/${dataTestBase}/${a.variant || 'primary'}-button`}
+                        data-testid={`@exception/${dataTestBase}/${a.intent || 'warning'}-button`}
+                        size={a.size}
                     >
                         <Translation id={a.label || 'TR_RETRY'} />
                     </Button>
@@ -81,7 +104,7 @@ const discoveryFailedMessage = (
     discovery: DiscoveryStatus | undefined,
     failed: FailedAccount[],
 ) => {
-    if (!discovery || discovery.status !== 'failed') return '';
+    if (discovery?.status !== 'failed') return '';
     if (discovery.error) return <div>{discovery.error}</div>;
 
     // Group all failed networks into array of errors.
@@ -118,18 +141,28 @@ export const PortfolioCardException = ({
     failed,
 }: PortfolioCardExceptionProps) => {
     const dispatch = useDispatch();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
 
     switch (exception.type) {
         case 'discovery-empty':
             return (
                 <Container
-                    title="TR_ACCOUNT_EXCEPTION_DISCOVERY_EMPTY"
-                    description="TR_ACCOUNT_EXCEPTION_DISCOVERY_EMPTY_DESC"
+                    image={<Illustration name="networks" width={224} />}
+                    title="TR_YOUR_WALLET_IS_READY_WHAT"
+                    description="TR_DASHBOARD_ACTIVATE_ASSETS_DESC"
                     cta={[
                         {
-                            action: () => dispatch(goto('settings-coins')),
-                            icon: 'gear',
-                            label: 'TR_COIN_SETTINGS',
+                            action: () => {
+                                analytics.report({
+                                    type: events.dashboardActivateAssetsModalEvent.name,
+                                    payload: { source: 'empty-wallet' },
+                                });
+                                dispatch(openModal({ type: 'activate-assets' }));
+                            },
+                            isDisabled: false,
+                            intent: 'brand',
+                            label: 'TR_DASHBOARD_GET_STARTED',
+                            size: 'large',
                         },
                     ]}
                     dataTestBase={exception.type}
@@ -145,7 +178,10 @@ export const PortfolioCardException = ({
                             values={{ details: discoveryFailedMessage(discovery, failed) }}
                         />
                     }
-                    cta={{ action: () => dispatch(restartDiscoveryThunk()), icon: 'repeat' }}
+                    cta={{
+                        action: () => dispatch(startOrRestartDiscoveryThunk()),
+                        icon: RepeatIcon,
+                    }}
                     dataTestBase={exception.type}
                 />
             );
@@ -163,11 +199,12 @@ export const PortfolioCardException = ({
                         action: async () => {
                             // enable passphrase
                             const result = await dispatch(applySettings({ use_passphrase: true }));
-                            if (!result || !result.success) return;
+                            if (!result?.success) return;
                             // restart discovery
-                            dispatch(restartDiscoveryThunk());
+                            dispatch(startOrRestartDiscoveryThunk());
                         },
                         label: 'TR_ACCOUNT_ENABLE_PASSPHRASE',
+                        icon: PlusIcon,
                     }}
                     dataTestBase={exception.type}
                 />

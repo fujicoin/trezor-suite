@@ -3,7 +3,7 @@ import { combineReducers } from '@reduxjs/toolkit';
 import { configureMockStore } from '@suite-common/test-utils';
 
 import { buyTradingFixtures } from '../__fixtures__/buyTradingReducer';
-import { tradingBuyReducer } from '../buyReducer';
+import { tradingBuyActions, tradingBuyReducer } from '../buyReducer';
 
 describe('tradingBuyReducer', () => {
     buyTradingFixtures.forEach(f => {
@@ -12,14 +12,14 @@ describe('tradingBuyReducer', () => {
                 extra: {},
                 reducer: combineReducers({
                     wallet: combineReducers({
-                        tradingNew: combineReducers({
+                        trading: combineReducers({
                             buy: tradingBuyReducer,
                         }),
                     }),
                 }),
                 preloadedState: {
                     wallet: {
-                        tradingNew: {
+                        trading: {
                             buy: f.initialState,
                         },
                     },
@@ -28,7 +28,34 @@ describe('tradingBuyReducer', () => {
             f.actions.forEach(action => {
                 store.dispatch(action);
             });
-            expect(store.getState().wallet.tradingNew.buy).toEqual(f.result);
+            expect(store.getState().wallet.trading.buy).toEqual(f.result);
+        });
+    });
+
+    describe('lastErrorMessage', () => {
+        it('should be undefined initially', () => {
+            const state = tradingBuyReducer(undefined, { type: 'unknown' });
+
+            expect(state.lastErrorMessage).toBeUndefined();
+        });
+
+        it('setLastErrorMessage should set lastErrorMessage', () => {
+            const state = tradingBuyReducer(
+                undefined,
+                tradingBuyActions.setLastErrorMessage('Some error'),
+            );
+
+            expect(state.lastErrorMessage).toBe('Some error');
+        });
+    });
+    describe('clearQuotesAndParams', () => {
+        it('should clear quotes, quotesRequest, selectedQuote, and amountLimits', () => {
+            const state = tradingBuyReducer(undefined, tradingBuyActions.clearQuotesAndParams());
+
+            expect(state.quotes).toEqual([]);
+            expect(state.quotesRequest).toBeUndefined();
+            expect(state.selectedQuote).toBeUndefined();
+            expect(state.amountLimits).toBeUndefined();
         });
     });
 });

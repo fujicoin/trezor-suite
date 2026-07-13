@@ -1,9 +1,9 @@
+import { Translation } from '@suite/intl';
 import { notificationsActions } from '@suite-common/toast-notifications';
 import { Button, Row, Text } from '@trezor/components';
 import { copyToClipboard } from '@trezor/dom-utils';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useDispatch } from 'src/hooks/suite';
 
 interface TradingTransactionIdProps {
@@ -22,15 +22,16 @@ export const TradingTransactionId = ({ transactionId }: TradingTransactionIdProp
     return (
         <Row margin={{ top: spacings.sm }} gap={spacings.xs}>
             <Text
-                variant="tertiary"
-                typographyStyle="label"
+                intent="neutral"
+                priority="secondary"
+                typographyStyle="body-xs"
                 as="div"
                 data-testid="@trading/transaction-id"
                 ellipsisLineCount={1}
             >
                 <Translation id="TR_TRADING_TRANS_ID" /> {transactionId}
             </Text>
-            <Button size="tiny" variant="tertiary" onClick={copy}>
+            <Button size="small" intent="neutral" priority="secondary" onClick={copy}>
                 <Translation id="TR_COPY_TO_CLIPBOARD" />
             </Button>
         </Row>

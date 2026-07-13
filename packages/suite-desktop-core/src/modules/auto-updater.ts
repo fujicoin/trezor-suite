@@ -1,22 +1,23 @@
+import { captureMessage } from '@sentry/electron/main';
 import {
     CancellationToken,
-    ProgressInfo,
-    UpdateDownloadedEvent,
-    UpdateInfo,
+    type ProgressInfo,
+    type UpdateDownloadedEvent,
+    type UpdateInfo,
     autoUpdater,
 } from 'electron-updater';
 import { unlinkSync } from 'fs';
 
 import { isDevEnv, isFeatureFlagEnabled } from '@suite-common/suite-utils';
-import { HandshakeElectron } from '@trezor/suite-desktop-api';
-import { bytesToHumanReadable } from '@trezor/utils';
+import { validateIpcMessage } from '@trezor/ipc-proxy';
+import { type HandshakeElectron } from '@trezor/suite-desktop-api';
+import { bytesToHumanReadable, serializeError } from '@trezor/utils';
 
+import { type ModuleInit, mainThreadEmitter } from './module';
 import { getSwitchValue, hasSwitch } from '../libs/process-switches';
-import { verifySignature } from '../libs/update-checker';
+import { getSignatureFile, verifySignature } from '../libs/update-checker';
 import { b2t } from '../libs/utils';
 import { app, ipcMain } from '../typed-electron';
-
-import { type ModuleInit, mainThreadEmitter } from './index';
 
 const defaultFeedURL = {
     // This should correspond with the value in electron-builder-config.js file.
@@ -33,6 +34,8 @@ const updaterURL = getSwitchValue('updater-url');
 export const SERVICE_NAME = 'auto-updater';
 
 export const init: ModuleInit = ({ mainWindowProxy, store }) => {
+    return;
+
     const { logger } = global;
     if (!isFeatureFlagEnabled('DESKTOP_AUTO_UPDATER') && !enableUpdater) {
         logger.info(SERVICE_NAME, 'Disabled via feature flag');
@@ -42,6 +45,12 @@ export const init: ModuleInit = ({ mainWindowProxy, store }) => {
 
     if (isFeatureFlagEnabled('DESKTOP_AUTO_UPDATER') && disableUpdater) {
         logger.info(SERVICE_NAME, 'Disabled via command line parameter');
+
+        return;
+    }
+
+    if (process.env.SNAP_NAME || process.env.FLATPAK_ID) {
+        logger.info(SERVICE_NAME, 'Disabled - native store');
 
         return;
     }
@@ -70,7 +79,7 @@ export const init: ModuleInit = ({ mainWindowProxy, store }) => {
     // possibility to override the default behavior. This wraps the original function, bypassing it if `isManualCheck`
     const isUserWithinRolloutDefaultMethod = autoUpdater.isUserWithinRollout;
     autoUpdater.isUserWithinRollout = async updateInfo =>
-        isManualCheck === true
+        isManualCheck
             ? // do not force if it is set to exactly 0, so we can completely stop distributing a release in case of trouble
               updateInfo.stagingPercentage !== 0
             : await isUserWithinRolloutDefaultMethod(updateInfo);
@@ -162,8 +171,9 @@ export const init: ModuleInit = ({ mainWindowProxy, store }) => {
     });
 
     autoUpdater.on('error', (err: Error) => {
+        captureMessage(serializeError(err));
         logger.error(SERVICE_NAME, `An error happened: ${err.toString()}`);
-        mainWindowProxy.getInstance()?.webContents.send('update/error', err);
+        mainWindowProxy.getInstance()?.webContents.send('update/error');
     });
 
     autoUpdater.on('download-progress', (progressObj: ProgressInfo) => {
@@ -189,11 +199,27 @@ export const init: ModuleInit = ({ mainWindowProxy, store }) => {
 
         mainWindowProxy.getInstance()?.webContents.send('update/downloading', { verifying: true });
 
+        const abortUpdate = () => {
+            autoUpdater.autoInstallOnAppQuit = false;
+            unlinkSync(downloadedFile);
+            logger.info(SERVICE_NAME, `Unlink downloaded file ${downloadedFile}`);
+            mainWindowProxy.getInstance()?.webContents.send('update/error');
+        };
+
         try {
+            // Find the right signature for the downloaded file
+            const signatureFile = await getSignatureFile({ downloadedFile, feedURL });
+            // If fetching of signature file has failed, abort the update, but do not log it as an error
+            if (signatureFile === null) {
+                abortUpdate();
+
+                return;
+            }
+
             // check downloaded file
             await verifySignature({
                 downloadedFile,
-                feedURL,
+                signatureFile,
             });
 
             logger.info(SERVICE_NAME, 'Signature of update file is valid');
@@ -204,12 +230,9 @@ export const init: ModuleInit = ({ mainWindowProxy, store }) => {
                 downloadedFile,
             });
         } catch (err) {
-            autoUpdater.autoInstallOnAppQuit = false;
-            unlinkSync(downloadedFile);
-            mainWindowProxy.getInstance()?.webContents.send('update/error', err);
-
+            captureMessage(serializeError(err));
+            abortUpdate();
             logger.error(SERVICE_NAME, `Signature check of update file failed: ${err.message}`);
-            logger.info(SERVICE_NAME, `Unlink downloaded file ${downloadedFile}`);
         }
 
         logger.info(
@@ -218,7 +241,8 @@ export const init: ModuleInit = ({ mainWindowProxy, store }) => {
         );
     });
 
-    ipcMain.on('update/check', (_, { isManual }) => {
+    ipcMain.on('update/check', (ipcEvent, { isManual }) => {
+        validateIpcMessage({ ipcEvent });
         if (isManual === true) {
             isManualCheck = true;
         }
@@ -227,16 +251,21 @@ export const init: ModuleInit = ({ mainWindowProxy, store }) => {
         autoUpdater.checkForUpdates();
     });
 
-    ipcMain.on('update/download', startDownload);
+    ipcMain.on('update/download', ipcEvent => {
+        validateIpcMessage({ ipcEvent });
+        startDownload();
+    });
 
-    ipcMain.on('update/set-auto-install-on-app-quit', () => {
+    ipcMain.on('update/set-auto-install-on-app-quit', ipcEvent => {
+        validateIpcMessage({ ipcEvent });
         // If the update is triggered manually by the button in the app, we want to force update,
         // because it may have been disabled by the user switch the automatic update off. But because the user deliberately
         // clicked the "Update on quit" button, we want to install it.
         autoUpdater.autoInstallOnAppQuit = true;
     });
 
-    ipcMain.on('update/install', () => {
+    ipcMain.on('update/install', ipcEvent => {
+        validateIpcMessage({ ipcEvent });
         logger.info(SERVICE_NAME, 'Restart and update request');
 
         setImmediate(() => {
@@ -251,7 +280,8 @@ export const init: ModuleInit = ({ mainWindowProxy, store }) => {
         });
     });
 
-    ipcMain.on('update/cancel', () => {
+    ipcMain.on('update/cancel', ipcEvent => {
+        validateIpcMessage({ ipcEvent });
         logger.info(
             SERVICE_NAME,
             `Cancel update request (in progress: ${b2t(!!updateCancellationToken)})`,
@@ -261,7 +291,8 @@ export const init: ModuleInit = ({ mainWindowProxy, store }) => {
         }
     });
 
-    ipcMain.on('update/allow-prerelease', (_, value = true) => {
+    ipcMain.on('update/allow-prerelease', (ipcEvent, value = true) => {
+        validateIpcMessage({ ipcEvent });
         logger.info(SERVICE_NAME, `${value ? 'allow' : 'disable'} prerelease!`);
         mainWindowProxy.getInstance()?.webContents.send('update/allow-prerelease', value);
         const settings = store.getUpdateSettings();
@@ -273,7 +304,8 @@ export const init: ModuleInit = ({ mainWindowProxy, store }) => {
         logger.info(SERVICE_NAME, `New feed url: ${feedURL}`);
     });
 
-    ipcMain.on('update/set-automatic-update-enabled', (_, value = true) => {
+    ipcMain.on('update/set-automatic-update-enabled', (ipcEvent, value = true) => {
+        validateIpcMessage({ ipcEvent });
         logger.info(SERVICE_NAME, `set-automatic-update-enabled: ${value ? 'true' : 'false'}`);
 
         mainWindowProxy

@@ -1,83 +1,129 @@
-import { Fragment } from 'react';
-
-import { selectTradingExchangeFormStep } from '@suite-common/trading';
-import { Card, Divider } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { useServices } from '@suite-common/dependency-injection';
+import {
+    selectTradingExchangeActiveTrade,
+    selectTradingExchangeFormStep,
+    selectTradingExchangeInfo,
+    selectTradingExchangeIsLoading,
+    selectTradingExchangeReceiveAccountKey,
+    selectTradingExchangeSelectedQuote,
+} from '@suite-common/trading';
+import { selectAccountByKey } from '@suite-common/wallet-core';
+import { Button, Card, Column, H2 } from '@trezor/components';
+import { useAsyncClickHandler } from '@trezor/react-utils';
 
 import { useSelector } from 'src/hooks/suite';
-import useTradingVerifyAccount from 'src/hooks/wallet/trading/form/useTradingVerifyAccount';
-import { TradingOfferExchangeProps } from 'src/types/trading/tradingForm';
-import { TradingOfferExchangeSend } from 'src/views/wallet/trading/common/TradingSelectedOffer/TradingOfferExchange/TradingOfferExchangeSend';
-import { TradingOfferExchangeSendSwap } from 'src/views/wallet/trading/common/TradingSelectedOffer/TradingOfferExchange/TradingOfferExchangeSendSwap';
-import { TradingOfferExchangeSignData } from 'src/views/wallet/trading/common/TradingSelectedOffer/TradingOfferExchange/TradingOfferExchangeSignData';
-import { TradingSelectedOfferInfo } from 'src/views/wallet/trading/common/TradingSelectedOffer/TradingSelectedOfferInfo';
-import {
-    TradingSelectedOfferStepper,
-    TradingSelectedOfferStepperItemProps,
-} from 'src/views/wallet/trading/common/TradingSelectedOffer/TradingSelectedOfferStepper';
-import { TradingVerify } from 'src/views/wallet/trading/common/TradingSelectedOffer/TradingVerify/TradingVerify';
+import { useTradingExchangeTradeActions } from 'src/hooks/wallet/trading/useTradingExchangeTradeActions';
+import { type TradingExchangeProvidersInfoProps } from 'src/types/trading/trading';
+import { tradingGetAmountLabels } from 'src/utils/wallet/trading/tradingUtils';
 
-export const TradingOfferExchange = ({
-    account,
-    selectedQuote,
-    providers,
-    type,
-    quoteAmounts,
-}: TradingOfferExchangeProps) => {
+import { TradingOfferExchangeDetails } from './TradingOfferExchangeDetails';
+import { TradingFiatDeviationWarning } from '../../TradingFiatDeviationWarning';
+import { TradingInfoItem } from '../TradingInfo/TradingInfoItem';
+
+export const TradingOfferExchange = () => {
+    const { handleClick, disabled } = useAsyncClickHandler();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
+    const { device } = useDevice();
     const formStep = useSelector(selectTradingExchangeFormStep);
-    const cryptoId = selectedQuote?.receive;
-    const tradingVerifyAccount = useTradingVerifyAccount({
-        cryptoId,
-        nonSuiteAccount: !selectedQuote.tags?.includes('noExternalAddress'),
-    });
+    const exchangeInfo = useSelector(selectTradingExchangeInfo);
+    const receiveAccountKey = useSelector(selectTradingExchangeReceiveAccountKey);
+    const receiveAccount = useSelector(
+        state => selectAccountByKey(state, receiveAccountKey) ?? undefined,
+    );
 
-    const steps: TradingSelectedOfferStepperItemProps[] = [
-        {
-            step: 'RECEIVING_ADDRESS',
-            translationId: 'TR_EXCHANGE_VERIFY_ADDRESS_STEP',
-            isActive: formStep === 'RECEIVING_ADDRESS',
-            component: cryptoId ? (
-                <TradingVerify tradingVerifyAccount={tradingVerifyAccount} cryptoId={cryptoId} />
-            ) : null,
-        },
-        {
-            step: 'SEND_TRANSACTION',
-            translationId: 'TR_EXCHANGE_CONFIRM_SEND_STEP',
-            isActive: formStep === 'SEND_TRANSACTION' || formStep === 'SIGN_DATA',
-            component: !selectedQuote.isDex ? (
-                <TradingOfferExchangeSend />
-            ) : (
-                <>
-                    {formStep === 'SIGN_DATA' ? (
-                        <TradingOfferExchangeSignData />
-                    ) : (
-                        <TradingOfferExchangeSendSwap />
-                    )}
-                </>
-            ),
-        },
-    ];
+    const {
+        account: sendAccount,
+        sendTransaction,
+        signDataAndConfirm,
+    } = useTradingExchangeTradeActions();
+    const selectedQuote = useSelector(selectTradingExchangeSelectedQuote);
+    const trade = useSelector(selectTradingExchangeActiveTrade);
+    const isLoading = useSelector(selectTradingExchangeIsLoading);
+
+    const isConfirmDisabled = isLoading || !selectedQuote || !sendAccount || !device?.connected;
+
+    const selectedTrade = trade?.data ?? selectedQuote;
+
+    if (!selectedTrade) {
+        return null;
+    }
+
+    const providers = exchangeInfo?.providerInfos;
+
+    const amountLabels = tradingGetAmountLabels({ type: 'exchange', amountInCrypto: false });
+
+    const { exchange, signData } = selectedTrade;
+
+    const isSignData = formStep === 'SIGN_DATA' && !!signData;
+
+    const confirmAndSend = async () => {
+        const result = await sendTransaction();
+
+        analytics.report({
+            type: events.tradeExchangeEvent.name,
+            payload: {
+                action: result ? 'continue' : 'cancel',
+                step: 'confirm-and-send',
+                slippage: selectedTrade.swapSlippage,
+            },
+        });
+    };
+
+    const onConfirmAndSendClick = async () => {
+        if (isSignData) {
+            await signDataAndConfirm();
+        } else {
+            await confirmAndSend();
+        }
+    };
 
     return (
-        <>
-            <Card>
-                <TradingSelectedOfferStepper steps={steps} />
-                <Divider margin={{ top: spacings.lg, bottom: spacings.xl }} />
-                {steps.map((step, index) => (
-                    <Fragment key={index}>{step.isActive && step.component}</Fragment>
-                ))}
+        <Column width="100%" alignItems="center">
+            <Card width="100%" maxWidth="440px" data-testid="@trading/selected-offer">
+                <Column gap={20}>
+                    <H2 typographyStyle="headline-sm">
+                        <Translation id="TR_SELL_CONFIRM_SEND_STEP" />
+                    </H2>
+                    <TradingInfoItem
+                        key={amountLabels.sendLabel}
+                        account={sendAccount}
+                        label={amountLabels.sendLabel}
+                        currency={selectedTrade.send}
+                        amount={selectedTrade.sendStringAmount ?? ''}
+                    />
+
+                    <TradingInfoItem
+                        key={amountLabels.receiveLabel}
+                        account={receiveAccount}
+                        label={amountLabels.receiveLabel}
+                        currency={selectedTrade.receive}
+                        amount={selectedTrade.receiveStringAmount ?? ''}
+                        receiveAddress={selectedTrade.receiveAddress}
+                        isReceive
+                    />
+                    <TradingFiatDeviationWarning selectedQuote={selectedTrade} />
+                    <TradingOfferExchangeDetails
+                        account={sendAccount}
+                        exchangeQuote={selectedTrade}
+                        providers={providers as TradingExchangeProvidersInfoProps}
+                        exchange={exchange}
+                    />
+
+                    <Button
+                        data-testid="@trading/offer/confirm-on-trezor-and-send"
+                        isLoading={isLoading || disabled}
+                        isDisabled={isConfirmDisabled || disabled}
+                        onClick={() => handleClick(() => onConfirmAndSendClick())}
+                        size="large"
+                        width="100%"
+                    >
+                        <Translation id="TR_EXCHANGE_CONFIRM_ON_TREZOR_SEND" />
+                    </Button>
+                </Column>
             </Card>
-            <Card paddingType="large">
-                <TradingSelectedOfferInfo
-                    formStep={formStep}
-                    account={account}
-                    selectedAccount={tradingVerifyAccount.selectedAccountOption?.account}
-                    selectedQuote={selectedQuote}
-                    providers={providers}
-                    type={type}
-                    quoteAmounts={quoteAmounts}
-                />
-            </Card>
-        </>
+        </Column>
     );
 };

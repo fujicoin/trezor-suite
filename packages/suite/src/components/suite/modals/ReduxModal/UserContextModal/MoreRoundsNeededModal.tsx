@@ -1,8 +1,9 @@
+import { Translation } from '@suite/intl';
+import { closeModal } from '@suite/modal';
 import { Column, H3, Modal, Paragraph } from '@trezor/components';
+import { ArrowsInIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { onCancel as closeModal } from 'src/actions/suite/modalActions';
-import { Translation } from 'src/components/suite';
 import { useDispatch } from 'src/hooks/suite';
 
 export const MoreRoundsNeededModal = () => {
@@ -14,19 +15,19 @@ export const MoreRoundsNeededModal = () => {
         <Modal
             onCancel={close}
             bottomContent={
-                <Modal.Button variant="tertiary" onClick={close}>
+                <Modal.Button intent="neutral" priority="secondary" onClick={close}>
                     <Translation id="TR_CLOSE" />
                 </Modal.Button>
             }
-            size="small"
-            iconName="arrowsIn"
-            variant="info"
+            width={600}
+            icon={ArrowsInIcon}
+            intent="info"
         >
             <Column gap={spacings.xs}>
                 <H3>
                     <Translation id="TR_COINJOIN_ENDED" />
                 </H3>
-                <Paragraph variant="tertiary">
+                <Paragraph intent="neutral" priority="secondary">
                     <Translation id="TR_MORE_ROUNDS_NEEDED_DESCRIPTION" />
                 </Paragraph>
             </Column>

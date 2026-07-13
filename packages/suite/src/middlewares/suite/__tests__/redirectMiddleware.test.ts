@@ -1,20 +1,23 @@
-import { testMocks } from '@suite-common/test-utils';
-import { deviceActions, prepareDeviceReducer } from '@suite-common/wallet-core';
+import { locksInitialState, locksReducer } from '@suite/locks';
+import { modalReducer } from '@suite/modal';
+import { goto, routerReducer } from '@suite/router';
+import { deviceActions, prepareDeviceReducer } from '@suite-common/device';
+import { mockConnectDevice, mockSuiteDevice } from '@suite-common/suite-types/mocks';
+import { extraDependenciesCommonMock } from '@suite-common/test-utils';
 import { DEVICE } from '@trezor/connect';
 
-import * as routerActions from 'src/actions/suite/routerActions';
 import redirectMiddleware from 'src/middlewares/suite/redirectMiddleware';
-import suiteMiddleware from 'src/middlewares/suite/suiteMiddleware';
-import modalReducer from 'src/reducers/suite/modalReducer';
-import routerReducer from 'src/reducers/suite/routerReducer';
+import { prepareSuiteMiddleware } from 'src/middlewares/suite/suiteMiddleware';
 import suiteReducer from 'src/reducers/suite/suiteReducer';
 import { extraDependencies } from 'src/support/extraDependencies';
 import { configureStore } from 'src/support/tests/configureStore';
-import { Action } from 'src/types/suite';
-
-const { getSuiteDevice, getConnectDevice } = testMocks;
+import { type Action } from 'src/types/suite';
 
 jest.mock('src/actions/suite/storageActions', () => ({ __esModule: true }));
+jest.mock('@suite/router', () => ({
+    ...jest.requireActual('@suite/router'),
+    goto: jest.fn(() => ({ type: '@router/goto/mocked' })),
+}));
 
 const deviceReducer = prepareDeviceReducer(extraDependencies);
 
@@ -33,6 +36,7 @@ const getInitialState = (
         ...suiteReducer(undefined, { type: 'foo' } as any),
         ...suite,
     },
+    locks: locksInitialState,
     device: {
         ...deviceReducer(undefined, { type: 'foo' } as any),
         ...device,
@@ -49,17 +53,19 @@ const getInitialState = (
 });
 
 type State = ReturnType<typeof getInitialState>;
-const middlewares = [redirectMiddleware, suiteMiddleware];
+const middlewares = [redirectMiddleware, prepareSuiteMiddleware(() => extraDependenciesCommonMock)];
 
 const initStore = (state: State) => {
     const mockStore = configureStore<State, Action>(middlewares);
     const store = mockStore(state);
     store.subscribe(() => {
         const action = store.getActions().pop();
-        const { suite, router, device } = store.getState();
+
+        const { suite, router, device, locks } = store.getState();
         store.getState().suite = suiteReducer(suite, action);
         store.getState().router = routerReducer(router as RouterState, action);
         store.getState().device = deviceReducer(device, action);
+        store.getState().locks = locksReducer(locks, action);
 
         // add action back to stack
         store.getActions().push(action);
@@ -70,38 +76,34 @@ const initStore = (state: State) => {
 
 describe('redirectMiddleware', () => {
     describe('redirects on DEVICE.CONNECT event', () => {
-        let goto: any;
-
-        beforeEach(() => {
-            goto = jest.spyOn(routerActions, 'goto');
-        });
+        const gotoMock = jest.mocked(goto);
 
         afterEach(() => {
-            goto.mockClear();
+            gotoMock.mockClear();
         });
 
         it('DEVICE.CONNECT mode=initialize', () => {
             const store = initStore(getInitialState());
 
-            const connectDevice = getConnectDevice({ mode: 'initialize' });
+            const connectDevice = mockConnectDevice({ mode: 'initialize' });
             store.dispatch({ type: DEVICE.CONNECT, payload: { device: connectDevice } });
 
             const device = store.getState().device.devices.find(d => d.id === connectDevice.id);
             store.dispatch({ type: deviceActions.selectDevice.type, payload: device });
 
-            expect(goto).toHaveBeenNthCalledWith(1, 'suite-start');
+            expect(gotoMock).toHaveBeenNthCalledWith(1, { routeName: 'suite-start' });
         });
 
         it('DEVICE.CONNECT firmware=required', () => {
             const store = initStore(getInitialState());
 
-            const connectDevice = getConnectDevice({ mode: 'normal', firmware: 'required' });
+            const connectDevice = mockConnectDevice({ mode: 'normal', firmware: 'required' });
             store.dispatch({ type: DEVICE.CONNECT, payload: { device: connectDevice } });
 
             const device = store.getState().device.devices.find(d => d.id === connectDevice.id);
             store.dispatch({ type: deviceActions.selectDevice.type, payload: device });
 
-            expect(goto).toHaveBeenNthCalledWith(1, 'firmware-index');
+            expect(gotoMock).toHaveBeenNthCalledWith(1, { routeName: 'firmware-index' });
         });
 
         it('SUITE.SELECT_DEVICE reset wallet params', () => {
@@ -110,7 +112,7 @@ describe('redirectMiddleware', () => {
                     undefined,
                     {
                         devices: [],
-                        selectedDevice: getSuiteDevice(
+                        selectedDevice: mockSuiteDevice(
                             {
                                 path: '2',
                             },
@@ -142,9 +144,9 @@ describe('redirectMiddleware', () => {
             );
             store.dispatch({
                 type: deviceActions.selectDevice.type,
-                payload: getSuiteDevice(),
+                payload: mockSuiteDevice(),
             });
-            expect(goto).toHaveBeenNthCalledWith(1, 'wallet-index');
+            expect(gotoMock).toHaveBeenNthCalledWith(1, { routeName: 'wallet-index' });
         });
     });
 });

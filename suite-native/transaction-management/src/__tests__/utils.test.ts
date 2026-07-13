@@ -1,10 +1,10 @@
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 
 import { getFeeDecimals, getFeeValue } from '../utils';
 
 describe('utils', () => {
     describe('getFeeDecimals', () => {
-        it.each(['eth', 'pol', 'bsc', 'arb', 'base', 'op', 'etc', 'tsep', 'thol'])(
+        it.each(['eth', 'pol', 'bsc', 'arb', 'base', 'op', 'etc', 'tsep', 'thod'])(
             'should return 9 decimals for Ethereum network: %s',
             symbol => {
                 expect(getFeeDecimals({ symbol: symbol as NetworkSymbol })).toBe(9);
@@ -18,7 +18,7 @@ describe('utils', () => {
             },
         );
 
-        it.each(['ada', 'sol', 'xrp', 'xlm', 'dsol', 'tada', 'txrp', 'txlm'])(
+        it.each(['ada', 'sol', 'xrp', 'xlm', 'dsol', 'txrp', 'txlm'])(
             'should return null for other network type: %s',
             symbol => {
                 expect(getFeeDecimals({ symbol: symbol as NetworkSymbol })).toBeNull();
@@ -73,7 +73,7 @@ describe('utils', () => {
             },
         );
 
-        it.each(['eth', 'pol', 'bsc', 'arb', 'base', 'op', 'etc', 'tsep', 'thol'])(
+        it.each(['eth', 'pol', 'bsc', 'arb', 'base', 'op', 'etc', 'tsep', 'thod'])(
             'should work consistently for Ethereum network variant: %s',
             symbol => {
                 expect(

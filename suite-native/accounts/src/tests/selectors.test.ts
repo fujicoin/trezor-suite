@@ -1,4 +1,10 @@
-import { Account, TokenInfoBranded } from '@suite-common/wallet-types';
+import { type AccountWithSuiteSyncLabel } from '@suite-common/suite-sync';
+import {
+    type Account,
+    type TokenInfoBranded,
+    asAccountDescriptor,
+} from '@suite-common/wallet-types';
+import { mockAccountKey } from '@suite-common/wallet-types/mocks';
 
 import { getAccountListSections, selectFreshAccountAddress } from '../selectors';
 import {
@@ -16,11 +22,11 @@ jest.mock('@suite-common/wallet-utils', () => ({
 
 describe('isFilterValueMatchingAccountLabelOrNetworkName', () => {
     const account = {
-        accountLabel: 'Original account name',
+        label: 'Original account name',
         symbol: 'eth',
         accountType: 'legacy',
         tokens: [{ name: 'Tether USD' }],
-    } as Account;
+    } as AccountWithSuiteSyncLabel;
 
     test('should return false if the filter value does not match the account label nor network name.', () => {
         const filterValue = 'not match';
@@ -124,7 +130,7 @@ describe('sortAccountsByNetworksAndAccountTypes', () => {
 describe('selectFreshAccountAddress', () => {
     const mockAccount = {
         symbol: 'btc',
-        key: 'btc-1',
+        key: mockAccountKey({ symbol: 'btc', descriptor: 'btc1' }),
         addresses: {
             unused: [
                 {
@@ -167,7 +173,7 @@ describe('selectFreshAccountAddress', () => {
         deviceState: 'device@state:1',
         index: 0,
         path: "m/44'/0'/0'",
-        descriptor: 'descriptor',
+        descriptor: asAccountDescriptor('descriptor'),
         accountType: 'normal',
         empty: false,
         visible: true,
@@ -197,13 +203,17 @@ describe('selectFreshAccountAddress', () => {
             pendingAccountAddresses: {},
             transactions: {
                 transactions: {},
+                phishing: {},
                 fetchStatusDetail: {},
             },
         },
     };
 
     it('should return null when account is not provided', () => {
-        const result = selectFreshAccountAddress(mockState, 'non-existent-key');
+        const result = selectFreshAccountAddress(
+            mockState,
+            mockAccountKey({ descriptor: 'nonExistentKey' }),
+        );
         expect(result).toBeNull();
     });
 
@@ -243,6 +253,7 @@ describe('selectFreshAccountAddress', () => {
                 pendingAccountAddresses: {},
                 transactions: {
                     transactions: {},
+                    phishing: {},
                     fetchStatusDetail: {},
                 },
             },
@@ -272,7 +283,6 @@ describe('getAccountListSections', () => {
                 name: 'Token1',
                 balance: '100',
                 contract: '0x1',
-                type: 'ERC20',
                 standard: 'ERC20',
                 decimals: 18,
             },
@@ -280,7 +290,6 @@ describe('getAccountListSections', () => {
                 name: 'Token2',
                 balance: '0',
                 contract: '0x2',
-                type: 'ERC20',
                 standard: 'ERC20',
                 decimals: 18,
             },
@@ -288,7 +297,6 @@ describe('getAccountListSections', () => {
                 name: 'Token3',
                 balance: '50',
                 contract: '0x3',
-                type: 'ERC20',
                 standard: 'ERC20',
                 decimals: 18,
             },
@@ -306,8 +314,8 @@ describe('getAccountListSections', () => {
 
         const sections = getAccountListSections(mockAccount, mockTokenDefinitions);
 
-        // Should have section title, account section, and two token sections (for Token1 and Token3)
-        expect(sections).toHaveLength(4);
+        // Should have account section and two token sections (for Token1 and Token3)
+        expect(sections).toHaveLength(3);
 
         // Verify token sections only include tokens with positive balance
         const tokenSections = sections.filter(section => section.type === 'token');
@@ -325,10 +333,9 @@ describe('getAccountListSections', () => {
 
         const sections = getAccountListSections(accountWithoutTokens, mockTokenDefinitions);
 
-        // Should only have section title and account section
-        expect(sections).toHaveLength(2);
-        expect(sections[0].type).toBe('sectionTitle');
-        expect(sections[1].type).toBe('account');
+        // Should only have account section
+        expect(sections).toHaveLength(1);
+        expect(sections[0]?.type).toBe('account');
     });
 
     it('should handle account with only zero balance tokens', () => {
@@ -341,7 +348,6 @@ describe('getAccountListSections', () => {
                     name: 'Token1',
                     balance: '0',
                     contract: '0x1',
-                    type: 'ERC20',
                     standard: 'ERC20',
                     decimals: 18,
                 },
@@ -349,7 +355,6 @@ describe('getAccountListSections', () => {
                     name: 'Token2',
                     balance: '0',
                     contract: '0x2',
-                    type: 'ERC20',
                     standard: 'ERC20',
                     decimals: 18,
                 },
@@ -358,10 +363,9 @@ describe('getAccountListSections', () => {
 
         const sections = getAccountListSections(accountWithZeroBalanceTokens, mockTokenDefinitions);
 
-        // Should only have section title and account section
-        expect(sections).toHaveLength(2);
-        expect(sections[0].type).toBe('sectionTitle');
-        expect(sections[1].type).toBe('account');
+        // Should only have account section
+        expect(sections).toHaveLength(1);
+        expect(sections[0]?.type).toBe('account');
     });
 
     it('should handle account with staking balance', () => {
@@ -369,12 +373,11 @@ describe('getAccountListSections', () => {
 
         const sections = getAccountListSections(mockAccount, mockTokenDefinitions);
 
-        // Should have section title, account section, staking section, and two token sections
-        expect(sections).toHaveLength(5);
-        expect(sections[0].type).toBe('sectionTitle');
-        expect(sections[1].type).toBe('account');
-        expect(sections[2].type).toBe('staking');
-        expect(sections[3].type).toBe('token');
-        expect(sections[4].type).toBe('token');
+        // Should have account section, staking section, and two token sections
+        expect(sections).toHaveLength(4);
+        expect(sections[0]?.type).toBe('account');
+        expect(sections[1]?.type).toBe('staking');
+        expect(sections[2]?.type).toBe('token');
+        expect(sections[3]?.type).toBe('token');
     });
 });

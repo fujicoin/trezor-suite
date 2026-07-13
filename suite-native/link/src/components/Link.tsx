@@ -1,4 +1,4 @@
-import { GestureResponderEvent } from 'react-native';
+import { type GestureResponderEvent, type TextProps } from 'react-native';
 import Animated, {
     interpolateColor,
     useAnimatedStyle,
@@ -6,10 +6,10 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated';
 
-import { RequireAtLeastOne } from 'type-fest';
+import type { RequireAtLeastOne } from 'type-fest';
 
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-import { Color, TypographyStyle } from '@trezor/theme';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+import type { Color, TypographyStyle } from '@trezor/theme';
 
 import { useOpenLink } from '../useOpenLink';
 
@@ -22,9 +22,14 @@ type LinkProps = RequireAtLeastOne<
         textColor?: Color;
         textPressedColor?: Color;
         textVariant?: TypographyStyle;
+        style?: TextProps['style'];
     },
     'href' | 'onPress'
->;
+> &
+    Omit<
+        TextProps,
+        'onPress' | 'onPressIn' | 'onPressOut' | 'style' | 'suppressHighlighting' | 'children'
+    >;
 
 const textStyle = prepareNativeStyle<{ isUnderlined: boolean; textVariant: TypographyStyle }>(
     (utils, { isUnderlined, textVariant }) => ({
@@ -42,14 +47,18 @@ const ANIMATION_DURATION = 100;
 const IS_NOT_PRESSED_VALUE = 0;
 const IS_PRESSED_VALUE = 1;
 
+const noop = () => {};
+
 export const Link = ({
     href,
     label,
     isUnderlined = false,
-    textColor = 'textPrimaryDefault',
-    textPressedColor = 'textPrimaryPressed',
-    textVariant = 'body',
+    textColor = 'contentBrand',
+    textPressedColor = 'contentBrandPressed',
+    textVariant = 'body-md',
     onPress,
+    style,
+    ...textProps
 }: LinkProps) => {
     const { utils, applyStyle } = useNativeStyles();
     const openLink = useOpenLink();
@@ -64,11 +73,13 @@ export const Link = ({
     }));
 
     const handlePressIn = (e: GestureResponderEvent) => {
+        // eslint-disable-next-line react-hooks/immutability
         isPressed.value = withTiming(IS_PRESSED_VALUE, { duration: ANIMATION_DURATION });
         e.stopPropagation();
     };
 
     const handlePressOut = (e: GestureResponderEvent) => {
+        // eslint-disable-next-line react-hooks/immutability
         isPressed.value = withTiming(IS_NOT_PRESSED_VALUE, { duration: ANIMATION_DURATION });
         if (href) openLink(href);
 
@@ -78,10 +89,15 @@ export const Link = ({
 
     return (
         <Animated.Text
+            {...textProps}
             onPressIn={handlePressIn}
-            onPress={() => {}} // If the handling is defined in onPress, the very short taps are sometimes ignored
+            onPress={noop} // If the handling is defined in onPress, the very short taps are sometimes ignored
             onPressOut={handlePressOut}
-            style={[applyStyle(textStyle, { isUnderlined, textVariant }), animatedTextColorStyle]}
+            style={[
+                applyStyle(textStyle, { isUnderlined, textVariant }),
+                animatedTextColorStyle,
+                style,
+            ]}
             suppressHighlighting
         >
             {label}

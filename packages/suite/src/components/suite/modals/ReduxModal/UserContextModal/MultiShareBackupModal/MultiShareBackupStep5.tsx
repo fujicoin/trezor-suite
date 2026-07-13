@@ -1,4 +1,4 @@
-import { TranslationKey } from '@suite-common/intl-types';
+import { Translation, type TranslationKey } from '@suite/intl';
 import {
     Banner,
     Card,
@@ -6,17 +6,16 @@ import {
     Grid,
     H4,
     Icon,
-    IconName,
+    type IconComponent,
     List,
     Paragraph,
 } from '@trezor/components';
+import { CoinsIcon, EyeSlashIcon, RecoverySeedIcon, TrezorDevicesFilledIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
-
-import { Translation } from 'src/components/suite';
 
 type CalloutProps = {
     title: TranslationKey;
-    items: { iconName: IconName; label: TranslationKey }[];
+    items: { iconName: IconComponent; label: TranslationKey }[];
 };
 
 const Callout = ({ items, title }: CalloutProps) => (
@@ -25,9 +24,9 @@ const Callout = ({ items, title }: CalloutProps) => (
             <H4>
                 <Translation id={title} />
             </H4>
-            <List gap={spacings.xs} typographyStyle="hint" variant="tertiary">
+            <List gap={spacings.xs} typographyStyle="body-sm" intent="neutral" priority="secondary">
                 {items.map(({ iconName, label }, index) => (
-                    <List.Item key={index} bulletComponent={<Icon name={iconName} />}>
+                    <List.Item key={index} bulletComponent={<Icon as={iconName} />}>
                         <Translation id={label} />
                     </List.Item>
                 ))}
@@ -42,7 +41,7 @@ export const MultiShareBackupStep5 = () => (
             <H4>
                 <Translation id="TR_MULTI_SHARE_BACKUP_GREAT" />
             </H4>
-            <Paragraph variant="tertiary">
+            <Paragraph intent="neutral" priority="secondary">
                 <Translation id="TR_CREATE_MULTI_SHARE_BACKUP_CREATED_INFO_TEXT" />
             </Paragraph>
         </Column>
@@ -51,15 +50,15 @@ export const MultiShareBackupStep5 = () => (
             <Callout
                 title="TR_MULTI_SHARE_BACKUP_SUCCESS_LEFT"
                 items={[
-                    { iconName: 'coins', label: 'TR_MULTI_SHARE_BACKUP_SUCCESS_LEFT_LINE1' },
-                    { iconName: 'eyeSlash', label: 'TR_MULTI_SHARE_BACKUP_SUCCESS_LEFT_LINE2' },
+                    { iconName: CoinsIcon, label: 'TR_MULTI_SHARE_BACKUP_SUCCESS_LEFT_LINE1' },
+                    { iconName: EyeSlashIcon, label: 'TR_MULTI_SHARE_BACKUP_SUCCESS_LEFT_LINE2' },
                 ]}
             />
             <Callout
                 title="TR_MULTI_SHARE_BACKUP_SUCCESS_RIGHT"
                 items={[
-                    { iconName: 'coins', label: 'TR_MULTI_SHARE_BACKUP_SUCCESS_RIGHT_LINE1' },
-                    { iconName: 'eyeSlash', label: 'TR_MULTI_SHARE_BACKUP_SUCCESS_RIGHT_LINE2' },
+                    { iconName: CoinsIcon, label: 'TR_MULTI_SHARE_BACKUP_SUCCESS_RIGHT_LINE1' },
+                    { iconName: EyeSlashIcon, label: 'TR_MULTI_SHARE_BACKUP_SUCCESS_RIGHT_LINE2' },
                 ]}
             />
         </Grid>
@@ -70,26 +69,22 @@ export const MultiShareBackupStep5 = () => (
             </H4>
 
             <Grid columns={2} gap={spacings.md}>
-                <Banner variant="primary" icon="trezorDevicesFilled">
-                    <Column>
-                        <H4>
-                            <Translation id="TR_MULTI_SHARE_BACKUP_LOST_YOUR_TREZOR" />
-                        </H4>
-                        <Paragraph>
-                            <Translation id="TR_MULTI_SHARE_BACKUP_LOST_YOUR_TREZOR_INFO_TEXT" />
-                        </Paragraph>
-                    </Column>
-                </Banner>
-                <Banner variant="warning" icon="recoverySeed">
-                    <Column>
-                        <H4>
-                            <Translation id="TR_MULTI_SHARE_BACKUP_LOST_YOUR_BACKUP" />
-                        </H4>
-                        <Paragraph>
-                            <Translation id="TR_MULTI_SHARE_BACKUP_LOST_YOUR_BACKUP_INFO_TEXT" />
-                        </Paragraph>
-                    </Column>
-                </Banner>
+                <Banner
+                    intent="brand"
+                    icon={TrezorDevicesFilledIcon}
+                    title={<Translation id="TR_MULTI_SHARE_BACKUP_LOST_YOUR_TREZOR" />}
+                    description={
+                        <Translation id="TR_MULTI_SHARE_BACKUP_LOST_YOUR_TREZOR_INFO_TEXT" />
+                    }
+                />
+                <Banner
+                    intent="warning"
+                    icon={RecoverySeedIcon}
+                    title={<Translation id="TR_MULTI_SHARE_BACKUP_LOST_YOUR_BACKUP" />}
+                    description={
+                        <Translation id="TR_MULTI_SHARE_BACKUP_LOST_YOUR_BACKUP_INFO_TEXT" />
+                    }
+                />
             </Grid>
         </Column>
     </Column>

@@ -1,31 +1,32 @@
-import { testMocks } from '@suite-common/test-utils';
-import { NetworkSymbol } from '@suite-common/wallet-config';
-import { Account } from '@suite-common/wallet-types';
+import { mockSuiteDevice } from '@suite-common/suite-types/mocks';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { type Account } from '@suite-common/wallet-types';
+import { mockWalletAccount } from '@suite-common/wallet-types/mocks';
 
 import { filterReceiveAccounts, isDebugOnlyAccountType } from '../filterReceiveAccounts';
 
-const { getSuiteDevice, getWalletAccount } = testMocks;
-
 const accountsList: Account[] = [
-    getWalletAccount({ symbol: 'eth', accountType: 'legacy' }),
-    getWalletAccount({ symbol: 'eth', accountType: 'normal' }),
-    getWalletAccount({ symbol: 'eth', accountType: 'ledger' }),
-    getWalletAccount({ symbol: 'btc', accountType: 'coinjoin' }),
-    getWalletAccount({ symbol: 'btc', accountType: 'taproot' }),
-    getWalletAccount({ symbol: 'btc', accountType: 'legacy' }),
-    getWalletAccount({ symbol: 'btc', accountType: 'segwit' }),
-    getWalletAccount({ symbol: 'btc', accountType: 'ledger' }),
-    getWalletAccount({ symbol: 'pol', accountType: 'legacy' }),
-    getWalletAccount({ symbol: 'pol', accountType: 'normal' }),
-    getWalletAccount({ symbol: 'pol', accountType: 'ledger' }),
-    getWalletAccount({ symbol: 'sol', accountType: 'normal', empty: true, visible: false }),
-    getWalletAccount({ symbol: 'sol', accountType: 'ledger' }),
-    getWalletAccount({
+    mockWalletAccount({ symbol: 'eth', accountType: 'legacy' }),
+    mockWalletAccount({ symbol: 'eth', accountType: 'normal' }),
+    mockWalletAccount({ symbol: 'eth', accountType: 'ledger' }),
+    mockWalletAccount({ symbol: 'btc', accountType: 'coinjoin' }),
+    mockWalletAccount({ symbol: 'btc', accountType: 'taproot' }),
+    mockWalletAccount({ symbol: 'btc', accountType: 'legacy' }),
+    mockWalletAccount({ symbol: 'btc', accountType: 'segwit' }),
+    mockWalletAccount({ symbol: 'btc', accountType: 'ledger' }),
+    mockWalletAccount({ symbol: 'pol', accountType: 'legacy' }),
+    mockWalletAccount({ symbol: 'pol', accountType: 'normal' }),
+    mockWalletAccount({ symbol: 'pol', accountType: 'ledger' }),
+    mockWalletAccount({ symbol: 'sol', accountType: 'normal', empty: true, visible: false }),
+    mockWalletAccount({ symbol: 'sol', accountType: 'ledger' }),
+    mockWalletAccount({
         symbol: 'sol',
         accountType: 'ledger',
         empty: true,
         visible: false,
     }),
+    mockWalletAccount({ symbol: 'tsep', accountType: 'normal' }),
+    mockWalletAccount({ symbol: 'tsep', accountType: 'legacy' }),
 ];
 
 type RunFilterReceiveAccountsTestParams = {
@@ -41,11 +42,11 @@ const runFilterReceiveAccouns = ({
     deviceState = '1stTestnetAddress@device_id:0',
     accounts = accountsList,
 }: RunFilterReceiveAccountsTestParams) => {
-    const device = getSuiteDevice({
+    const device = mockSuiteDevice({
         unavailableCapabilities: {
             dash: 'no-support',
         },
-        state: deviceState,
+        state: { staticSessionId: deviceState },
     });
 
     return filterReceiveAccounts({
@@ -65,7 +66,10 @@ describe('filter receive accounts', () => {
         expect(isDebugOnlyAccountType('ledger', 'btc')).toBe(false);
         expect(isDebugOnlyAccountType('legacy', 'eth')).toBe(true);
         expect(isDebugOnlyAccountType('ledger', 'eth')).toBe(true);
+        expect(isDebugOnlyAccountType('ledger', 'trx')).toBe(true);
         expect(isDebugOnlyAccountType('normal', 'regtest')).toBe(false);
+        expect(isDebugOnlyAccountType('legacy', 'tsep')).toBe(true);
+        expect(isDebugOnlyAccountType('legacy', 'thod')).toBe(true);
     });
 
     it('returns no results when given an empty accounts array', () => {
@@ -78,18 +82,18 @@ describe('filter receive accounts', () => {
 
     it('returns all accounts when debug mode is on', () => {
         const filteredAccounts = [
-            getWalletAccount({ symbol: 'eth', accountType: 'normal' }),
-            getWalletAccount({ symbol: 'eth', accountType: 'ledger' }),
-            getWalletAccount({ symbol: 'eth', accountType: 'legacy' }),
+            mockWalletAccount({ symbol: 'eth', accountType: 'normal' }),
+            mockWalletAccount({ symbol: 'eth', accountType: 'ledger' }),
+            mockWalletAccount({ symbol: 'eth', accountType: 'legacy' }),
         ];
         expect(runFilterReceiveAccouns({})).toEqual(filteredAccounts);
     });
 
     it('returns non-debug + non-empty accounts when debug mode is off', () => {
         const filteredAccounts = [
-            getWalletAccount({ symbol: 'eth', accountType: 'normal' }),
-            getWalletAccount({ symbol: 'eth', accountType: 'ledger' }),
-            getWalletAccount({ symbol: 'eth', accountType: 'legacy' }),
+            mockWalletAccount({ symbol: 'eth', accountType: 'normal' }),
+            mockWalletAccount({ symbol: 'eth', accountType: 'ledger' }),
+            mockWalletAccount({ symbol: 'eth', accountType: 'legacy' }),
         ];
 
         expect(runFilterReceiveAccouns({ isDebug: false })).toEqual(filteredAccounts);
@@ -103,10 +107,10 @@ describe('filter receive accounts', () => {
 
     it('excludes coinjoin accounts for BTC network (also tests isAnotherNetwork and isCoinjoinAccount methods)', () => {
         const filteredAccounts = [
-            getWalletAccount({ symbol: 'btc', accountType: 'ledger' }),
-            getWalletAccount({ symbol: 'btc', accountType: 'taproot' }),
-            getWalletAccount({ symbol: 'btc', accountType: 'segwit' }),
-            getWalletAccount({ symbol: 'btc', accountType: 'legacy' }),
+            mockWalletAccount({ symbol: 'btc', accountType: 'ledger' }),
+            mockWalletAccount({ symbol: 'btc', accountType: 'taproot' }),
+            mockWalletAccount({ symbol: 'btc', accountType: 'segwit' }),
+            mockWalletAccount({ symbol: 'btc', accountType: 'legacy' }),
         ];
 
         expect(runFilterReceiveAccouns({ symbol: 'btc' })).toEqual(filteredAccounts);
@@ -114,10 +118,35 @@ describe('filter receive accounts', () => {
 
     it('returns account when when its either first normal account (no matter is empty or not visible) or it is not empty and visible', () => {
         const filteredAccounts = [
-            getWalletAccount({ symbol: 'sol', accountType: 'normal', empty: true, visible: false }),
-            getWalletAccount({ symbol: 'sol', accountType: 'ledger' }),
+            mockWalletAccount({
+                symbol: 'sol',
+                accountType: 'normal',
+                empty: true,
+                visible: false,
+            }),
+            mockWalletAccount({ symbol: 'sol', accountType: 'ledger' }),
         ];
 
         expect(runFilterReceiveAccouns({ symbol: 'sol' })).toEqual(filteredAccounts);
+    });
+
+    it('returns both normal and legacy for sepolia', () => {
+        const filteredAccounts = [
+            mockWalletAccount({ symbol: 'tsep', accountType: 'normal' }),
+            mockWalletAccount({ symbol: 'tsep', accountType: 'legacy' }),
+        ];
+
+        expect(runFilterReceiveAccouns({ symbol: 'tsep' })).toEqual(filteredAccounts);
+    });
+
+    it('returns non-debug + excludes testnet accounts when debug mode is off', () => {
+        const filteredAccounts = [
+            mockWalletAccount({ symbol: 'tsep', accountType: 'normal' }),
+            mockWalletAccount({ symbol: 'tsep', accountType: 'legacy' }),
+        ];
+
+        expect(runFilterReceiveAccouns({ isDebug: false })).toEqual(
+            expect.not.arrayContaining(filteredAccounts),
+        );
     });
 });

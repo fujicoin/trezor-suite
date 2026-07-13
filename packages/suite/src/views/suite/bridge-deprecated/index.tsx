@@ -1,10 +1,12 @@
-import { Box, Column, H3, Modal, Paragraph } from '@trezor/components';
+import { useExternalLink } from '@suite/external-links';
+import { Translation } from '@suite/intl';
+import { goto } from '@suite/router';
+import { Column, H3, Link, Modal, Paragraph } from '@trezor/components';
+import { WarningIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 import { UNINSTALL_BRIDGE_URL } from '@trezor/urls';
 
-import { goto } from 'src/actions/suite/routerActions';
-import { Metadata, Translation } from 'src/components/suite';
-import { LearnMoreButton } from 'src/components/suite/LearnMoreButton';
+import { Metadata } from 'src/components/suite';
 import { useDispatch, useLayout } from 'src/hooks/suite';
 
 /**
@@ -12,45 +14,44 @@ import { useDispatch, useLayout } from 'src/hooks/suite';
  */
 export const BridgeDeprecated = () => {
     const dispatch = useDispatch();
-
-    const goToWallet = () => dispatch(goto('wallet-index'));
+    const uninstallBridgeUrl = useExternalLink(UNINSTALL_BRIDGE_URL);
 
     useLayout('Bridge');
+
+    const onClose = () => {
+        dispatch(goto({ routeName: 'wallet-index' }));
+    };
 
     return (
         <Modal
             bottomContent={
                 <>
                     <Modal.Button
-                        icon="caretLeft"
-                        variant="tertiary"
-                        onClick={() => goToWallet()}
+                        intent="neutral"
+                        priority="secondary"
+                        onClick={onClose}
                         data-testid="@bridge/goto/wallet-index"
                     >
                         <Translation id="TR_TAKE_ME_BACK_TO_WALLET" />
                     </Modal.Button>
                 </>
             }
-            size="small"
-            variant="warning"
-            iconName="warning"
+            width={600}
+            intent="warning"
+            icon={WarningIcon}
+            onCancel={onClose}
+            isBackdropCancelable
         >
             <Metadata title="Bridge | Trezor Suite" />
             <Column gap={spacings.xxs}>
                 <H3>
-                    <Translation id="TR_BRIDGE" />
+                    <Translation id="TR_STANDALONE_BRIDGE_DEPRECATED" />
                 </H3>
-                <Paragraph variant="tertiary">
+                <Paragraph intent="neutral" priority="secondary">
                     <Translation
-                        id="TR_BRIDGE_UNINSTALL_INSTRUCTIONS"
+                        id="TR_STANDALONE_BRIDGE_DEPRECATED_DESCRIPTION"
                         values={{
-                            a: chunks => (
-                                <Box margin={{ top: spacings.xs }}>
-                                    <LearnMoreButton url={UNINSTALL_BRIDGE_URL}>
-                                        {chunks}
-                                    </LearnMoreButton>
-                                </Box>
-                            ),
+                            a: chunks => <Link href={uninstallBridgeUrl}>{chunks}</Link>,
                         }}
                     />
                 </Paragraph>

@@ -1,7 +1,9 @@
-export * from './types';
+export type * from './types';
 export * from './bluetoothSlice';
+export * from './bluetoothThunks';
 export * from './selectors';
 export * from './hooks/useBluetoothAdapter';
+export * from './hooks/useBluetoothAlerts';
 export * from './hooks/useBluetoothDevice';
 export * from './hooks/useBluetoothManager';
 export * from './hooks/useBluetoothPermissions';

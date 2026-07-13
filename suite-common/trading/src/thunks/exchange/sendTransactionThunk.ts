@@ -1,22 +1,25 @@
 import { isRejectedWithValue } from '@reduxjs/toolkit';
-import { ExchangeTrade } from 'invity-api';
+import { type ExchangeTrade } from 'invity-api';
 
 import { createThunk } from '@suite-common/redux-utils';
-import { convertAmountUnitsToSubunits } from '@suite-common/wallet-utils';
 
-import { exchangeThunks, tradingThunks } from '../';
-import { SendDexTransactionThunkProps } from './sendDexTransactionThunk';
+import { tradingThunks } from '../common';
+import {
+    type SendDexTransactionThunkProps,
+    sendDexTransactionThunk,
+} from './sendDexTransactionThunk';
 import { TRADING_EXCHANGE_THUNK_PREFIX } from '../../constants';
 import { tradingExchangeActions } from '../../reducers/exchangeReducer';
-import { tradingActions } from '../../reducers/tradingReducer';
+import { tradingActions } from '../../reducers/tradingCommonReducer';
 import {
     selectTradingExchangeAccountKey,
     selectTradingExchangeProviders,
     selectTradingExchangeReceiveAccountKey,
     selectTradingExchangeSelectedQuote,
 } from '../../selectors/tradingSelectors';
-import { TradingSendRejectedProps } from '../../types';
+import { type TradingSendRejectedProps } from '../../types';
 import { getTradingFormState } from '../../utils';
+import { buildRecomposeInputsFromTrade } from '../common/buildRecomposeInputsFromTrade';
 
 export type SendTransactionThunkProps = {
     trade: ExchangeTrade | undefined;
@@ -62,7 +65,7 @@ export const sendTransactionThunk = createThunk<
         if (selectedQuote?.isDex) {
             try {
                 await dispatch(
-                    exchangeThunks.sendDexTransactionThunk({
+                    sendDexTransactionThunk({
                         account,
                         returnUrl,
                         setMaxOutputId,
@@ -70,6 +73,7 @@ export const sendTransactionThunk = createThunk<
                         triggerAnalyticsTradeConfirmation,
                         processResponseData,
                         signAndPushSendFormTransaction,
+                        isSlip24Active,
                     }),
                 ).unwrap();
 
@@ -79,12 +83,7 @@ export const sendTransactionThunk = createThunk<
             }
         }
 
-        if (
-            !selectedTrade ||
-            !selectedTrade.orderId ||
-            !selectedTrade.sendStringAmount ||
-            !sendAddress
-        ) {
+        if (!selectedTrade?.orderId || !selectedTrade.sendStringAmount || !sendAddress) {
             return rejectWithValue({
                 type: 'error',
                 error: { id: 'TR_TRADING_CANNOT_SEND_TRANSACTION' },
@@ -96,20 +95,22 @@ export const sendTransactionThunk = createThunk<
             providers,
             trade: selectedTrade,
             isSlip24Active,
+            sendAccountKey: account.key,
+            receiveAccountKey,
         });
 
-        const sendStringAmount = shouldSendInSats
-            ? convertAmountUnitsToSubunits(selectedTrade.sendStringAmount, decimals)
-            : selectedTrade.sendStringAmount;
-        const sendPaymentExtraId =
-            selectedTrade.partnerPaymentExtraId || trade?.partnerPaymentExtraId;
-
+        const recomposeInputs = buildRecomposeInputsFromTrade({
+            sendAddress,
+            sendStringAmount: selectedTrade.sendStringAmount,
+            partnerPaymentExtraId:
+                selectedTrade.partnerPaymentExtraId || trade?.partnerPaymentExtraId,
+            shouldSendInSats,
+            decimals,
+        });
         const recomposeAndSignTx = await dispatch(
             tradingThunks.recomposeAndSignTxThunk({
                 account,
-                address: sendAddress,
-                amount: sendStringAmount,
-                destinationTag: sendPaymentExtraId,
+                ...recomposeInputs,
                 signAndPushSendFormTransaction,
                 setMaxOutputId,
                 isSlip24Active,
@@ -123,7 +124,7 @@ export const sendTransactionThunk = createThunk<
             return rejectWithValue({
                 type: payload && 'type' in payload ? payload.type : 'sign-tx-error',
                 error:
-                    payload && 'error' in payload
+                    payload && 'error' in payload && 'id' in payload.error
                         ? payload.error
                         : { id: 'TR_TRADING_CANNOT_SEND_TRANSACTION' },
             });

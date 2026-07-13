@@ -1,28 +1,30 @@
 import { combineReducers, createReducer } from '@reduxjs/toolkit';
 
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
 import { prepareAccountsReducer } from '@suite-common/wallet-core';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
 
-import { buyThunks, exchangeThunks, sellThunks } from '../../';
 import { accountBtc, accountEth } from '../../../__fixtures__/utils';
 import { invityAPI } from '../../../invityAPI';
 import { tradingBuyActions } from '../../../reducers/buyReducer';
 import { exchangeInitialState, tradingExchangeActions } from '../../../reducers/exchangeReducer';
-import { SellInfo, tradingSellActions } from '../../../reducers/sellReducer';
+import { type SellInfo, tradingSellActions } from '../../../reducers/sellReducer';
 import {
-    TradingState,
+    type TradingState,
     initialState,
-    prepareTradingReducer,
     tradingActions,
-} from '../../../reducers/tradingReducer';
+} from '../../../reducers/tradingCommonReducer';
+import { prepareTradingReducer } from '../../../reducers/tradingReducer';
 import { regional } from '../../../regional';
+import { buyThunks } from '../../buy';
+import { exchangeThunks } from '../../exchange';
+import { sellThunks } from '../../sell';
 import { loadInitialDataThunk } from '../loadInitialDataThunk';
 
 jest.mock('../../../invityAPI');
 invityAPI.setInvityServersEnvironment = () => {};
 
-const tradingReducer = prepareTradingReducer(extraDependenciesMock);
+const tradingReducer = prepareTradingReducer(extraDependenciesCommonMock);
 
 type SelectedAccountStatus = {
     status: string;
@@ -37,7 +39,7 @@ const mockedSelectedAccountReducer = createReducer<SelectedAccountState>(
     () => {},
 );
 
-const mockedAccountReducer = prepareAccountsReducer(extraDependenciesMock);
+const mockedAccountReducer = prepareAccountsReducer(extraDependenciesCommonMock);
 
 const mockedSuiteReducer = createReducer(
     {
@@ -54,13 +56,13 @@ const initStore = (localInitialState?: Partial<TradingState>) =>
     configureMockStore({
         extra: {
             selectors: {
-                ...extraDependenciesMock.selectors,
+                ...extraDependenciesCommonMock.selectors,
                 selectSelectedAccount: () => ({ status: 'loaded', account: accountBtc }) as any,
             },
         },
         reducer: combineReducers({
             wallet: combineReducers({
-                tradingNew: tradingReducer,
+                trading: tradingReducer,
                 selectedAccount: mockedSelectedAccountReducer,
                 accounts: mockedAccountReducer,
             }),
@@ -68,7 +70,7 @@ const initStore = (localInitialState?: Partial<TradingState>) =>
         }),
         preloadedState: {
             wallet: {
-                tradingNew: {
+                trading: {
                     ...initialState,
                     ...localInitialState,
                 },
@@ -84,6 +86,7 @@ const testUpdatedInfoData = async (type: 'outdated' | 'account-changed') => {
         Promise.resolve({
             coins: {},
             platforms: {},
+            config: {},
         });
 
     const getCurrentAccountDescriptorMock = jest.spyOn(invityAPI, 'getCurrentAccountDescriptor');
@@ -93,9 +96,7 @@ const testUpdatedInfoData = async (type: 'outdated' | 'account-changed') => {
     jest.spyOn(Date, 'now').mockImplementation(() => mockedLastLoadedTimestamp);
 
     const store = initStore({
-        info: {
-            paymentMethods: [],
-        },
+        info: {},
         lastLoadedTimestamp: type === 'outdated' ? 0 : mockedLastLoadedTimestamp,
     });
 
@@ -150,6 +151,7 @@ const testUpdatedInfoData = async (type: 'outdated' | 'account-changed') => {
             payload: {
                 coins: {},
                 platforms: {},
+                config: {},
             },
         },
         { type: buyThunks.loadInfoThunk.pending.type, payload: undefined },
@@ -269,6 +271,6 @@ describe('loadInitialDataThunk', () => {
 
         await store.dispatch(loadInitialDataThunk({ activeSection: 'exchange' })).unwrap();
 
-        expect(store.getState().wallet.tradingNew.activeSection).toBe('exchange');
+        expect(store.getState().wallet.trading.activeSection).toBe('exchange');
     });
 });

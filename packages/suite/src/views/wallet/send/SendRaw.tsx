@@ -1,15 +1,22 @@
 import { useForm } from 'react-hook-form';
 
-import { pushSendFormRawTransactionThunk, sendFormActions } from '@suite-common/wallet-core';
-import { getInputState, isHexValid, tryGetAccountIdentity } from '@suite-common/wallet-utils';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation, useTranslation } from '@suite/intl';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectIsMevProtectionFeatureEnabled } from '@suite-common/mev';
+import {
+    pushSendFormRawTransactionThunk,
+    selectIsMevProtectionEnabled,
+    sendFormActions,
+} from '@suite-common/wallet-core';
+import { isHexValid, tryGetAccountIdentity } from '@suite-common/wallet-utils';
 import { Button, Card, H3, IconButton, Row, Textarea, Tooltip } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { XIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
 import { OpenGuideFromTooltip } from 'src/components/guide';
-import { Translation } from 'src/components/suite';
-import { useDispatch, useTranslation } from 'src/hooks/suite';
-import { Account } from 'src/types/wallet';
+import { useDispatch, useSelector } from 'src/hooks/suite';
+import { type Account } from 'src/types/wallet';
 
 const INPUT_NAME = 'rawTx';
 
@@ -31,10 +38,10 @@ export const SendRaw = ({ account }: SendRawProps) => {
     });
     const dispatch = useDispatch();
     const { translationString } = useTranslation();
-
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const inputValue = watch(INPUT_NAME);
     const error = errors[INPUT_NAME];
-    const inputState = getInputState(error);
+    const hasError = !!error;
     const prefix = account.networkType === 'ethereum' ? '0x' : undefined;
 
     const { ref: inputRef, ...inputField } = register(INPUT_NAME, {
@@ -46,19 +53,23 @@ export const SendRaw = ({ account }: SendRawProps) => {
 
     const cancel = () => dispatch(sendFormActions.sendRaw(false));
 
+    const isMevProtectionEnabled = useSelector(selectIsMevProtectionEnabled);
+    const isMevProtectionFeatureEnabled = useSelector(selectIsMevProtectionFeatureEnabled);
     const send = async () => {
         const result = await dispatch(
             pushSendFormRawTransactionThunk({
                 tx: inputValue,
                 symbol: account.symbol,
+                descriptor: account.descriptor,
                 identity: tryGetAccountIdentity(account),
+                isMevProtectionEnabled: isMevProtectionEnabled && isMevProtectionFeatureEnabled,
             }),
         ).unwrap();
 
         if (result) {
             setValue(INPUT_NAME, '');
             analytics.report({
-                type: EventType.SendRawTransaction,
+                type: events.sendRawTransactionEvent.name,
                 payload: {
                     networkSymbol: account.symbol,
                 },
@@ -66,7 +77,7 @@ export const SendRaw = ({ account }: SendRawProps) => {
         }
     };
 
-    const isSubmitDisabled = inputState === 'error' || !inputValue;
+    const isSubmitDisabled = hasError || !inputValue;
 
     return (
         <Card>
@@ -83,11 +94,17 @@ export const SendRaw = ({ account }: SendRawProps) => {
                     </Tooltip>
                 </H3>
 
-                <IconButton variant="tertiary" icon="x" onClick={cancel} size="small" />
+                <IconButton
+                    intent="neutral"
+                    priority="secondary"
+                    icon={XIcon}
+                    onClick={cancel}
+                    tooltip={{ content: <Translation id="TR_CLOSE" /> }}
+                />
             </Row>
 
             <Textarea
-                inputState={inputState}
+                hasError={hasError}
                 data-testid={INPUT_NAME}
                 defaultValue={inputValue}
                 bottomText={error?.message || null}

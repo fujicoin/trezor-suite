@@ -1,13 +1,16 @@
-import { useEffect } from 'react';
+import { useCallback } from 'react';
 import { useSelector } from 'react-redux';
 
-import { selectSelectedDevice } from '@suite-common/wallet-core';
+import { useFocusEffect } from '@react-navigation/native';
+
+import { selectSelectedDevice } from '@suite-common/device';
 import { ContinueOnTrezorScreenContent } from '@suite-native/device';
 import { requestPrioritizedDeviceAccess } from '@suite-native/device-mutex';
 import {
-    DeviceOnboardingStackParamList,
+    type DeviceOnboardingStackParamList,
     DeviceOnboardingStackRoutes,
-    StackProps,
+    type StackProps,
+    useInterceptNativeNavigation,
 } from '@suite-native/navigation';
 import TrezorConnect from '@trezor/connect';
 
@@ -17,18 +20,22 @@ export const DeviceTutorialScreen = ({
     navigation,
 }: StackProps<DeviceOnboardingStackParamList, DeviceOnboardingStackRoutes.DeviceTutorial>) => {
     const device = useSelector(selectSelectedDevice);
-    useEffect(() => {
-        const showTutorial = async () => {
-            await requestPrioritizedDeviceAccess({
-                deviceCallback: () => TrezorConnect.showDeviceTutorial({ device }),
-            });
-            navigation.navigate(DeviceOnboardingStackRoutes.CreateOrRecoverCrossroads);
-        };
-        showTutorial();
+    useInterceptNativeNavigation();
 
-        // This use effect should be triggered only during the first render
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            const showTutorial = async () => {
+                await requestPrioritizedDeviceAccess(() =>
+                    TrezorConnect.showDeviceTutorial({ device }),
+                );
+                navigation.replace(DeviceOnboardingStackRoutes.CreateOrRecoverCrossroads);
+            };
+            showTutorial();
+
+            // This use effect should be triggered only during the first render
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, []),
+    );
 
     const handleSkipTutorial = () => {
         TrezorConnect.cancel();

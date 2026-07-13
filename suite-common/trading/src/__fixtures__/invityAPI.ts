@@ -1,28 +1,28 @@
 import {
-    BuyProviderInfo,
-    BuyTrade,
-    BuyTradeFormResponse,
-    BuyTradeQuoteRequest,
-    BuyTradeRequest,
-    BuyTradeResponse,
-    ConfirmExchangeTradeRequest,
-    CreateTradeSignatureRequest,
-    CryptoId,
-    ExchangeProviderInfo,
-    ExchangeTrade,
-    ExchangeTradeQuoteRequest,
-    ExchangeTradeSigned,
-    SellFiatTrade,
-    SellFiatTradeQuoteRequest,
-    SellFiatTradeRequest,
-    SellFiatTradeSigned,
-    SellProviderInfo,
-    WatchBuyTradeResponse,
-    WatchExchangeTradeResponse,
-    WatchSellTradeResponse,
+    type BuyProviderInfo,
+    type BuyTrade,
+    type BuyTradeFormResponse,
+    type BuyTradeQuoteRequest,
+    type BuyTradeRequest,
+    type BuyTradeResponse,
+    type ConfirmExchangeTradeRequest,
+    type CreateTradeSignatureRequest,
+    type CryptoId,
+    type ExchangeProviderInfo,
+    type ExchangeTrade,
+    type ExchangeTradeQuoteRequest,
+    type ExchangeTradeSigned,
+    type SellFiatTrade,
+    type SellFiatTradeQuoteRequest,
+    type SellFiatTradeRequest,
+    type SellFiatTradeSigned,
+    type SellProviderInfo,
+    type WatchBuyTradeResponse,
+    type WatchExchangeTradeResponse,
+    type WatchSellTradeResponse,
 } from 'invity-api';
 
-import { TradingOTC } from '../types';
+import { type TradingOTC } from '../types';
 
 const exchangeList: ExchangeProviderInfo[] = [
     {
@@ -84,6 +84,7 @@ const buyList: BuyProviderInfo[] = [
         paymentMethods: [],
         statusUrl: 'https://test.io/buy/txs/{{orderId}}',
         supportUrl: 'https://support.test.io',
+        supportedSubdivisions: {},
     },
 ];
 
@@ -139,6 +140,7 @@ const sellList: SellProviderInfo[] = [
         paymentMethods: [],
         statusUrl: 'https://test.io/sell/txs/{{orderId}}',
         supportUrl: 'https://support.test.io',
+        supportedSubdivisions: {},
     },
 ];
 
@@ -170,6 +172,7 @@ const sellWatchTrade: WatchSellTradeResponse = {
 const otc: TradingOTC = {
     links: [],
     minFiatLimits: {} as TradingOTC['minFiatLimits'],
+    country: 'CZ',
 };
 
 const createTradeSignatureRequest: CreateTradeSignatureRequest = {

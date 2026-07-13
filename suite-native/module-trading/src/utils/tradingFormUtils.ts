@@ -11,8 +11,23 @@ import {
     isExchangeTrade,
     isSellFiatTrade,
 } from '@suite-common/trading';
-import { FormState, FormStateTrading } from '@suite-common/wallet-types';
-import { FeeLevel } from '@trezor/connect';
+import { ETHEREUM_ADJUST_GAS_LIMIT } from '@suite-common/wallet-core';
+import { type AccountKey, type FormState, type FormStateTrading } from '@suite-common/wallet-types';
+import { QuoteError } from '@suite-native/trading-quote-utils';
+import { type FeeLevel } from '@trezor/connect';
+
+interface CreateFormStateForSendFormParams {
+    quote: ExchangeTrade | SellFiatTrade;
+    providers: Record<string, ExchangeProviderInfo> | { [name: string]: SellProviderInfo };
+    feeLevel?: Pick<
+        FeeLevel,
+        'label' | 'feePerUnit' | 'feeLimit' | 'maxPriorityFeePerGas' | 'maxFeePerGas'
+    >;
+    extraField?: string;
+    isSlip24Active?: boolean;
+    sendAccountKey: AccountKey | undefined;
+    receiveAccountKey?: AccountKey | undefined;
+}
 
 /**
  * Creates a FormState for transactions from exchange or sell quotes
@@ -23,20 +38,18 @@ export const createFormStateForSendForm = ({
     feeLevel = { label: 'normal', feePerUnit: '' },
     extraField,
     isSlip24Active = false,
-}: {
-    quote: ExchangeTrade | SellFiatTrade;
-    providers: Record<string, ExchangeProviderInfo> | { [name: string]: SellProviderInfo };
-    feeLevel?: Pick<FeeLevel, 'label' | 'feePerUnit' | 'feeLimit'>;
-    extraField?: string;
-    isSlip24Active?: boolean;
-}): FormState => {
+    sendAccountKey,
+    receiveAccountKey,
+}: CreateFormStateForSendFormParams): FormState => {
     if (!isExchangeTrade(quote) && !isSellFiatTrade(quote)) {
-        throw new Error('Invalid quote type: must be ExchangeTrade or SellFiatTrade');
+        throw new QuoteError('Invalid quote type: must be ExchangeTrade or SellFiatTrade', quote);
     }
 
     let outputAddress: string;
     let outputAmount: string;
     let sendTokenContract: string | undefined;
+    let transactionData = '';
+    let ethereumAdjustGasLimit = '';
 
     // Handle extra field for networks that require it (e.g., destinationTag for XRP)
     let destinationTag: string | undefined;
@@ -48,10 +61,17 @@ export const createFormStateForSendForm = ({
 
     if (isExchangeTrade(quote)) {
         // Exchange quote (swap)
-        const exchangeQuote = quote as ExchangeTrade;
+        const exchangeQuote = quote;
         const exchangeProviders = providers as Record<string, ExchangeProviderInfo>;
         outputAddress = exchangeQuote.sendAddress || '';
         outputAmount = exchangeQuote.sendStringAmount || '';
+
+        // DEX quotes carry transaction data for correct fee estimation
+        if (exchangeQuote.isDex && exchangeQuote.dexTx) {
+            outputAddress = exchangeQuote.dexTx.to;
+            transactionData = exchangeQuote.dexTx.data;
+            ethereumAdjustGasLimit = ETHEREUM_ADJUST_GAS_LIMIT;
+        }
 
         if (exchangeQuote.send) {
             const { contractAddress } = cryptoIdToNetworkAndContractAddress(exchangeQuote.send);
@@ -65,10 +85,12 @@ export const createFormStateForSendForm = ({
             providers: exchangeProviders,
             trade: exchangeQuote,
             isSlip24Active,
+            sendAccountKey,
+            receiveAccountKey,
         });
     } else {
         // Sell quote (crypto to fiat)
-        const sellQuote = quote as SellFiatTrade;
+        const sellQuote = quote;
         const sellProviders = providers as Record<string, SellProviderInfo>;
         outputAddress = sellQuote.destinationAddress || '';
         outputAmount = sellQuote.cryptoStringAmount || '';
@@ -87,6 +109,8 @@ export const createFormStateForSendForm = ({
             providers: sellProviders,
             trade: sellQuote,
             isSlip24Active,
+            sendAccountKey,
+            receiveAccountKey,
         });
     }
     const formState: FormState = {
@@ -104,8 +128,8 @@ export const createFormStateForSendForm = ({
         setMaxOutputId: undefined,
         selectedFee: feeLevel.label,
         feePerUnit: feeLevel.feePerUnit || '',
-        maxPriorityFeePerGas: '',
-        maxFeePerGas: '',
+        maxPriorityFeePerGas: feeLevel?.maxPriorityFeePerGas || '',
+        maxFeePerGas: feeLevel?.maxFeePerGas || '',
         baseFeePerGas: '',
         feeLimit: feeLevel.feeLimit || '',
         estimatedFeeLimit: '',
@@ -114,9 +138,8 @@ export const createFormStateForSendForm = ({
         bitcoinLocktimeBlockHeight: '',
         bitcoinLocktimeDatetime: '',
         ethereumNonce: '',
-        ethereumDataAscii: '',
-        ethereumDataHex: '',
-        ethereumAdjustGasLimit: '',
+        ethereumAdjustGasLimit,
+        transactionData,
         destinationTag,
         rbfParams: undefined,
         isCoinControlEnabled: false,

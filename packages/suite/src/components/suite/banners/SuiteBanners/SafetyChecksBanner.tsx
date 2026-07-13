@@ -1,27 +1,29 @@
-import { Banner, Row, Banner as WarningComponent } from '@trezor/components';
+import { Translation } from '@suite/intl';
+import { SettingsAnchor, goto } from '@suite/router';
+import { Banner } from '@trezor/components';
+import { XIcon } from '@trezor/icons';
 
-import { goto } from 'src/actions/suite/routerActions';
-import { Translation } from 'src/components/suite';
-import { SettingsAnchor } from 'src/constants/suite/anchors';
 import { useDispatch } from 'src/hooks/suite';
 
-interface SafetyChecksBannerProps {
+type SafetyChecksBannerProps = {
     onDismiss?: () => void;
-}
+};
 
 export const SafetyChecksBanner = ({ onDismiss }: SafetyChecksBannerProps) => {
     const dispatch = useDispatch();
 
     return (
         <Banner
+            data-testid="@banner/safety-checks"
             icon
-            variant="warning"
+            intent="warning"
             rightContent={
-                <Row gap={8}>
+                <>
                     <Banner.Button
                         onClick={() =>
                             dispatch(
-                                goto('settings-device', {
+                                goto({
+                                    routeName: 'settings-device',
                                     preserveParams: true,
                                     anchor: SettingsAnchor.SafetyChecks,
                                 }),
@@ -32,17 +34,16 @@ export const SafetyChecksBanner = ({ onDismiss }: SafetyChecksBannerProps) => {
                         <Translation id="TR_SAFETY_CHECKS_BANNER_CHANGE" />
                     </Banner.Button>
                     {onDismiss && (
-                        <WarningComponent.IconButton
-                            icon="x"
+                        <Banner.IconButton
+                            icon={XIcon}
                             onClick={onDismiss}
-                            isSubtle
                             data-testid="@banner/safety-checks/dismiss"
+                            tooltip={{ content: <Translation id="TR_DISMISS" /> }}
                         />
                     )}
-                </Row>
+                </>
             }
-        >
-            <Translation id="TR_SAFETY_CHECKS_DISABLED_WARNING" />
-        </Banner>
+            description={<Translation id="TR_SAFETY_CHECKS_DISABLED_WARNING" />}
+        />
     );
 };

@@ -1,12 +1,11 @@
 import React from 'react';
 
-import { BlockchainState } from '@suite-common/wallet-core';
+import { Translation } from '@suite/intl';
+import { openModal } from '@suite/modal';
+import { type BlockchainState } from '@suite-common/wallet-core';
 import { Box, Column, DotIndicator, Note, Row, Text } from '@trezor/components';
 import { CoinLogo } from '@trezor/product-components';
-import { spacings } from '@trezor/theme';
 
-import { openModal } from 'src/actions/suite/modalActions';
-import { Translation } from 'src/components/suite';
 import { useDispatch, useSelector } from 'src/hooks/suite';
 import type { CustomBackend } from 'src/types/wallet';
 
@@ -26,13 +25,18 @@ const BackendRow = ({
             cursor="pointer"
             width={260}
         >
-            <Row gap={spacings.sm}>
+            <Row gap={12}>
                 <CoinLogo symbol={symbol} />
                 <Column flex="1" overflow="hidden">
-                    <Text typographyStyle="hint" ellipsisLineCount={1}>
+                    <Text typographyStyle="body-sm" ellipsisLineCount={1}>
                         {chain?.url ?? <Translation id="TR_BACKEND_DISCONNECTED" />}
                     </Text>
-                    <Text typographyStyle="label" variant="tertiary" case="capitalize">
+                    <Text
+                        typographyStyle="body-xs"
+                        intent="neutral"
+                        priority="secondary"
+                        case="capitalize"
+                    >
                         {type}
                     </Text>
                 </Column>
@@ -50,8 +54,8 @@ export const NavBackends = ({ customBackends }: NavBackendsProps) => {
     const blockchain = useSelector(state => state.wallet.blockchain);
 
     return (
-        <Column gap={spacings.sm} padding={spacings.xxs}>
-            <Column gap={spacings.sm}>
+        <Column gap={16} padding={4}>
+            <Column gap={12}>
                 {customBackends.map(backend => (
                     <BackendRow key={backend.symbol} backend={backend} blockchain={blockchain} />
                 ))}

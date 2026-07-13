@@ -1,5 +1,4 @@
-import { WalletKit, WalletKitTypes } from '@reown/walletkit';
-import type { WalletKit as WalletKitClient } from '@reown/walletkit/dist/types/client';
+import { type IWalletKit, WalletKit, type WalletKitTypes } from '@reown/walletkit';
 import { Core } from '@walletconnect/core';
 import {
     buildApprovedNamespaces,
@@ -8,24 +7,30 @@ import {
     populateAuthPayload,
 } from '@walletconnect/utils';
 
-import { EventType, analytics } from '@suite-common/analytics';
+import { events } from '@suite-common/analytics';
 import * as trezorConnectPopupActions from '@suite-common/connect-popup';
 import { createThunk } from '@suite-common/redux-utils';
+import { isDevEnv } from '@suite-common/suite-utils';
 import { notificationsActions } from '@suite-common/toast-notifications';
 import { getNetwork } from '@suite-common/wallet-config';
 import { selectAllSuccessfulAccountsToList } from '@suite-common/wallet-core';
-import { Account } from '@suite-common/wallet-types';
-import { CallMethodResponse } from '@trezor/connect';
+import { type Account } from '@suite-common/wallet-types';
+import { type CallMethodResponse } from '@trezor/connect';
 
-import { getAdapterByMethod, getNamespaces, processNamespaces } from './adapters';
+import {
+    getAdapterByMethod,
+    getAdapterByNetwork,
+    getNamespaces,
+    processNamespaces,
+} from './adapters';
 import { walletConnectActions } from './walletConnectActions';
 import { PROJECT_ID, WALLETCONNECT_METADATA, WALLETCONNECT_MODULE } from './walletConnectConstants';
 import { selectPendingProposal } from './walletConnectReducer';
-import { PendingConnectionProposalNetwork } from './walletConnectTypes';
+import { type PendingConnectionProposalNetwork } from './walletConnectTypes';
 
-let walletKit: WalletKitClient;
+let walletKit: IWalletKit;
 
-export const sessionAuthenticateThunk = createThunk<
+const sessionAuthenticateThunk = createThunk<
     void,
     {
         event: WalletKitTypes.SessionAuthenticate;
@@ -35,10 +40,13 @@ export const sessionAuthenticateThunk = createThunk<
     try {
         const accounts = selectAllSuccessfulAccountsToList(getState());
         const supportedNamespaces = getNamespaces(accounts);
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const eip155Namespace: (typeof supportedNamespaces)[keyof typeof supportedNamespaces] =
+            supportedNamespaces.eip155;
         const authPayload = populateAuthPayload({
             authPayload: event.params.authPayload,
-            chains: supportedNamespaces.eip155.chains,
-            methods: supportedNamespaces.eip155.methods,
+            chains: eip155Namespace.chains,
+            methods: eip155Namespace.methods,
         });
         const ethAccount = accounts.find(a => a.symbol === 'eth');
         if (!ethAccount) {
@@ -108,12 +116,12 @@ export const sessionAuthenticateThunk = createThunk<
     }
 });
 
-export const sessionProposalThunk = createThunk<
+const sessionProposalThunk = createThunk<
     void,
     {
         event: WalletKitTypes.SessionProposal;
     }
->(`${WALLETCONNECT_MODULE}/sessionProposalThunk`, ({ event }, { dispatch, getState }) => {
+>(`${WALLETCONNECT_MODULE}/sessionProposalThunk`, ({ event }, { dispatch, getState, extra }) => {
     // Check supported networks
     const accounts = selectAllSuccessfulAccountsToList(getState());
     const networks: PendingConnectionProposalNetwork[] = [];
@@ -129,8 +137,8 @@ export const sessionProposalThunk = createThunk<
             ...event.verifyContext.verified,
         }),
     );
-    analytics.report({
-        type: EventType.WalletConnectProposal,
+    extra.services.analytics.report({
+        type: events.walletConnectProposalEvent.name,
         payload: {
             origin: event.verifyContext.verified.origin,
             validation: event.verifyContext.verified.validation,
@@ -139,12 +147,12 @@ export const sessionProposalThunk = createThunk<
     });
 });
 
-export const sessionRequestThunk = createThunk<
+const sessionRequestThunk = createThunk<
     void,
     {
         event: WalletKitTypes.SessionRequest;
     }
->(`${WALLETCONNECT_MODULE}/sessionRequestThunk`, async ({ event }, { dispatch }) => {
+>(`${WALLETCONNECT_MODULE}/sessionRequestThunk`, async ({ event }, { dispatch, extra }) => {
     try {
         const adapter = getAdapterByMethod(event.params.request.method);
         if (!adapter) {
@@ -164,8 +172,8 @@ export const sessionRequestThunk = createThunk<
                 result: result.payload,
             },
         });
-        analytics.report({
-            type: EventType.WalletConnectSessionRequest,
+        extra.services.analytics.report({
+            type: events.walletConnectSessionRequestEvent.name,
             payload: {
                 origin: event.verifyContext.verified.origin,
                 chainId: event.params.chainId,
@@ -183,10 +191,6 @@ export const sessionRequestThunk = createThunk<
                     message: error.message,
                 },
             },
-        });
-        analytics.report({
-            type: EventType.WalletConnectError,
-            payload: { error: error.message },
         });
     }
 });
@@ -222,14 +226,24 @@ export const switchSelectedAccountThunk = createThunk<
             topic: sessionTopic,
             namespaces: approvedNamespaces,
         });
-        const namespace = account.networkType === 'solana' ? 'solana' : 'eip155';
-        const { chains } = session.namespaces[namespace];
+        const adapter = getAdapterByNetwork(account.networkType);
+        if (!adapter) {
+            return console.warn(`No adapter found for network type ${account.networkType}`);
+        }
+        const sessionNamespaces = session.namespaces;
+        const { namespaceId } = adapter;
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const sessionNamespace: (typeof sessionNamespaces)[string] = sessionNamespaces[namespaceId];
+        const { chains } = sessionNamespace;
         if (!chains) {
-            return console.warn(`No chains found for namespace ${namespace}`);
+            return console.warn(`No chains found for namespace ${adapter.namespaceId}`);
         }
 
+        const approvedEvents = sessionNamespace.events ?? [];
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const updatedNamespace: (typeof updatedNamespaces)[string] = updatedNamespaces[namespaceId];
         for (const chainId of chains) {
-            if (network.chainId) {
+            if (network.chainId && approvedEvents.includes('chainChanged')) {
                 await walletKit.emitSessionEvent({
                     topic: sessionTopic,
                     event: {
@@ -239,14 +253,16 @@ export const switchSelectedAccountThunk = createThunk<
                     chainId,
                 });
             }
-            await walletKit.emitSessionEvent({
-                topic: sessionTopic,
-                event: {
-                    name: 'accountsChanged',
-                    data: [...updatedNamespaces[namespace].accounts],
-                },
-                chainId,
-            });
+            if (approvedEvents.includes('accountsChanged')) {
+                await walletKit.emitSessionEvent({
+                    topic: sessionTopic,
+                    event: {
+                        name: 'accountsChanged',
+                        data: [...updatedNamespace.accounts],
+                    },
+                    chainId,
+                });
+            }
         }
     },
 );
@@ -259,14 +275,10 @@ export const sessionProposalApproveThunk = createThunk<
     }
 >(
     `${WALLETCONNECT_MODULE}/sessionProposalApproveThunk`,
-    async ({ eventId, selectedDefaultAccount }, { dispatch, getState }) => {
+    async ({ eventId, selectedDefaultAccount }, { dispatch, getState, extra }) => {
         try {
             const pendingProposal = selectPendingProposal(getState());
-            if (
-                !pendingProposal ||
-                pendingProposal.eventId !== eventId ||
-                pendingProposal.expired
-            ) {
+            if (pendingProposal?.eventId !== eventId || pendingProposal.expired) {
                 throw new Error('Proposal not found');
             }
 
@@ -318,22 +330,16 @@ export const sessionProposalApproveThunk = createThunk<
                     }),
                 );
             }
-            analytics.report({
-                type: EventType.WalletConnectProposalApproved,
+            extra.services.analytics.report({
+                type: events.walletConnectProposalApprovedEvent.name,
                 payload: {
                     origin: pendingProposal.origin,
                 },
             });
-        } catch (error) {
-            console.error(error);
-
+        } catch {
             await walletKit.rejectSession({
                 id: eventId,
                 reason: getSdkError('USER_REJECTED'),
-            });
-            analytics.report({
-                type: EventType.WalletConnectError,
-                payload: { error: error.message },
             });
         }
     },
@@ -346,15 +352,15 @@ export const sessionProposalRejectThunk = createThunk<
     }
 >(
     `${WALLETCONNECT_MODULE}/sessionProposalRejectThunk`,
-    async ({ eventId }, { getState, dispatch }) => {
+    async ({ eventId }, { getState, dispatch, extra }) => {
         await walletKit.rejectSession({
             id: eventId,
             reason: getSdkError('USER_REJECTED'),
         });
         const pendingProposal = selectPendingProposal(getState());
         dispatch(walletConnectActions.clearSessionProposal());
-        analytics.report({
-            type: EventType.WalletConnectProposalRejected,
+        extra.services.analytics.report({
+            type: events.walletConnectProposalRejectedEvent.name,
             payload: {
                 origin: pendingProposal?.origin,
             },
@@ -364,12 +370,13 @@ export const sessionProposalRejectThunk = createThunk<
 
 export const walletConnectInitThunk = createThunk(
     `${WALLETCONNECT_MODULE}/walletConnectInitThunk`,
-    async (_, { dispatch }) => {
+    async (_, { dispatch, extra }) => {
         if (walletKit) return;
 
         const core = new Core({
             projectId: PROJECT_ID,
             telemetryEnabled: false,
+            logger: isDevEnv ? 'warn' : 'silent',
         });
 
         walletKit = await WalletKit.init({
@@ -400,9 +407,11 @@ export const walletConnectInitThunk = createThunk(
         // Populate active sessions
         const sessions = walletKit.getActiveSessions();
         for (const topic in sessions) {
+            // @ts-expect-error: indexing with noUncheckedIndexedAccess
+            const session: (typeof sessions)[string] = sessions[topic];
             dispatch(
                 walletConnectActions.saveSession({
-                    ...sessions[topic],
+                    ...session,
                 }),
             );
         }
@@ -411,15 +420,15 @@ export const walletConnectInitThunk = createThunk(
         for (const proposal of Object.values(proposals)) {
             dispatch(sessionProposalRejectThunk({ eventId: proposal.id }));
         }
-        analytics.report({
-            type: EventType.WalletConnectInit,
+        extra.services.analytics.report({
+            type: events.walletConnectInitEvent.name,
         });
     },
 );
 
 export const walletConnectPairThunk = createThunk<void, { uri: string }>(
     `${WALLETCONNECT_MODULE}/walletConnectPairThunk`,
-    async ({ uri }, { dispatch }) => {
+    async ({ uri }, { dispatch, extra }) => {
         if (!walletKit) {
             // May happen when Suite cold-starts from deeplink
             await dispatch(walletConnectInitThunk());
@@ -427,18 +436,11 @@ export const walletConnectPairThunk = createThunk<void, { uri: string }>(
 
         try {
             await walletKit.pair({ uri });
-            analytics.report({
-                type: EventType.WalletConnectPaired,
+            extra.services.analytics.report({
+                type: events.walletConnectPairedEvent.name,
             });
-        } catch (error) {
-            console.error('WalletKit.pair:', error);
-
-            analytics.report({
-                type: EventType.WalletConnectError,
-                payload: { error: error.message },
-            });
-
-            throw error;
+        } catch {
+            throw new Error('Invalid WalletConnect URI');
         }
     },
 );

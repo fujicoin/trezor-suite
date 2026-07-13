@@ -1,3 +1,24 @@
+# 2.5.0
+
+- npm-prerelease: @trezor/utxo-lib 2.4.5-beta.2 (07d8754a61)
+- refactor(connect): new replace-imports.sh script using babel (2128d273f3)
+- chore: change fail in test names to error to find fails easier (2393763310)
+- npm-prerelease: @trezor/utxo-lib 2.4.5-beta.1 (b8337f1bdb)
+- fix(suite): correct max amount behavior for ETH and SOL staking (912efab4b5)
+- chore(suite): update network backends (74e276011e)
+- docs(packages): remove link to non-existing document (9291fe7872)
+
+# 2.4.4
+
+- npm-prerelease: @trezor/utxo-lib 2.4.4-beta.1 (0b5bda5a62)
+
+# 2.4.3
+
+- fix: remove all dependenices that are unused (found by added depcheck script to package.json) (ecae55a2ea)
+- fix: missing deptchecks in packages (0d4633e159)
+- npm-prerelease: @trezor/utxo-lib 2.4.3-beta.1 (68a86332a5)
+- chore(utxo-lib): remove deprecated bchaddr dependency, add own implementation (adcf5db457)
+
 # 2.4.2
 
 - npm-prerelease: @trezor/utxo-lib 2.4.2-beta.2 (c89f7a536a)

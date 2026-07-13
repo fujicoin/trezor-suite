@@ -1,19 +1,19 @@
 import { useAtomValue } from 'jotai';
 
 import { Box, HStack, Text, VStack } from '@suite-native/atoms';
-import { DeviceDangerBannerVariant, deviceDangerBannerAtom } from '@suite-native/device';
 import { Icon } from '@suite-native/icons';
-import { Translation, TxKeyPath } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { Translation, type TxKeyPath } from '@suite-native/intl';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { DeviceDangerBannerExtension, bannerContentPresets } from './DeviceDangerBannerExtension';
+import { type DeviceDangerBannerVariant, deviceDangerBannerAtom } from '../deviceAtoms';
 
 const containerStyle = prepareNativeStyle<{ bannerVariant: DeviceDangerBannerVariant }>(
     (utils, { bannerVariant }) => ({
         backgroundColor:
             bannerVariant === 'other-error'
-                ? utils.colors.backgroundAlertYellowBold
-                : utils.colors.backgroundAlertRedSubtleOnElevation0,
+                ? utils.colors.legacyBackgroundAlertYellowBold
+                : utils.colors.legacyBackgroundAlertRedSubtleOnElevation0,
         // MessageSystemBanner critical variant has the same bgColor, so the margin serves to separate them visually
         marginBottom: utils.spacings.sp1,
     }),
@@ -51,7 +51,7 @@ export const DeviceDangerBanner = ({ topSafeAreaInset }: DeviceCompromisedBanner
             <VStack spacing="sp2" style={applyStyle(contentStyle, { topSafeAreaInset })}>
                 <HStack alignItems="center">
                     <Icon name="warningCircle" size="mediumLarge" />
-                    <Text variant="highlight">
+                    <Text variant="body-md-strong">
                         <Translation id={titleTranslationId} />
                     </Text>
                 </HStack>

@@ -1,45 +1,66 @@
-import { NetworkType } from '@suite-common/wallet-config';
-import { selectSelectedDevice } from '@suite-common/wallet-core';
+import { Translation, useTranslation } from '@suite/intl';
+import { isApprovalFlowSupported, selectSelectedDevice } from '@suite-common/device';
+import { type NetworkType } from '@suite-common/wallet-config';
 import {
-    Account,
-    FormState,
-    GeneralPrecomposedTransactionFinal,
-    StakeFormState,
-    StakeType,
+    type Account,
+    type FormState,
+    type GeneralPrecomposedTransactionFinal,
+    type StakeFormState,
+    type StakeType,
 } from '@suite-common/wallet-types';
 import {
+    getEvmTransactionTextSignature,
     getIsUpdatedEthereumSendFlow,
     getIsUpdatedSendFlow,
-    isApprovalFlowSupported,
+    isClearSignedEvmTradingSwapTransaction,
     isEvmApprovalTx,
+    isEvmYieldTxByTextSignature,
     isTestnet,
 } from '@suite-common/wallet-utils';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import type { TokenInfo } from '@trezor/blockchain-link-types';
+import { BigNumber } from '@trezor/utils';
 
-import { Translation } from 'src/components/suite/Translation';
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { TrezorDevice } from 'src/types/suite';
+import { type TrezorDevice } from 'src/types/suite';
 
 import {
-    OutputElementLine,
+    type OutputElementLine,
     TransactionReviewOutputElement,
-    TransactionReviewOutputElementProps,
+    type TransactionReviewOutputElementProps,
 } from './TransactionReviewOutputElement';
 
-const getLines = (
-    device: TrezorDevice,
-    networkType: NetworkType,
-    precomposedTx: GeneralPrecomposedTransactionFinal,
-    precomposedForm: FormState | StakeFormState,
-    isRbfAction?: boolean,
-    stakeType?: StakeType,
-    isSLIP24Active?: boolean,
-): OutputElementLine[] => {
+interface GetLinesParams {
+    device: TrezorDevice;
+    networkType: NetworkType;
+    precomposedTx: GeneralPrecomposedTransactionFinal;
+    precomposedForm: FormState | StakeFormState;
+    isRbfAction?: boolean;
+    stakeType?: StakeType;
+    nativeToken?: TokenInfo;
+    isClearSignedTradingSwap: boolean;
+    isTronStakeFreeze: boolean;
+    tronResourceLabel: string;
+}
+
+const getLines = ({
+    device,
+    networkType,
+    precomposedTx,
+    precomposedForm,
+    isRbfAction,
+    stakeType,
+    nativeToken,
+    isClearSignedTradingSwap,
+    isTronStakeFreeze,
+    tronResourceLabel,
+}: GetLinesParams): OutputElementLine[] => {
     const isUpdatedSendFlow = getIsUpdatedSendFlow(device);
     const isUpdatedEthereumSendFlow = getIsUpdatedEthereumSendFlow(device, networkType, stakeType);
     const isEthereum = networkType === 'ethereum';
     const isSolana = networkType === 'solana';
     const showAmountWithoutFee = isEthereum || isSolana;
+    const evmTxType = getEvmTransactionTextSignature(precomposedForm.transactionData);
+    const isYieldOrClaimOperation = isEvmYieldTxByTextSignature(evmTxType) || evmTxType === 'claim';
 
     const feeLabelId = ((network: NetworkType) => {
         switch (network) {
@@ -58,7 +79,24 @@ const getLines = (
         .minus(precomposedTx.fee)
         .toString();
 
-    if (isSLIP24Active) {
+    if (isTronStakeFreeze) {
+        return [
+            {
+                id: 'amount',
+                label: <Translation id="AMOUNT" />,
+                value: amountWithoutFee,
+                type: 'amount',
+            },
+            {
+                id: 'resource',
+                label: <Translation id="TR_TRON_RESOURCE" />,
+                value: tronResourceLabel,
+                type: 'default',
+            },
+        ];
+    }
+
+    if (precomposedForm.trading?.isSlip24Active || isClearSignedTradingSwap) {
         return [
             {
                 id: 'fee',
@@ -76,6 +114,7 @@ const getLines = (
             id: 'amount', // In updated ethereum send flow there is no total amount shown, only amount without fee
             label: <Translation id="AMOUNT" />,
             value: tokenInfo ? precomposedTx.totalSpent : amountWithoutFee,
+            token: tokenInfo ?? nativeToken,
             type: 'amount',
         };
 
@@ -83,13 +122,16 @@ const getLines = (
             id: 'fee',
             label: <Translation id="MAX_FEE" />,
             value: precomposedTx.fee,
+            token: nativeToken,
             type: 'amount',
         };
 
-        return isUnknownStakingValue ||
-            (isEvmApprovalTx(precomposedForm.ethereumDataHex) && isApprovalFlowSupported(device))
-            ? [feeLine]
-            : [amountLine, feeLine];
+        const isFeeOnly =
+            isUnknownStakingValue ||
+            (isEvmApprovalTx(precomposedForm.transactionData) && isApprovalFlowSupported(device)) ||
+            isYieldOrClaimOperation;
+
+        return isFeeOnly ? [feeLine] : [amountLine, feeLine];
     }
     if (isUpdatedSendFlow) {
         const amount = showAmountWithoutFee ? amountWithoutFee : precomposedTx.totalSpent;
@@ -99,6 +141,7 @@ const getLines = (
                 id: 'total',
                 label: <Translation id={showAmountWithoutFee ? 'AMOUNT' : 'TR_TOTAL_AMOUNT'} />,
                 value: tokenInfo ? precomposedTx.totalSpent : amount,
+                token: tokenInfo,
                 type: 'amount',
             },
             {
@@ -110,14 +153,27 @@ const getLines = (
         ];
     }
 
-    return [
-        {
-            id: 'total',
-            label: <Translation id="TR_TOTAL" />,
-            value: precomposedTx.totalSpent,
-            type: 'amount',
-        },
-    ];
+    const totalLine: OutputElementLine = {
+        id: 'total',
+        label: <Translation id="TR_TOTAL" />,
+        value: precomposedTx.totalSpent,
+        token: tokenInfo,
+        type: 'amount',
+    };
+
+    if (isYieldOrClaimOperation) {
+        return [
+            totalLine,
+            {
+                id: 'fee',
+                label: <Translation id={feeLabelId} />,
+                value: precomposedTx.fee,
+                type: 'amount',
+            },
+        ];
+    }
+
+    return [totalLine];
 };
 
 export type TransactionReviewTotalOutputProps = {
@@ -125,7 +181,6 @@ export type TransactionReviewTotalOutputProps = {
     precomposedTx: GeneralPrecomposedTransactionFinal;
     precomposedForm: FormState | StakeFormState;
     account: Account;
-    isSLIP24Active: boolean;
     isRbf: boolean;
     stakeType?: StakeType;
 };
@@ -136,40 +191,65 @@ export const TransactionReviewTotalOutput = ({
     precomposedTx,
     precomposedForm,
     stakeType,
-    isSLIP24Active,
     isRbf,
 }: TransactionReviewTotalOutputProps) => {
     const device = useSelector(selectSelectedDevice);
+    const { translationString } = useTranslation();
 
     if (!device) {
         return null;
     }
 
-    const { networkType, symbol } = account;
-    const lines = getLines(
+    const { networkType } = account;
+    const { tronStaking } = precomposedForm;
+    const isTronStakeFreeze =
+        networkType === 'tron' &&
+        (tronStaking?.kind === 'freeze' || tronStaking?.kind === 'unstake');
+    const tronResourceLabel =
+        (tronStaking?.kind === 'freeze' || tronStaking?.kind === 'unstake') &&
+        tronStaking.resource === 'energy'
+            ? translationString('TR_TRON_ENERGY')
+            : translationString('TR_TRON_BANDWIDTH');
+    const nativeToken =
+        account.accountType === 'placeholder' && 'nativeToken' in precomposedTx
+            ? precomposedTx.nativeToken
+            : undefined;
+    const isFiatVisible = !isTestnet(account.symbol) && account.accountType !== 'placeholder';
+    const isClearSignedTradingSwap = isClearSignedEvmTradingSwapTransaction({
+        account,
+        device,
+        precomposedTx,
+        transactionData: precomposedForm.transactionData,
+        trading: precomposedForm.trading,
+    });
+    const lines = getLines({
         device,
         networkType,
         precomposedTx,
         precomposedForm,
-        isRbf,
+        isRbfAction: isRbf,
         stakeType,
-        isSLIP24Active,
-    );
+        nativeToken,
+        isClearSignedTradingSwap,
+        isTronStakeFreeze,
+        tronResourceLabel,
+    });
+
+    const titleId = (() => {
+        if (isClearSignedTradingSwap) return 'TR_NETWORK_FEE';
+        if (precomposedForm.trading?.isSlip24Active) return 'TR_SUMMARY';
+        if (isTronStakeFreeze) return 'TR_SUMMARY';
+
+        return 'TR_TOTAL_INCLUDING_FEE';
+    })();
 
     return (
         <TransactionReviewOutputElement
-            title={
-                isSLIP24Active ? (
-                    <Translation id="TR_SUMMARY" />
-                ) : (
-                    <Translation id="TR_TOTAL_INCLUDING_FEE" />
-                )
-            }
+            title={<Translation id={titleId} />}
             account={account}
             lines={lines}
             state={state}
-            fiatVisible={!isTestnet(symbol)}
-            token={precomposedTx?.token}
+            fiatVisible={isFiatVisible}
         />
     );
 };

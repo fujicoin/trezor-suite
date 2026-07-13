@@ -1,8 +1,9 @@
 import type { ExchangeTrade } from 'invity-api';
 
+import { EMPTY_GROUPED_TRADING_EXCHANGE_QUOTES } from '@suite-common/trading';
 import { act, renderHookWithBasicProvider } from '@suite-native/test-utils';
+import { type QuotesByCategories } from '@suite-native/trading-types';
 
-import { QuotesByCategories } from '../../../types/general';
 import { useProviderFilters } from '../useProviderFilters';
 
 type UseProviderFilterProps = {
@@ -12,7 +13,7 @@ type UseProviderFilterProps = {
 describe('useProviderFilters', () => {
     const renderUseProviderFilters = (initialProps: UseProviderFilterProps) =>
         renderHookWithBasicProvider(
-            ({ quotes = { fixed: [], float: [], dex: [] }, shouldShowFilters = true }) =>
+            ({ quotes = EMPTY_GROUPED_TRADING_EXCHANGE_QUOTES, shouldShowFilters = true }) =>
                 useProviderFilters(quotes, shouldShowFilters),
             {
                 initialProps,
@@ -32,7 +33,7 @@ describe('useProviderFilters', () => {
 
         rerender({});
 
-        expect(result.current.filterItems).toBe(initialFilterItems);
+        expect(result.current.filterItems).toEqual(initialFilterItems);
     });
 
     it('should return all given sections even when empty when no filter is selected ', () => {
@@ -91,7 +92,7 @@ describe('useProviderFilters', () => {
         ]);
     });
 
-    it('should return all section when dex is selected but shouldShowFilters is false', () => {
+    it('should return all section when cex is selected but shouldShowFilters is false', () => {
         const { result } = renderUseProviderFilters({ shouldShowFilters: false });
 
         act(() => {

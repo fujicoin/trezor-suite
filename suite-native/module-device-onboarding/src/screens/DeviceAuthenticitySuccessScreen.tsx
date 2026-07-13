@@ -1,9 +1,9 @@
 import { Box, Button, PictogramTitleHeader, VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import {
-    DeviceOnboardingStackParamList,
+    type DeviceOnboardingStackParamList,
     DeviceOnboardingStackRoutes,
-    StackProps,
+    type StackProps,
 } from '@suite-native/navigation';
 
 import { DeviceOnboardingScreenWithExitButton } from '../components/DeviceOnboardingScreenWithExitButton';
@@ -27,7 +27,7 @@ export const DeviceAuthenticitySuccessScreen = ({
                         title={
                             <Translation id="moduleDeviceOnboarding.deviceAuthenticitySuccessScreen.title" />
                         }
-                        titleVariant="titleMedium"
+                        titleVariant="headline-md"
                         subtitle={
                             <Translation id="moduleDeviceOnboarding.deviceAuthenticitySuccessScreen.subtitle" />
                         }

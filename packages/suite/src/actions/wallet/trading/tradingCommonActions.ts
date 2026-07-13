@@ -1,4 +1,5 @@
-import { Output } from '@suite-common/wallet-types/src';
+import { formDraftActions, selectDeepCopyOfFormDraft } from '@suite-common/wallet-core';
+import type { Output } from '@suite-common/wallet-types';
 import {
     convertAmountSubunitsToUnits,
     convertAmountUnitsToSubunits,
@@ -8,8 +9,7 @@ import {
 } from '@suite-common/wallet-utils';
 import { PROTO } from '@trezor/connect';
 
-import * as formDraftActions from 'src/actions/wallet/formDraftActions';
-import { Dispatch, GetState } from 'src/types/suite';
+import { type Dispatch, type GetState } from 'src/types/suite';
 import { submitRequestForm as envSubmitRequestForm } from 'src/utils/suite/env';
 
 type FormState = {
@@ -42,23 +42,21 @@ export const convertDrafts = () => (dispatch: Dispatch, getState: GetState) => {
     const formDraftKeys = Object.keys(formDrafts);
 
     formDraftKeys.forEach(formDraftKey => {
-        const [prefix, accountKey] = parseFormDraftKey(formDraftKey);
+        const [_prefix, accountKey] = parseFormDraftKey(formDraftKey);
         const relatedAccount = accounts.find(({ key }) => key === accountKey);
 
         if (!relatedAccount || !hasNetworkFeatures(relatedAccount, 'amount-unit')) {
             return;
         }
 
-        const getDraft = formDraftActions.getDraft<FormState>(prefix);
-        const saveDraft = formDraftActions.saveDraft<FormState>(prefix);
-        const draft = dispatch(getDraft(accountKey));
+        const draft = selectDeepCopyOfFormDraft(getState(), formDraftKey) as FormState | undefined;
 
         if (draft) {
             const areSatsSelected = settings.bitcoinAmountUnit === PROTO.AmountUnit.SATOSHI;
             const conversion = areSatsSelected
                 ? convertAmountUnitsToSubunits
                 : convertAmountSubunitsToUnits;
-            const decimals = getAccountDecimals(relatedAccount.symbol)!;
+            const decimals = getAccountDecimals(relatedAccount.symbol);
 
             if (draft.cryptoInput) {
                 draft.cryptoInput = conversion(draft.cryptoInput, decimals);
@@ -71,7 +69,12 @@ export const convertDrafts = () => (dispatch: Dispatch, getState: GetState) => {
                 });
             }
 
-            dispatch(saveDraft(accountKey, draft));
+            dispatch(
+                formDraftActions.storeDraft({
+                    key: formDraftKey,
+                    formDraft: draft,
+                }),
+            );
         }
     });
 };

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 
-import { Meta, StoryFn } from '@storybook/react';
+import { type Meta, type StoryFn } from '@storybook/react';
 import styled from 'styled-components';
 
 import { VirtualizedList as VirtualizedListComponent } from './VirtualizedList';
 
-const meta: Meta = {
+const meta: Meta<typeof VirtualizedListComponent> = {
     title: 'VirtualizedList',
-} as Meta;
+};
 export default meta;
 
 const Container = styled.div`

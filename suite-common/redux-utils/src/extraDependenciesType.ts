@@ -1,50 +1,78 @@
 import {
-    ActionCreatorWithPayload,
-    ActionCreatorWithPreparedPayload,
-    ActionCreatorWithoutPayload,
+    type ActionCreatorWithPayload,
+    type ActionCreatorWithPreparedPayload,
+    type ActionCreatorWithoutPayload,
 } from '@reduxjs/toolkit';
 
-import { MetadataAddPayload } from '@suite-common/metadata-types';
+import type { AnalyticsSharedEvents } from '@suite-common/analytics';
+import { type Bip329Dep } from '@suite-common/bip329-types';
+import { type EnsureDelegatedIdentityKeyDep } from '@suite-common/delegated-identity-key-types';
+import { type MetadataAddPayload } from '@suite-common/metadata-types';
+import { type PlatformEncryptionDep } from '@suite-common/platform-encryption'; // also only types
+import { type MigrateSuiteSyncLabelsForRbfTransactionDep } from '@suite-common/suite-rbf-labels-migrations-types';
+import { type SuiteSyncDep } from '@suite-common/suite-sync-types';
 import {
-    ReportSecurityCheckProps,
-    Route,
-    TrezorDevice,
-    UserContextPayload,
+    type ReloadAppDep,
+    type ReportSecurityCheckDep,
+    type UserContextPayload,
 } from '@suite-common/suite-types';
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 import {
-    Account,
-    AddressDisplayOptions,
-    SelectedAccountStatus,
-    WalletType,
+    type Account,
+    type AccountKey,
+    type SelectedAccountStatus,
 } from '@suite-common/wallet-types';
-import { BlockchainBlock, ConnectSettings, Manifest, StaticSessionId } from '@trezor/connect';
+import { type Analytics } from '@trezor/analytics-uploader';
+import {
+    type BluetoothDeviceId,
+    type ConnectSettings,
+    type CreateLoggerDep,
+    type Manifest,
+    type StaticSessionId,
+    type ThpSettings,
+} from '@trezor/connect';
 
-import { ActionType, SuiteCompatibleSelector, SuiteCompatibleThunk } from './types';
+import { type ConnectInitHooks } from './connectInitHooksType';
+import { type ActionType, type SuiteCompatibleSelector, type SuiteCompatibleThunk } from './types';
 
 type BaseReducer = (state: any, action: { type: any; payload: any }) => void;
 type StorageLoadReducer = (state: any, action: { type: any; payload: any }) => void;
 type StorageLoadTransactionsReducer = (state: any, action: { type: any; payload: any }) => void;
 
-type ConnectInitSettings = {
+export type ConnectInitSettings = {
     manifest: Manifest;
 } & Partial<ConnectSettings>;
 
-export type ExtraDependencies = {
+export type ThpHostNameDep = { thpHostName?: string };
+
+export type CommonServices = SuiteSyncDep &
+    Bip329Dep &
+    EnsureDelegatedIdentityKeyDep &
+    PlatformEncryptionDep & {
+        analytics: Analytics<AnalyticsSharedEvents>;
+        saveAs: (data: Blob, fileName: string) => void;
+        connectInitSettings: ConnectInitSettings;
+        connectInitHooks: ConnectInitHooks;
+    } & ReportSecurityCheckDep &
+    ReloadAppDep &
+    MigrateSuiteSyncLabelsForRbfTransactionDep &
+    CreateLoggerDep &
+    ThpHostNameDep;
+
+export type ExtraDependenciesStatic = {
+    /** @deprecated Do not add any thunks here, this is antipattern. */
     thunks: {
-        cardanoValidatePendingTxOnBlock: SuiteCompatibleThunk<{
-            block: BlockchainBlock;
-            timestamp: number;
-        }>;
-        cardanoFetchTrezorData: SuiteCompatibleThunk<'tADA' | 'ADA'>;
         initMetadata: SuiteCompatibleThunk<boolean>;
         fetchAndSaveMetadata: SuiteCompatibleThunk<StaticSessionId>;
-        subscribeLocalFirstStorage: SuiteCompatibleThunk<{ device: TrezorDevice }>;
-        unsubscribeAndDisposeLocalFirstStorage: SuiteCompatibleThunk<{ device: TrezorDevice }>;
         addAccountMetadata: SuiteCompatibleThunk<
             Exclude<MetadataAddPayload, { type: 'walletLabel' }>
         >;
-        forgetBluetoothDevice: SuiteCompatibleThunk<{ bluetoothId: string }>;
+        forgetBluetoothDevice: SuiteCompatibleThunk<{
+            bluetoothId: BluetoothDeviceId;
+            skipToggleModalConnection?: boolean;
+            isOsUnpairingFinished?: boolean;
+            skipDisconnect?: boolean;
+        }>;
     };
     selectors: {
         // TODO when tokens are implemented 1:1 in both apps, delete from extras
@@ -54,26 +82,17 @@ export type ExtraDependencies = {
         // but this is exactly what I need to get DebugModeOptions type instead of any
         selectDebugSettings: SuiteCompatibleSelector<any>;
         selectDesktopBinDir: SuiteCompatibleSelector<string | undefined>;
-        // a wallet-core selector that could be reused directly, but this one is used very often and would create circular deps
-        selectDevice: SuiteCompatibleSelector<TrezorDevice | undefined>;
         selectLanguage: SuiteCompatibleSelector<string>;
         selectIsWindowVisible: SuiteCompatibleSelector<boolean>;
-        selectRouterApp: SuiteCompatibleSelector<string>;
-        selectRoute: SuiteCompatibleSelector<Route | undefined>;
-        selectMetadata: SuiteCompatibleSelector<any>;
-        selectAddressDisplayType: SuiteCompatibleSelector<AddressDisplayOptions>;
         selectSelectedAccount: SuiteCompatibleSelector<SelectedAccountStatus>;
         selectSelectedAccountStatus: SuiteCompatibleSelector<SelectedAccountStatus['status']>;
-        selectSuiteSettings: SuiteCompatibleSelector<{
-            defaultWalletLoading: WalletType;
-            localFirstStorageRelayUrl: string | null;
-            isLocalFirstStorageEnabled: boolean;
-        }>;
         selectTradingEnvironment: SuiteCompatibleSelector<
             'production' | 'staging' | 'dev' | 'localhost' | undefined
         >;
+        selectTradedAccountKeys: SuiteCompatibleSelector<AccountKey[]>;
         selectIsViewOnlyByDefaultEnabled: SuiteCompatibleSelector<boolean>;
-        selectThpSettings: SuiteCompatibleSelector<NonNullable<ConnectSettings['thp']>>;
+        selectThpSettings: SuiteCompatibleSelector<ThpSettings>;
+        selectAllowPrerelease: SuiteCompatibleSelector<boolean>;
     };
     // You should only use ActionCreatorWithPayload from redux-toolkit!
     // That means you will need to convert actual action creators in packages/suite to use createAction from redux-toolkit,
@@ -98,6 +117,7 @@ export type ExtraDependencies = {
         storageLoadExplorer: StorageLoadReducer;
         storageLoadAccounts: StorageLoadReducer;
         storageLoadTransactions: StorageLoadTransactionsReducer;
+        storageLoadPhishingMetadata: StorageLoadReducer;
         storageLoadHistoricRates: StorageLoadReducer;
         setDeviceMetadataReducer: BaseReducer;
         setDeviceMetadataPasswordsReducer: BaseReducer;
@@ -106,13 +126,12 @@ export type ExtraDependencies = {
         storageLoadTokenManagement: StorageLoadReducer;
         storageLoadWalletSettings: StorageLoadReducer;
         storageLoadBioAuth: StorageLoadReducer;
-    };
-    utils: {
-        saveAs: (data: Blob, fileName: string) => void;
-        connectInitSettings: ConnectInitSettings;
-        reportSecurityCheck: (props: ReportSecurityCheckProps) => void;
+        storageLoadFlags: StorageLoadReducer;
+        storageLoadSuiteSettings: StorageLoadReducer;
     };
 };
+
+export type ExtraDependencies = ExtraDependenciesStatic & { services: CommonServices };
 
 export type ExtraDependenciesForReducer = Pick<
     ExtraDependencies,

@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 
 import { useFocusEffect } from '@react-navigation/native';
 
-import { EventType, analytics } from '@suite-native/analytics';
+import { useServices } from '@suite-common/dependency-injection';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { Box, Button, PictogramTitleHeader, VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import { useOpenLink } from '@suite-native/link';
@@ -14,6 +15,7 @@ const SUPPORT_URL = `${TREZOR_SUPPORT_RECOVERY_ISSUES_URL}#open-chat`;
 
 export const DeviceCheckBackupSupportScreen = () => {
     const openLink = useOpenLink();
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const handleSupportButtonPress = () => {
         openLink(SUPPORT_URL);
     };
@@ -21,9 +23,9 @@ export const DeviceCheckBackupSupportScreen = () => {
     useFocusEffect(
         useCallback(() => {
             analytics.report({
-                type: EventType.DeviceSettingsCheckBackupSupport,
+                type: events.deviceSettingsCheckBackupSupportEvent.name,
             });
-        }, []),
+        }, [analytics]),
     );
 
     return (
@@ -32,7 +34,7 @@ export const DeviceCheckBackupSupportScreen = () => {
                 <Box flex={1} justifyContent="center" alignItems="center">
                     <PictogramTitleHeader
                         icon="chatsTeardrop"
-                        titleVariant="titleMedium"
+                        titleVariant="headline-md"
                         variant="success"
                         title={
                             <Translation id="moduleCheckBackup.checkBackupSupportScreen.title" />
@@ -43,7 +45,7 @@ export const DeviceCheckBackupSupportScreen = () => {
                     />
                 </Box>
 
-                <Button onPress={handleSupportButtonPress} isFullWidth viewLeft="arrowSquareOut">
+                <Button onPress={handleSupportButtonPress} isFullWidth iconLeft="arrowSquareOut">
                     <Translation id="moduleCheckBackup.checkBackupSupportScreen.button" />
                 </Button>
             </VStack>

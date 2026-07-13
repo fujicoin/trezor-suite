@@ -2,7 +2,7 @@ import { useRoute } from '@react-navigation/native';
 
 import { useAlert } from '@suite-native/alerts';
 import { Form } from '@suite-native/forms';
-import { PreloadedState, act, renderHookWithStoreProviderAsync } from '@suite-native/test-utils';
+import { act, renderHookWithStoreProvider, waitFor } from '@suite-native/test-utils-store';
 import TrezorConnect from '@trezor/connect';
 
 import { useAddressValidationAlerts } from '../useAddressValidationAlerts';
@@ -35,7 +35,7 @@ const mockAccountInfoResponses = {
     },
     networkError: {
         success: false,
-        payload: { error: 'Network error' },
+        error: { message: 'Network error', code: 'Backend_Disconnected' },
     },
 } as const;
 
@@ -70,7 +70,7 @@ describe('useAddressValidationAlerts', () => {
         },
     };
 
-    const defaultPreloadedState: PreloadedState = {
+    const defaultPreloadedState: Record<string, unknown> = {
         wallet: {
             accounts: [
                 {
@@ -83,15 +83,28 @@ describe('useAddressValidationAlerts', () => {
     };
 
     const renderHookWithForm = async (
-        preloadedState: PreloadedState = defaultPreloadedState,
+        preloadedState: Record<string, unknown> = defaultPreloadedState,
         { inputIndex = 0 } = {},
-    ) =>
-        await renderHookWithStoreProviderAsync(() => useAddressValidationAlerts({ inputIndex }), {
-            preloadedState,
-            wrapper: ({ children }) => (
-                <Form form={{ setValue: mockSetValue, watch: mockWatch } as any}>{children}</Form>
-            ),
+    ) => {
+        const result = renderHookWithStoreProvider(
+            () => useAddressValidationAlerts({ inputIndex }),
+            {
+                preloadedState,
+                wrapper: ({ children }) => (
+                    <Form form={{ setValue: mockSetValue, watch: mockWatch } as any}>
+                        {children}
+                    </Form>
+                ),
+            },
+        );
+
+        // allow async TrezorConnect.getAccountInfo to resolve
+        await act(async () => {
+            await Promise.resolve();
         });
+
+        return result;
+    };
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -169,7 +182,7 @@ describe('useAddressValidationAlerts', () => {
                 contractAddressChecksum,
                 { shouldValidate: true },
             );
-            expect(result.current.wasAddressChecksummed).toBe(true);
+            await waitFor(() => expect(result.current.wasAddressChecksummed).toBe(true));
             expect(mockShowAlert).not.toHaveBeenCalled();
         });
 
@@ -190,7 +203,7 @@ describe('useAddressValidationAlerts', () => {
                 contractAddressChecksum,
                 { shouldValidate: true },
             );
-            expect(result.current.wasAddressChecksummed).toBe(true);
+            await waitFor(() => expect(result.current.wasAddressChecksummed).toBe(true));
         });
 
         it('should not show checksum alert for valid checksum addresses', async () => {
@@ -202,7 +215,7 @@ describe('useAddressValidationAlerts', () => {
         });
 
         it('should not show checksum alert for non-Ethereum networks', async () => {
-            const btcPreloadedState: PreloadedState = {
+            const btcPreloadedState: Record<string, unknown> = {
                 wallet: {
                     accounts: [
                         {
@@ -298,7 +311,7 @@ describe('useAddressValidationAlerts', () => {
         });
 
         it('should not check contract address for non-Ethereum networks', async () => {
-            const btcPreloadedState: PreloadedState = {
+            const btcPreloadedState: Record<string, unknown> = {
                 wallet: {
                     accounts: [
                         {
@@ -404,7 +417,7 @@ describe('useAddressValidationAlerts', () => {
     });
 
     describe('Error handling', () => {
-        it('should handle TrezorConnect.getAccountInfo failure gracefully', async () => {
+        it('should handle TrezorConnect.getAccountInfo error gracefully', async () => {
             mockWatch.mockReturnValue(contractAddressLowercase);
 
             getAccountInfoSpy.mockResolvedValue(mockAccountInfoResponses.networkError);

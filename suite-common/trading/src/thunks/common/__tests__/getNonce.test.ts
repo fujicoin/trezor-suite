@@ -1,16 +1,17 @@
 import { combineReducers } from '@reduxjs/toolkit';
 
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
-import { selectSelectedDevice } from '@suite-common/wallet-core';
+import { selectSelectedDevice } from '@suite-common/device';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
 import TrezorConnect from '@trezor/connect';
 
-import { initialState, prepareTradingReducer } from '../../../reducers/tradingReducer';
+import { initialState } from '../../../reducers/tradingCommonReducer';
+import { prepareTradingReducer } from '../../../reducers/tradingReducer';
 import { getNonce } from '../getNonce';
 
-const tradingReducer = prepareTradingReducer(extraDependenciesMock);
+const tradingReducer = prepareTradingReducer(extraDependenciesCommonMock);
 
-jest.mock('@suite-common/wallet-core', () => ({
-    ...jest.requireActual('@suite-common/wallet-core'),
+jest.mock('@suite-common/device', () => ({
+    ...jest.requireActual('@suite-common/device'),
     selectSelectedDevice: jest.fn(),
 }));
 
@@ -38,15 +39,15 @@ describe('getNonce thunk', () => {
 
     const createMockStore = (preloadedState = {}) =>
         configureMockStore({
-            extra: extraDependenciesMock,
+            extra: extraDependenciesCommonMock,
             reducer: combineReducers({
                 wallet: combineReducers({
-                    tradingNew: tradingReducer,
+                    trading: tradingReducer,
                 }),
             }),
             preloadedState: {
                 wallet: {
-                    tradingNew: {
+                    trading: {
                         ...initialState,
                         ...preloadedState,
                     },
@@ -73,9 +74,7 @@ describe('getNonce thunk', () => {
             // Verify TrezorConnect.getNonce was called with correct parameters
             expect(TrezorConnect.getNonce).toHaveBeenCalledWith({
                 device: mockDevice,
-                useEmptyPassphrase: true,
                 keepSession: true,
-                skipFinalReload: true,
             });
         });
 
@@ -142,11 +141,11 @@ describe('getNonce thunk', () => {
             });
         });
 
-        it('should reject when TrezorConnect.getNonce fails', async () => {
+        it('should reject when TrezorConnect.getNonce errors', async () => {
             (selectSelectedDevice as jest.Mock).mockReturnValue(mockDevice);
             (TrezorConnect.getNonce as jest.Mock).mockResolvedValue({
                 success: false,
-                payload: { error: 'Device communication failed' },
+                error: { message: 'Device communication failed' },
             });
 
             const store = createMockStore();
@@ -163,9 +162,7 @@ describe('getNonce thunk', () => {
             // Verify TrezorConnect.getNonce was called
             expect(TrezorConnect.getNonce).toHaveBeenCalledWith({
                 device: mockDevice,
-                useEmptyPassphrase: true,
                 keepSession: true,
-                skipFinalReload: true,
             });
         });
 
@@ -219,9 +216,7 @@ describe('getNonce thunk', () => {
 
             expect(TrezorConnect.getNonce).toHaveBeenCalledWith({
                 device: minimalDevice,
-                useEmptyPassphrase: true,
                 keepSession: true,
-                skipFinalReload: true,
             });
         });
 
@@ -252,9 +247,7 @@ describe('getNonce thunk', () => {
 
             expect(TrezorConnect.getNonce).toHaveBeenCalledWith({
                 device: trezorOneDevice,
-                useEmptyPassphrase: true,
                 keepSession: true,
-                skipFinalReload: true,
             });
         });
     });
@@ -285,7 +278,9 @@ describe('getNonce thunk', () => {
 
             // Check if the action is in pending state
             const actions = store.getActions();
-            expect(actions[0].type).toBe(getNonce.pending.type);
+            // @ts-expect-error: indexing with noUncheckedIndexedAccess
+            const firstAction: (typeof actions)[number] = actions[0];
+            expect(firstAction.type).toBe(getNonce.pending.type);
 
             const result = await promise;
             expect(result.type).toBe(getNonce.fulfilled.type);

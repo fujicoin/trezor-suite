@@ -1,13 +1,17 @@
 import { useMemo } from 'react';
-import { useSelector } from 'react-redux';
 
+import { type DeviceRootState, selectSelectedDevice } from '@suite-common/device';
+import { selectTradingExchangeSelectedQuote } from '@suite-common/trading';
 import {
-    DeviceRootState,
-    SerializedTx,
-    selectSelectedDevice,
+    type SerializedTx,
     selectSendFormReviewButtonRequestsCount,
 } from '@suite-common/wallet-core';
-import { Account, FormState, GeneralPrecomposedTransactionFinal } from '@suite-common/wallet-types';
+import {
+    type Account,
+    type FormState,
+    type GeneralPrecomposedTransactionFinal,
+    type YieldClaimReward,
+} from '@suite-common/wallet-types';
 import {
     constructTransactionReviewOutputsOptional,
     getStakeType,
@@ -16,23 +20,26 @@ import {
     isRbfTransaction,
 } from '@suite-common/wallet-utils';
 import { Column } from '@trezor/components';
-import { spacings } from '@trezor/theme';
 
+import { useSelector } from 'src/hooks/suite';
+
+import { TransactionReviewOutputList } from './TransactionReviewOutputList';
 import { ExpiredTxValidity } from '../../UserContextModal/TxDetailModal/ExpiredTxValidity';
 import { ReplaceByFeeFailedOriginalTxConfirmed } from '../../UserContextModal/TxDetailModal/ReplaceByFeeFailedOriginalTxConfirmed';
 import { TransactionReviewDetails } from '../TransactionReviewDetails';
-import { TransactionReviewOutputList } from './TransactionReviewOutputList';
-import { hasTxValidityExpired } from '../TransactionReviewModalBody';
 
 type TransactionReviewModalContentProps = {
     account: Account;
     precomposedTx: GeneralPrecomposedTransactionFinal;
     precomposedForm: FormState;
+    vaultName?: string;
+    availableRewards?: YieldClaimReward[];
     isSending: boolean;
     onTryAgain: (cancel: boolean) => void;
     reviewStep: number;
     serializedTx?: SerializedTx;
-    areDetailsVisible?: boolean;
+    areDetailsVisible: boolean;
+    hasTxReviewExpired: boolean;
     isRbfConfirmedError?: boolean;
 };
 
@@ -43,12 +50,16 @@ export const TransactionReviewModalContent = ({
     serializedTx,
     reviewStep,
     precomposedForm,
+    vaultName,
+    availableRewards,
     onTryAgain,
     isSending,
+    hasTxReviewExpired,
     isRbfConfirmedError,
 }: TransactionReviewModalContentProps) => {
     const { symbol, networkType } = account;
     const device = useSelector(selectSelectedDevice);
+    const swapSlippage = useSelector(selectTradingExchangeSelectedQuote)?.swapSlippage;
 
     const createdTxTimestamp = useMemo(
         () => precomposedTx.createdTimestamp ?? 0,
@@ -56,7 +67,6 @@ export const TransactionReviewModalContent = ({
     );
 
     const deadline = createdTxTimestamp + getTxValidityTimeoutInMs(account?.networkType);
-    const isTxExpired = hasTxValidityExpired(deadline);
 
     const isBumpFeeRbfAction =
         precomposedTx !== undefined && isRbfBumpFeeTransaction(precomposedTx);
@@ -74,15 +84,27 @@ export const TransactionReviewModalContent = ({
         () =>
             constructTransactionReviewOutputsOptional({
                 account,
+                availableRewards,
                 decreaseOutputId,
                 device,
                 precomposedForm,
                 precomposedTx,
+                vaultName,
+                swapSlippage,
             }),
-        [account, decreaseOutputId, device, precomposedForm, precomposedTx],
+        [
+            account,
+            availableRewards,
+            decreaseOutputId,
+            device,
+            precomposedForm,
+            precomposedTx,
+            vaultName,
+            swapSlippage,
+        ],
     );
 
-    const stakeType = getStakeType(precomposedForm, outputs);
+    const stakeType = getStakeType(precomposedForm);
 
     const shouldCheckTxTimeValidity = useMemo(
         () => account.networkType === 'solana' && createdTxTimestamp !== 0,
@@ -102,12 +124,12 @@ export const TransactionReviewModalContent = ({
         );
     }
 
-    if (shouldCheckTxTimeValidity && isTxExpired && !isSending) {
+    if (shouldCheckTxTimeValidity && hasTxReviewExpired && !isSending) {
         return <ExpiredTxValidity symbol={symbol} />;
     }
 
     return (
-        <Column gap={spacings.md}>
+        <Column gap={16}>
             <TransactionReviewOutputList
                 account={account}
                 precomposedTx={precomposedTx}
@@ -116,7 +138,6 @@ export const TransactionReviewModalContent = ({
                 outputs={outputs}
                 buttonRequestsCount={buttonRequestsCount}
                 isRbfAction={isBumpFeeRbfAction}
-                tradingFormState={precomposedForm?.trading}
                 reviewStep={reviewStep}
                 isSending={isSending}
                 stakeType={stakeType || undefined}

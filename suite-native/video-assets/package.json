@@ -9,15 +9,16 @@
     "scripts": {
         "depcheck": "yarn g:depcheck",
         "type-check": "yarn g:tsc --build",
-        "generate-videos": "yarn g:tsx ./scripts/generateVideos.ts"
+        "generate-videos": "yarn g:tsx ./scripts/generateVideos.ts",
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     },
     "dependencies": {
-        "@trezor/styles": "workspace:*",
-        "expo": "53.0.20",
-        "expo-video": "2.2.2",
-        "prettier": "^3.6.2",
-        "react": "19.0.0",
-        "react-native": "0.79.3",
-        "react-native-reanimated": "^3.18.0"
+        "@trezor/styles-native": "workspace:*",
+        "expo": "~56.0.6",
+        "expo-video": "~56.1.2",
+        "prettier": "^3.8.3",
+        "react": "19.2.3",
+        "react-native": "0.85.3",
+        "react-native-reanimated": "4.3.1"
     }
 }

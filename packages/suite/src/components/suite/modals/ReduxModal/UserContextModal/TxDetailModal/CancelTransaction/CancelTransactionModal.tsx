@@ -1,25 +1,29 @@
 import { useEffect, useState } from 'react';
 
+import { Translation } from '@suite/intl';
+import { DEFAULT_PAYMENT } from '@suite-common/wallet-constants';
 import {
-    ComposeCancelTransactionPartialAccount,
+    type ComposeCancelTransactionPartialAccount,
     composeCancelTransactionThunk,
     selectTransactionConfirmations,
 } from '@suite-common/wallet-core';
 import {
-    Account,
-    ChainedTransactions,
-    PrecomposedTransactionFinalCancelRbf,
-    SelectedAccountLoaded,
-    WalletAccountTransactionWithRequiredRbfParams,
+    type Account,
+    type ChainedTransactions,
+    type FormState,
+    type PrecomposedTransactionFinalCancelRbf,
+    type SelectedAccountLoaded,
+    type WalletAccountTransactionWithRequiredRbfParams,
 } from '@suite-common/wallet-types';
+import { type PendingEvmNonceStatus } from '@suite-common/wallet-utils';
 import { Banner, Column, Modal } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+
+import { useDispatch, useSelector } from 'src/hooks/suite';
+import { CancelTxContext } from 'src/hooks/wallet/useCancelTxContext';
+import { useEthereumCancelTxCompose } from 'src/hooks/wallet/useEthereumCancelTxCompose';
 
 import { CancelTransaction } from './CancelTransaction';
 import { CancelTransactionButton } from './CancelTransactionButton';
-import { useDispatch, useSelector } from '../../../../../../../hooks/suite';
-import { CancelTxContext } from '../../../../../../../hooks/wallet/useCancelTxContext';
-import { Translation } from '../../../../../Translation';
 import { AffectedTransactions } from '../AffectedTransactions/AffectedTransactions';
 import { ReplaceByFeeFailedOriginalTxConfirmed } from '../ReplaceByFeeFailedOriginalTxConfirmed';
 import { TxDetailModalBase } from '../TxDetailModalBase';
@@ -36,6 +40,8 @@ type CancelTransactionModalProps = {
     onShowChained: () => void;
     chainedTxs?: ChainedTransactions;
     selectedAccount: SelectedAccountLoaded;
+    nonceStatus?: PendingEvmNonceStatus;
+    nextNonce?: number;
 };
 
 export const CancelTransactionModal = ({
@@ -45,13 +51,30 @@ export const CancelTransactionModal = ({
     onShowChained,
     chainedTxs,
     selectedAccount,
+    nonceStatus,
+    nextNonce,
 }: CancelTransactionModalProps) => {
-    const [error, setError] = useState<string | null>(null);
     const { account } = selectedAccount;
-
     const dispatch = useDispatch();
-    const [composedCancelTx, setComposedCancelTx] =
+
+    const {
+        composedCancelTx: ethComposedCancelTx,
+        cancelFormState,
+        error: ethError,
+    } = useEthereumCancelTxCompose({ account, tx });
+
+    const [utxoComposedCancelTx, setUtxoComposedCancelTx] =
         useState<PrecomposedTransactionFinalCancelRbf | null>(null);
+    const [utxoCancelFormState, setUtxoCancelFormState] = useState<FormState | null>(null);
+    const [utxoError, setUtxoError] = useState<string | null>(null);
+
+    const composedCancelTx =
+        account.networkType === 'ethereum' ? ethComposedCancelTx : utxoComposedCancelTx;
+    // Mirrors the shape useEthereumCancelTxCompose returns, so CancelTransactionButton always has
+    // a FormState to sign with regardless of network, instead of reconstructing one itself.
+    const formState = account.networkType === 'ethereum' ? cancelFormState : utxoCancelFormState;
+    const error = account.networkType === 'ethereum' ? ethError : utxoError;
+    const isComposing = composedCancelTx === null && error === null;
 
     const confirmations = useSelector(state =>
         selectTransactionConfirmations(state, tx.txid, account.key),
@@ -60,47 +83,69 @@ export const CancelTransactionModal = ({
     const isTxConfirmed = confirmations > 0;
 
     useEffect(() => {
-        if (tx.vsize === undefined) {
-            return;
-        }
-
-        if (!isComposeCancelTransactionPartialAccount(account)) {
-            return;
-        }
+        if (account.networkType === 'ethereum') return;
+        if (tx.vsize === undefined) return;
+        if (!isComposeCancelTransactionPartialAccount(account)) return;
 
         dispatch(composeCancelTransactionThunk({ account, tx, chainedTxs }))
             .unwrap()
             .then(precomposed => {
-                setComposedCancelTx({ ...precomposed, rbfType: 'cancel', prevTxid: tx.txid });
+                setUtxoComposedCancelTx({ ...precomposed, rbfType: 'cancel', prevTxid: tx.txid });
+                setUtxoCancelFormState({
+                    feeLimit: '', // Eth only
+                    feePerUnit: precomposed.feePerByte,
+                    hasCoinControlBeenOpened: false,
+                    isCoinControlEnabled: false,
+                    options: ['broadcast'],
+                    outputs: precomposed.outputs.map(output => ({
+                        ...DEFAULT_PAYMENT,
+                        ...output,
+                        amount: output.amount.toString(),
+                    })),
+                    selectedUtxos: [],
+                });
             })
-            .catch(setError);
+            .catch(setUtxoError);
     }, [account, tx, dispatch, chainedTxs]);
 
     return (
-        <CancelTxContext.Provider value={{ composedCancelTx }}>
+        <CancelTxContext.Provider
+            value={{ composedCancelTx, cancelFormState: formState, isComposing }}
+        >
             <TxDetailModalBase
                 tx={tx}
                 onCancel={onCancel}
                 heading={<Translation id="TR_TRANSACTION_DETAILS" />}
                 bottomContent={
                     isTxConfirmed ? (
-                        <Modal.Button variant="tertiary" onClick={onCancel}>
+                        <Modal.Button intent="neutral" priority="secondary" onClick={onCancel}>
                             <Translation id="TR_CLOSE_WINDOW" />
                         </Modal.Button>
                     ) : (
                         <>
-                            <CancelTransactionButton account={selectedAccount.account} />
+                            <CancelTransactionButton
+                                account={selectedAccount.account}
+                                onSuccess={onCancel}
+                            />
                             {error !== null ? (
                                 // This shall never happen, error like this always signal big in the code,
                                 // this is here just to make easier to detect and fix
-                                <Banner variant="destructive">
-                                    Error: transaction cannot be canceled ({error})
-                                </Banner>
+                                <Banner
+                                    intent="critical"
+                                    description={
+                                        <Translation
+                                            id="TR_CANCEL_TX_GENERIC_ERROR"
+                                            values={{ error }}
+                                        />
+                                    }
+                                />
                             ) : null}
                         </>
                     )
                 }
                 onBackClick={onBackClick}
+                nonceStatus={nonceStatus}
+                nextNonce={nextNonce}
             >
                 {isTxConfirmed ? (
                     <ReplaceByFeeFailedOriginalTxConfirmed
@@ -108,7 +153,7 @@ export const CancelTransactionModal = ({
                         networkType={account.networkType}
                     />
                 ) : (
-                    <Column gap={spacings.md}>
+                    <Column gap={16}>
                         <CancelTransaction tx={tx} selectedAccount={selectedAccount} />
                         <AffectedTransactions showChained={onShowChained} chainedTxs={chainedTxs} />
                     </Column>

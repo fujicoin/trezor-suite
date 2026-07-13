@@ -1,14 +1,14 @@
 import { type NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
-import { Card, HStack, Text } from '@suite-native/atoms';
+import { Card, HStack, InlineAlertBox, Text } from '@suite-native/atoms';
 import { NetworkIcon } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
 import { Link } from '@suite-native/link';
-import { isCoinWithTokens } from '@suite-native/tokens';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+import { HOW_TO_CHOOSE_RIGHT_NETWORK_URL } from '@trezor/urls';
 
 const cardStyle = prepareNativeStyle(utils => ({
-    backgroundColor: utils.colors.backgroundTertiaryDefaultOnElevation1,
-    borderColor: utils.colors.borderElevation0,
+    backgroundColor: utils.colors.legacyBackgroundTertiaryDefaultOnElevation1,
+    borderColor: utils.colors.borderNeutral,
     borderWidth: utils.borders.widths.small,
     paddingVertical: utils.spacings.sp12,
 
@@ -17,36 +17,59 @@ const cardStyle = prepareNativeStyle(utils => ({
 
 type CorrectNetworkMessageCardProps = {
     symbol: NetworkSymbol;
+    qrNetworkSymbol?: NetworkSymbol | null;
 };
 
-const LINK_URL =
-    'https://trezor.io/guides/sending-receiving-staking-funds/moving-funds-from-exchanges/how-to-choose-the-right-network';
-
-export const CorrectNetworkMessageCard = ({ symbol }: CorrectNetworkMessageCardProps) => {
+export const CorrectNetworkMessageCard = ({
+    symbol,
+    qrNetworkSymbol,
+}: CorrectNetworkMessageCardProps) => {
     const { applyStyle } = useNativeStyles();
 
-    if (!isCoinWithTokens(symbol)) return null;
+    const network = getNetwork(symbol);
 
-    const networkName = getNetwork(symbol).name;
+    if (qrNetworkSymbol) {
+        return (
+            <InlineAlertBox
+                intent="warning"
+                title={
+                    <Translation
+                        id="moduleSend.outputs.recipients.qrNetworkMismatch"
+                        values={{
+                            qrNetwork: getNetwork(qrNetworkSymbol).name,
+                            accountNetwork: network.name,
+                        }}
+                    />
+                }
+            />
+        );
+    }
+
+    if (network.networkType !== 'ethereum') return null;
 
     return (
         <Card style={applyStyle(cardStyle)}>
             <HStack spacing="sp12" alignItems="center">
                 <NetworkIcon symbol={symbol} size="extraLarge" />
-                <Text variant="hint">
+                <Text variant="body-sm">
                     <Translation
                         id="moduleSend.outputs.correctNetworkMessage"
                         values={{
-                            networkName,
-                            link: linkChunk => (
-                                <Link
-                                    href={LINK_URL}
-                                    label={linkChunk}
-                                    isUnderlined
-                                    textVariant="hint"
-                                    textColor="textDefault"
-                                />
-                            ),
+                            networkName: network.name,
+                            link: linkChunk => {
+                                const label = (linkChunk[0] as string) ?? '';
+
+                                return (
+                                    <Link
+                                        key={label}
+                                        href={HOW_TO_CHOOSE_RIGHT_NETWORK_URL}
+                                        label={label}
+                                        isUnderlined
+                                        textVariant="body-sm"
+                                        textColor="contentPrimary"
+                                    />
+                                );
+                            },
                         }}
                     />
                 </Text>

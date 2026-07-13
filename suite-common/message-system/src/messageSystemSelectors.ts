@@ -1,18 +1,18 @@
 import { createSelector } from '@reduxjs/toolkit';
 
-import { selectAnalyticsInstanceId } from '@suite-common/analytics';
+import { selectAnalyticsInstanceId } from '@suite-common/analytics-redux';
 import { createWeakMapSelector, returnStableArrayIfEmpty } from '@suite-common/redux-utils';
-import { Category, Message } from '@suite-common/suite-types';
+import { type Category, type Message } from '@suite-common/suite-types';
 
-import { getActiveExperimentGroup, getExperimentNameById } from './experimentUtils';
+import { getActiveExperimentGroup } from './experimentUtils';
+import { isYieldFeatureApplicableForVault } from './featureFlagUtils';
+import { EXPERIMENT_MAP } from './messageSystemConstants';
 import {
-    ContextDomain,
-    Experiment,
-    ExperimentId,
-    ExperimentKey,
-    ExperimentsItemType,
-    FeatureDomain,
-    MessageSystemRootState,
+    type ContextDomain,
+    type ExperimentId,
+    type ExperimentsItemType,
+    type FeatureDomain,
+    type MessageSystemRootState,
 } from './messageSystemTypes';
 import { resolveMessageContent } from './messageSystemUtils';
 
@@ -55,8 +55,7 @@ const makeSelectActiveMessagesByCategory = (category: Category) =>
     );
 
 export const selectActiveBannerMessages = makeSelectActiveMessagesByCategory('banner');
-export const selectActiveContextMessages = makeSelectActiveMessagesByCategory('context');
-export const selectActiveModalMessages = makeSelectActiveMessagesByCategory('modal');
+const selectActiveContextMessages = makeSelectActiveMessagesByCategory('context');
 export const selectActiveFeatureMessages = makeSelectActiveMessagesByCategory('feature');
 
 export const selectIsAnyBannerMessageActive = createMemoizedSelector(
@@ -67,12 +66,6 @@ export const selectIsAnyBannerMessageActive = createMemoizedSelector(
 export const selectBannerMessage = createMemoizedSelector(
     [selectActiveBannerMessages],
     activeBannerMessages => activeBannerMessages[0],
-);
-
-export const selectContextMessage = createMemoizedSelector(
-    [selectActiveContextMessages, (_state, domain: ContextDomain) => domain],
-    (activeContextMessages, domain) =>
-        activeContextMessages.find(message => message.context?.domain === domain),
 );
 
 export const selectContextMessageContent = createMemoizedSelector(
@@ -108,6 +101,14 @@ export const selectFeatureMessage = createMemoizedSelector(
         ),
 );
 
+const selectFeatureMessages = createMemoizedSelector(
+    [selectActiveFeatureMessages, (_state, domain: FeatureDomain) => domain],
+    (activeFeatureMessages, domain) =>
+        activeFeatureMessages.filter(message =>
+            message.feature?.some(feature => feature.domain === domain),
+        ),
+);
+
 export const selectFeatureMessageContent = createMemoizedSelector(
     [
         selectFeatureMessage,
@@ -122,6 +123,62 @@ export const selectFeatureConfig = createMemoizedSelector(
     [selectFeatureMessage, (_state, domain: FeatureDomain) => domain],
     (featureMessages, domain) =>
         featureMessages?.feature?.find(feature => feature.domain === domain),
+);
+
+export const selectYieldFeatureMessage = createMemoizedSelector(
+    [
+        selectActiveFeatureMessages,
+        (_state, domain: FeatureDomain) => domain,
+        (_state, _domain, vaultContractAddress?: string | null) => vaultContractAddress,
+    ],
+    (activeFeatureMessages, domain, vaultContractAddress) =>
+        activeFeatureMessages.find(message =>
+            message.feature?.some(
+                feature =>
+                    feature.domain === domain &&
+                    isYieldFeatureApplicableForVault({ feature, vaultContractAddress }),
+            ),
+        ),
+);
+
+const selectYieldFeatureConfig = createMemoizedSelector(
+    [
+        selectYieldFeatureMessage,
+        (_state, domain: FeatureDomain) => domain,
+        (_state, _domain, vaultContractAddress?: string | null) => vaultContractAddress,
+    ],
+    (featureMessages, domain, vaultContractAddress) =>
+        featureMessages?.feature?.find(
+            feature =>
+                feature.domain === domain &&
+                isYieldFeatureApplicableForVault({ feature, vaultContractAddress }),
+        ),
+);
+
+export const selectYieldFeatureMessageContent = createMemoizedSelector(
+    [
+        selectYieldFeatureMessage,
+        (_state, domain: FeatureDomain) => domain,
+        (_state, _domain, vaultContractAddress: string | null | undefined) => vaultContractAddress,
+        (_state, _domain, _vaultContractAddress, language: string) => language,
+    ],
+    (featureMessages, _domain, _vaultContractAddress, language) =>
+        featureMessages ? resolveMessageContent(featureMessages.content, language) : undefined,
+);
+
+export const selectIsYieldFeatureDisabled = createMemoizedSelector(
+    [selectYieldFeatureConfig],
+    featureConfig => {
+        const featureFlag = featureConfig?.flag;
+
+        return featureFlag !== undefined ? !featureFlag : false;
+    },
+);
+
+export const selectFeaturesConfig = createMemoizedSelector(
+    [selectFeatureMessages, (_state, domain: FeatureDomain) => domain],
+    (messages, domain) =>
+        messages.filter(message => message?.feature?.find(feature => feature.domain === domain)),
 );
 
 // These don't need memoization as they're simple computations
@@ -145,8 +202,17 @@ export const selectIsFeatureDisabled = (
     return featureFlag !== undefined ? !featureFlag : (defaultValue ?? false);
 };
 
+export const selectActiveKillswitchMessage = createMemoizedSelector(
+    [selectActiveFeatureMessages],
+    messages =>
+        messages.find(m => m.feature?.some(item => item.domain === 'killswitch' && item?.flag)),
+);
+
 export const selectAllManuallyAddedMessageIds = (state: MessageSystemRootState) =>
     state.messageSystem.manuallyAddedMessageIds;
+
+export const selectAllManuallyAddedExperimentIds = (state: MessageSystemRootState) =>
+    state.messageSystem.manuallyAddedExperimentIds;
 
 const selectValidMessages = (state: MessageSystemRootState) => state.messageSystem.validMessages;
 const selectValidExperiments = (state: MessageSystemRootState) =>
@@ -191,20 +257,13 @@ export const selectExperimentById = (id: ExperimentId) =>
         ),
     );
 
-export const selectExperimentByKey = (key: ExperimentKey) =>
-    createMemoizedSelector([selectAllValidExperiments], allValidExperiments =>
-        allValidExperiments.find(
-            (experiment): experiment is ExperimentsItemType => experiment.id === Experiment[key],
-        ),
-    );
-
 export const selectActiveExperimentsWithVariants = createSelector(
     [selectAnalyticsInstanceId, selectAllValidExperiments],
     (instanceId, experiments) =>
         returnStableArrayIfEmpty(
             experiments.flatMap(experiment => {
                 const id = experiment.id as ExperimentId;
-                const name = getExperimentNameById(id);
+                const name = EXPERIMENT_MAP[id];
                 const activeGroup = getActiveExperimentGroup({
                     instanceId,
                     experiment: {
@@ -217,3 +276,12 @@ export const selectActiveExperimentsWithVariants = createSelector(
             }),
         ),
 );
+
+export const selectAllExperimentInclusionOverrides = (state: MessageSystemRootState) =>
+    state.messageSystem.experimentInclusionOverrides;
+
+export const selectExperimentInclusionOverrideById = (id: ExperimentId) =>
+    createMemoizedSelector(
+        [selectAllExperimentInclusionOverrides],
+        inclusionOverrides => inclusionOverrides?.[id] ?? null,
+    );

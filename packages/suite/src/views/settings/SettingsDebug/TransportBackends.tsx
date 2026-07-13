@@ -1,10 +1,9 @@
 import { Checkbox } from '@trezor/components';
+import { ActionColumn, SectionItem, TextColumn } from '@trezor/product-components';
 
-import { ActionColumn, SectionItem, TextColumn } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
+import { useBridgeDesktopApi } from 'src/hooks/suite/useBridgeDesktopApi';
 import { selectTransportOfType } from 'src/selectors/suite/suiteSelectors';
-
-import { useBridgeDesktopApi } from '../../../hooks/suite/useBridgeDesktopApi';
 
 export const TransportBackends = () => {
     const bridge = useSelector(selectTransportOfType('BridgeTransport'));
@@ -37,25 +36,8 @@ export const TransportBackends = () => {
                 <ActionColumn>
                     <Checkbox
                         isChecked={bridgeProcess.process}
-                        onClick={() => {
+                        onChange={() => {
                             toggleBridge();
-                        }}
-                    />
-                </ActionColumn>
-            </SectionItem>
-            <SectionItem data-testid="@settings/debug/processes/bridgeLegacy">
-                <TextColumn
-                    title="Use legacy Bridge"
-                    description="Legacy trezord-go will be spawned as a subprocess. This is useful to interact with older (HID) devices."
-                />
-                <ActionColumn>
-                    <Checkbox
-                        isChecked={bridgeSettings?.legacy}
-                        onClick={() => {
-                            changeBridgeSettings({
-                                ...bridgeSettings,
-                                legacy: !bridgeSettings?.legacy,
-                            });
                         }}
                     />
                 </ActionColumn>
@@ -68,7 +50,7 @@ export const TransportBackends = () => {
                 <ActionColumn>
                     <Checkbox
                         isChecked={!bridgeSettings.doNotStartOnStartup}
-                        onClick={() => {
+                        onChange={() => {
                             changeBridgeSettings({
                                 ...bridgeSettings,
                                 doNotStartOnStartup: !bridgeSettings.doNotStartOnStartup,

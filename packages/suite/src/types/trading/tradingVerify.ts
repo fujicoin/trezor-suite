@@ -1,22 +1,16 @@
-import { ReactNode } from 'react';
-import { UseFormReturn } from 'react-hook-form';
+import { type ReactNode } from 'react';
+import { type UseFormReturn } from 'react-hook-form';
 
-import { CryptoId } from 'invity-api';
+import { type CryptoId } from 'invity-api';
 
-import { AccountAddress } from '@trezor/connect';
+import { type ExtendedMessageDescriptor } from '@suite/intl';
+import { type AccountAddress } from '@trezor/connect';
 
-import { ExtendedMessageDescriptor } from 'src/types/suite';
 import type { Account } from 'src/types/wallet';
 
 export interface TradingVerifyFormProps {
     address?: string;
     extraField?: string;
-}
-
-export type TradingAccountType = 'SUITE' | 'ADD_SUITE' | 'NON_SUITE';
-export interface TradingVerifyFormAccountOptionProps {
-    type: TradingAccountType;
-    account?: Account;
 }
 
 export interface TradingVerifyAccountProps {
@@ -33,21 +27,31 @@ export interface TradingVerifyAccountReturnProps {
     form: UseFormReturn<TradingVerifyFormProps>;
     accountAddress: AccountAddress | Pick<AccountAddress, 'path' | 'address'> | undefined;
     receiveNetwork: CryptoId | undefined;
-    selectAccountOptions: TradingVerifyFormAccountOptionProps[];
-    selectedAccountOption?: TradingVerifyFormAccountOptionProps;
+    suiteReceiveAccounts: Account[] | undefined;
+    selectedAccount: Account | null | undefined;
+    canAddSuiteAccount: boolean;
+    canUseNonSuiteAccount: boolean;
     isMenuOpen: boolean | undefined;
     getTranslationIds: (
-        type: TradingVerifyFormAccountOptionProps['type'] | undefined,
+        selectedAccount: Account | null | undefined,
     ) => TradingGetTranslationIdsProps;
-    onChangeAccount: (account: TradingVerifyFormAccountOptionProps) => void;
+    onChangeAccount: (account: Account) => void;
+    selectNonSuiteAddress: (address?: string) => void;
+    openAddSuiteAccount: () => void;
 }
 
-export type TradingVerifyOptionsProps = { receiveNetwork: CryptoId; label: ReactNode } & Pick<
-    TradingVerifyAccountReturnProps,
-    'selectAccountOptions' | 'selectedAccountOption' | 'onChangeAccount' | 'isMenuOpen'
->;
-
-export interface TradingVerifyOptionsItemProps {
-    option: TradingVerifyFormAccountOptionProps;
+export type TradingVerifyOptionsProps = {
     receiveNetwork: CryptoId;
-}
+    label: ReactNode;
+    isDisabled?: boolean;
+} & Pick<
+    TradingVerifyAccountReturnProps,
+    | 'suiteReceiveAccounts'
+    | 'selectedAccount'
+    | 'canAddSuiteAccount'
+    | 'canUseNonSuiteAccount'
+    | 'onChangeAccount'
+    | 'selectNonSuiteAddress'
+    | 'openAddSuiteAccount'
+    | 'isMenuOpen'
+>;

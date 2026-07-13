@@ -1,15 +1,17 @@
-import { ChangeEvent, useCallback, useEffect, useState } from 'react';
+import { type ChangeEvent, useCallback, useEffect, useState } from 'react';
 
-import { isAddressValid, tryGetAccountIdentity } from '@suite-common/wallet-utils';
+import { selectSelectedAccount } from '@suite/account';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation, useTranslation } from '@suite/intl';
+import { isAddressValid } from '@suite-common/address';
+import { useServices } from '@suite-common/dependency-injection';
+import { tryGetAccountIdentity } from '@suite-common/wallet-utils';
 import { Input, Modal } from '@trezor/components';
-import TrezorConnect, { TokenInfo } from '@trezor/connect';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import TrezorConnect, { type TokenInfo } from '@trezor/connect';
 
 import { addToken } from 'src/actions/wallet/tokenActions';
-import { Translation } from 'src/components/suite/Translation';
-import { useDispatch, useSelector, useTranslation } from 'src/hooks/suite';
-import { selectSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
-import { Account } from 'src/types/wallet';
+import { useDispatch, useSelector } from 'src/hooks/suite';
+import { type Account } from 'src/types/wallet';
 
 type AddTokenModalProps = {
     onCancel: () => void;
@@ -23,6 +25,7 @@ export const AddTokenModal = ({ onCancel }: AddTokenModalProps) => {
     const account = useSelector(selectSelectedAccount);
     const dispatch = useDispatch();
     const { translationString } = useTranslation();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
 
     const loadTokenInfo = useCallback(
         async (acc: Account, contractAddress: string) => {
@@ -35,6 +38,7 @@ export const AddTokenModal = ({ onCancel }: AddTokenModalProps) => {
                 details: 'tokenBalances',
                 contractFilter: contractAddress,
                 suppressBackupWarning: true,
+                protocols: acc.networkType === 'ethereum' ? ['erc4626'] : undefined,
             });
 
             if (response.success) {
@@ -51,7 +55,7 @@ export const AddTokenModal = ({ onCancel }: AddTokenModalProps) => {
                 setTokenInfo(undefined);
                 setError(
                     translationString('TR_ADD_TOKEN_TOAST_ERROR', {
-                        error: response.payload.error,
+                        error: response.error.message,
                     }),
                 );
             }
@@ -88,19 +92,13 @@ export const AddTokenModal = ({ onCancel }: AddTokenModalProps) => {
         setTokenInfo(undefined);
         setContractAddress(addr);
     };
-    const getInputState = () => {
-        if (error) return 'error';
-
-        return undefined;
-    };
-
     const handleAddTokenButtonClick = () => {
         if (tokenInfo) {
             dispatch(addToken(account, tokenInfo));
             onCancel();
 
             analytics.report({
-                type: EventType.AddToken,
+                type: events.addTokenEvent.name,
                 payload: {
                     networkSymbol: account.symbol,
                     addedNth: account.tokens ? account.tokens.length + 1 : 0,
@@ -128,7 +126,7 @@ export const AddTokenModal = ({ onCancel }: AddTokenModalProps) => {
                 label={<Translation id="TR_ADD_TOKEN_LABEL" />}
                 value={contractAddress}
                 bottomText={error || null}
-                inputState={getInputState()}
+                hasError={!!error}
                 onChange={onChange}
             />
         </Modal>

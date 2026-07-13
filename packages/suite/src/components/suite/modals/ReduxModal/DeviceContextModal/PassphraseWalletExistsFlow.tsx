@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
-import { TrezorDevice } from '@suite-common/suite-types';
-import { cancelDiscoveryThunk, startDiscoveryThunk } from '@suite-common/wallet-core';
-import { DiscoveryStatus } from '@suite-common/wallet-types';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { cancelDiscoveryThunk, startAddWalletDiscoveryThunk } from '@suite-common/wallet-core';
+import { type DiscoveryStatus } from '@suite-common/wallet-types';
 
 import { useDispatch } from 'src/hooks/suite';
 
@@ -14,11 +14,8 @@ import { PassphraseWalletIsEmpty } from './PassphraseWalletIsEmpty';
 type PassphraseWalletExistsFlowProps = {
     discovery: DiscoveryStatus;
     device: TrezorDevice;
-    deviceOffer: boolean;
-    authConfirmation?: boolean;
-    passphraseState: DiscoveryStatus['status'];
-    submittingPassphrase: boolean;
-    onCancel?: () => void;
+    offerPassphraseOnDevice: boolean;
+    onCancel: () => void;
     onSubmit: (value: string, passphraseOnDevice?: boolean) => void;
     onBackToInitial: () => void;
 };
@@ -26,9 +23,7 @@ type PassphraseWalletExistsFlowProps = {
 export const PassphraseWalletExistsFlow = ({
     discovery,
     device,
-    deviceOffer,
-    passphraseState,
-    submittingPassphrase,
+    offerPassphraseOnDevice,
     onCancel,
     onSubmit,
     onBackToInitial,
@@ -41,18 +36,20 @@ export const PassphraseWalletExistsFlow = ({
     const toExistEnterPassphrase = () => {
         dispatch(cancelDiscoveryThunk(device));
         dispatch(
-            startDiscoveryThunk({
+            startAddWalletDiscoveryThunk({
                 device,
-                ...discovery,
+                isAddingHiddenWallet: discovery.isAddingHiddenWallet,
+                isAddingExistingWallet: discovery.isAddingExistingWallet,
             }),
         );
     };
 
-    if (passphraseState === 'confirm-empty-passphrase') {
+    if (discovery.status === 'confirm-empty-passphrase') {
         switch (confirmPassphraseFlowState) {
             case 'empty-wallet':
                 return (
                     <PassphraseWalletIsEmpty
+                        accountFailed={discovery.accountFailed}
                         onCancel={onCancel}
                         onNext={() => {
                             // Navigate to best practices
@@ -84,7 +81,7 @@ export const PassphraseWalletExistsFlow = ({
                         isExistingWallet={true}
                         device={device}
                         onCancel={onCancel}
-                        onDeviceOffer={deviceOffer}
+                        offerPassphraseOnDevice={offerPassphraseOnDevice}
                         onSubmit={onSubmit}
                     />
                 );
@@ -95,8 +92,8 @@ export const PassphraseWalletExistsFlow = ({
         <EnterPassphrase
             isExistingWallet={true}
             device={device}
-            submitting={submittingPassphrase}
-            onDeviceOffer={deviceOffer}
+            submitting={discovery.passphraseSubmitted}
+            offerPassphraseOnDevice={offerPassphraseOnDevice}
             onBack={onBackToInitial}
             onCancel={onCancel}
             onSubmit={onSubmit}

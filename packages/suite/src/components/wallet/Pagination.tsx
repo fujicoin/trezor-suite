@@ -2,13 +2,14 @@ import { useForm } from 'react-hook-form';
 
 import styled, { css } from 'styled-components';
 
+import { Translation } from '@suite/intl';
+import { selectLanguage } from '@suite/settings';
 import { Button, Row } from '@trezor/components';
+import { CaretLeftIcon, CaretRightIcon } from '@trezor/icons';
 import { NumberInput } from '@trezor/product-components';
 import { borders, spacings, spacingsPx, typography } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite/Translation';
 import { useSelector } from 'src/hooks/suite';
-import { selectLanguage } from 'src/selectors/suite/suiteSelectors';
 
 const Wrapper = styled.div<{ $hasPages?: boolean }>`
     display: flex;
@@ -26,22 +27,22 @@ const PageItem = styled.div<{ $isActive?: boolean }>`
     height: ${spacingsPx.xxl};
     padding: ${spacingsPx.xxs} ${spacingsPx.xs};
     background: ${({ $isActive, theme }) =>
-        $isActive ? theme.backgroundSecondaryDefault : 'transparent'};
+        $isActive ? theme.elementFillBrandBold : 'transparent'};
     text-align: center;
-    color: ${({ $isActive, theme }) => $isActive && theme.textOnSecondary};
+    color: ${({ $isActive, theme }) => $isActive && theme.contentPrimaryInverse};
     border-radius: ${borders.radii.md};
     transition:
         background 0.15s ease-out,
         color 0.15s ease-out;
-    ${typography.hint};
+    ${typography['body-sm']};
     cursor: pointer;
 
     ${({ $isActive, theme }) =>
         !$isActive &&
         css`
             &:hover {
-                background: ${theme.backgroundTertiaryDefaultOnElevation0};
-                color: ${theme.textOnTertiary};
+                background: ${theme.elementFillNeutralSofter};
+                color: ${theme.contentNeutral};
             }
         `};
 `;
@@ -58,7 +59,7 @@ const Ellipsis = styled(PageItem)`
 const Actions = styled.div<{ $isActive: boolean }>`
     display: flex;
     visibility: ${props => (props.$isActive ? 'auto' : 'hidden')};
-    ${typography.callout};
+    ${typography['body-sm-strong']};
 `;
 
 export interface GetPagesProps {
@@ -69,6 +70,10 @@ export interface GetPagesProps {
 export type Page = number | '...';
 
 export const getPages = ({ currentPage: page, totalPages: total }: GetPagesProps): Page[] => {
+    if (total <= 0) {
+        return [];
+    }
+
     if (total <= 7) {
         return [...Array(total)].map((_, i) => i + 1);
     }
@@ -91,6 +96,9 @@ interface PaginationProps {
     perPage: number;
     totalItems: number;
     explicitNavigation?: boolean;
+    // `totalItems` is a lower-bound estimate rather than a true count (e.g. accounts that can
+    // always be derived further), so the page-input shouldn't reject pages beyond it.
+    noUpperBound?: boolean;
     onPageSelected: (page: number) => void;
 }
 
@@ -102,13 +110,14 @@ export const Pagination = ({
     perPage,
     totalItems,
     explicitNavigation = false,
+    noUpperBound = false,
     ...rest
 }: PaginationProps) => {
     const locale = useSelector(selectLanguage);
 
     const totalPages = Math.ceil(totalItems / perPage);
     const showPrev = currentPage > 1;
-    const showNext = currentPage < totalPages;
+    const showNext = noUpperBound || currentPage < totalPages;
 
     const { control, watch } = useForm({
         defaultValues: {
@@ -121,7 +130,7 @@ export const Pagination = ({
     const isPageInputInvalid =
         !Number.isInteger(Number(pageInput)) ||
         Number(pageInput) < 1 ||
-        Number(pageInput) > totalPages;
+        (!noUpperBound && Number(pageInput) > totalPages);
 
     const pageNumbers = getPages({ currentPage, totalPages });
 
@@ -135,9 +144,9 @@ export const Pagination = ({
                 <Actions $isActive={showPrev}>
                     <Button
                         onClick={() => onPageSelected(currentPage - 1)}
-                        icon="caretLeft"
-                        iconAlignment="start"
-                        variant="tertiary"
+                        iconLeft={CaretLeftIcon}
+                        intent="neutral"
+                        priority="secondary"
                     >
                         <Translation id="TR_PAGINATION_NEWER" />
                     </Button>
@@ -145,9 +154,9 @@ export const Pagination = ({
                 <Actions $isActive={!isLastPage}>
                     <Button
                         onClick={() => onPageSelected(currentPage + 1)}
-                        icon="caretRight"
-                        iconAlignment="end"
-                        variant="tertiary"
+                        iconRight={CaretRightIcon}
+                        intent="neutral"
+                        priority="secondary"
                     >
                         <Translation id="TR_PAGINATION_OLDER" />
                     </Button>
@@ -159,7 +168,12 @@ export const Pagination = ({
     return (
         <Wrapper $hasPages={hasPages} {...rest}>
             <Actions $isActive={showPrev}>
-                <PageItem onClick={() => onPageSelected(currentPage - 1)}>‹</PageItem>
+                <PageItem
+                    onClick={() => onPageSelected(currentPage - 1)}
+                    data-testid="@wallet/pagination/go-to-previous-page-button"
+                >
+                    ‹
+                </PageItem>
             </Actions>
 
             {pageNumbers.map((page, index) =>
@@ -179,17 +193,29 @@ export const Pagination = ({
             )}
 
             <Actions $isActive={showNext}>
-                <PageItem onClick={() => onPageSelected(currentPage + 1)}>›</PageItem>
+                <PageItem
+                    onClick={() => onPageSelected(currentPage + 1)}
+                    data-testid="@wallet/pagination/go-to-next-page-button"
+                >
+                    ›
+                </PageItem>
             </Actions>
 
             {explicitNavigation && (
                 <Row alignItems="center" gap={spacings.sm} maxWidth="140px">
-                    <NumberInput name="pageInput" control={control} locale={locale} size="small" />
-                    <Button
-                        variant="tertiary"
-                        onClick={goToPage}
+                    <NumberInput
+                        name="pageInput"
+                        control={control}
+                        locale={locale}
                         size="small"
+                        data-testid="@wallet/pagination/go-to-page-input"
+                    />
+                    <Button
+                        intent="neutral"
+                        priority="secondary"
+                        onClick={goToPage}
                         isDisabled={isPageInputInvalid}
+                        data-testid="@wallet/pagination/go-to-page-button"
                     >
                         <Translation id="TR_PAGINATION_GO" />
                     </Button>

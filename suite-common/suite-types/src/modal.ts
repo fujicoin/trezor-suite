@@ -1,10 +1,23 @@
-import { RequestEnableTorResponse } from '@suite-common/suite-config';
+import { type RequestEnableTorResponse } from '@suite-common/suite-config';
 import { type NetworkSymbol } from '@suite-common/wallet-config';
-import { Account, AddressType } from '@suite-common/wallet-types';
-import { UI } from '@trezor/connect';
-import { Deferred } from '@trezor/utils';
+import {
+    type Account,
+    type AccountKey,
+    type AddressType,
+    type EvmSelectedFee,
+} from '@suite-common/wallet-types';
+import { type UI_REQUEST } from '@trezor/connect';
+import { type Deferred } from '@trezor/utils';
 
-import { TrezorDevice } from './device';
+import { type TrezorDevice } from './device';
+import {
+    type EarnAnalyticsStep,
+    type EarnFlow,
+    type EarnModalAction,
+    type EarnProvider,
+    type EarnYieldContext,
+    type StakeModalFlow,
+} from './staking';
 
 export type UserContextPayload =
     | {
@@ -13,6 +26,7 @@ export type UserContextPayload =
       }
     | {
           type: 'unverified-address';
+          accountKey: AccountKey;
           value: string;
           addressPath: string;
       }
@@ -41,6 +55,7 @@ export type UserContextPayload =
           isCoinjoinDisabled?: boolean;
           isBackClickDisabled?: boolean;
           onCancel?: () => void;
+          onConfirm?: () => void;
       }
     | {
           type: 'device-background-gallery';
@@ -66,39 +81,13 @@ export type UserContextPayload =
           decision: Deferred<{ [key: string]: string }[]>;
       }
     | {
-          type: 'trading-buy-terms';
-          provider?: string;
-          cryptoCurrency?: string;
-          decision: Deferred<boolean>;
-      }
-    | {
-          type: 'trading-sell-terms';
-          provider?: string;
-          cryptoCurrency?: string;
-          decision: Deferred<boolean>;
-      }
-    | {
-          type: 'trading-exchange-terms';
-          provider?: string;
-          fromCryptoCurrency?: string;
-          toCryptoCurrency?: string;
-          decision: Deferred<boolean>;
-      }
-    | {
-          type: 'trading-exchange-dex-terms';
-          provider?: string;
-          fromCryptoCurrency?: string;
-          toCryptoCurrency?: string;
-          decision: Deferred<boolean>;
-      }
-    | {
           type: 'application-log';
       }
     | {
           type: 'pin-mismatch';
       }
     | {
-          type: typeof UI.INVALID_PIN_ATTEMPTS_DEPLETED;
+          type: typeof UI_REQUEST.INVALID_PIN_ATTEMPTS_DEPLETED;
       }
     | {
           type: 'device-authenticity-check-opt-out';
@@ -113,6 +102,9 @@ export type UserContextPayload =
     | {
           type: 'advanced-coin-settings';
           symbol: NetworkSymbol;
+      }
+    | {
+          type: 'activate-assets';
       }
     | {
           type: 'add-token';
@@ -154,25 +146,58 @@ export type UserContextPayload =
           type: 'uneco-coinjoin-warning';
       }
     | {
-          type: 'authenticate-device';
+          type: 'earn-in-a-nutshell';
+          flow: EarnFlow.Stake | EarnFlow.UpdateProvider;
+          provider: EarnProvider;
+          account: Account;
+          analyticsStep: Extract<EarnAnalyticsStep, 'staking-dashboard'>;
+          actionType?: EarnModalAction;
+          yieldContext?: EarnYieldContext;
       }
     | {
-          type: 'authenticate-device-fail';
+          type: 'earn-in-a-nutshell';
+          flow: EarnFlow.Yield;
+          provider: EarnProvider;
+          account: Account;
+          analyticsStep: Extract<
+              EarnAnalyticsStep,
+              'earn-dashboard' | 'yield-deposit' | 'yield-withdraw'
+          >;
+          actionType?: EarnModalAction;
+          yieldContext?: EarnYieldContext;
       }
     | {
-          type: 'stake-in-a-nutshell';
+          type: 'tron-stake-in-a-nutshell';
+          actionType?: EarnModalAction;
+      }
+    | {
+          type: 'tron-vote-consent';
+          representativeName: string;
+          termsOfServiceUrl: string;
+          decision: Deferred<boolean>;
       }
     | {
           type: 'stake';
+          flow: StakeModalFlow;
+          account: Account;
       }
     | {
           type: 'unstake';
+          account: Account;
       }
     | {
           type: 'claim';
+          account: Account;
       }
     | {
-          type: 'everstake';
+          type: 'earn-provider-consent';
+          flow: EarnFlow;
+          provider: EarnProvider;
+          account: Account;
+          yieldContext?: EarnYieldContext;
+      }
+    | {
+          type: 'change-delegate';
       }
     | {
           type: 'copy-address';
@@ -182,9 +207,6 @@ export type UserContextPayload =
     | {
           type: 'unhide-token';
           address: string;
-      }
-    | {
-          type: 'cardano-withdraw-modal';
       }
     | {
           type: 'connect-popup';
@@ -198,11 +220,10 @@ export type UserContextPayload =
           sessionTopic: string;
       }
     | {
-          type: 'trading-dca';
-          device: TrezorDevice;
+          type: 'connect-address-confirmation';
       }
     | {
-          type: 'connect-address-confirmation';
+          type: 'connect-select-account';
       }
     | {
           type: 'connect-error';
@@ -214,5 +235,26 @@ export type UserContextPayload =
           type: 'auto-start-before-quit';
       }
     | {
-          type: 'tx-simulation';
+          type: 'connect-popup-tx-simulation';
+      }
+    | {
+          type: 'earn-yield-tx-simulation';
+          data: unknown;
+          decision: Deferred<
+              | {
+                    value: true;
+                    selectedFee: EvmSelectedFee | null;
+                    /**
+                     * Send a signal from the thunk to the modal that the related business logic has finished.
+                     * Used for tracking the loading state of the confirm button in the modal.
+                     */
+                    resolve: () => void;
+                }
+              | {
+                    value: false;
+                }
+          >;
+      }
+    | {
+          type: 'wipe-device-success';
       };

@@ -1,9 +1,13 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 import styled from 'styled-components';
 
 import { colorVariants } from '@trezor/theme';
 
-import { Divider as DividerComponent, DividerProps, allowedDividerFrameProps } from './Divider';
+import {
+    Divider as DividerComponent,
+    type DividerProps,
+    allowedDividerFrameProps,
+} from './Divider';
 import { getFramePropsStory } from '../../utils/frameProps';
 
 const Container = styled.div<Pick<DividerProps, 'orientation'>>`
@@ -13,10 +17,10 @@ const Container = styled.div<Pick<DividerProps, 'orientation'>>`
     flex-direction: ${({ orientation }) => (orientation === 'horizontal' ? 'column' : 'row')};
 `;
 
-const meta: Meta = {
+const meta: Meta<typeof DividerComponent> = {
     title: 'Divider',
     component: DividerComponent,
-} as Meta;
+};
 export default meta;
 
 export const Divider: StoryObj<typeof DividerComponent> = {

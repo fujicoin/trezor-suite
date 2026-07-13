@@ -6,14 +6,15 @@ import { CopyToClipboard } from 'nextra/components';
 import styled, { useTheme } from 'styled-components';
 
 import {
-    ButtonProps,
+    Button,
+    type ButtonProps,
     Card,
-    H3,
     IconButton,
     Row,
-    Button as TrezorButton,
+    Text,
     variables,
 } from '@trezor/components';
+import { XIcon } from '@trezor/icons';
 import { spacingsPx } from '@trezor/theme';
 
 import * as methodActions from '../actions/methodActions';
@@ -34,11 +35,9 @@ import {
 interface Props {
     actions: {
         onSubmit: typeof methodActions.onSubmit;
-        onVerify: typeof methodActions.onVerify;
         onBatchAdd: typeof methodActions.onBatchAdd;
         onBatchRemove: typeof methodActions.onBatchRemove;
         onFieldChange: typeof methodActions.onFieldChange;
-        onFieldDataChange: typeof methodActions.onFieldDataChange;
         onSetUnion: typeof methodActions.onSetUnion;
     };
 }
@@ -62,7 +61,12 @@ const getArray = (field: FieldWithBundle<any>, props: Props) => (
     <ArrayWrapper
         key={field.name}
         field={field}
-        onAdd={() => props.actions.onBatchAdd(field, field.batch[0].fields)}
+        onAdd={() => {
+            const { batch } = field;
+            // @ts-expect-error: indexing with noUncheckedIndexedAccess
+            const firstBatch: (typeof batch)[number] = batch[0];
+            props.actions.onBatchAdd(field, firstBatch.fields);
+        }}
     >
         {field.items?.map((batch, index) => {
             const key = `${field.name}-${index}`;
@@ -102,9 +106,6 @@ export const getField = (field: Field<any> | FieldWithBundle<any>, props: Props)
                     onChange={props.actions.onFieldChange}
                 />
             );
-        case 'address':
-            return <Input key={field.name} field={field} onChange={props.actions.onFieldChange} />;
-
         case 'checkbox':
             return (
                 <Checkbox
@@ -119,7 +120,7 @@ export const getField = (field: Field<any> | FieldWithBundle<any>, props: Props)
                 <Card
                     key={field.name}
                     paddingType="small"
-                    label={field.name}
+                    header={field.name}
                     margin={{ bottom: 8 }}
                 >
                     <CodeEditor
@@ -167,12 +168,12 @@ export const MethodContent = styled.div<{ $manualMode?: boolean }>(
 
 const Container = styled.div`
     position: relative;
-    background: ${({ theme }) => theme.backgroundSurfaceElevation2};
+    background: ${({ theme }) => theme.elementFillField};
     border-radius: 12px;
     width: 100%;
     overflow-x: auto;
     padding: ${spacingsPx.sm} ${spacingsPx.md};
-    word-wrap: break-word;
+    overflow-wrap: break-word;
     word-break: break-all;
     min-height: 150px;
     margin-bottom: 10px;
@@ -187,12 +188,6 @@ const Container = styled.div`
         width: 100%;
         overflow-x: scroll;
     }
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const Heading = styled(H3)`
-    font-size: 16px;
-    font-weight: 600;
 `;
 
 const Checkboxes = styled.div`
@@ -220,56 +215,27 @@ const Sticky = styled.div`
     width: 100%;
 `;
 
-// eslint-disable-next-line local-rules/no-override-ds-component
-const Button = styled(TrezorButton)`
-    margin-top: ${spacingsPx.sm};
-`;
-
-interface VerifyButtonProps {
-    onClick: (url: string) => void;
-    name: string;
-}
-
-export const VerifyButton = ({ name, onClick }: VerifyButtonProps) => {
-    const signMethods = ['signMessage', 'ethereumSignMessage'];
-    const verifyUrls = ['/method/verifyMessage', '/method/ethereumVerifyMessage'];
-    const index = signMethods.indexOf(name);
-    if (index < 0) return null;
-
-    return <Button onClick={() => onClick(verifyUrls[index])}>Verify response</Button>;
-};
-
 type SubmitButtonProps = {
     onClick: ButtonProps['onClick'];
-    isFullWidth?: ButtonProps['isFullWidth'];
-    isLoading: ButtonProps['isLoading'];
+    isLoading: boolean;
     text?: string;
 };
 
-const SubmitButton = ({ onClick, text, isFullWidth, isLoading }: SubmitButtonProps) => (
-    <Button
-        onClick={onClick}
-        data-testid="@submit-button"
-        isFullWidth={isFullWidth}
-        isLoading={isLoading}
-    >
+const SubmitButton = ({ onClick, text, isLoading }: SubmitButtonProps) => (
+    <Button onClick={onClick} data-testid="@submit-button" flex="1" isLoading={isLoading}>
         {text || 'Submit'}
     </Button>
 );
 
 export const Method = () => {
     const theme = useTheme();
-    const { method } = useSelector(state => ({
-        method: state.method,
-    }));
+    const method = useSelector(state => state.method);
     const actions = useActions({
         onSubmit: methodActions.onSubmit,
         onCancelCall: methodActions.onCancelCall,
-        onVerify: methodActions.onVerify,
         onBatchAdd: methodActions.onBatchAdd,
         onBatchRemove: methodActions.onBatchRemove,
         onFieldChange: methodActions.onFieldChange,
-        onFieldDataChange: methodActions.onFieldDataChange,
         onSetUnion: methodActions.onSetUnion,
         onCodeChange: methodActions.onCodeChange,
     });
@@ -302,7 +268,7 @@ export const Method = () => {
 
     const json = response ? (
         <Inspector
-            theme={theme.legacy.THEME === 'light' ? 'chromeLight' : 'chromeDark'}
+            theme={theme.mode === 'light' ? 'chromeLight' : 'chromeDark'}
             data={response}
             expandLevel={10}
             table={false}
@@ -320,19 +286,21 @@ export const Method = () => {
             <div>
                 {manualMode ? (
                     <Container>
-                        <Heading>Method with params</Heading>
+                        <Text typographyStyle="body-md-strong">Method with params</Text>
                         <CodeEditor {...{ code, codeChange, schema }} />
                         <CopyWrapper>
                             <CopyToClipboard getValue={() => javascriptCode ?? ''} />
                         </CopyWrapper>
 
-                        <Row>
-                            <SubmitButton {...buttonProps} isFullWidth />
+                        <Row gap={4} margin={{ top: 12 }}>
+                            <SubmitButton {...buttonProps} />
                             {buttonProps.isLoading && (
                                 <IconButton
-                                    icon="x"
-                                    variant="tertiary"
+                                    icon={XIcon}
+                                    intent="neutral"
+                                    priority="secondary"
                                     onClick={() => actions.onCancelCall()}
+                                    tooltip={{ isActive: false }}
                                 />
                             )}
                         </Row>
@@ -345,32 +313,32 @@ export const Method = () => {
                 <Sticky>
                     {!manualMode && (
                         <Container data-testid="@code">
-                            <Heading>Method with params</Heading>
+                            <Text typographyStyle="body-md-strong">Method with params</Text>
                             <CopyWrapper>
                                 <CopyToClipboard getValue={() => javascriptCode ?? ''} />
                             </CopyWrapper>
                             <pre>{javascriptCode}</pre>
-                            <Row>
-                                <SubmitButton {...buttonProps} isFullWidth />
+                            <Row gap={4} margin={{ top: 12 }}>
+                                <SubmitButton {...buttonProps} />
                                 {buttonProps.isLoading && (
                                     <IconButton
-                                        icon="x"
-                                        variant="tertiary"
+                                        icon={XIcon}
+                                        intent="neutral"
+                                        priority="secondary"
+                                        data-testid="@cancel-button"
                                         onClick={() => actions.onCancelCall()}
+                                        tooltip={{ isActive: false }}
                                     />
                                 )}
                             </Row>
                         </Container>
                     )}
                     <Container data-testid="@response">
-                        <Heading>Response</Heading>
+                        <Text typographyStyle="body-md-strong">Response</Text>
                         <CopyWrapper>
                             <CopyToClipboard getValue={() => JSON.stringify(response, null, 2)} />
                         </CopyWrapper>
                         {json}
-                        {/*response && response.success && (
-                            <VerifyButton name={name} onClick={onVerify} />
-                        )*/}
                     </Container>
                 </Sticky>
             </div>

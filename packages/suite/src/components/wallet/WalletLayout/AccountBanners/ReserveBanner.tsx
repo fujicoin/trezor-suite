@@ -1,10 +1,10 @@
+import { Translation } from '@suite/intl';
 import { getDisplaySymbol, getNetwork } from '@suite-common/wallet-config';
 import { formatNetworkAmount } from '@suite-common/wallet-utils';
 import { Banner } from '@trezor/components';
 import { HELP_CENTER_XLM_URL, HELP_CENTER_XRP_URL } from '@trezor/urls';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { BigNumber } from '@trezor/utils';
 
-import { Translation } from 'src/components/suite';
 import type { Account } from 'src/types/wallet/index';
 
 interface ReserveBannerProps {
@@ -30,21 +30,22 @@ export const ReserveBanner = ({ account }: ReserveBannerProps) => {
 
     return bigBalance.isLessThan(bigReserve) ? (
         <Banner
-            variant="warning"
+            intent="warning"
             rightContent={
                 <Banner.Button href={learnMoreUrl}>
                     <Translation id="TR_LEARN_MORE" />
                 </Banner.Button>
             }
-        >
-            <Translation
-                id="TR_RESERVE_INFO"
-                values={{
-                    minBalance: formatNetworkAmount(account.misc.reserve, account.symbol),
-                    networkName: getNetwork(account.symbol).name,
-                    displaySymbol: getDisplaySymbol(account.symbol),
-                }}
-            />
-        </Banner>
+            description={
+                <Translation
+                    id="TR_RESERVE_INFO"
+                    values={{
+                        minBalance: formatNetworkAmount(account.misc.reserve, account.symbol),
+                        networkName: getNetwork(account.symbol).name,
+                        displaySymbol: getDisplaySymbol(account.symbol),
+                    }}
+                />
+            }
+        />
     ) : null;
 };

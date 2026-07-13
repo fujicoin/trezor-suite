@@ -1,137 +1,13 @@
-// origin: https://github.com/trezor/connect/blob/develop/src/data/config.json
-
-import { DeviceModelInternal } from '@trezor/device-utils';
-import { TREZOR_USB_DESCRIPTORS } from '@trezor/transport/src/constants';
+import type { FirmwareRule } from '@trezor/connect-common';
+import { TREZOR_USB_DESCRIPTORS } from '@trezor/transport-common';
 
 type Config = {
     webusb: typeof TREZOR_USB_DESCRIPTORS;
-    whitelist: Array<{ origin: string; priority: number }>;
-    management: Array<{ origin: string }>;
-    knownHosts: Array<{ origin: string; label: string }>;
-    onionDomains: Record<string, string>;
-    supportedBrowsers: Record<
-        string,
-        {
-            version: number;
-            download: string;
-            update: string;
-        }
-    >;
-    supportedFirmware: Array<{
-        coin?: string[]; // Todo: better type?
-        capabilities?: string[]; // Todo: better type?
-        methods?: string[]; // Todo: better type?
-        min: Partial<Record<DeviceModelInternal, string>>;
-        max?: undefined; // NOTE: max field is not used anywhere at the moment, it is here for type compatibility
-        comment?: string[];
-    }>;
+    supportedFirmware: Array<FirmwareRule>;
 };
 
 export const config: Config = {
     webusb: TREZOR_USB_DESCRIPTORS,
-    whitelist: [
-        { origin: 'chrome-extension://imloifkgjagghnncjkhggdhalmcnfklk', priority: 1 },
-        { origin: 'chrome-extension://niebkpllfhmpfbffbfifagfgoamhpflf', priority: 1 },
-        { origin: 'file://', priority: 2 },
-        { origin: 'trezor.io', priority: 0 },
-        { origin: 'sldev.cz', priority: 0 },
-        { origin: 'localhost', priority: 0 },
-        { origin: 'trezoriovpjcahpzkrewelclulmszwbqpzmzgub37gbcjlvluxtruqad.onion', priority: 0 },
-    ],
-    management: [{ origin: 'trezor.io' }, { origin: 'sldev.cz' }, { origin: 'localhost' }],
-    knownHosts: [
-        {
-            origin: 'imloifkgjagghnncjkhggdhalmcnfklk',
-            label: 'Trezor Password Manager (Develop)',
-        },
-        { origin: 'niebkpllfhmpfbffbfifagfgoamhpflf', label: 'Trezor Password Manager' },
-        {
-            origin: 'mnpfhpndmjholfdlhpkjfmjkgppmodaf',
-            label: 'MetaMask',
-        },
-        {
-            origin: 'webextension@metamask.io',
-            label: 'MetaMask',
-        },
-        {
-            origin: 'nkbihfbeogaeaoehlefnkodbefgpgknn',
-            label: 'MetaMask',
-        },
-        {
-            origin: 'bpcdaglidgnlggelgbjfagekoapjmccp',
-            label: 'Rainbow DEV',
-        },
-        {
-            origin: 'opfgelmcmbiajamepnmloijbpoleiama',
-            label: 'Rainbow',
-        },
-        {
-            origin: 'acmacodkjbdgmoleebolmdjonilkdbch',
-            label: 'Rabby',
-        },
-        {
-            origin: 'ehnpnhnhcickeknioaiodjmielfaoajd',
-            label: 'Ambire DEV',
-        },
-        {
-            origin: 'ehgjhhccekdedpbkifaojjaefeohnoea',
-            label: 'Ambire',
-        },
-        { origin: 'file://', label: ' ' },
-    ],
-    onionDomains: {
-        'trezor.io': 'trezoriovpjcahpzkrewelclulmszwbqpzmzgub37gbcjlvluxtruqad.onion',
-    },
-    supportedBrowsers: {
-        chrome: {
-            version: 59,
-            download: 'https://www.google.com/chrome/',
-            update: 'https://support.google.com/chrome/answer/95414',
-        },
-        mobilechrome: {
-            version: 59,
-            download: 'https://www.google.com/chrome/',
-            update: 'https://support.google.com/chrome/answer/95414',
-        },
-        chromium: {
-            version: 59,
-            download: 'https://www.chromium.org/',
-            update: 'https://www.chromium.org/',
-        },
-        electron: {
-            version: 0,
-            download: 'https://www.electronjs.org/',
-            update: 'https://www.electronjs.org/',
-        },
-        firefox: {
-            version: 54,
-            download: 'https://www.mozilla.org/en-US/firefox/new/',
-            update: 'https://support.mozilla.org/en-US/kb/update-firefox-latest-version',
-        },
-        mobilefirefox: {
-            version: 54,
-            download: 'https://www.mozilla.org/en-US/firefox/new/',
-            update: 'https://support.mozilla.org/en-US/kb/update-firefox-latest-version',
-        },
-        brave: {
-            // Chromium based
-            version: 59,
-            download: 'https://brave.com/download/',
-            update: 'https://brave.com/download/',
-        },
-        edge: {
-            // Since version 79, Edge is based on Chromium
-            version: 79,
-            download: 'https://www.microsoft.com/en-us/edge',
-            update: 'https://www.microsoft.com/en-us/edge',
-        },
-        opera: {
-            // Chromium based
-            version: 95,
-            download: 'https://www.opera.com/download',
-            update: 'https://www.opera.com/download',
-        },
-    },
     supportedFirmware: [
         {
             coin: ['xrp', 'txrp'],
@@ -150,7 +26,7 @@ export const config: Config = {
             ],
         },
         {
-            coin: ['eth', 'tsep', 'thol'],
+            coin: ['eth', 'tsep', 'thod'],
             min: { T1B1: '1.8.0', T2T1: '2.1.0' },
             comment: ['There were protobuf backwards incompatible changes.'],
         },
@@ -264,6 +140,26 @@ export const config: Config = {
             },
         },
         {
+            capabilities: ['tropicDeviceAuthentication'],
+            min: {
+                // devices that don't support 'authenticateDevice' don't have to be listed here
+                T2B1: '0',
+                T3B1: '0',
+                T3T1: '0',
+                T3W1: '2.9.3',
+            },
+        },
+        {
+            capabilities: ['mcuDeviceAuthentication', 'authenticityProofChunk'],
+            min: {
+                // devices that don't support 'authenticateDevice' don't have to be listed here
+                T2B1: '0',
+                T3B1: '0',
+                T3T1: '0',
+                T3W1: '2.12.1',
+            },
+        },
+        {
             capabilities: ['getFirmwareHash'],
             methods: ['getFirmwareHash'],
             min: { T1B1: '1.11.1', T2T1: '2.5.1' },
@@ -316,14 +212,61 @@ export const config: Config = {
             comment: ['Cardano SignMessage call added in 2.9.1'],
         },
         {
-            methods: ['evoluGetNode'],
+            methods: ['nostrGetPublicKey', 'nostrSignEvent'],
+            firmwareType: 'production',
+            min: { T1B1: '0', T2T1: '0', T2B1: '0', T3B1: '0', T3T1: '0', T3W1: '0' },
+            comment: [
+                'Nostr is only available on debug / unsigned firmware builds.',
+                'On production firmware the method is rejected as FIRMWARE_NOT_SUPPORTED.',
+            ],
+        },
+        {
+            capabilities: ['evolu'],
+            methods: [
+                'evoluGetNode',
+                'evoluSignRegistrationRequest',
+                'evoluGetDelegatedIdentityKey',
+            ],
             min: {
                 T1B1: '0',
-                T2T1: '2.9.2',
-                T2B1: '2.9.2',
-                T3B1: '2.9.2',
-                T3T1: '2.9.2',
+                T2T1: '0',
+                T2B1: '2.11.0',
+                T3B1: '2.11.0',
+                T3T1: '2.11.0',
+                T3W1: '2.11.0',
             },
+        },
+        {
+            capabilities: ['monero'],
+            methods: [
+                'moneroGetAddress',
+                'moneroGetWatchKey',
+                'moneroKeyImageSync',
+                'moneroSignTransaction',
+            ],
+            min: {
+                T1B1: '0',
+                T2T1: '2.5.3',
+                T2B1: '2.5.3',
+            },
+        },
+        {
+            capabilities: ['telemetry'],
+            methods: ['telemetryGet'],
+            min: { T1B1: '0', T2T1: '0', T2B1: '0', T3B1: '0', T3T1: '0', T3W1: '2.11.0' },
+            comment: ['Supported since 2.11.0, only on T3W1'],
+        },
+        {
+            capabilities: ['evmClearSigning'],
+            min: {
+                T1B1: '0',
+                T2T1: '2.12.1',
+                T2B1: '2.12.1',
+                T3B1: '2.12.1',
+                T3T1: '2.12.1',
+                T3W1: '2.12.1',
+            },
+            comment: ['Ethereum clear signing for known contracts/function selectors since 2.12.1'],
         },
     ],
 };

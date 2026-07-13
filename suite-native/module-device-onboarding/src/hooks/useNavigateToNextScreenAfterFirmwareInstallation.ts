@@ -2,13 +2,13 @@ import { useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
+import { selectDeviceModel, selectDeviceUnavailableCapabilities } from '@suite-common/device';
 import { SUPPORTS_DEVICE_AUTHENTICITY_CHECK } from '@suite-common/suite-constants';
 import { selectThpStep } from '@suite-common/thp';
-import { selectDeviceModel, selectDeviceUnavailableCapabilities } from '@suite-common/wallet-core';
 import {
-    DeviceOnboardingStackParamList,
+    type DeviceOnboardingStackParamList,
     DeviceOnboardingStackRoutes,
-    StackToStackCompositeNavigationProps,
+    type StackToStackCompositeNavigationProps,
 } from '@suite-native/navigation';
 import { selectIsDeviceAuthenticityCheckEnabled } from '@suite-native/settings';
 
@@ -35,15 +35,15 @@ export const useNavigateToNextScreenAfterFirmwareInstallation = () => {
 
     const navigateToNextScreenAfterFirmwareInstallation = () => {
         if (thpStep === 'BeforeConnectionInfo') {
-            navigation.navigate(DeviceOnboardingStackRoutes.ThpPairingInfo);
+            navigation.replace(DeviceOnboardingStackRoutes.ThpPairingInfo);
         } else if (isDeviceTutorialSupported) {
-            navigation.navigate(
+            navigation.replace(
                 shouldAuthenticateSelectedDevice
                     ? DeviceOnboardingStackRoutes.DeviceAuthenticity
                     : DeviceOnboardingStackRoutes.DeviceTutorial,
             );
         } else {
-            navigation.navigate(DeviceOnboardingStackRoutes.CreateOrRecoverCrossroads);
+            navigation.replace(DeviceOnboardingStackRoutes.CreateOrRecoverCrossroads);
         }
     };
 

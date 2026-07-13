@@ -1,82 +1,64 @@
-import styled from 'styled-components';
+import { useWatch } from 'react-hook-form';
 
-import { FormOptions } from '@suite-common/wallet-types';
-import { Button, Tooltip } from '@trezor/components';
+import { formInputsMaxLength } from '@suite-common/validators';
+import { type AccountWithNetworkType, type FormOptions } from '@suite-common/wallet-types';
+import { Column } from '@trezor/components';
 
-import { Translation } from 'src/components/suite';
 import { useSendFormContext } from 'src/hooks/wallet';
+import { useEvmNonceInfo } from 'src/hooks/wallet/useEvmNonceInfo';
 
-import { EthereumData } from './EthereumData';
-import { OnOffSwitcher } from '../OnOffSwitcher';
-
-const Wrapper = styled.div`
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-`;
-
-const Left = styled.div`
-    display: flex;
-    flex: 1;
-    justify-content: flex-start;
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledButton = styled(Button)`
-    margin-right: 8px;
-
-    & > div {
-        display: inline-flex;
-    }
-`;
+import { EthereumNonce } from './EthereumNonce';
+import { TransactionData } from '../shared/TransactionData';
 
 export const EthereumOptions = () => {
-    const { getDefaultValue, toggleOption, composeTransaction } = useSendFormContext();
+    const { getDefaultValue, toggleOption, composeTransaction, account, setValue, control } =
+        useSendFormContext();
+
+    // Nonce editing is toggled from the send-form header dropdown (EVM-only). useWatch keeps this in
+    // sync with that cross-component toggle (getValues would not re-render here when it flips).
+    // No defaultValue is passed: it would mask the form's current value until the next change event.
+    const enabledOptions = useWatch({ name: 'options', control });
+    const isEditingNonce = (enabledOptions ?? []).includes('ethereumNonce');
+
+    // Gated on isEditingNonce (the user deliberately opening the nonce override) so this doesn't
+    // fetch on every account update; the authoritative check normally deferred to signing time
+    // (signEthereumSendFormTransactionThunk) is worth paying for here too, since a stale display
+    // both misleads the user and can suggest a nonce that's already in use. This component only
+    // ever renders for ethereum accounts (see Options.tsx), hence the cast.
+    const { nonceInfo } = useEvmNonceInfo(account as AccountWithNetworkType<'ethereum'>, {
+        enabled: isEditingNonce,
+    });
+    const displayNonce = nonceInfo?.nextNonce.toString();
+    const confirmedNonce = nonceInfo?.confirmedNonce.toString();
 
     const options = getDefaultValue('options', []);
-    const dataEnabled = options.includes('ethereumData');
-    const tokenValue = getDefaultValue<string, string | undefined>('outputs.0.token', undefined);
-    const broadcastEnabled = options.includes('broadcast');
+    const dataEnabled = options.includes('transactionData');
 
     const toggle = (option: FormOptions) => {
         toggleOption(option);
         composeTransaction();
     };
-    const toggleData = () => toggle('ethereumData');
-    const toggleBroadcast = () => toggle('broadcast');
+    const toggleData = () => toggle('transactionData');
+
+    const cancelNonceOverride = () => {
+        setValue('ethereumNonce', '');
+        toggleOption('ethereumNonce');
+        composeTransaction();
+    };
 
     return (
-        <Wrapper>
-            <Left>
-                {!dataEnabled && !tokenValue && (
-                    <Tooltip content={<Translation id="DATA_ETH_ADD_TOOLTIP" />} cursor="pointer">
-                        <StyledButton
-                            variant="tertiary"
-                            size="small"
-                            icon="database"
-                            data-testid="send/open-ethereum-data"
-                            onClick={toggleData}
-                        >
-                            <Translation id="DATA_ETH_ADD" />
-                        </StyledButton>
-                    </Tooltip>
-                )}
+        <Column gap={16}>
+            {dataEnabled && (
+                <TransactionData maxBytes={formInputsMaxLength.ethData} close={toggleData} />
+            )}
 
-                <Tooltip content={<Translation id="BROADCAST_TOOLTIP" />} cursor="pointer">
-                    <StyledButton
-                        variant="tertiary"
-                        size="small"
-                        icon="broadcast"
-                        data-testid="send/broadcast"
-                        onClick={toggleBroadcast}
-                    >
-                        <Translation id="BROADCAST" />
-                        <OnOffSwitcher isOn={broadcastEnabled} />
-                    </StyledButton>
-                </Tooltip>
-            </Left>
-
-            {dataEnabled && <EthereumData close={toggleData} />}
-        </Wrapper>
+            {isEditingNonce && (
+                <EthereumNonce
+                    displayNonce={displayNonce}
+                    confirmedNonce={confirmedNonce}
+                    onCancel={cancelNonceOverride}
+                />
+            )}
+        </Column>
     );
 };

@@ -1,26 +1,25 @@
 import {
-    SkippedHashCheckError,
-    SkippedRevisionCheckError,
-} from '@suite-common/firmware-authenticity';
-import { TranslationKey } from '@suite-common/intl-types';
-import { selectWasFwHashCheckOtherErrorLastTime } from '@suite-common/wallet-core';
-import { Banner, Row } from '@trezor/components';
-import { FirmwareHashCheckError, FirmwareRevisionCheckError } from '@trezor/connect';
-import { spacings } from '@trezor/theme';
-import { TREZOR_SUPPORT_FW_REVISION_CHECK_FAILED_URL } from '@trezor/urls';
-
-import { Translation, TrezorLink } from 'src/components/suite';
-import { useSelector } from 'src/hooks/suite';
-import {
     selectFirmwareHashCheckErrorIfEnabled,
     selectFirmwareRevisionCheckErrorIfEnabled,
-} from 'src/selectors/suite/suiteAuthenticityChecksSelectors';
+} from '@suite/authenticity-checks';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { selectWasFwHashCheckOtherErrorLastTime } from '@suite-common/device';
+import {
+    type SkippedHashCheckError,
+    type SkippedRevisionCheckError,
+} from '@suite-common/firmware-authenticity';
+import { Banner } from '@trezor/components';
+import { type FirmwareHashCheckError, type FirmwareRevisionCheckError } from '@trezor/connect';
+import { TREZOR_SUPPORT_FW_REVISION_CHECK_FAILED_URL } from '@trezor/urls';
+
+import { useSelector } from 'src/hooks/suite';
 
 const revisionCheckMessages: Record<
     Exclude<FirmwareRevisionCheckError, SkippedRevisionCheckError>,
     TranslationKey
 > = {
     'cannot-perform-check-offline': 'TR_DEVICE_FIRMWARE_REVISION_CHECK_UNABLE_TO_PERFORM',
+    'bootloader-hash-mismatch': 'TR_FIRMWARE_REVISION_CHECK_FAILED',
     'revision-mismatch': 'TR_FIRMWARE_REVISION_CHECK_FAILED',
     'firmware-version-unknown': 'TR_FIRMWARE_REVISION_CHECK_FAILED',
 };
@@ -55,17 +54,6 @@ const useAuthenticityCheckMessage = (): TranslationKey | null => {
 };
 
 const urlWithChatBox = `${TREZOR_SUPPORT_FW_REVISION_CHECK_FAILED_URL}#open-chat`;
-
-const BannerButtons = () => (
-    <Row gap={spacings.sm}>
-        <TrezorLink variant="nostyle" href={urlWithChatBox}>
-            <Banner.Button>
-                <Translation id="TR_CONTACT_TREZOR_SUPPORT" />
-            </Banner.Button>
-        </TrezorLink>
-    </Row>
-);
-
 export const FirmwareAuthenticityCheckBanner = () => {
     const firmwareRevisionError = useSelector(selectFirmwareRevisionCheckErrorIfEnabled);
     const firmwareHashError = useSelector(selectFirmwareHashCheckErrorIfEnabled);
@@ -84,10 +72,15 @@ export const FirmwareAuthenticityCheckBanner = () => {
     return (
         <Banner
             icon
-            variant={useWarningVariant ? 'warning' : 'destructive'}
-            rightContent={hideBannerButtons ? null : <BannerButtons />}
-        >
-            <Translation id={message} />
-        </Banner>
+            intent={useWarningVariant ? 'warning' : 'critical'}
+            rightContent={
+                !hideBannerButtons && (
+                    <Banner.Button href={urlWithChatBox}>
+                        <Translation id="TR_CONTACT_TREZOR_SUPPORT" />
+                    </Banner.Button>
+                )
+            }
+            description={<Translation id={message} />}
+        />
     );
 };

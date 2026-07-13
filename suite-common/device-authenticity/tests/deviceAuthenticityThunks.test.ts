@@ -1,87 +1,136 @@
-import { TrezorDevice } from '@suite-common/suite-types';
+import { deviceActions } from '@suite-common/device';
+import { messageSystemInitialState } from '@suite-common/message-system';
+import type { StoredAuthenticateDeviceResult, TrezorDevice } from '@suite-common/suite-types';
+import { mockSuiteDevice } from '@suite-common/suite-types/mocks';
 import { configureMockStore, testMocks } from '@suite-common/test-utils';
-import { notificationsActions } from '@suite-common/toast-notifications';
+import { type ToastPayload, notificationsActions } from '@suite-common/toast-notifications';
+import type { AuthenticateDeviceResult, Response } from '@trezor/connect';
+import { Err, Ok } from '@trezor/type-utils';
 
-import { deviceAuthenticityActions } from '../src/deviceAuthenticityActions';
-import { checkDeviceAuthenticityThunk } from '../src/deviceAuthenticityThunks';
+import { checkDeviceAuthenticityThunk } from '../src/checkDeviceAuthenticityThunk';
 
 const initStore = (device?: TrezorDevice) =>
     configureMockStore({
-        extra: {
-            selectors: {
-                selectDevice: () => device,
+        preloadedState: {
+            device: {
+                selectedDevice: device,
+                devices: device ? [device] : [],
             },
+            messageSystem: messageSystemInitialState,
         },
     });
 
 const getDevice = (isLocked: boolean) => ({
-    ...testMocks.getSuiteDevice(undefined, { bootloader_locked: isLocked }),
+    ...mockSuiteDevice(undefined, { bootloader_locked: isLocked }),
 });
 
-const successResponse = {
+const connectCallFailResponse: Err<any> = {
+    success: false,
+    error: { message: 'error' },
+};
+
+const verificationSuccessResponse: Ok<AuthenticateDeviceResult> = {
     success: true,
     payload: {
-        valid: true,
+        optigaResult: {
+            valid: true,
+            caPubKey: 'not-blacklisted-ca-pub-key',
+            rootPubKey: 'recognized-root-pub-key',
+        },
+        tropicResult: null,
+        mcuResult: null,
     },
 };
-const failResponse = {
-    success: false,
-    payload: { error: 'error' },
+
+const verifyFailureResponseNotFound: Ok<AuthenticateDeviceResult> = {
+    success: true,
+    payload: {
+        optigaResult: {
+            valid: false,
+            error: 'ROOT_PUBKEY_NOT_FOUND',
+            caPubKey: 'bad-ca-pub-key',
+        },
+        tropicResult: null,
+        mcuResult: null,
+    },
 };
-const failResult = { valid: false, error: 'error' };
+
+const verifyFailureResponseBlacklisted: Ok<AuthenticateDeviceResult> = {
+    success: true,
+    payload: {
+        optigaResult: {
+            valid: false,
+            error: 'CA_PUBKEY_BLACKLISTED',
+            caPubKey: 'blacklisted-root-pub-key',
+        },
+        tropicResult: null,
+        mcuResult: null,
+    },
+};
+
 const deviceWithLockedBootloader = getDevice(true);
 
-const fixtures = [
+type Fixture = {
+    description: string;
+    device: TrezorDevice | undefined;
+    mockedConnectResponse?: Awaited<Response<AuthenticateDeviceResult>>;
+    expectedFulfilled: boolean;
+    expectedToastType?: ToastPayload['type'];
+    expectedResult?: StoredAuthenticateDeviceResult;
+};
+
+const fixtures: Fixture[] = [
     {
         description: 'Success',
         device: deviceWithLockedBootloader,
-        connectResponse: successResponse,
+        mockedConnectResponse: verificationSuccessResponse,
+        expectedFulfilled: true,
         expectedToastType: 'device-authenticity-success',
-        expectedResult: { valid: true },
+        expectedResult: { valid: true, ...verificationSuccessResponse.payload },
     },
     {
         description: 'Success - skip toast',
         device: deviceWithLockedBootloader,
-        connectResponse: successResponse,
-        expectedResult: { valid: true },
-    },
-    {
-        description: 'Success - despite expired config',
-        device: deviceWithLockedBootloader,
-        connectResponse: {
-            success: true,
-            payload: { valid: false, error: 'CA_PUBKEY_NOT_FOUND', configExpired: true },
-        },
-        expectedToastType: 'device-authenticity-success',
-        expectedResult: { valid: true, error: 'CA_PUBKEY_NOT_FOUND', configExpired: true },
+        mockedConnectResponse: verificationSuccessResponse,
+        expectedFulfilled: true,
+        expectedResult: { valid: true, ...verificationSuccessResponse.payload },
     },
     {
         description: 'Exception - missing device',
         device: undefined,
+        expectedFulfilled: false,
     },
     {
         description: 'No result - aborted on device or some other error',
         device: deviceWithLockedBootloader,
-        connectResponse: failResponse,
+        mockedConnectResponse: connectCallFailResponse,
+        expectedFulfilled: false,
         expectedToastType: 'error',
         expectedResult: undefined,
     },
     {
-        description: 'Fail - bootloader unlocked',
-        device: getDevice(false),
-        connectResponse: failResponse,
-        expectedToastType: 'error',
-        expectedResult: failResult,
+        description: 'Error - root pub key not found',
+        device: deviceWithLockedBootloader,
+        mockedConnectResponse: verifyFailureResponseNotFound,
+        expectedFulfilled: false,
+        expectedToastType: 'device-authenticity-error',
+        expectedResult: { valid: false, ...verifyFailureResponseNotFound.payload },
     },
     {
-        description: 'Fail',
+        description: 'Error - caPubKey is blacklisted',
         device: deviceWithLockedBootloader,
-        connectResponse: {
-            success: true,
-            payload: failResult,
-        },
+        mockedConnectResponse: verifyFailureResponseBlacklisted,
+        expectedFulfilled: false,
         expectedToastType: 'device-authenticity-error',
-        expectedResult: failResult,
+        expectedResult: { valid: false, ...verifyFailureResponseBlacklisted.payload },
+    },
+    {
+        description: 'Error - bootloader unlocked',
+        device: getDevice(false),
+        mockedConnectResponse: connectCallFailResponse,
+        expectedFulfilled: false,
+        expectedToastType: 'error',
+        expectedResult: { valid: false, error: 'error' },
     },
 ];
 
@@ -89,7 +138,7 @@ describe('Check device authenticity', () => {
     fixtures.forEach(f => {
         it(f.description, async () => {
             const store = initStore(f.device);
-            testMocks.setTrezorConnectFixtures(f.connectResponse);
+            testMocks.setTrezorConnectFixtures(f.mockedConnectResponse);
             await store.dispatch(
                 checkDeviceAuthenticityThunk({
                     allowDebugKeys: false,
@@ -98,15 +147,22 @@ describe('Check device authenticity', () => {
             );
 
             const actions = store.getActions();
+            // always expecting to have started
             const expectedActions = [checkDeviceAuthenticityThunk.pending.type];
+            // expected to have emitted toast
             if (f.expectedToastType) {
                 expectedActions.splice(1, 0, notificationsActions.addToast.type);
-                expect(actions[1].payload.type).toBe(f.expectedToastType);
+                const toastAction = actions[actions.length - 3];
+                expect(toastAction?.payload.type).toBe(f.expectedToastType);
             }
+            // thunk is expected to fail fast if there is no device, and not emit a result, which is always bound to device
             if (f.device) {
-                expectedActions.push(deviceAuthenticityActions.result.type);
+                expectedActions.push(deviceActions.setDeviceAuthenticityResult.type);
+            }
+            if (f.expectedFulfilled) {
                 expectedActions.push(checkDeviceAuthenticityThunk.fulfilled.type);
-                expect(actions[actions.length - 2].payload.result).toEqual(f.expectedResult);
+                const fulfilledAction = actions[actions.length - 2];
+                expect(fulfilledAction?.payload.result).toEqual(f.expectedResult);
             } else {
                 expectedActions.push(checkDeviceAuthenticityThunk.rejected.type);
             }

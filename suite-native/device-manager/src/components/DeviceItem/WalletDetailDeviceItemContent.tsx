@@ -1,9 +1,9 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 import { Box, HStack, Text } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-import { NativeTypographyStyle } from '@trezor/theme';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+import { type NativeTypographyStyle } from '@trezor/theme';
 
 import { ConnectionDot } from './ConnectionDot';
 
@@ -55,7 +55,11 @@ export const WalletDetailDeviceItemContent = ({
                     />
                 )}
             </HStack>
-            <Text variant="hint" color="textSubdued" testID="@deviceManager/walletDetail/subheader">
+            <Text
+                variant="body-sm"
+                color="contentSecondary"
+                testID="@deviceManager/walletDetail/subheader"
+            >
                 {isPortfolioTrackerDevice && (
                     <Translation id="deviceManager.status.portfolioTracker" />
                 )}

@@ -3,6 +3,7 @@
     "compilerOptions": { "outDir": "libDev" },
     "references": [
         { "path": "../../suite-common/assets" },
+        { "path": "../../suite-common/device" },
         {
             "path": "../../suite-common/formatters"
         },
@@ -19,13 +20,18 @@
             "path": "../../suite-common/wallet-core"
         },
         {
+            "path": "../../suite-common/wallet-types"
+        },
+        {
             "path": "../../suite-common/wallet-utils"
         },
         { "path": "../accounts" },
         { "path": "../atoms" },
+        { "path": "../discovery" },
         { "path": "../formatters" },
         { "path": "../icons" },
         { "path": "../intl" },
+        { "path": "../module-earn" },
         { "path": "../navigation" },
         { "path": "../staking" },
         { "path": "../tokens" },

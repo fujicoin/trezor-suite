@@ -1,7 +1,8 @@
 import { DotIndicator, Icon } from '@trezor/components';
+import { CheckIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { TransactionReviewOutputElementProps } from 'src/components/suite/modals/ReduxModal/TransactionReviewModal/TransactionReviewOutputList/TransactionReviewOutputElement';
+import { type TransactionReviewOutputElementProps } from 'src/components/suite/modals/ReduxModal/TransactionReviewModal/TransactionReviewOutputList/TransactionReviewOutputElement';
 
 type TransactionReviewOutputStatusProps = {
     state: TransactionReviewOutputElementProps['state'];
@@ -10,7 +11,7 @@ type TransactionReviewOutputStatusProps = {
 export const TransactionReviewOutputStatus = ({ state }: TransactionReviewOutputStatusProps) => {
     switch (state) {
         case 'confirmed':
-            return <Icon size={spacings.md} variant="primary" name="check" />;
+            return <Icon size={spacings.md} intent="brand" as={CheckIcon} />;
         case 'unconfirmed':
             return <DotIndicator />;
         default:

@@ -4,9 +4,9 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { useEvent } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
-import { VideoName, videos } from '../videos';
+import { type VideoName, videos } from '../videos';
 
 type VideoProps = {
     name: VideoName;
@@ -40,6 +40,7 @@ export const Video = ({ name, aspectRatio = 1 }: VideoProps) => {
     const videoPlayer = useVideoPlayer(videoSource, player => {
         player.play();
         player.loop = true;
+        player.audioMixingMode = 'auto';
         player.muted = true;
     });
 
@@ -51,7 +52,7 @@ export const Video = ({ name, aspectRatio = 1 }: VideoProps) => {
             {isLoading && (
                 <ActivityIndicator
                     size="large"
-                    color={utils.colors.borderSecondary}
+                    color={utils.colors.borderBrand}
                     style={applyStyle(activityIndicatorStyle)}
                 />
             )}

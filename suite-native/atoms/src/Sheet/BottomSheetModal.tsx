@@ -1,22 +1,26 @@
-import { ReactNode, Ref, forwardRef, useCallback } from 'react';
+import { type ReactNode, type Ref, forwardRef, useCallback, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
     BottomSheetBackdrop,
-    BottomSheetBackdropProps,
+    type BottomSheetBackdropProps,
+    BottomSheetFooter,
+    type BottomSheetFooterProps,
     BottomSheetModal as BottomSheetModalBase,
+    type BottomSheetModalProps as BottomSheetModalBaseProps,
 } from '@gorhom/bottom-sheet';
-import { BottomSheetModalMethods } from '@gorhom/bottom-sheet/lib/typescript/types';
+import { type BottomSheetModalMethods } from '@gorhom/bottom-sheet/lib/typescript/types';
 
-import { useScrollDivider } from '@suite-native/navigation';
+import { useScrollDivider } from '@suite-native/scrollview';
 import { getScreenHeight } from '@trezor/env-utils';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
-import { BoxProps } from '../Box';
+import { Box, type BoxProps } from '../Box';
 import { BottomSheetHeader } from './BottomSheetHeader';
 import { BottomSheetModalContent } from './BottomSheetModalContent';
 
-const SCREEN_HEIGHT = getScreenHeight();
-const MAX_HEIGHT = SCREEN_HEIGHT * 0.9;
+const TOP_OFFSET = 72; // corresponds to screen header size
+const MAX_MODAL_HEIGHT = getScreenHeight() - TOP_OFFSET;
 
 export type BottomSheetModalProps = {
     children: ReactNode;
@@ -24,23 +28,48 @@ export type BottomSheetModalProps = {
     title?: ReactNode;
     subtitle?: ReactNode;
     isCloseDisplayed?: boolean;
+    bottomSheetCustomProps?: Partial<BottomSheetModalBaseProps>;
+    // triggered when the close button is pressed
+    onClose?: () => void;
+    // triggered Always when the modal is dismissed
     onDismiss?: () => void;
 } & BoxProps;
 
-const backgroundStyle = prepareNativeStyle(utils => ({
-    backgroundColor: utils.colors.backgroundSurfaceElevation0,
+const backgroundStyle = prepareNativeStyle(({ colors }) => ({
+    backgroundColor: colors.surfaceFillPage,
+}));
+
+const footerStyle = prepareNativeStyle<{ bottomInset: number }>(({ colors }, { bottomInset }) => ({
+    backgroundColor: colors.surfaceFillPage,
+    paddingBottom: bottomInset,
 }));
 
 export type BottomSheetModalRef = Ref<BottomSheetModalMethods>;
 
 export const BottomSheetModal = forwardRef<BottomSheetModalMethods, BottomSheetModalProps>(
     (
-        { children, footer, style, title, isCloseDisplayed = false, subtitle, onDismiss, ...rest },
+        {
+            children,
+            footer,
+            title,
+            isCloseDisplayed = false,
+            subtitle,
+            onDismiss,
+            bottomSheetCustomProps = {},
+            onClose,
+            ...rest
+        },
         ref,
     ) => {
+        const { top, bottom } = useSafeAreaInsets();
         const { applyStyle } = useNativeStyles();
-
         const { scrollDivider, handleScroll } = useScrollDivider();
+
+        const [footerHeight, setFooterHeight] = useState(0);
+
+        // This ensures that the bottom sheet content evades the footer if present.
+        // In case footerHeight > TOP_OFFSET, the content and footer might collide.
+        const maxDynamicContentSize = MAX_MODAL_HEIGHT - top + footerHeight;
 
         const renderBackdrop = useCallback(
             (props: BottomSheetBackdropProps) => (
@@ -50,20 +79,19 @@ export const BottomSheetModal = forwardRef<BottomSheetModalMethods, BottomSheetM
         );
 
         const onCloseModal = useCallback(() => {
-            if (onDismiss) {
-                onDismiss();
-            }
+            onClose?.();
             if (ref && 'current' in ref && ref.current) {
                 ref.current.dismiss();
             }
-        }, [ref, onDismiss]);
+        }, [ref, onClose]);
 
         return (
             <BottomSheetModalBase
                 ref={ref}
-                backdropComponent={renderBackdrop}
-                maxDynamicContentSize={MAX_HEIGHT}
+                maxDynamicContentSize={maxDynamicContentSize}
                 backgroundStyle={applyStyle(backgroundStyle)}
+                backdropComponent={renderBackdrop}
+                keyboardBlurBehavior="restore"
                 handleComponent={() => (
                     <BottomSheetHeader
                         title={title}
@@ -73,12 +101,26 @@ export const BottomSheetModal = forwardRef<BottomSheetModalMethods, BottomSheetM
                         scrollDivider={scrollDivider}
                     />
                 )}
+                footerComponent={({ animatedFooterPosition }: BottomSheetFooterProps) => (
+                    <BottomSheetFooter
+                        animatedFooterPosition={animatedFooterPosition}
+                        style={applyStyle(footerStyle, { bottomInset: footer ? bottom : 0 })}
+                    >
+                        <Box onLayout={e => setFooterHeight(e.nativeEvent.layout.height)}>
+                            {footer}
+                        </Box>
+                    </BottomSheetFooter>
+                )}
                 onDismiss={onDismiss}
+                {...bottomSheetCustomProps}
             >
-                <BottomSheetModalContent handleScroll={handleScroll} style={style} {...rest}>
+                <BottomSheetModalContent
+                    handleScroll={handleScroll}
+                    bottomInset={bottom + footerHeight}
+                    {...rest}
+                >
                     {children}
                 </BottomSheetModalContent>
-                {footer}
             </BottomSheetModalBase>
         );
     },

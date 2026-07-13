@@ -1,9 +1,9 @@
+import { Translation } from '@suite/intl';
 import { selectNftDefinitions } from '@suite-common/token-definitions';
-import { SelectedAccountLoaded } from '@suite-common/wallet-types';
+import { type SelectedAccountLoaded } from '@suite-common/wallet-types';
 import { Banner, Column, H3 } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
 import { getTokens } from 'src/utils/wallet/tokenUtils';
 
@@ -14,7 +14,7 @@ import { NoSearchResultsWrapped } from '../tokens/common/TokensTable/TokensTable
 type EvmNftsTablesProps = {
     selectedAccount: SelectedAccountLoaded;
     searchQuery: string;
-    isShown: boolean;
+    isShown?: boolean;
 };
 
 export const NftsTablesSection = ({
@@ -51,9 +51,11 @@ export const NftsTablesSection = ({
             <H3>
                 <Translation id="TR_COLLECTIONS_UNRECOGNIZED_BY_TREZOR" />
             </H3>
-            <Banner variant="warning" icon>
-                <Translation id="TR_NFT_UNRECOGNIZED_BY_TREZOR_TOOLTIP" />
-            </Banner>
+            <Banner
+                intent="warning"
+                icon
+                description={<Translation id="TR_NFT_UNRECOGNIZED_BY_TREZOR_TOOLTIP" />}
+            />
             <NftsTable
                 selectedAccount={selectedAccount}
                 isShown={false}

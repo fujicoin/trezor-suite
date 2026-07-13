@@ -2,11 +2,11 @@ import { useSelector } from 'react-redux';
 
 import { useNetInfo } from '@react-native-community/netinfo';
 
+import { DeviceOffline, NotAvailableInCountry } from '@suite-native/trading-atoms';
+import { selectIsTradingBlacklisted } from '@suite-native/trading-state';
+
 import { ActiveTab } from './ActiveTab';
-import { DeviceOffline } from './Error/DeviceOffline';
-import { NotAvailableInCountry } from './Error/NotAvailableInCountry';
 import { useGeolocationCountryCode } from '../../hooks/general/useGeolocationCountryCode';
-import { selectIsTradingBlacklisted } from '../../selectors/commonSelectors';
 
 export const TradingTabContent = () => {
     const { isInternetReachable } = useNetInfo();

@@ -5,13 +5,13 @@ import { useNavigation } from '@react-navigation/native';
 import { Box, Button, IconListTextItem, VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import {
-    DeviceAuthenticityStackParamList,
-    DeviceAuthenticityStackRoutes,
-    DeviceSettingsStackParamList,
+    type DeviceAuthenticityStackParamList,
+    type DeviceAuthenticityStackRoutes,
+    type DeviceSettingsStackParamList,
     DeviceSettingsStackRoutes,
     DynamicScreenHeader,
     Screen,
-    StackToStackCompositeNavigationProps,
+    type StackToStackCompositeNavigationProps,
 } from '@suite-native/navigation';
 
 type NavigationProp = StackToStackCompositeNavigationProps<
@@ -24,9 +24,7 @@ export const DeviceAuthenticityScreen = () => {
     const navigation = useNavigation<NavigationProp>();
 
     const navigateToDeviceAuthenticityStack = useCallback(() => {
-        navigation.navigate(DeviceSettingsStackRoutes.DeviceAuthenticityStack, {
-            screen: DeviceAuthenticityStackRoutes.AuthenticityCheck,
-        });
+        navigation.navigate(DeviceSettingsStackRoutes.DeviceAuthenticityStack);
     }, [navigation]);
 
     return (
@@ -40,10 +38,10 @@ export const DeviceAuthenticityScreen = () => {
         >
             <VStack justifyContent="space-between" flex={1}>
                 <VStack spacing="sp24">
-                    <IconListTextItem icon="cpu" iconSize="large" textVariant="highlight">
+                    <IconListTextItem icon="cpu" iconSize="large" textVariant="body-md-strong">
                         <Translation id="moduleDeviceSettings.authenticity.info.item1" />
                     </IconListTextItem>
-                    <IconListTextItem icon="check" iconSize="large" textVariant="highlight">
+                    <IconListTextItem icon="check" iconSize="large" textVariant="body-md-strong">
                         <Translation id="moduleDeviceSettings.authenticity.info.item2" />
                     </IconListTextItem>
                 </VStack>

@@ -3,9 +3,9 @@ import { useLayoutEffect, useRef } from 'react';
 import { useTheme } from 'styled-components';
 
 import { useFormatters } from '@suite-common/formatters';
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 
-import { FormattedCryptoAmount } from 'src/components/suite';
+import { FormattedCryptoAmount } from 'src/components/suite/FormattedCryptoAmount';
 
 interface CommonProps {
     setWidth: (n: number) => void;
@@ -43,7 +43,7 @@ export const GraphYAxisTick = ({
                 y={0}
                 dy={2}
                 textAnchor="start"
-                fill={theme.legacy.TYPE_LIGHT_GREY}
+                fill={theme.contentSecondary}
                 style={{ fontVariantNumeric: 'tabular-nums' }}
             >
                 {localCurrency && (

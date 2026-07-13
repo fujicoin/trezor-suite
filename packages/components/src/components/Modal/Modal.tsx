@@ -1,46 +1,36 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { useEvent } from 'react-use';
 
 import styled from 'styled-components';
 
-import {
-    Elevation,
-    borders,
-    mapElevationToBackground,
-    negativeSpacings,
-    prevElevation,
-    spacings,
-} from '@trezor/theme';
+import { CaretLeftIcon, XIcon } from '@trezor/icons';
+import { borders, negativeSpacings, spacings } from '@trezor/theme';
 
 import { ModalBackdrop } from './ModalBackdrop';
 import { ModalButton } from './ModalButton';
 import { ModalContext } from './ModalContext';
 import { ModalProvider } from './ModalProvider';
-import { ModalAlignment, ModalSize, ModalVariant } from './types';
-import { mapModalSizeToWidth } from './utils';
-import { FrameProps, FramePropsKeys, Padding } from '../../utils/frameProps';
+import { type ModalAlignment, type ModalIntent, type ModalWidth } from './types';
+import { type FrameProps, type FramePropsKeys, type Padding } from '../../utils/frameProps';
 import { useScrollShadow } from '../../utils/useScrollShadow';
 import { Box } from '../Box/Box';
 import { Divider } from '../Divider/Divider';
-import { ElevationContext, ElevationUp, useElevation } from '../ElevationContext/ElevationContext';
 import { Column, Row } from '../Flex/Flex';
-import { IconName } from '../Icon/Icon';
+import { type IconComponent } from '../Icon/Icon';
 import { IconCircle } from '../IconCircle/IconCircle';
 import { IconButton } from '../buttons/IconButton/IconButton';
 import { H3 } from '../typography/Heading/Heading';
 import { Text } from '../typography/Text/Text';
 
-export const allowedModalFrameProps = ['height'] as const satisfies FramePropsKeys[];
+export const allowedModalFrameProps = ['height', 'maxHeight'] as const satisfies FramePropsKeys[];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedModalFrameProps)[number]>;
 
-const MODAL_CONTENT_ID = 'modal-content';
-const MODAL_ELEVATION = 0;
-
-const Container = styled.section<{ $elevation: Elevation }>`
+const Container = styled.section`
     border-radius: ${borders.radii.md};
     transition: background 0.3s;
-    background: ${mapElevationToBackground};
-    box-shadow: ${({ theme }) => theme.boxShadowElevated};
+    background: ${({ theme }) => theme.surfaceFillModal};
+    outline: 1px solid ${({ theme }) => theme.surfaceBorderModal};
+    box-shadow: ${({ theme }) => theme.surfaceShadowModal};
     -webkit-app-region: no-drag;
     height: 100%;
     overflow: hidden;
@@ -52,38 +42,46 @@ const ScrollContainer = styled.div`
 `;
 
 type ModalProps = AllowedFrameProps & {
-    variant?: ModalVariant;
+    intent?: ModalIntent;
     children?: ReactNode;
     heading?: ReactNode;
     description?: ReactNode;
     bottomContent?: ReactNode;
     onBackClick?: () => void;
     onCancel?: () => void;
+    backButtonTooltip?: ReactNode;
+    closeButtonTooltip?: ReactNode;
     isBackdropCancelable?: boolean;
     alignment?: ModalAlignment;
-    size?: ModalSize;
-    iconName?: IconName;
+    width?: ModalWidth;
+    icon?: IconComponent;
     'data-testid'?: string;
     padding?: Padding;
+    shadowBottom?: boolean;
 };
 
-const InnerModalBase = ({
+const ModalBase = ({
     children,
-    variant,
-    size = 'medium',
+    intent = 'brand',
+    width = 680,
     heading,
     description,
     bottomContent,
-    iconName,
+    icon,
     onBackClick,
     onCancel,
+    backButtonTooltip,
+    closeButtonTooltip,
     isBackdropCancelable,
     height,
+    maxHeight = '85vh',
     'data-testid': dataTest = '@modal',
     padding,
+    shadowBottom = true,
 }: ModalProps) => {
-    const { scrollElementRef, onScroll, ShadowTop, ShadowBottom } = useScrollShadow();
-    const { elevation } = useElevation();
+    const { scrollElementRef, onScroll, ShadowTop, ShadowBottom } = useScrollShadow({
+        backgroundColor: 'surfaceFillModal',
+    });
 
     const hasHeader = onBackClick || onCancel || heading || description;
     const isIconPushedTop = onCancel !== undefined && !heading && !description && !onBackClick;
@@ -95,38 +93,40 @@ const InnerModalBase = ({
     });
 
     return (
-        <Box maxWidth="95%" maxHeight="80vh" width={mapModalSizeToWidth(size)} height={height}>
-            <Container $elevation={elevation} data-testid={dataTest} id={MODAL_CONTENT_ID}>
-                <Column height="100%">
-                    {hasHeader && (
-                        <Row
-                            padding={{ horizontal: spacings.md, top: spacings.md }}
-                            alignItems={description ? 'flex-start' : 'center'}
-                            gap={spacings.md}
-                            as="header"
-                        >
-                            <ElevationUp>
+        <ModalContext.Provider value={{ intent }}>
+            <Box maxWidth="95%" maxHeight={maxHeight} width={width} height={height}>
+                <Container data-testid={dataTest}>
+                    <Column height="100%">
+                        {hasHeader && (
+                            <Row
+                                padding={{ horizontal: spacings.md, top: spacings.md }}
+                                alignItems={description ? 'flex-start' : 'center'}
+                                gap={spacings.md}
+                                as="header"
+                            >
                                 {onBackClick && (
                                     <IconButton
-                                        variant="tertiary"
-                                        icon="caretLeft"
+                                        intent="neutral"
+                                        priority="secondary"
+                                        icon={CaretLeftIcon}
                                         data-testid="@modal/back-button"
                                         onClick={onBackClick}
-                                        size="small"
+                                        tooltip={
+                                            backButtonTooltip
+                                                ? { content: backButtonTooltip }
+                                                : { isActive: false }
+                                        }
                                     />
                                 )}
 
                                 {(heading || description) && (
                                     <Column flex="1" overflow="hidden">
-                                        {heading && (
-                                            <H3 data-testid="@modal/header" ellipsisLineCount={1}>
-                                                {heading}
-                                            </H3>
-                                        )}
+                                        {heading && <H3 data-testid="@modal/header">{heading}</H3>}
                                         {description && (
                                             <Text
-                                                variant="tertiary"
-                                                typographyStyle="hint"
+                                                intent="neutral"
+                                                priority="secondary"
+                                                typographyStyle="body-sm"
                                                 ellipsisLineCount={2}
                                                 as="div"
                                                 data-testid="@modal/header-paragraph"
@@ -139,61 +139,59 @@ const InnerModalBase = ({
 
                                 {onCancel && (
                                     <IconButton
-                                        variant="tertiary"
-                                        icon="x"
+                                        intent="neutral"
+                                        priority="secondary"
+                                        icon={XIcon}
                                         data-testid="@modal/close-button"
                                         onClick={onCancel}
-                                        size="small"
                                         margin={{ left: 'auto' }}
+                                        tooltip={
+                                            closeButtonTooltip
+                                                ? { content: closeButtonTooltip }
+                                                : { isActive: false }
+                                        }
                                     />
                                 )}
-                            </ElevationUp>
-                        </Row>
-                    )}
-                    <Box position={{ type: 'relative' }} overflow="hidden" flex="1">
-                        <ShadowTop />
-                        <ScrollContainer onScroll={onScroll} ref={scrollElementRef}>
-                            <Column padding={padding ? padding : spacings.md}>
-                                {iconName && (
-                                    <Box
-                                        margin={{
-                                            bottom: spacings.md,
-                                            top: isIconPushedTop ? negativeSpacings.md : 0,
-                                        }}
-                                    >
-                                        <IconCircle name={iconName} size={110} variant={variant} />
-                                    </Box>
-                                )}
-                                <ElevationUp>{children}</ElevationUp>
-                            </Column>
-                        </ScrollContainer>
-                        <ShadowBottom />
-                    </Box>
-                    {bottomContent && (
-                        <>
-                            <Divider margin={{}} />
-                            <Row
-                                padding={spacings.md}
-                                gap={spacings.xs}
-                                flexWrap="wrap"
-                                as="footer"
-                            >
-                                <ElevationUp>{bottomContent}</ElevationUp>
                             </Row>
-                        </>
-                    )}
-                </Column>
-            </Container>
-        </Box>
+                        )}
+                        <Box position={{ type: 'relative' }} overflow="hidden" flex="1">
+                            <ShadowTop />
+                            <ScrollContainer onScroll={onScroll} ref={scrollElementRef}>
+                                <Column padding={padding ? padding : spacings.md}>
+                                    {icon && (
+                                        <Box
+                                            margin={{
+                                                bottom: spacings.md,
+                                                top: isIconPushedTop ? negativeSpacings.md : 0,
+                                            }}
+                                        >
+                                            <IconCircle icon={icon} size={112} intent={intent} />
+                                        </Box>
+                                    )}
+                                    {children}
+                                </Column>
+                            </ScrollContainer>
+                            {shadowBottom && <ShadowBottom />}
+                        </Box>
+                        {bottomContent && (
+                            <>
+                                <Divider margin={{}} />
+                                <Row
+                                    padding={spacings.md}
+                                    gap={spacings.xs}
+                                    flexWrap="wrap"
+                                    as="footer"
+                                >
+                                    {bottomContent}
+                                </Row>
+                            </>
+                        )}
+                    </Column>
+                </Container>
+            </Box>
+        </ModalContext.Provider>
     );
 };
-const ModalBase = (props: ModalProps) => (
-    <ElevationContext baseElevation={prevElevation[MODAL_ELEVATION]}>
-        <ModalContext.Provider value={{ variant: props.variant }}>
-            <InnerModalBase {...props} />
-        </ModalContext.Provider>
-    </ElevationContext>
-);
 
 const Modal = ({ isBackdropCancelable = true, ...rest }: ModalProps) => {
     const { alignment, onCancel } = rest;
@@ -210,5 +208,5 @@ Modal.Backdrop = ModalBackdrop;
 Modal.Provider = ModalProvider;
 Modal.ModalBase = ModalBase;
 
-export { Modal, MODAL_CONTENT_ID };
-export type { ModalProps, ModalSize };
+export { Modal };
+export type { ModalProps, ModalWidth };

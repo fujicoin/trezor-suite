@@ -1,26 +1,27 @@
-import { useFirmwareInstallation } from '@suite-common/firmware';
+import { useFirmwareDesktopUpdate } from '@suite/firmware-upgrade';
+import { Translation } from '@suite/intl';
 import { FirmwareType } from '@trezor/connect';
 
-import { FirmwareInitialStandalone } from 'src/components/firmware';
-import { Translation } from 'src/components/suite';
+import { FirmwareInitial } from 'src/components/firmware/FirmwareInitial';
+import { FirmwareLowBatteryModal } from 'src/components/firmware/FirmwareLowBatteryModal';
 
 import { FirmwareModal } from './FirmwareModal';
 
-type FirmwareUpdateProps = {
-    shouldSwitchFirmwareType?: boolean;
-};
-
-export const FirmwareUpdate = ({ shouldSwitchFirmwareType }: FirmwareUpdateProps) => {
-    const { firmwareUpdate, targetFirmwareType } = useFirmwareInstallation({
-        shouldSwitchFirmwareType,
-    });
+export const FirmwareUpdate = () => {
+    const {
+        firmwareUpdate,
+        switchFirmwareType,
+        targetFirmwareType,
+        showLowBatteryModal,
+        toggleLowBatteryModal,
+    } = useFirmwareDesktopUpdate();
 
     const installTargetFirmware = () =>
         firmwareUpdate({
             firmwareType: targetFirmwareType,
         });
 
-    const heading = shouldSwitchFirmwareType ? (
+    const heading = switchFirmwareType ? (
         <Translation
             id="TR_SWITCH_FIRMWARE_TO"
             values={{
@@ -39,13 +40,13 @@ export const FirmwareUpdate = ({ shouldSwitchFirmwareType }: FirmwareUpdateProps
         <Translation id="TR_INSTALL_FIRMWARE" />
     );
 
+    if (showLowBatteryModal) {
+        return <FirmwareLowBatteryModal onClose={toggleLowBatteryModal} />;
+    }
+
     return (
-        <FirmwareModal
-            shouldSwitchFirmwareType={shouldSwitchFirmwareType}
-            heading={heading}
-            install={installTargetFirmware}
-        >
-            <FirmwareInitialStandalone shouldSwitchFirmwareType={shouldSwitchFirmwareType} />
+        <FirmwareModal heading={heading} install={installTargetFirmware}>
+            <FirmwareInitial />
         </FirmwareModal>
     );
 };

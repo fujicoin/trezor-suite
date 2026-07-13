@@ -1,17 +1,15 @@
-import { ArgTypes, Meta, StoryObj } from '@storybook/react';
+import { type ArgTypes, type Meta, type StoryObj } from '@storybook/react';
 import styled from 'styled-components';
 
 import { spacings } from '@trezor/theme';
 
 import {
     Column as ColumnComponent,
-    FlexProps,
+    type FlexProps,
     Row as RowComponent,
     allowedFlexFrameProps,
-    flexAlignItems,
-    flexJustifyContent,
-    flexWrap,
 } from './Flex';
+import { flexAlignItems, flexJustifyContent, flexWrap } from './FlexProp';
 import { getFramePropsStory } from '../../utils/frameProps';
 
 const Container = styled.div`
@@ -99,7 +97,7 @@ const argTypes: Partial<ArgTypes<FlexProps>> = {
 
 const meta: Meta = {
     title: 'Layout',
-} as Meta;
+};
 export default meta;
 
 export const Row: StoryObj<FlexProps> = {

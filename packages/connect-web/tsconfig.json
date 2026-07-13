@@ -1,8 +1,6 @@
 {
     "extends": "../../tsconfig.base.json",
     "compilerOptions": {
-        "module": "commonjs",
-        "moduleResolution": "node",
         "outDir": "libDev",
         "types": [
             "chrome",
@@ -12,17 +10,8 @@
         ],
         "rootDir": ".."
     },
-    "include": [
-        ".",
-        "../connect-iframe/webpack/base.webpack.config.ts",
-        "../connect-iframe/webpack/iframe.webpack.config.ts",
-        "../connect-iframe/webpack/utils.ts",
-        "../connect-iframe/package.json",
-        "../connect-popup/webpack/prod.webpack.config.ts",
-        "../connect-popup/package.json"
-    ],
+    "include": ["."],
     "references": [
-        { "path": "../connect" },
         { "path": "../connect-common" },
         { "path": "../utils" },
         { "path": "../websocket-client" },

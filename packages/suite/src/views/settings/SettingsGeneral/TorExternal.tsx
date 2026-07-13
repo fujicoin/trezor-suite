@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 
+import { Translation } from '@suite/intl';
+import { Anchor, SettingsAnchor } from '@suite/router';
+import { selectTorState } from '@suite/tor';
+import { ActionColumn, ActionSelect, SectionItem, TextColumn } from '@trezor/product-components';
 import { desktopApi } from '@trezor/suite-desktop-api';
-import { TorSettings } from '@trezor/suite-desktop-api/src/messages';
+import { type TorSettings } from '@trezor/suite-desktop-api/src/messages';
 
-import { SettingsSectionItem } from 'src/components/settings';
-import { ActionColumn, ActionSelect, TextColumn, Translation } from 'src/components/suite';
-import { SettingsAnchor } from 'src/constants/suite/anchors';
 import { useSelector } from 'src/hooks/suite';
-import { selectTorState } from 'src/selectors/suite/suiteSelectors';
 
 const options = [
     {
@@ -25,9 +25,9 @@ export const TorExternal = () => {
 
     const [torSettings, setTorSettings] = useState<TorSettings | null>(null);
 
-    const [selectedOption, setSelectedOption] = useState<{ value: number; label: string }>(
-        options[0],
-    );
+    const [selectedOption, setSelectedOption] = useState<
+        { value: number; label: string } | undefined
+    >(options[0]);
 
     useEffect(() => {
         const fetchTorSettings = async () => {
@@ -51,7 +51,7 @@ export const TorExternal = () => {
         if (!torSettings) return;
         const { externalPort } = torSettings;
         const selectedOption = options.find(o => o.value === externalPort);
-        setSelectedOption(selectedOption!);
+        setSelectedOption(selectedOption);
     }, [torSettings]);
 
     const onChange = async ({ value }: { value: number }) => {
@@ -65,20 +65,29 @@ export const TorExternal = () => {
     if (!torSettings) return null;
 
     return (
-        <SettingsSectionItem anchorId={SettingsAnchor.TorExternal}>
-            <TextColumn
-                title={<Translation id="TR_EXPERIMENTAL_TOR_EXTERNAL_PORT" />}
-                description={<Translation id="TR_EXPERIMENTAL_TOR_EXTERNAL_PORT_DESCRIPTION" />}
-            />
-            <ActionColumn>
-                <ActionSelect
-                    useKeyPressScroll
-                    value={selectedOption}
-                    options={options}
-                    onChange={onChange}
-                    isDisabled={isTorEnabled}
-                />
-            </ActionColumn>
-        </SettingsSectionItem>
+        <Anchor anchorId={SettingsAnchor.TorExternal}>
+            {({ anchorId, anchorRef, shouldHighlight }) => (
+                <SectionItem
+                    data-testid={anchorId}
+                    ref={anchorRef}
+                    shouldHighlight={shouldHighlight}
+                >
+                    <TextColumn
+                        title={<Translation id="TR_EXPERIMENTAL_TOR_EXTERNAL_PORT" />}
+                        description={
+                            <Translation id="TR_EXPERIMENTAL_TOR_EXTERNAL_PORT_DESCRIPTION" />
+                        }
+                    />
+                    <ActionColumn>
+                        <ActionSelect
+                            value={selectedOption}
+                            options={options}
+                            onChange={onChange}
+                            isDisabled={isTorEnabled}
+                        />
+                    </ActionColumn>
+                </SectionItem>
+            )}
+        </Anchor>
     );
 };

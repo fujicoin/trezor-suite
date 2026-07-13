@@ -3,17 +3,17 @@ import { Translation } from '@suite-native/intl';
 
 export const IncompatibleFirmwareModalAppendix = () => (
     <VStack>
-        <Text variant="callout">
+        <Text variant="body-sm-strong">
             <Translation id="moduleDevice.incompatibleFirmwareModalAppendix.title" />
         </Text>
         <Box>
-            <Text color="textSubdued">
+            <Text color="contentSecondary">
                 <Translation id="moduleDevice.incompatibleFirmwareModalAppendix.lines.1" />
             </Text>
-            <Text color="textSubdued">
+            <Text color="contentSecondary">
                 <Translation id="moduleDevice.incompatibleFirmwareModalAppendix.lines.2" />
             </Text>
-            <Text color="textSubdued">
+            <Text color="contentSecondary">
                 <Translation id="moduleDevice.incompatibleFirmwareModalAppendix.lines.3" />
             </Text>
         </Box>

@@ -13,19 +13,12 @@
     },
     "include": [".", "**/*.json"],
     "references": [
-        { "path": "../../suite-common/icons" },
+        { "path": "../../suite-common/flags" },
         {
-            "path": "../../suite-common/suite-constants"
+            "path": "../../suite-common/illustrations"
         },
-        {
-            "path": "../../suite-common/validators"
-        },
-        { "path": "../asset-utils" },
-        { "path": "../device-utils" },
-        { "path": "../dom-utils" },
         { "path": "../env-utils" },
-        { "path": "../react-utils" },
-        { "path": "../styles" },
+        { "path": "../icons" },
         { "path": "../theme" },
         { "path": "../type-utils" },
         { "path": "../utils" },

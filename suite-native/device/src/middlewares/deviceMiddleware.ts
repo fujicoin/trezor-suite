@@ -1,32 +1,24 @@
-import { AnyAction, isAnyOf } from '@reduxjs/toolkit';
+import { type AnyAction, isAnyOf } from '@reduxjs/toolkit';
 
+import { deviceActions, isTrezorDeviceWithState } from '@suite-common/device';
 import { createMiddlewareWithExtraDeps } from '@suite-common/redux-utils';
 import { isAnyDeviceEventAction } from '@suite-common/suite-utils';
 import {
-    createImportedDeviceThunk,
-    deviceActions,
-    forgetAccountsThunk,
+    accountsActions,
     forgetDisconnectedDevices,
     handleDeviceDisconnect,
     observeSelectedDevice,
     selectAccountsByDeviceState,
-    selectDeviceThunk,
     selectDiscoveryByDevicePath,
-    selectIsDeviceForceRemembered,
 } from '@suite-common/wallet-core';
-import { EventType, analytics } from '@suite-native/analytics';
+import { asTypedNativeAnalytics } from '@suite-native/analytics';
+import { selectIsBluetoothDeviceOsUnpairingRequired } from '@suite-native/bluetooth';
 import { clearAndUnlockDeviceAccessQueue } from '@suite-native/device-mutex';
-import { FeatureFlag, selectIsFeatureFlagEnabled } from '@suite-native/feature-flags';
 import { reportSecurityCheck } from '@suite-native/sentry';
 import { setShouldShowAutoEjectAlert } from '@suite-native/settings';
 import { DEVICE } from '@trezor/connect';
-import {
-    getFirmwareVersionArray,
-    hasBitcoinOnlyFirmware,
-    isDeviceInBootloaderMode,
-} from '@trezor/device-utils';
 
-import { isDeviceEventAction } from '../utils';
+import { isDeviceEventAction, reportDeviceConnectionAnalytics } from '../utils';
 
 const isActionDeviceRelated = (action: AnyAction): boolean => {
     if (
@@ -34,8 +26,9 @@ const isActionDeviceRelated = (action: AnyAction): boolean => {
             deviceActions.selectDevice,
             deviceActions.addButtonRequest,
             deviceActions.removeButtonRequests,
-            deviceActions.rememberDevice,
+            deviceActions.setRememberDevice,
             deviceActions.forgetDevice,
+            deviceActions.setDiscovered,
         )(action)
     ) {
         return true;
@@ -45,13 +38,14 @@ const isActionDeviceRelated = (action: AnyAction): boolean => {
 };
 
 export const prepareDeviceMiddleware = createMiddlewareWithExtraDeps(
-    (action, { dispatch, next, getState }) => {
-        const isDeviceForceRemembered = selectIsDeviceForceRemembered(getState());
-
+    (action, { dispatch, next, getState, extra }) => {
         if (isDeviceEventAction(action, DEVICE.DISCONNECT)) {
-            if (!isDeviceForceRemembered) {
-                dispatch(forgetDisconnectedDevices({ device: action.payload }));
-            }
+            dispatch(
+                forgetDisconnectedDevices({
+                    device: action.payload,
+                    forceForget: selectIsBluetoothDeviceOsUnpairingRequired(getState()),
+                }),
+            );
 
             const discovery = selectDiscoveryByDevicePath(getState(), action.payload.path);
             if (discovery?.status === 'complete' && action.payload.mode === 'normal') {
@@ -63,55 +57,30 @@ export const prepareDeviceMiddleware = createMiddlewareWithExtraDeps(
          expect that the state was already changed by the action stored in the `action` variable. */
         next(action);
 
-        if (isAnyOf(createImportedDeviceThunk.fulfilled)(action)) {
-            dispatch(selectDeviceThunk({ device: action.payload.device }));
-        }
-
         if (deviceActions.forgetDevice.match(action)) {
-            dispatch(handleDeviceDisconnect(action.payload.device));
+            const { device } = action.payload;
 
-            const deviceState = action.payload.device.state;
-            if (deviceState) {
-                const accounts = selectAccountsByDeviceState(getState(), deviceState);
-                dispatch(forgetAccountsThunk({ accountsToRemove: accounts }));
+            dispatch(handleDeviceDisconnect(device));
+
+            if (isTrezorDeviceWithState(device)) {
+                const accountsToRemove = selectAccountsByDeviceState(getState(), device.state);
+                dispatch(accountsActions.removeAccount(accountsToRemove));
+                extra.services.suiteSync.turnOffSuiteSyncForWallet({
+                    deviceStaticSessionId: device.state.staticSessionId,
+                });
             }
         }
 
-        const isUsbDeviceConnectFeatureEnabled = selectIsFeatureFlagEnabled(
-            getState(),
-            FeatureFlag.IsDeviceConnectEnabled,
-        );
-
         switch (action.type) {
-            case DEVICE.CONNECT:
-            case DEVICE.CONNECT_UNACQUIRED: {
-                if (isUsbDeviceConnectFeatureEnabled) {
-                    dispatch(selectDeviceThunk(action.payload));
-                }
-
-                const { device } = action.payload;
-                const { features, mode } = device;
-
-                if (features && mode) {
-                    analytics.report({
-                        type: EventType.ConnectDevice,
-                        payload: {
-                            mode: isDeviceInBootloaderMode(device) ? 'bootloader' : mode,
-                            firmwareVersion: getFirmwareVersionArray(device),
-                            pinProtection: features.pin_protection,
-                            isBitcoinOnly: hasBitcoinOnlyFirmware(device),
-                            deviceLanguage: features.language,
-                            deviceModel: features.internal_model,
-                        },
-                    });
-                }
+            case DEVICE.CONNECT: {
+                reportDeviceConnectionAnalytics(
+                    action.payload.device,
+                    asTypedNativeAnalytics(extra.services.analytics),
+                );
                 break;
             }
             case DEVICE.DISCONNECT:
-                if (!isDeviceForceRemembered) {
-                    // In case of force remember we don't want to call this thunk because it will change selected device
-                    dispatch(handleDeviceDisconnect(action.payload));
-                }
+                dispatch(handleDeviceDisconnect(action.payload));
 
                 clearAndUnlockDeviceAccessQueue();
                 break;

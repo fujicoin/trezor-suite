@@ -1,17 +1,24 @@
-import React from 'react';
+import React, { type HTMLAttributes } from 'react';
 
-import styled, { DefaultTheme, css } from 'styled-components';
+import styled, { type DefaultTheme, css } from 'styled-components';
 
-import { Elevation, SpacingValues, SpacingValuesNew, mapElevationToBorder } from '@trezor/theme';
+import { type Color, type SpacingValues, type SpacingValuesNew } from '@trezor/theme';
 
 import {
-    FrameProps,
-    FramePropsKeys,
+    type FlexAlignItems,
+    type FlexAlignSelf,
+    type FlexDirection,
+    type FlexJustifyContent,
+    type FlexType,
+    type FlexWrap,
+} from './FlexProp';
+import {
+    type FrameProps,
+    type FramePropsKeys,
     pickAndPrepareFrameProps,
     withFrameProps,
 } from '../../utils/frameProps';
-import { TransientProps, makePropsTransient } from '../../utils/transientProps';
-import { useElevation } from '../ElevationContext/ElevationContext';
+import { type TransientProps, makePropsTransient } from '../../utils/transientProps';
 
 export const allowedFlexFrameProps = [
     'margin',
@@ -19,85 +26,31 @@ export const allowedFlexFrameProps = [
     'width',
     'height',
     'minHeight',
+    'maxHeight',
     'minWidth',
     'maxWidth',
     'overflow',
     'cursor',
+    'display',
     'opacity',
+    'position',
+    'pointerEvents',
+    'zIndex',
 ] as const satisfies FramePropsKeys[];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedFlexFrameProps)[number]>;
-
-export const flexDirection = ['column', 'row'] as const;
-export const flexWrap = ['nowrap', 'wrap', 'wrap-reverse'] as const;
-
-export const flexJustifyContent = [
-    'center',
-    'end',
-    'flex-end',
-    'flex-start',
-    'left',
-    'right',
-    'space-around',
-    'space-between',
-    'space-evenly',
-    'start',
-    'stretch',
-] as const;
-
-export const flexAlignItems = [
-    'baseline',
-    'center',
-    'end',
-    'first baseline',
-    'flex-end',
-    'flex-start',
-    'last baseline',
-    'self-end',
-    'self-start',
-    'start',
-    'stretch',
-    'normal',
-] as const;
-
-export const flexAlignSelf = [
-    'auto',
-    'stretch',
-    'center',
-    'flex-start',
-    'flex-end',
-    'baseline',
-    'initial',
-    'inherit',
-] as const;
-
-export type FlexDirection = (typeof flexDirection)[number];
-export type FlexJustifyContent = (typeof flexJustifyContent)[number];
-export type FlexAlignItems = (typeof flexAlignItems)[number];
-export type FlexAlignSelf = (typeof flexAlignSelf)[number];
-export type Flex =
-    | 'none'
-    | 'auto'
-    | 'initial'
-    | 'inherit'
-    | `${number}`
-    | `${number} ${number}`
-    | `${number} ${number} ${string}`;
-export type FlexWrap = (typeof flexWrap)[number];
 
 export const withDivider = ({
     theme,
     $rowGap,
     $columnGap,
     $direction,
-    $elevation,
     $dividerColor,
 }: {
     theme: DefaultTheme;
     $rowGap: SpacingValues | SpacingValuesNew;
     $columnGap: SpacingValues | SpacingValuesNew;
     $direction: FlexDirection;
-    $dividerColor?: string;
-    $elevation: Elevation;
+    $dividerColor?: Color;
 }) => css`
     & > * {
         position: relative;
@@ -114,14 +67,14 @@ export const withDivider = ({
         height: 1px;
         width: 100%;
         left: 0;
-        border-top: 1px solid ${$dividerColor ? $dividerColor : mapElevationToBorder({ theme, $elevation })};`}
+        border-top: 1px solid ${$dividerColor ? theme[$dividerColor] : theme.borderNeutral};`}
         ${$direction === 'row' &&
         `
         top: 0;
         height: 100%;
         width: 1px;
         left: -${$columnGap / 2}px;
-        border-left: 1px solid ${$dividerColor ? $dividerColor : mapElevationToBorder({ theme, $elevation })};`}
+        border-left: 1px solid ${$dividerColor ? theme[$dividerColor] : theme.borderNeutral};`}
     }
 `;
 
@@ -132,20 +85,19 @@ type ContainerProps = TransientProps<AllowedFrameProps> & {
     $alignItems: FlexAlignItems;
     $alignSelf: FlexAlignSelf;
     $direction: FlexDirection;
-    $flex: Flex;
+    $flex: FlexType;
     $flexWrap: FlexWrap;
     $order?: number;
     $isReversed: boolean;
     $hasDivider: boolean;
-    $dividerColor?: string;
-    $elevation: Elevation;
+    $dividerColor?: Color;
 };
 
 const Container = styled.div<ContainerProps>`
     display: flex;
 
     flex-flow: ${({ $direction, $isReversed, $flexWrap }) =>
-        `${$direction}${$isReversed === true ? '-reverse' : ''} ${$flexWrap}`};
+        `${$direction}${$isReversed ? '-reverse' : ''} ${$flexWrap}`};
     flex: ${({ $flex }) => $flex};
     gap: ${({ $rowGap, $columnGap }) => `${$rowGap}px ${$columnGap}px`};
     justify-content: ${({ $justifyContent }) => $justifyContent};
@@ -161,33 +113,32 @@ const Container = styled.div<ContainerProps>`
     }
 `;
 
-export type FlexProps = AllowedFrameProps & {
-    gap?: SpacingValues | SpacingValuesNew;
-    rowGap?: SpacingValues | SpacingValuesNew;
-    columnGap?: SpacingValues | SpacingValuesNew;
-    /**
-     * Distributes space between and around content items along the **main** axis
-     */
-    justifyContent?: FlexJustifyContent;
-    /**
-     * Controls the alignment of items on the **cross** axis
-     */
-    alignItems?: FlexAlignItems;
-    alignSelf?: FlexAlignSelf;
-    children: React.ReactNode;
-    direction?: FlexDirection;
-    flex?: Flex;
-    flexWrap?: FlexWrap;
-    order?: number;
-    isReversed?: boolean;
-    hasDivider?: boolean;
-    /** @deprecated Use only is case of absolute desperation. Prefer keep it according to elevation. */
-    dividerColor?: string;
-    className?: string;
-    onClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
-    'data-testid'?: string;
-    as?: string;
-};
+export type FlexProps = AllowedFrameProps &
+    Pick<HTMLAttributes<HTMLElement>, 'onClick' | 'onMouseEnter' | 'onMouseLeave'> & {
+        gap?: SpacingValues | SpacingValuesNew;
+        rowGap?: SpacingValues | SpacingValuesNew;
+        columnGap?: SpacingValues | SpacingValuesNew;
+        /**
+         * Distributes space between and around content items along the **main** axis
+         */
+        justifyContent?: FlexJustifyContent;
+        /**
+         * Controls the alignment of items on the **cross** axis
+         */
+        alignItems?: FlexAlignItems;
+        alignSelf?: FlexAlignSelf;
+        children: React.ReactNode;
+        direction?: FlexDirection;
+        flex?: FlexType;
+        flexWrap?: FlexWrap;
+        order?: number;
+        isReversed?: boolean;
+        hasDivider?: boolean;
+        dividerColor?: Color;
+        'data-testid'?: string;
+        as?: string;
+        ref?: React.RefObject<HTMLElement | null>;
+    };
 
 export const Flex = ({
     gap = 0,
@@ -199,25 +150,23 @@ export const Flex = ({
     children,
     direction = 'row',
     flex = 'initial',
-    // eslint-disable-next-line @typescript-eslint/no-shadow
     flexWrap = 'nowrap',
     order,
     isReversed = false,
-    className,
     'data-testid': dataTestId,
     as = 'div',
     hasDivider = false,
     dividerColor,
     onClick,
+    onMouseEnter,
+    onMouseLeave,
+    ref,
     ...rest
 }: FlexProps) => {
     const frameProps = pickAndPrepareFrameProps(rest, allowedFlexFrameProps);
 
-    const { elevation } = useElevation();
-
     return (
         <Container
-            className={className}
             data-testid={dataTestId}
             {...makePropsTransient({
                 rowGap,
@@ -232,10 +181,12 @@ export const Flex = ({
                 isReversed,
                 hasDivider,
                 dividerColor,
-                elevation,
             })}
             onClick={onClick}
             as={as}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+            ref={ref as React.Ref<HTMLDivElement>}
             {...frameProps}
         >
             {children}
@@ -245,4 +196,13 @@ export const Flex = ({
 
 export const Column = (props: FlexProps) => <Flex {...props} direction="column" />;
 export const Row = (props: FlexProps) => <Flex alignItems="center" {...props} direction="row" />;
-export const Center = (props: FlexProps) => <Flex alignSelf="center" {...props} />;
+export const Center = (props: FlexProps) => (
+    <Flex
+        alignSelf="center"
+        alignItems="center"
+        justifyContent="center"
+        width="100%"
+        height="100%"
+        {...props}
+    />
+);

@@ -1,40 +1,38 @@
-import { Card, Column, Row, SkeletonRectangle } from '@trezor/components';
+import { Card, Column, Row, Skeleton } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
+import { type DesktopBluetoothDevice } from 'src/actions/bluetooth/DesktopBluetoothDevice';
+
 import { BluetoothDeviceListItem } from './BluetoothDeviceListItem';
-import { DesktopBluetoothDevice } from '../../../actions/bluetooth/DesktopBluetoothDevice';
 
 const SkeletonDevice = () => (
     <Row width="100%" gap={spacings.md} justifyContent="stretch" height="44px" alignItems="center">
-        <SkeletonRectangle width="44px" height="36px" animate />
+        <Skeleton width={44} height={36} animate />
         <Column alignItems="start" gap={spacings.xxxs} flex="1">
-            <SkeletonRectangle width="105px" height="18px" animate />
-            <SkeletonRectangle width="55px" height="18px" animate />
+            <Skeleton width={105} height={18} animate />
+            <Skeleton width={55} height={18} animate />
         </Column>
-        <SkeletonRectangle width="86px" height="36px" animate />
+        <Skeleton width={86} height={36} animate />
     </Row>
 );
 
 type BluetoothDeviceListProps = {
     deviceList: DesktopBluetoothDevice[];
-    onConnect: (deviceId: string) => Promise<void>;
     isScanning: boolean;
-    onPairAgain?: (deviceId: string) => Promise<void>;
+    onPairAgain?: () => void;
 };
 
 export const BluetoothDeviceList = ({
-    onConnect,
     deviceList,
     isScanning,
     onPairAgain,
 }: BluetoothDeviceListProps) => (
-    <Card paddingType="tiny">
-        <Column gap={spacings.md} alignItems="stretch">
+    <Card paddingType="large">
+        <Column gap={32}>
             {deviceList.map(device => (
                 <BluetoothDeviceListItem
                     key={device.id}
                     device={device}
-                    onConnect={onConnect}
                     onPairAgain={onPairAgain}
                 />
             ))}

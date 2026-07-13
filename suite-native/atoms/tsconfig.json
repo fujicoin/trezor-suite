@@ -3,6 +3,10 @@
     "compilerOptions": { "outDir": "libDev" },
     "references": [
         {
+            "path": "../../suite-common/discreet-mode"
+        },
+        { "path": "../../suite-common/flags" },
+        {
             "path": "../../suite-common/wallet-config"
         },
         {
@@ -11,11 +15,17 @@
         {
             "path": "../../suite-common/wallet-types"
         },
+        { "path": "../helpers" },
         { "path": "../icons" },
         { "path": "../intl" },
+        { "path": "../scrollview" },
         { "path": "../../packages/env-utils" },
-        { "path": "../../packages/styles" },
+        { "path": "../../packages/react-utils" },
+        {
+            "path": "../../packages/styles-native"
+        },
         { "path": "../../packages/theme" },
+        { "path": "../../packages/utils" },
         { "path": "../test-utils" }
     ]
 }

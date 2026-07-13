@@ -1,4 +1,5 @@
-import TrezorConnect from '../../../src';
+// eslint-disable-next-line import/no-extraneous-dependencies
+import TrezorConnect from '@trezor/connect';
 
 // error thrown by .init()
 const INIT_ERROR = { code: 'Init_ManifestMissing' };
@@ -8,15 +9,12 @@ describe('TrezorConnect.init', () => {
         TrezorConnect.dispose();
     });
 
-    beforeAll(() => {
-        // use local build, not trezor connect version hosted on trezor.connect.io
-        // @ts-expect-error
-        global.__TREZOR_CONNECT_SRC = process.env.TREZOR_CONNECT_SRC;
-    });
-
-    it('calling method before .init() and/or .manifest()', async () => {
-        const { payload } = await TrezorConnect.getCoinInfo({ coin: 'btc' });
-        expect(payload).toMatchObject(INIT_ERROR);
+    it('calling method before .init()', async () => {
+        const result = await TrezorConnect.getCoinInfo({ coin: 'btc' });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+            expect(result.error).toMatchObject(INIT_ERROR);
+        }
     });
 
     it('missing manifest in TrezorConnect.init', async () => {
@@ -45,7 +43,9 @@ describe('TrezorConnect.init', () => {
         });
 
         try {
-            await TrezorConnect.init({ manifest: { appName: 'a', appUrl: 'a', email: 'b' } });
+            await TrezorConnect.init({
+                manifest: { appName: 'a', appUrl: 'a', email: 'b' },
+            });
             throw new Error('Should not be resolved');
         } catch (error) {
             expect(error).toMatchObject({ code: 'Init_AlreadyInitialized' });
@@ -53,10 +53,8 @@ describe('TrezorConnect.init', () => {
     });
 
     it('calling multiple methods synchronously', async () => {
-        TrezorConnect.manifest({
-            appName: 'a',
-            appUrl: 'a',
-            email: 'b',
+        await TrezorConnect.init({
+            manifest: { appName: 'a', appUrl: 'a', email: 'b' },
         });
 
         const result = await Promise.all([
@@ -69,20 +67,10 @@ describe('TrezorConnect.init', () => {
     });
 
     it('init success', async () => {
-        await TrezorConnect.init({ manifest: { appName: 'a', appUrl: 'a', email: 'b' } });
-
-        const resp = await TrezorConnect.getCoinInfo({ coin: 'btc' });
-        expect(resp).toMatchObject({
-            payload: { type: 'bitcoin', shortcut: 'BTC' },
+        await TrezorConnect.init({
+            manifest: { appName: 'a', appUrl: 'a', email: 'b' },
         });
-    });
 
-    it('manifest success', async () => {
-        TrezorConnect.manifest({
-            appName: 'a',
-            appUrl: 'a',
-            email: 'b',
-        });
         const resp = await TrezorConnect.getCoinInfo({ coin: 'btc' });
         expect(resp).toMatchObject({
             payload: { type: 'bitcoin', shortcut: 'BTC' },

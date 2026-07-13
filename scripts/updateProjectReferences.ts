@@ -1,7 +1,7 @@
 import chalk from 'chalk';
-import fs from 'fs';
 import { minimatch } from 'minimatch';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import prettier from 'prettier';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
@@ -56,11 +56,9 @@ import { getWorkspacesList } from './utils/getWorkspacesList';
     const workspaces = getWorkspacesList();
 
     // NOTE: Workspace keys must be sorted due to file systems being a part of the equation...
-    Object.keys(workspaces)
-        .sort()
-        .forEach(async workspaceName => {
-            const workspace = workspaces[workspaceName];
-
+    Object.entries(workspaces)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .forEach(async ([_workspaceName, workspace]) => {
             if (workspace.location === '.') {
                 // Skip root workspace
                 return;
@@ -140,8 +138,9 @@ import { getWorkspacesList } from './utils/getWorkspacesList';
             workspaceConfig.references = expectedReferences;
             fs.writeFileSync(workspaceConfigPath, await serializeConfig(workspaceConfig));
 
-            if (workspaceLibConfig === null) return;
-            workspaceLibConfig.references = expectedLibReferences;
-            fs.writeFileSync(workspaceLibConfigPath, await serializeConfig(workspaceLibConfig, 2));
+            if (workspaceLibConfig !== null) {
+                workspaceLibConfig.references = expectedLibReferences;
+                fs.writeFileSync(workspaceLibConfigPath, await serializeConfig(workspaceLibConfig));
+            }
         });
 })();

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
+import { selectSelectedDevice } from '@suite-common/device';
 import { notificationsActions } from '@suite-common/toast-notifications';
-import { selectSelectedDevice } from '@suite-common/wallet-core';
 
 import { addDeviceIdToSeenDisconnectNotification } from '../../actions/suite/suiteActions';
 import { useDispatch, useSelector } from '../../hooks/suite';
@@ -14,17 +14,14 @@ export const useNotificationForDisconnectedDevice = () => {
         state => state.suite.seenDisconnectNotificationForDeviceIds,
     );
     const recentlyDisconnectedDevice = useSelector(state => state.suite.recentlyDisconnectedDevice);
-    const hasSeenDisconnectTooltip = useSelector(
-        state => state.suite.flags.hasSeenDisconnectTooltip,
-    );
+    const hasSeenDisconnectTooltip = useSelector(state => state.flags.hasSeenDisconnectTooltip);
 
     useEffect(() => {
         const deviceId = selectedDevice?.id;
 
         if (deviceId) {
-            const isNotificationSeenOnThisDevice = seenDisconnectNotificationForDeviceIds
-                ? seenDisconnectNotificationForDeviceIds.some(id => id === selectedDevice?.id)
-                : false;
+            const isNotificationSeenOnThisDevice =
+                seenDisconnectNotificationForDeviceIds?.includes(deviceId) ?? false;
 
             const isNotificationVisible =
                 recentlyDisconnectedDevice === deviceId &&

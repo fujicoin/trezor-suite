@@ -1,43 +1,30 @@
-import { ChangeEvent, ReactNode, useCallback, useState } from 'react';
+import { type ChangeEvent, type ReactNode, useCallback, useState } from 'react';
 
 import styled from 'styled-components';
 
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { useServices } from '@suite-common/dependency-injection';
 import {
-    FeedbackCategory,
-    FeedbackType,
-    Rating,
+    type FeedbackCategory,
+    type FeedbackType,
+    type Rating,
     buildUserFeedbackData,
-    sendFeedback,
+    sendFeedbackAction,
 } from '@suite-common/feedback';
-import { Button, CollapsibleBox, Select, Textarea, variables } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
-import { spacingsPx } from '@trezor/theme';
+import { Box, Button, CollapsibleBox, Select, Textarea } from '@trezor/components';
+import { EmojiRatingSelector } from '@trezor/product-components';
+import { typography } from '@trezor/theme';
 
 import { setView } from 'src/actions/suite/guideActions';
-import { GuideContent, GuideHeader, GuideViewWrapper } from 'src/components/guide';
-import { Translation } from 'src/components/suite';
-import { useDevice, useDispatch, useSelector } from 'src/hooks/suite';
-
-import { EmojiRatingSelector } from '../suite/EmojiRatingSelector';
-
-const Headline = styled.div`
-    font-size: ${variables.FONT_SIZE.TINY};
-    font-weight: ${variables.FONT_WEIGHT.DEMI_BOLD};
-    text-align: left;
-    color: ${({ theme }) => theme.legacy.TYPE_DARK_GREY};
-    padding: 0 0 11px;
-    width: 100%;
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const Submit = styled(Button)`
-    width: 100%;
-    margin: 0 0 20px;
-`;
-
-const SelectWrapper = styled.div`
-    padding: 0 0 20px;
-`;
+import {
+    GuideContent,
+    GuideHeader,
+    GuideSectionHeadline,
+    GuideViewWrapper,
+} from 'src/components/guide';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 
 const AnonymousDataList = styled.ul`
     margin-left: 20px;
@@ -45,14 +32,8 @@ const AnonymousDataList = styled.ul`
 
 const AnonymousDataItem = styled.li`
     margin-bottom: 4px;
-    font-size: ${variables.FONT_SIZE.SMALL};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-    color: ${({ theme }) => theme.legacy.TYPE_DARK_GREY};
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledTextarea = styled(Textarea)`
-    margin-bottom: ${spacingsPx.md};
+    ${typography['body-sm']}
+    color: ${({ theme }) => theme.contentPrimary};
 `;
 
 const MESSAGE_CHARACTER_LIMIT = 1000;
@@ -69,18 +50,20 @@ type FeedbackProps = {
 
 export const Feedback = ({ type }: FeedbackProps) => {
     const { device } = useDevice();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const dispatch = useDispatch();
     const router = useSelector(state => state.router);
     const [description, setDescription] = useState('');
     const [rating, setRating] = useState<Rating | undefined>();
 
-    const feedbackCategories: { [key in FeedbackCategory]: ReactNode } = {
+    const feedbackCategories: Partial<Record<FeedbackCategory, ReactNode>> = {
         dashboard: <Translation id="TR_FEEDBACK_CATEGORY_DASHBOARD" />,
         account: <Translation id="TR_FEEDBACK_CATEGORY_ACCOUNT" />,
         settings: <Translation id="TR_FEEDBACK_CATEGORY_SETTINGS" />,
         send: <Translation id="TR_FEEDBACK_CATEGORY_SEND" />,
         receive: <Translation id="TR_FEEDBACK_CATEGORY_RECEIVE" />,
         trade: <Translation id="TR_FEEDBACK_CATEGORY_TRADE" />,
+        experimental: <Translation id="TR_FEEDBACK_CATEGORY_EXPERIMENTAL" />,
         other: <Translation id="TR_FEEDBACK_CATEGORY_OTHER" />,
     };
 
@@ -123,7 +106,7 @@ export const Feedback = ({ type }: FeedbackProps) => {
 
         if (type === 'BUG') {
             dispatch(
-                sendFeedback({
+                sendFeedbackAction({
                     type: 'BUG',
                     payload: {
                         description,
@@ -136,7 +119,7 @@ export const Feedback = ({ type }: FeedbackProps) => {
             );
         } else {
             dispatch(
-                sendFeedback({
+                sendFeedbackAction({
                     type: 'SUGGESTION',
                     payload: {
                         description,
@@ -148,10 +131,10 @@ export const Feedback = ({ type }: FeedbackProps) => {
         }
         dispatch(setView('GUIDE_DEFAULT'));
         analytics.report({
-            type: EventType.GuideFeedbackSubmit,
+            type: events.guideFeedbackSubmitEvent.name,
             payload: { type: type === 'BUG' ? 'bug' : 'suggestion' },
         });
-    }, [device, dispatch, type, description, category, rating]);
+    }, [device, type, dispatch, analytics, description, category, rating]);
 
     return (
         <GuideViewWrapper>
@@ -168,10 +151,11 @@ export const Feedback = ({ type }: FeedbackProps) => {
             <GuideContent>
                 {type === 'BUG' && (
                     <>
-                        <Headline>
-                            <Translation id="TR_GUIDE_FEEDBACK_CATEGORY_HEADLINE" />
-                        </Headline>
-                        <SelectWrapper data-testid="@guide/feedback/suggestion-dropdown">
+                        <GuideSectionHeadline id="TR_GUIDE_FEEDBACK_CATEGORY_HEADLINE" />
+                        <Box
+                            padding={{ bottom: 20 }}
+                            data-testid="@guide/feedback/suggestion-dropdown"
+                        >
                             <Select
                                 data-testid="@guide/feedback/suggestion-dropdown/select"
                                 isSearchable={false}
@@ -186,33 +170,27 @@ export const Feedback = ({ type }: FeedbackProps) => {
                                     <Translation id="TR_FEEDBACK_CATEGORY_SELECT_PLACEHOLDER" />
                                 }
                             />
-                        </SelectWrapper>
+                        </Box>
                     </>
                 )}
                 {type === 'SUGGESTION' && (
-                    <>
-                        <Headline>
-                            <Translation id="TR_GUIDE_FEEDBACK_RATING_HEADLINE" />
-                        </Headline>
+                    <Box margin={{ bottom: 12 }}>
+                        <GuideSectionHeadline id="TR_GUIDE_FEEDBACK_RATING_HEADLINE" />
                         <EmojiRatingSelector
                             value={rating}
                             onChange={setRating}
                             data-testid="@guide/feedback/suggestion"
                         />
-                    </>
+                    </Box>
                 )}
                 {type === 'BUG' && (
-                    <Headline>
-                        <Translation id="TR_GUIDE_FEEDBACK_BUG_TEXT_HEADLINE" />
-                    </Headline>
+                    <GuideSectionHeadline id="TR_GUIDE_FEEDBACK_BUG_TEXT_HEADLINE" />
                 )}
                 {type === 'SUGGESTION' && (
-                    <Headline>
-                        <Translation id="TR_GUIDE_FEEDBACK_SUGGESTION_TEXT_HEADLINE" />
-                    </Headline>
+                    <GuideSectionHeadline id="TR_GUIDE_FEEDBACK_SUGGESTION_TEXT_HEADLINE" />
                 )}
 
-                <StyledTextarea
+                <Textarea
                     rows={8}
                     value={description}
                     onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
@@ -221,9 +199,10 @@ export const Feedback = ({ type }: FeedbackProps) => {
                     characterCount
                     data-testid="@guide/feedback/suggestion-form"
                     maxLength={MESSAGE_CHARACTER_LIMIT}
+                    margin={{ bottom: 16 }}
                 />
 
-                <Submit
+                <Button
                     onClick={onSubmit}
                     isDisabled={
                         description.length === 0 ||
@@ -231,9 +210,11 @@ export const Feedback = ({ type }: FeedbackProps) => {
                         (type === 'BUG' && category === undefined)
                     }
                     data-testid="@guide/feedback/submit-button"
+                    width="100%"
+                    margin={{ bottom: 20 }}
                 >
                     <Translation id="TR_GUIDE_FEEDBACK_SEND_REPORT" />
-                </Submit>
+                </Button>
 
                 <CollapsibleBox heading={<Translation id="TR_GUIDE_FEEDBACK_SYSTEM_INFO_NOTICE" />}>
                     <AnonymousDataList>

@@ -1,5 +1,5 @@
-import type { Block, MempoolTransactionNotification } from './blockbook';
-import { Eip1559Fees } from './blockbook-api';
+import type { Block, ContractInfoResponse, MempoolTransactionNotification } from './blockbook';
+import { type Eip1559Fees, type EthereumGasData } from './blockbook-api';
 import type {
     AccountBalanceHistory,
     AccountInfo,
@@ -9,8 +9,8 @@ import type {
     Transaction,
     Utxo,
 } from './common';
-import { HANDSHAKE } from './constants/messages';
-import * as RESPONSES from './constants/responses';
+import { type HANDSHAKE } from './constants/messages';
+import type * as RESPONSES from './constants/responses';
 
 // messages sent from worker to blockchain.js
 
@@ -126,6 +126,7 @@ export interface BlockEvent {
     payload: {
         blockHeight: number;
         blockHash: string;
+        evmData?: EthereumGasData | null;
     };
 }
 
@@ -159,10 +160,23 @@ export interface PushTransaction {
     payload: string;
 }
 
+export interface ValidateEvmRpc {
+    type: typeof RESPONSES.VALIDATE_EVM_RPC;
+    payload: {
+        valid: boolean;
+        actualChainId?: number;
+    };
+}
+
+export interface GetContractInfo {
+    type: typeof RESPONSES.GET_CONTRACT_INFO;
+    payload: ContractInfoResponse;
+}
+
 interface WithoutPayload {
     id: number;
     type: typeof HANDSHAKE | typeof RESPONSES.CONNECTED;
-    payload?: typeof undefined;
+    payload?: never;
 }
 
 // extended
@@ -187,4 +201,6 @@ export type Response =
     | ChannelMessage<Subscribe>
     | ChannelMessage<Unsubscribe>
     | ChannelMessage<Notification>
-    | ChannelMessage<PushTransaction>;
+    | ChannelMessage<PushTransaction>
+    | ChannelMessage<ValidateEvmRpc>
+    | ChannelMessage<GetContractInfo>;

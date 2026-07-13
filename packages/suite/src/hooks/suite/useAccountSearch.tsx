@@ -1,58 +1,59 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 
-import { Account } from '@suite-common/wallet-types';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 
-import * as accountSearchActions from 'src/actions/wallet/accountSearchActions';
 import { useDispatch, useSelector } from 'src/hooks/suite';
+import {
+    accountSearchActions,
+    selectAccountSearch,
+} from 'src/reducers/wallet/accountSearchReducer';
 
 type AccountSearchContextType = {
-    coinFilter: Account['symbol'] | undefined;
+    coinFilter: NetworkSymbol[];
     searchString: string | undefined;
-    setCoinFilter: (filter?: Account['symbol']) => void;
+    toggleCoinFilter: (symbol: NetworkSymbol) => void;
+    setCoinFilter: (filter: NetworkSymbol[]) => void;
     setSearchString: (search?: string) => void;
 };
 
 const AccountSearchContext = createContext<AccountSearchContextType>({
-    coinFilter: undefined,
+    coinFilter: [],
     searchString: '',
+    toggleCoinFilter: () => {},
     setCoinFilter: () => {},
     setSearchString: () => {},
 });
 
-export const LocalAccountSearchProvider = ({ children }: { children: React.ReactNode }) => {
-    const [coinFilter, setCoinFilter] = useState<Account['symbol'] | undefined>(undefined);
-    const [searchString, setSearchString] = useState<string | undefined>(undefined);
-
-    return (
-        <AccountSearchContext.Provider
-            value={{ coinFilter, searchString, setCoinFilter, setSearchString }}
-        >
-            {children}
-        </AccountSearchContext.Provider>
-    );
-};
-
-export const ReduxAccountSearchProvider = ({ children }: { children: React.ReactNode }) => {
-    const { coinFilter, searchString } = useSelector(state => state.wallet.accountSearch);
+export function useReduxAccountSearchActions() {
     const dispatch = useDispatch();
 
-    const actions = useMemo(
+    return useMemo(
         () => ({
-            setCoinFilter: (filter?: Account['symbol']) =>
+            toggleCoinFilter: (symbol: NetworkSymbol) =>
+                dispatch(accountSearchActions.toggleCoinFilter(symbol)),
+            setCoinFilter: (filter: AccountSearchContextType['coinFilter']) =>
                 dispatch(accountSearchActions.setCoinFilter(filter)),
-            setSearchString: (search?: string) =>
+            setSearchString: (search: AccountSearchContextType['searchString']) =>
                 dispatch(accountSearchActions.setSearchString(search)),
         }),
         [dispatch],
     );
+}
 
-    const value = {
-        coinFilter,
-        searchString,
-        ...actions,
-    };
+export const ReduxAccountSearchProvider = ({ children }: { children: React.ReactNode }) => {
+    const filters = useSelector(state => selectAccountSearch(state));
+    const actions = useReduxAccountSearchActions();
 
-    return <AccountSearchContext.Provider value={value}>{children}</AccountSearchContext.Provider>;
+    return (
+        <AccountSearchContext.Provider
+            value={{
+                ...filters,
+                ...actions,
+            }}
+        >
+            {children}
+        </AccountSearchContext.Provider>
+    );
 };
 
 export const useAccountSearch = (): AccountSearchContextType => useContext(AccountSearchContext);

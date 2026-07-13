@@ -2,11 +2,13 @@ import { useCallback } from 'react';
 
 import { FlashList } from '@shopify/flash-list';
 
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { type AccountKey } from '@suite-common/wallet-types';
 import { isSameUtxo } from '@suite-common/wallet-utils';
 import { Box } from '@suite-native/atoms';
-import { Utxo } from '@trezor/blockchain-link-types';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { type Utxo } from '@trezor/blockchain-link-types';
+import { type StaticSessionId } from '@trezor/connect';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { UtxoCard } from './UtxoCard';
 
@@ -17,7 +19,8 @@ const spacerStyle = prepareNativeStyle(utils => ({
 }));
 
 type UtxoListProps = {
-    accountKey: string;
+    deviceStaticSessionId: StaticSessionId;
+    accountKey: AccountKey;
     utxos: Utxo[];
     selectedUtxos: Utxo[];
     onUtxoToggle: (utxo: Utxo) => void;
@@ -25,8 +28,9 @@ type UtxoListProps = {
 };
 
 export const UtxoList = ({
-    utxos,
+    deviceStaticSessionId,
     accountKey,
+    utxos,
     selectedUtxos,
     onUtxoToggle,
     symbol,
@@ -46,9 +50,10 @@ export const UtxoList = ({
                 accountKey={accountKey}
                 utxo={item}
                 symbol={symbol}
+                deviceStaticSessionId={deviceStaticSessionId}
             />
         ),
-        [accountKey, onUtxoToggle, symbol, isSelected],
+        [accountKey, onUtxoToggle, symbol, isSelected, deviceStaticSessionId],
     );
 
     const rowSeparator = useCallback(() => <Box style={applyStyle(spacerStyle)} />, [applyStyle]);
@@ -61,7 +66,6 @@ export const UtxoList = ({
             renderItem={renderItem}
             contentContainerStyle={applyStyle(UtxoListStyle)}
             ItemSeparatorComponent={rowSeparator}
-            estimatedItemSize={120}
         />
     );
 };

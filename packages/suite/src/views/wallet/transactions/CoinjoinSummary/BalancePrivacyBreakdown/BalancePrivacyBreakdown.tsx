@@ -1,15 +1,16 @@
 import styled, { useTheme } from 'styled-components';
 
-import { isZero } from '@suite-common/wallet-utils';
-import { Icon } from '@trezor/components';
-
-import { Translation } from 'src/components/suite/Translation';
-import { useSelector } from 'src/hooks/suite';
+import { selectSelectedAccount } from '@suite/account';
 import {
     selectCurrentCoinjoinBalanceBreakdown,
     selectCurrentCoinjoinSession,
-} from 'src/reducers/wallet/coinjoinReducer';
-import { selectSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
+} from '@suite/coinjoin';
+import { Translation } from '@suite/intl';
+import { isZero } from '@suite-common/wallet-utils';
+import { Icon } from '@trezor/components';
+import { CheckIcon, PauseIcon, ShuffleIcon, XIcon } from '@trezor/icons';
+
+import { useSelector } from 'src/hooks/suite';
 
 import { CryptoAmountWithHeader } from './CryptoAmountWithHeader';
 
@@ -29,14 +30,7 @@ const StyledCryptoAmountWithHeader = styled(CryptoAmountWithHeader)`
 `;
 
 const PrivateBalanceHeading = styled.span`
-    color: ${({ theme }) => theme.legacy.TYPE_GREEN};
-`;
-
-// svg padding offset
-// eslint-disable-next-line local-rules/no-override-ds-component
-const CheckIcon = styled(Icon)`
-    width: 15px;
-    height: 15px;
+    color: ${({ theme }) => theme.contentBrand};
 `;
 
 export const BalancePrivacyBreakdown = () => {
@@ -63,13 +57,13 @@ export const BalancePrivacyBreakdown = () => {
     const getBalanceIcon = () => {
         if (hasSession) {
             if (currentSession.paused) {
-                return <Icon name="pause" size={12} />;
+                return <Icon as={PauseIcon} size={12} />;
             }
 
-            return <Icon name="shuffle" size={15} />;
+            return <Icon as={ShuffleIcon} size={15} />;
         }
 
-        return <Icon name="x" size={15} />;
+        return <Icon as={XIcon} size={15} />;
     };
 
     if (!currentAccount) {
@@ -83,7 +77,7 @@ export const BalancePrivacyBreakdown = () => {
                 headerIcon={getBalanceIcon()}
                 value={notAnonymized}
                 symbol={currentAccount?.symbol}
-                color={!isZero(notAnonymized || '0') ? undefined : theme.legacy.TYPE_LIGHT_GREY}
+                color={!isZero(notAnonymized || '0') ? undefined : theme.contentSecondary}
             />
 
             <StyledCryptoAmountWithHeader
@@ -92,14 +86,10 @@ export const BalancePrivacyBreakdown = () => {
                         <Translation id="TR_PRIVATE" />
                     </PrivateBalanceHeading>
                 }
-                headerIcon={<CheckIcon name="check" size={19} color={theme.legacy.TYPE_GREEN} />}
+                headerIcon={<Icon as={CheckIcon} size={16} intent="brand" />}
                 value={anonymized}
                 symbol={currentAccount?.symbol}
-                color={
-                    !isZero(anonymized || '0')
-                        ? theme.legacy.TYPE_GREEN
-                        : theme.legacy.TYPE_LIGHT_GREY
-                }
+                color={!isZero(anonymized || '0') ? theme.contentBrand : theme.contentSecondary}
             />
         </BalanceContainer>
     );

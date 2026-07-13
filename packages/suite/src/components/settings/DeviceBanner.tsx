@@ -1,62 +1,52 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import styled from 'styled-components';
-
+import { useDevice } from '@suite/device';
+import { DEFAULT_FLAGSHIP_MODEL } from '@suite-common/suite-constants';
 import { isDeviceAcquired } from '@suite-common/suite-utils';
-import { Card, Column, LottieAnimation, Paragraph, Row, Text } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { Banner, type BannerIntent } from '@trezor/components';
+import { mapTrezorModelToIcon } from '@trezor/product-components';
 
 import { WebUsbButton } from 'src/components/suite/WebUsbButton';
-import { useDevice, useSelector } from 'src/hooks/suite';
+import { useSelector } from 'src/hooks/suite';
 import { selectHasTransportOfType } from 'src/selectors/suite/suiteSelectors';
 
 import { AcquireDeviceButton } from '../suite/AcquireDeviceButton';
 
-const StyledAcquireDeviceButton = styled(AcquireDeviceButton)`
-    margin-left: auto;
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledLottieAnimation = styled(LottieAnimation)`
-    margin: 8px 16px 8px 0;
-    min-width: 64px;
-    background: ${({ theme }) => theme.legacy.BG_GREY};
-`;
-
 type DeviceBannerProps = {
     title: ReactNode;
     description?: ReactNode;
+    intent?: BannerIntent;
+    rightContent?: ReactNode;
 };
 
-export const DeviceBanner = ({ title, description }: DeviceBannerProps) => {
+export const DeviceBanner = ({
+    title,
+    description,
+    intent = 'warning',
+    rightContent,
+}: DeviceBannerProps) => {
     const { device } = useDevice();
     const isWebUsbTransport = useSelector(selectHasTransportOfType('WebUsbTransport'));
     const deviceConnectedButNotAcquired = device && !isDeviceAcquired(device);
+    const selectedDeviceModelInternal = device?.features?.internal_model || DEFAULT_FLAGSHIP_MODEL;
 
     return (
-        <Card
+        <Banner
             data-testid="@settings/device/disconnected-device-banner"
-            margin={{ bottom: spacings.lg }}
-        >
-            <Row>
-                <StyledLottieAnimation
-                    type="CONNECT"
-                    shape="CIRCLE"
-                    size={64}
-                    deviceModelInternal={device?.features?.internal_model}
-                    loop
-                />
-                <Column>
-                    <Row gap={spacings.sm} flexWrap="wrap">
-                        <Paragraph typographyStyle="highlight">{title}</Paragraph>
-                        {!description && isWebUsbTransport && !device?.connected && (
-                            <WebUsbButton />
+            intent={intent}
+            icon={mapTrezorModelToIcon[selectedDeviceModelInternal]}
+            title={title}
+            description={description}
+            rightContent={
+                rightContent ?? (
+                    <>
+                        {deviceConnectedButNotAcquired && <AcquireDeviceButton />}
+                        {isWebUsbTransport && !device?.connected && (
+                            <WebUsbButton intent={intent} size="small" />
                         )}
-                    </Row>
-                    {description && <Text color="textSubdued">{description}</Text>}
-                </Column>
-                {deviceConnectedButNotAcquired && <StyledAcquireDeviceButton />}{' '}
-            </Row>
-        </Card>
+                    </>
+                )
+            }
+        />
     );
 };

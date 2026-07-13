@@ -1,18 +1,18 @@
-import { ImgHTMLAttributes } from 'react';
+import { type ImgHTMLAttributes } from 'react';
 
 import styled from 'styled-components';
 
+import { resolveStaticPath } from '@trezor/env-utils';
 import { isArrayMember, typedObjectEntries } from '@trezor/utils';
 
-import { PNG_IMAGES, PngImage, SVG_IMAGES, SvgImage } from './images';
+import { IMAGES, type ImageType } from './images';
 import {
-    FrameProps,
-    FramePropsKeys,
+    type FrameProps,
+    type FramePropsKeys,
     pickAndPrepareFrameProps,
     withFrameProps,
 } from '../../utils/frameProps';
-import { resolveStaticPath } from '../../utils/resolveStaticPath';
-import { TransientProps } from '../../utils/transientProps';
+import { type TransientProps } from '../../utils/transientProps';
 
 export const allowedImageFrameProps = [
     'margin',
@@ -22,45 +22,45 @@ export const allowedImageFrameProps = [
     'maxWidth',
     'maxHeight',
     'flex',
+    'objectFit',
+    'objectPosition',
 ] as const satisfies FramePropsKeys[];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedImageFrameProps)[number]>;
 
-export const PNG_PATH = 'images/png';
-export const SVG_PATH = 'images/svg';
+export const IMAGES_PATH = 'images/images';
 
-export type ImageKey = PngImage | SvgImage;
+export type ImageKey = ImageType;
 
-const buildSrcSet = (imageKey: PngImage) => {
-    const imageFile1x = PNG_IMAGES[imageKey];
-    const imageFile2x = PNG_IMAGES[`${String(imageKey)}_2x` as PngImage];
+const buildSrcSet = (imageKey: ImageType) => {
+    const imageFile1x = IMAGES[imageKey];
+    const imageFile2x = IMAGES[`${String(imageKey)}_2x` as ImageType];
 
     if (!imageFile2x) {
         return undefined;
     }
 
     return `
-        ${resolveStaticPath(`${PNG_PATH}/${imageFile1x}`)} 1x,
-        ${resolveStaticPath(`${PNG_PATH}/${imageFile2x}`)} 2x
+        ${resolveStaticPath(`${IMAGES_PATH}/${imageFile1x}`)} 1x,
+        ${resolveStaticPath(`${IMAGES_PATH}/${imageFile2x}`)} 2x
     `;
 };
 
-const isPNGImageKey = (key: ImageKey): key is PngImage => key in PNG_IMAGES;
+const isPNGImageKey = (key: ImageKey): key is ImageType => key in IMAGES;
 
 const getSourceProps = (imageKey: ImageKey) => {
     if (isPNGImageKey(imageKey)) {
         return {
-            src: resolveStaticPath(`${PNG_PATH}/${PNG_IMAGES[imageKey]}`),
+            src: resolveStaticPath(`${IMAGES_PATH}/${IMAGES[imageKey]}`),
             srcSet: buildSrcSet(imageKey),
         };
     }
 
-    return { src: resolveStaticPath(`${SVG_PATH}/${SVG_IMAGES[imageKey]}`) };
+    return { src: resolveStaticPath(`${IMAGES_PATH}/${IMAGES[imageKey]}`) };
 };
 
-const StyledImage = styled.img<TransientProps<AllowedFrameProps & { isFilterActive?: boolean }>>`
+const StyledImage = styled.img<TransientProps<AllowedFrameProps>>`
+    display: block;
     max-width: 100%;
-    filter: ${({ theme, $isFilterActive }) =>
-        $isFilterActive ? theme.legacy.IMAGE_FILTER : 'none'};
 
     ${withFrameProps}
 `;
@@ -78,11 +78,9 @@ export type ImageProps = AllowedFrameProps &
               image?: never;
               imageSrc: string;
           }
-    ) & { isFilterActive?: boolean };
+    );
 
-const getImageHTMLProps = (
-    imageProps: Omit<ImageProps, 'image' | 'imageSrc' | 'isFilterActive'>,
-): ImageHTMLProps =>
+const getImageHTMLProps = (imageProps: Omit<ImageProps, 'image' | 'imageSrc'>): ImageHTMLProps =>
     typedObjectEntries(imageProps).reduce<ImageHTMLProps>(
         (imageHTMLProps, [propKey, propValue]) => {
             if (!isArrayMember(propKey, allowedImageFrameProps)) {
@@ -94,17 +92,10 @@ const getImageHTMLProps = (
         {},
     );
 
-export const Image = ({ image, imageSrc, isFilterActive = true, ...rest }: ImageProps) => {
+export const Image = ({ image, imageSrc, ...rest }: ImageProps) => {
     const frameProps = pickAndPrepareFrameProps(rest, allowedImageFrameProps);
     const imageHTMLProps = getImageHTMLProps(rest);
     const sourceProps = image ? getSourceProps(image) : { src: imageSrc };
 
-    return (
-        <StyledImage
-            {...sourceProps}
-            {...imageHTMLProps}
-            {...frameProps}
-            $isFilterActive={isFilterActive}
-        />
-    );
+    return <StyledImage {...sourceProps} {...imageHTMLProps} {...frameProps} />;
 };

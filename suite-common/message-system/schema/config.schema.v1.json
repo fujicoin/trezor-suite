@@ -45,7 +45,8 @@
                         ],
                         "properties": {
                             "id": {
-                                "type": "string"
+                                "type": "string",
+                                "minLength": 1
                             },
                             "priority": {
                                 "type": "integer",
@@ -132,11 +133,49 @@
                                         "flag": {
                                             "type": "boolean"
                                         },
+                                        "payload": {
+                                            "type": "object",
+                                            "description": "Optional payload with arbitrary properties",
+                                            "additionalProperties": true
+                                        },
                                         "visibleBanner": {
-                                            "type": "string"
+                                            "type": "string",
+                                            "description": "Legacy field for 'dashboard.promoBanner'"
+                                        },
+                                        "timeoutThresholdsPerModel": {
+                                            "type": ["object", "null"],
+                                            "description": "Legacy field for 'security.firmware.hashCheck.timeout'"
+                                        },
+                                        "averageAnonymityGainPerRound": {
+                                            "type": "number",
+                                            "description": "Legacy field for 'coinjoin'"
+                                        },
+                                        "roundsFailRateBuffer": {
+                                            "type": "number",
+                                            "description": "Legacy field for 'coinjoin'"
+                                        },
+                                        "roundsDurationInHours": {
+                                            "type": "number",
+                                            "description": "Legacy field for 'coinjoin'"
+                                        },
+                                        "maxMiningFeeModifier": {
+                                            "type": "number",
+                                            "description": "Legacy field for 'coinjoin'"
+                                        },
+                                        "maxFeePerVbyte": {
+                                            "type": "number",
+                                            "description": "Legacy field for 'coinjoin'"
+                                        },
+                                        "legalDocumentsVersion": {
+                                            "type": "number",
+                                            "description": "Legacy field for 'coinjoin'"
+                                        },
+                                        "isPublic": {
+                                            "type": "boolean",
+                                            "description": "Legacy field for 'coinjoin'"
                                         }
                                     },
-                                    "additionalProperties": true
+                                    "additionalProperties": false
                                 }
                             },
                             "context": {
@@ -187,7 +226,8 @@
                         "required": ["id", "groups"],
                         "properties": {
                             "id": {
-                                "type": "string"
+                                "type": "string",
+                                "minLength": 1
                             },
                             "groups": {
                                 "type": "array",
@@ -207,7 +247,8 @@
                                         }
                                     },
                                     "additionalProperties": true
-                                }
+                                },
+                                "uniqueItems": true
                             }
                         },
                         "additionalProperties": false
@@ -438,6 +479,39 @@
                                     "description": "Eligible authorized vendors.",
                                     "type": "string",
                                     "enum": ["*", "trezor.io"]
+                                },
+                                "thpProperties": {
+                                    "title": "Trezor-Host-Protocol (THP) properties",
+                                    "type": "object",
+                                    "properties": {
+                                        "internalModel": {
+                                            "type": "string"
+                                        },
+                                        "modelVariant": {
+                                            "type": "number"
+                                        },
+                                        "protocolVersionMajor": {
+                                            "type": "number"
+                                        },
+                                        "protocolVersionMinor": {
+                                            "type": "number"
+                                        },
+                                        "pairingMethods": {
+                                            "type": "array",
+                                            "items": {
+                                                "title": "Pairing Method",
+                                                "type": "string",
+                                                "enum": [
+                                                    "SkipPairing",
+                                                    "CodeEntry",
+                                                    "QrCode",
+                                                    "NFC"
+                                                ],
+                                                "description": "Supported THP pairing methods: 1=SkipPairing, 2=CodeEntry, 3=QrCode, 4=NFC."
+                                            }
+                                        }
+                                    },
+                                    "additionalProperties": false
                                 }
                             },
                             "additionalProperties": false
@@ -710,6 +784,14 @@
                 "ZM",
                 "ZW"
             ]
+        },
+        "tradingType": {
+            "type": "string",
+            "enum": ["buy", "sell", "exchange", "concierge"]
+        },
+        "yieldFlowType": {
+            "type": "string",
+            "enum": ["deposit", "withdraw", "redeem", "claim"]
         }
     }
 }

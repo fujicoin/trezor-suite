@@ -1,16 +1,12 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 import Link from 'next/link';
 import { getPagesUnderRoute } from 'nextra/context';
 import styled from 'styled-components';
 
-import { Button, H3, Paragraph, Card as TrezorCard } from '@trezor/components';
+import { Button, Card, H3, Paragraph } from '@trezor/components';
+import { ArrowLineUpRightIcon } from '@trezor/icons';
 import { spacingsPx } from '@trezor/theme';
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const SectionCard = styled(TrezorCard)`
-    margin-bottom: ${spacingsPx.xl};
-`;
 
 const BottomRow = styled.div`
     margin-top: ${spacingsPx.sm};
@@ -38,15 +34,20 @@ export default function GuideIndex(): ReactNode {
             style={{ color: 'inherit', textDecoration: 'none' }}
             key={page.route}
         >
-            <SectionCard>
+            <Card margin={{ bottom: 24 }}>
                 <H3>{page.meta?.title || page.frontMatter?.title || page.name}</H3>
                 <Paragraph>{page.frontMatter?.description}</Paragraph>
                 <BottomRow>
-                    <Button variant="primary" size="tiny" icon="arrowRight" iconAlignment="end">
+                    <Button
+                        intent="neutral"
+                        priority="secondary"
+                        size="small"
+                        iconRight={ArrowLineUpRightIcon}
+                    >
                         Read more
                     </Button>
                 </BottomRow>
-            </SectionCard>
+            </Card>
         </Link>
     ));
 }

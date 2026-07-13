@@ -3,19 +3,38 @@
     "compilerOptions": { "outDir": "libDev" },
     "references": [
         {
+            "path": "../../suite-common/dependency-injection"
+        },
+        {
+            "path": "../../suite-common/discreet-mode"
+        },
+        {
             "path": "../../suite-common/formatters"
         },
         {
             "path": "../../suite-common/redux-utils"
         },
+        { "path": "../../suite-common/staking" },
+        {
+            "path": "../../suite-common/suite-sync"
+        },
+        {
+            "path": "../../suite-common/suite-sync-types"
+        },
         {
             "path": "../../suite-common/suite-types"
+        },
+        {
+            "path": "../../suite-common/suite-utils"
         },
         {
             "path": "../../suite-common/token-definitions"
         },
         {
             "path": "../../suite-common/wallet-config"
+        },
+        {
+            "path": "../../suite-common/wallet-constants"
         },
         {
             "path": "../../suite-common/wallet-core"
@@ -26,21 +45,26 @@
         {
             "path": "../../suite-common/wallet-utils"
         },
-        { "path": "../analytics" },
         { "path": "../atoms" },
         { "path": "../device" },
+        { "path": "../feature-feedback" },
         { "path": "../formatters" },
-        { "path": "../helpers" },
         { "path": "../icons" },
         { "path": "../intl" },
-        { "path": "../link" },
+        { "path": "../labeling" },
         { "path": "../navigation" },
+        { "path": "../scrollview" },
+        { "path": "../suite-sync" },
         { "path": "../tokens" },
         {
             "path": "../../packages/blockchain-link-types"
         },
-        { "path": "../../packages/styles" },
+        { "path": "../../packages/connect" },
+        {
+            "path": "../../packages/styles-native"
+        },
         { "path": "../../packages/theme" },
+        { "path": "../../packages/type-utils" },
         { "path": "../../packages/utils" }
     ]
 }

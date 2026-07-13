@@ -1,25 +1,14 @@
-import { ThpState } from './ThpState';
-import {
-    CRC_LENGTH,
-    TAG_LENGTH,
-    THP_CONTROL_BYTE_DECRYPTED,
-    THP_CONTROL_BYTE_ENCRYPTED,
-    THP_CREATE_CHANNEL_RESPONSE,
-    THP_ERROR_HEADER_BYTE,
-    THP_HANDSHAKE_COMPLETION_RESPONSE,
-    THP_HANDSHAKE_INIT_RESPONSE,
-    THP_READ_ACK_HEADER_BYTE,
-} from './constants';
+import { type ThpState } from './ThpState';
+import { CRC_LENGTH, TAG_LENGTH } from './constants';
 import { aesgcm } from './crypto';
-import { TransportProtocolDecode } from '../types';
+import { THP_CONTROL_BYTE } from '../protocol-v2/constants';
+import { type TransportProtocolDecode } from '../types';
 import { crc32 } from './crypto/crc32';
 import { getHandshakeHash, getTrezorState } from './crypto/pairing';
 import { getIvFromNonce } from './crypto/tools';
-import { ThpDeviceProperties, ThpError, ThpMessageResponse } from './messages';
-import { clearControlBit, readThpHeader } from './utils';
+import { type ThpDeviceProperties, type ThpError, type ThpMessageResponse } from './messages';
 
 type ThpMessage = ReturnType<TransportProtocolDecode> & {
-    magic: number;
     thpState: ThpState;
 };
 
@@ -142,8 +131,6 @@ const decodeThpError = (payload: Buffer): ThpMessageResponse => {
                 return 'ThpUnallocatedChannel';
             case 0x03:
                 return 'ThpDecryptionFailed';
-            case 0x04:
-                return 'ThpInvalidData';
             case 0x05:
                 return 'ThpDeviceLocked';
             default:
@@ -162,7 +149,10 @@ const decodeThpError = (payload: Buffer): ThpMessageResponse => {
     };
 };
 
-const validateCrc = (decodedMessage: ReturnType<TransportProtocolDecode>) => {
+export const getCRC = (decodedMessage: MessageV2) =>
+    decodedMessage.payload.subarray(decodedMessage.length - CRC_LENGTH, decodedMessage.length);
+
+export const validateCrc = (decodedMessage: MessageV2) => {
     // payload length without crc
     const payloadLen = decodedMessage.length - CRC_LENGTH;
     const length = Buffer.alloc(2);
@@ -176,27 +166,13 @@ const validateCrc = (decodedMessage: ReturnType<TransportProtocolDecode>) => {
         ]),
     );
     // get crc from the message
-    const crc = decodedMessage.payload.subarray(payloadLen, decodedMessage.length);
+    const crc = getCRC(decodedMessage);
 
     // compare both crc
     if (expectedCrc.compare(crc) !== 0) {
         throw new Error(
             `Invalid CRC. expected: ${expectedCrc.toString('hex')} received: ${crc.toString('hex')}`,
         );
-    }
-};
-
-// Decode protocol-v2 message from thp send process: ThpAck or ThpError
-export const decodeSendAck = (decodedMessage: MessageV2) => {
-    validateCrc(decodedMessage);
-
-    const header = readThpHeader(decodedMessage.header);
-    const magic = clearControlBit(header.magic);
-    if (magic === THP_ERROR_HEADER_BYTE) {
-        return decodeThpError(decodedMessage.payload);
-    }
-    if (magic === THP_READ_ACK_HEADER_BYTE) {
-        return decodeReadAck();
     }
 };
 
@@ -210,44 +186,35 @@ export const decode = (
         throw new Error('ThpStateMissing');
     }
 
-    validateCrc(decodedMessage);
-
-    const header = readThpHeader(decodedMessage.header);
     const message: ThpMessage = {
         ...decodedMessage,
-        ...header,
         thpState,
     };
 
-    const magic = clearControlBit(message.magic);
-    if (magic === THP_ERROR_HEADER_BYTE) {
+    const { messageType } = decodedMessage;
+    if (messageType === THP_CONTROL_BYTE.ERROR) {
         return decodeThpError(message.payload);
     }
 
-    if (magic === THP_READ_ACK_HEADER_BYTE) {
+    if (messageType === THP_CONTROL_BYTE.ACK_MESSAGE) {
         return decodeReadAck();
     }
 
-    if (magic === THP_CREATE_CHANNEL_RESPONSE) {
+    if (messageType === THP_CONTROL_BYTE.CHANNEL_ALLOCATION_RES) {
         return createChannelResponse(message, protobufDecoder);
     }
 
-    if (magic === THP_HANDSHAKE_INIT_RESPONSE) {
+    if (messageType === THP_CONTROL_BYTE.HANDSHAKE_INIT_RES) {
         return readHandshakeInitResponse(message);
     }
 
-    if (magic === THP_HANDSHAKE_COMPLETION_RESPONSE) {
+    if (messageType === THP_CONTROL_BYTE.HANDSHAKE_COMP_RES) {
         return readHandshakeCompletionResponse(message);
     }
 
-    if (magic === THP_CONTROL_BYTE_ENCRYPTED) {
+    if (messageType === THP_CONTROL_BYTE.ENCRYPTED) {
         return readProtobufMessage(message, protobufDecoder);
     }
 
-    // TODO: decrypted message decoding (not implemented in FW)
-    if (magic === THP_CONTROL_BYTE_DECRYPTED) {
-        return readProtobufMessage(message, protobufDecoder);
-    }
-
-    throw new Error('Unknown message type: ' + magic);
+    throw new Error('Unknown message type: ' + messageType);
 };

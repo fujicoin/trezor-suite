@@ -1,31 +1,31 @@
 import { useCallback, useState } from 'react';
 
-import { AccountLabels } from '@suite-common/metadata-types';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation, useTranslation } from '@suite/intl';
+import { selectLabelingDataForSelectedAccount } from '@suite/metadata';
+import { useServices } from '@suite-common/dependency-injection';
 import { notificationsActions } from '@suite-common/toast-notifications';
 import { getNetwork } from '@suite-common/wallet-config';
 import { fetchAllTransactionsForAccountThunk } from '@suite-common/wallet-core';
-import { ExportFileType } from '@suite-common/wallet-types';
+import { type ExportFileType } from '@suite-common/wallet-types';
 import { getTitleForCoinjoinAccount } from '@suite-common/wallet-utils';
-import { Dropdown, Note, Text } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { Dropdown, Note } from '@trezor/components';
+import { ChecksIcon, FileArrowDownIcon, InfoIcon } from '@trezor/icons';
 
 import { exportTransactionsThunk } from 'src/actions/wallet/exportTransactionsActions';
-import { Translation } from 'src/components/suite';
 import { useDispatch } from 'src/hooks/suite';
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { useTranslation } from 'src/hooks/suite/useTranslation';
-import { selectLabelingDataForSelectedAccount } from 'src/reducers/suite/metadataReducer';
-import { Account } from 'src/types/wallet';
+import { type Account } from 'src/types/wallet';
 
 export interface ExportActionProps {
     account: Account;
     searchQuery: string;
-    accountMetadata: AccountLabels;
 }
 
-export const ExportAction = ({ account, searchQuery, accountMetadata }: ExportActionProps) => {
+export const ExportAction = ({ account, searchQuery }: ExportActionProps) => {
     const [isExportRunning, setIsExportRunning] = useState(false);
     const dispatch = useDispatch();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const { translationString } = useTranslation();
 
     const getAccountTitle = useCallback(() => {
@@ -48,7 +48,7 @@ export const ExportAction = ({ account, searchQuery, accountMetadata }: ExportAc
             }
 
             analytics.report({
-                type: EventType.AccountsTransactionsExport,
+                type: events.accountsTransactionsExportEvent.name,
                 payload: {
                     format: type,
                     symbol: account.symbol,
@@ -70,7 +70,6 @@ export const ExportAction = ({ account, searchQuery, accountMetadata }: ExportAc
                         accountName,
                         type,
                         searchQuery,
-                        accountMetadata,
                     }),
                 );
             } catch (error) {
@@ -87,13 +86,13 @@ export const ExportAction = ({ account, searchQuery, accountMetadata }: ExportAc
         },
         [
             isExportRunning,
+            analytics,
             account,
             dispatch,
-            translationString,
-            getAccountTitle,
             accountLabel,
+            getAccountTitle,
             searchQuery,
-            accountMetadata,
+            translationString,
         ],
     );
 
@@ -105,7 +104,7 @@ export const ExportAction = ({ account, searchQuery, accountMetadata }: ExportAc
             placement={{ position: 'bottom', alignment: 'start' }}
             content={
                 searchQuery ? (
-                    <Note iconName="checks">
+                    <Note icon={ChecksIcon}>
                         <Translation
                             id={
                                 searchQuery
@@ -115,9 +114,9 @@ export const ExportAction = ({ account, searchQuery, accountMetadata }: ExportAc
                         />
                     </Note>
                 ) : (
-                    <Text variant="disabled">
+                    <Note icon={InfoIcon} priority="secondary">
                         <Translation id="TR_EXPORT_SEARCH_FILTER_INACTIVE" />
-                    </Text>
+                    </Note>
                 )
             }
             items={exportTypes.map(type => ({
@@ -126,9 +125,10 @@ export const ExportAction = ({ account, searchQuery, accountMetadata }: ExportAc
                 'data-testid': `${dataTest}/${type}`,
             }))}
             minWidth={240}
-            iconName="fileArrowDown"
+            icon={FileArrowDownIcon}
             isLoading={isExportRunning}
             data-testid={`${dataTest}/dropdown`}
+            tooltip={{ content: <Translation id="TR_EXPORT_TO_FILE" />, placement: 'left' }}
         />
     );
 };

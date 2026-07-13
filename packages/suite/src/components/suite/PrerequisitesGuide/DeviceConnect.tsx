@@ -1,21 +1,30 @@
-import { Button } from '@trezor/components';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { useServices } from '@suite-common/dependency-injection';
+import { Button, Column } from '@trezor/components';
 
 import { toggleConnectionModal } from 'src/actions/device/deviceSlice';
-import { Translation, WebUsbButton } from 'src/components/suite';
-import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectHasTransportOfType } from 'src/selectors/suite/suiteSelectors';
+import { useDispatch } from 'src/hooks/suite';
 
 export const DeviceConnect = () => {
     const dispatch = useDispatch();
-    const isWebUsbTransport = useSelector(selectHasTransportOfType('WebUsbTransport'));
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
 
-    if (isWebUsbTransport) {
-        return <WebUsbButton data-testid="@webusb-button" translationId="TR_CHECK_FOR_DEVICES" />;
-    }
+    const handleConnect = () => {
+        dispatch(toggleConnectionModal());
+        analytics.report({
+            type: events.deviceConnectionConnectButtonEvent.name,
+            payload: {
+                option: 'dashboard',
+            },
+        });
+    };
 
     return (
-        <Button minWidth={240} size="large" onClick={() => dispatch(toggleConnectionModal())}>
-            <Translation id="TR_CONNECT" />
-        </Button>
+        <Column alignItems="center" margin={{ bottom: 40 }}>
+            <Button minWidth={240} size="large" onClick={handleConnect}>
+                <Translation id="TR_CONNECT" />
+            </Button>
+        </Column>
     );
 };

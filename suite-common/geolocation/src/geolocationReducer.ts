@@ -1,6 +1,6 @@
-import { PayloadAction, createSlice } from '@reduxjs/toolkit';
+import { type PayloadAction, createSlice } from '@reduxjs/toolkit';
 
-import { CountryCode } from './countries';
+import { type CountryCode } from './countries';
 
 export const GEOLOCATION_PREFIX = '@suite-common/geolocation';
 
@@ -8,7 +8,7 @@ export type GeolocationState = {
     countryCode: CountryCode | null;
 };
 
-const geolocationInitialState: GeolocationState = {
+export const geolocationInitialState: GeolocationState = {
     countryCode: null,
 };
 

@@ -1,30 +1,29 @@
 import { useState } from 'react';
 import { useSelector } from 'react-redux';
 
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { type RouteProp, useRoute } from '@react-navigation/native';
 
+import { AccountTypeDecisionBottomSheet, useAddCoinAccount } from '@suite-native/add-coin-account';
 import { Translation } from '@suite-native/intl';
 import {
-    AccountTypeDecisionBottomSheet,
-    useAddCoinAccount,
-} from '@suite-native/module-add-accounts';
-import {
-    AddCoinFlowType,
+    type AddCoinFlowType,
+    type RootStackParamList,
+    type RootStackRoutes,
     Screen,
     ScreenHeader,
-    TradingStackParamList,
-    TradingStackRoutes,
 } from '@suite-native/navigation';
+import {
+    selectBuySelectedReceiveAccount,
+    selectExchangeSelectedReceiveAccount,
+} from '@suite-native/trading-state';
 
 import { AccountList } from '../components/general/AccountList/AccountList';
-import { ReceiveAccountsListMode } from '../hooks/general/useReceiveAccountsListData';
-import { selectBuySelectedReceiveAccount } from '../selectors/buySelectors';
-import { selectExchangeSelectedReceiveAccount } from '../selectors/exchangeSelectors';
+import { type ReceiveAccountsListMode } from '../hooks/general/useReceiveAccountsListData';
 
 export const TradingReceiveAccountsPickerScreen = () => {
     const {
         params: { symbol, tradingType },
-    } = useRoute<RouteProp<TradingStackParamList, TradingStackRoutes.ReceiveAccounts>>();
+    } = useRoute<RouteProp<RootStackParamList, RootStackRoutes.ReceiveAccounts>>();
 
     const accountSelector =
         tradingType === 'buy'
@@ -59,7 +58,7 @@ export const TradingReceiveAccountsPickerScreen = () => {
         );
 
     return (
-        <Screen header={<ScreenHeader title={title} closeActionType="close" />}>
+        <Screen header={<ScreenHeader title={title} closeActionType="back" />}>
             <AccountList
                 symbol={symbol}
                 pickerMode={pickerMode}

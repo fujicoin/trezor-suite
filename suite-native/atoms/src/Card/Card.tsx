@@ -1,13 +1,12 @@
-import React, { ReactNode } from 'react';
+import React, { type ComponentProps, type ReactNode } from 'react';
 import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-import { G } from '@mobily/ts-belt';
+import { type NativeStyleObject, prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+import { type Color } from '@trezor/theme';
+import { isNotNullOrUndefined } from '@trezor/utils';
 
-import { NativeStyleObject, prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-import { Color } from '@trezor/theme';
-
-import { InlineAlertBox, InlineAlertBoxProps } from '../InlineAlertBox/InlineAlertBox';
+import { InlineAlertBox, type InlineAlertBoxProps } from '../InlineAlertBox/InlineAlertBox';
 
 const CARD_CONTAINER_TEST_ID = '@atom/card/container';
 const ALERT_TEST_ID = '@atom/card/alert/';
@@ -22,6 +21,7 @@ export type CardProps = {
     borderColor?: Color;
     alertProps?: InlineAlertBoxProps;
     alertPosition?: AlertPosition;
+    testID?: string;
 };
 
 const cardOuterContainerStyle = prepareNativeStyle<{
@@ -36,7 +36,7 @@ const cardInnerContainerStyle = prepareNativeStyle<{
     borderColor?: Color;
     noShadow?: boolean;
 }>((utils, { alertPosition, noPadding, borderColor, noShadow }) => ({
-    backgroundColor: utils.colors.backgroundSurfaceElevation1,
+    backgroundColor: utils.colors.surfaceFillRaised,
     borderRadius: utils.borders.radii.r16,
     padding: utils.spacings.sp16,
 
@@ -56,7 +56,7 @@ const cardInnerContainerStyle = prepareNativeStyle<{
             },
         },
         {
-            condition: G.isNotNullable(borderColor),
+            condition: isNotNullOrUndefined(borderColor),
             style: {
                 borderColor: utils.colors[borderColor!],
                 borderWidth: utils.borders.widths.small,
@@ -78,7 +78,7 @@ const cardInnerContainerStyle = prepareNativeStyle<{
 const alertBoxWrapperStyle = prepareNativeStyle<{
     alertPosition?: AlertPosition;
 }>((utils, { alertPosition = 'top' }) => ({
-    backgroundColor: utils.colors.backgroundSurfaceElevation1,
+    backgroundColor: utils.colors.surfaceFillRaised,
     paddingHorizontal: utils.spacings.sp4,
     extend: [
         {
@@ -110,6 +110,7 @@ export const Card = React.forwardRef<View, CardProps>(
             borderColor,
             noPadding = false,
             noShadow = false,
+            testID,
         }: CardProps,
         ref,
     ) => {
@@ -119,7 +120,10 @@ export const Card = React.forwardRef<View, CardProps>(
         const alertPosition = isAlertDisplayed ? (alertPositionProp ?? 'top') : undefined;
 
         return (
-            <View style={applyStyle(cardOuterContainerStyle, { flex: style?.flex })}>
+            <View
+                style={applyStyle(cardOuterContainerStyle, { flex: style?.flex })}
+                testID={testID}
+            >
                 {isAlertDisplayed && alertPosition === 'top' && (
                     <View
                         style={applyStyle(alertBoxWrapperStyle, {
@@ -163,5 +167,25 @@ export const Card = React.forwardRef<View, CardProps>(
 );
 
 Card.displayName = 'Card';
-export const AnimatedCard = Animated.createAnimatedComponent(Card);
-AnimatedCard.displayName = 'AnimatedCard';
+
+export type AnimatedContainerCardProps = CardProps &
+    Pick<ComponentProps<typeof Animated.View>, 'layout' | 'entering' | 'exiting'> & {
+        // Use for animated container styles (opacity, transform). style goes to the inner Card.
+        animatedStyle?: ComponentProps<typeof Animated.View>['style'];
+    };
+
+// Wrapping in Animated.View ensures animated styles (opacity, transform) target the outermost
+// container. createAnimatedComponent(Card) would drive the inner styled View instead, which
+// breaks transform animations. For animated inner styles (e.g. borderColor), use AnimatedBorderCard.
+export const AnimatedContainerCard = ({
+    animatedStyle,
+    layout,
+    entering,
+    exiting,
+    children,
+    ...cardProps
+}: AnimatedContainerCardProps) => (
+    <Animated.View style={animatedStyle} layout={layout} entering={entering} exiting={exiting}>
+        <Card {...cardProps}>{children}</Card>
+    </Animated.View>
+);

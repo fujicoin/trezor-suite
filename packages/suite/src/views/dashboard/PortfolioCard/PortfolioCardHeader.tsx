@@ -1,75 +1,36 @@
-import { useCallback } from 'react';
+import { type ReactNode } from 'react';
 
-import { selectAllAccountsToList } from '@suite-common/wallet-core';
-import { Button, Row, SkeletonRectangle } from '@trezor/components';
+import { Row, Skeleton } from '@trezor/components';
 
-import { updateGraphData } from 'src/actions/wallet/graphActions';
-import { GraphRangeSelector, Translation } from 'src/components/suite';
 import { FiatHeader } from 'src/components/wallet/FiatHeader';
-import { useSelector } from 'src/hooks/suite';
-import { Discovery } from 'src/types/wallet';
-import { GraphRange } from 'src/types/wallet/graph';
+import { type Discovery } from 'src/types/wallet';
 
 export type PortfolioCardHeaderProps = {
     discovery?: Discovery;
     fiatAmount: string;
     localCurrency: string;
-    isWalletEmpty: boolean;
-    isWalletLoading: boolean;
-    isWalletError: boolean;
     isDiscoveryRunning?: boolean;
-    showGraphControls: boolean;
-    receiveClickHandler: () => void;
+    rightContent?: ReactNode;
 };
 
 export const PortfolioCardHeader = ({
     discovery,
     fiatAmount,
     localCurrency,
-    isWalletEmpty,
-    isWalletLoading,
-    isWalletError,
     isDiscoveryRunning,
-    showGraphControls,
-    receiveClickHandler,
+    rightContent,
 }: PortfolioCardHeaderProps) => {
-    const accounts = useSelector(selectAllAccountsToList);
-
-    const onSelectedRange = useCallback(
-        (_range: GraphRange) => {
-            updateGraphData({ accounts, newAccountsOnly: true });
-        },
-        [accounts],
-    );
-
-    let actions = null;
-    if (!isWalletLoading && !isWalletError) {
-        if (isWalletEmpty) {
-            actions = (
-                <Button
-                    onClick={receiveClickHandler}
-                    data-testid="@dashboard/receive-button"
-                    minWidth={120}
-                >
-                    <Translation id="TR_RECEIVE" />
-                </Button>
-            );
-        } else if (showGraphControls) {
-            actions = (
-                <GraphRangeSelector
-                    onSelectedRange={onSelectedRange}
-                    placement={{ position: 'bottom', alignment: 'start' }}
-                />
-            );
-        }
-    }
-
     const valueLoading = isDiscoveryRunning || (!discovery && isNaN(Number(fiatAmount)));
 
     return (
-        <Row justifyContent="space-between">
+        <Row
+            justifyContent="space-between"
+            alignItems="center"
+            gap={8}
+            padding={{ vertical: 16, horizontal: 24 }}
+        >
             {valueLoading ? (
-                <SkeletonRectangle width={140} height={53} />
+                <Skeleton width={140} height={53} />
             ) : (
                 <FiatHeader
                     data-testid="@dashboard/portfolio/fiat-amount"
@@ -78,7 +39,7 @@ export const PortfolioCardHeader = ({
                     localCurrency={localCurrency}
                 />
             )}
-            {actions}
+            {rightContent}
         </Row>
     );
 };

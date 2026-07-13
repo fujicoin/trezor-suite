@@ -1,80 +1,59 @@
-import styled from 'styled-components';
+import { type ExchangeProviderInfo, type ExchangeTrade } from 'invity-api';
 
-import { Button, H4, Image } from '@trezor/components';
-import { spacings, typography } from '@trezor/theme';
+import { Translation } from '@suite/intl';
+import { goto } from '@suite/router';
+import { Button, Card, Column, H3, IconCircle, Paragraph } from '@trezor/components';
+import { XIcon } from '@trezor/icons';
 
-import { goto } from 'src/actions/suite/routerActions';
-import { Translation } from 'src/components/suite/Translation';
 import { useDispatch } from 'src/hooks/suite';
-import { Account } from 'src/types/wallet';
-import { TradingTransactionId } from 'src/views/wallet/trading/common/TradingTransactionId';
+import { type Account } from 'src/types/wallet';
 
-const Wrapper = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 60px 20px;
-    flex-direction: column;
-`;
+import { TradingDetailProviderInfo } from '../TradingDetailProviderInfo';
+import { TradingDetailSupportBanner } from '../TradingDetailSupportBanner';
 
-const Description = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: ${({ theme }) => theme.textSubdued};
-    ${typography.body}
-    margin: 17px 0 10px;
-    max-width: 310px;
-    text-align: center;
-`;
-
-interface PaymentFailedProps {
-    transactionId?: string;
-    supportUrl?: string;
-    account: Account;
-}
+type TradingDetailExchangePaymentFailedProps = {
+    trade: ExchangeTrade;
+    account?: Account;
+    provider?: ExchangeProviderInfo;
+};
 
 export const TradingDetailExchangePaymentFailed = ({
-    transactionId,
-    supportUrl,
+    trade,
+    provider,
     account,
-}: PaymentFailedProps) => {
+}: TradingDetailExchangePaymentFailedProps) => {
     const dispatch = useDispatch();
 
-    const goToExchange = () =>
-        dispatch(
-            goto('wallet-trading-exchange', {
-                params: {
-                    symbol: account.symbol,
-                    accountIndex: account.index,
-                    accountType: account.accountType,
-                },
-            }),
-        );
+    const handleClick = () => dispatch(goto({ routeName: 'wallet-trading-exchange' }));
 
     return (
-        <Wrapper>
-            <Image image="UNI_ERROR" />
-            <H4 data-testid="@trading/transaction/detail/status" margin={{ top: spacings.xl }}>
-                <Translation id="TR_EXCHANGE_DETAIL_ERROR_TITLE" />
-            </H4>
-            <Description>
-                <Translation id="TR_EXCHANGE_DETAIL_ERROR_TEXT" />
-            </Description>
-            {transactionId && <TradingTransactionId transactionId={transactionId} />}
-            {supportUrl && (
-                <Button
-                    variant="tertiary"
-                    href={supportUrl}
-                    target="_blank"
-                    margin={{ top: spacings.xxl, bottom: spacings.xxl }}
-                >
-                    <Translation id="TR_EXCHANGE_DETAIL_ERROR_SUPPORT" />
-                </Button>
-            )}
-            <Button onClick={goToExchange}>
+        <Column gap={24} padding={{ top: 12, bottom: 4 }}>
+            <IconCircle icon={XIcon} intent="critical" size={96} />
+            <Column>
+                <H3 data-testid="@trading/transaction/detail/status">
+                    <Translation id="TR_EXCHANGE_DETAIL_ERROR_TITLE" />
+                </H3>
+                <Paragraph typographyStyle="body-sm" intent="neutral" priority="secondary">
+                    <Translation id="TR_EXCHANGE_DETAIL_ERROR_TEXT" />
+                </Paragraph>
+            </Column>
+            <Button onClick={handleClick} intent="neutral" priority="secondary">
                 <Translation id="TR_EXCHANGE_DETAIL_ERROR_BUTTON" />
             </Button>
-        </Wrapper>
+            <Card>
+                <Column gap={24}>
+                    {provider && (
+                        <TradingDetailProviderInfo
+                            account={account}
+                            orderId={trade.orderId}
+                            provider={provider}
+                            trade={trade}
+                            txId={trade.receiveTxHash}
+                        />
+                    )}
+                    <TradingDetailSupportBanner provider={provider} trade={trade} />
+                </Column>
+            </Card>
+        </Column>
     );
 };

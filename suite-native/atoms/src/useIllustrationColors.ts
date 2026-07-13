@@ -1,9 +1,12 @@
-import { useNativeStyles } from '@trezor/styles';
+import { useNativeStyles } from '@trezor/styles-native';
 
 export const useIllustrationColors = () => {
-    const { utils } = useNativeStyles();
-    const lineColor = utils.colors.backgroundPrimaryDefault;
-    const fillColor = utils.colors.backgroundSurfaceElevation0;
+    const {
+        utils: { colors },
+    } = useNativeStyles();
+
+    const lineColor = colors.legacyBackgroundPrimaryDefault;
+    const fillColor = colors.illustrationFillBrand;
 
     return { lineColor, fillColor };
 };

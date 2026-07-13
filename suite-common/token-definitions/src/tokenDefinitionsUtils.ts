@@ -1,23 +1,24 @@
-import { G } from '@mobily/ts-belt';
-import { decode, verify } from 'jws';
-
-import { NetworkSymbol, getCoingeckoId, getNetworkFeatures } from '@suite-common/wallet-config';
+import {
+    type NetworkSymbol,
+    getCoingeckoId,
+    getNetworkFeatures,
+} from '@suite-common/wallet-config';
 import { getContractAddressForNetworkSymbol } from '@suite-common/wallet-utils';
-import { TokenInfo } from '@trezor/connect';
-import { getJWSPublicKey, isCodesignBuild } from '@trezor/env-utils';
+import { type TokenInfo } from '@trezor/connect';
+import { isCodesignBuild } from '@trezor/env-utils';
+import { isSafeObjectKey } from '@trezor/utils';
 
 import {
-    JWS_SIGN_ALGORITHM,
     TOKEN_DEFINITIONS_PREFIX_URL,
     TOKEN_DEFINITIONS_SUFFIX_URL,
 } from './tokenDefinitionsConstants';
 import {
     DefinitionType,
-    SimpleTokenStructure,
-    TokenDefinitionsState,
-    TokenManagementAction,
-    TokenManagementStorage,
-    TokenStructureType,
+    type SimpleTokenStructure,
+    type TokenDefinitionsState,
+    type TokenManagementAction,
+    type TokenManagementStorage,
+    type TokenStructureType,
 } from './tokenDefinitionsTypes';
 
 // Using Set greatly improves performance of this function because of O(1) complexity instead of O(n) for Array.includes
@@ -59,11 +60,7 @@ type TokenDefinitionsParameters = [NetworkSymbol, DefinitionType, TokenManagemen
 const getSafeDefinitionParameters = (
     definitionKey: string,
 ): TokenDefinitionsParameters | undefined => {
-    const safeDefinitions = definitionKey
-        .split('-')
-        .filter(
-            definitionPart => !['__proto__', 'constructor', 'prototype'].includes(definitionPart),
-        );
+    const safeDefinitions = definitionKey.split('-').filter(isSafeObjectKey);
 
     if (safeDefinitions.length !== 3) return undefined;
 
@@ -105,10 +102,6 @@ export const buildTokenDefinitionsFromStorage = (
     return tokenDefinitions;
 };
 
-// Currently, due to some limitations on the node side, the project has not used jws
-// in some places but instead used json. We hope to have the opportunity to
-// use this function in the future.
-// https://github.com/trezor/trezor-suite/pull/20662#discussion_r2262890493
 export const fetchTokenDefinitions = async (
     symbol: NetworkSymbol,
     type: DefinitionType,
@@ -130,32 +123,7 @@ export const fetchTokenDefinitions = async (
         throw Error(response.statusText);
     }
 
-    const jws = await response.text();
-
-    const decodedJws = decode(jws);
-
-    if (!decodedJws) {
-        throw Error('Decoding of config failed');
-    }
-
-    const algorithmInHeader = decodedJws?.header.alg;
-    if (algorithmInHeader !== JWS_SIGN_ALGORITHM) {
-        throw Error(`Wrong algorithm in JWS config header: ${algorithmInHeader}`);
-    }
-
-    const authenticityPublicKey = getJWSPublicKey();
-
-    if (G.isNullable(authenticityPublicKey)) {
-        throw Error('Public key check token definitions authenticity was not found.');
-    }
-
-    const isAuthenticityValid = verify(jws, JWS_SIGN_ALGORITHM, authenticityPublicKey);
-
-    if (!isAuthenticityValid) {
-        throw Error('Config authenticity is invalid');
-    }
-
-    const data = JSON.parse(decodedJws.payload);
+    const data = await response.json();
 
     return data;
 };

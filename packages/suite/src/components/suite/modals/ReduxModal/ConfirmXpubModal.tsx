@@ -1,13 +1,16 @@
+import { selectSelectedAccount } from '@suite/account';
+import { Translation } from '@suite/intl';
 import { selectConnectPopupCall } from '@suite-common/connect-popup';
-import { selectSelectedDevice } from '@suite-common/wallet-core';
+import { selectSelectedDevice } from '@suite-common/device';
 import { convertTaprootXpub } from '@trezor/utils';
 
 import { showXpub } from 'src/actions/wallet/publicKeyActions';
-import { Translation } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
-import { selectSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
 
-import { ConfirmValueModal, ConfirmValueModalProps } from './ConfirmValueModal/ConfirmValueModal';
+import {
+    ConfirmValueModal,
+    type ConfirmValueModalProps,
+} from './ConfirmValueModal/ConfirmValueModal';
 import { ConfirmActionModal } from './DeviceContextModal/ConfirmActionModal';
 import { ConnectAddressConfirmation } from './UserContextModal/ConnectAddressConfirmation';
 
@@ -45,7 +48,6 @@ export const ConfirmXpubModal = (
             account={account}
             heading={<Translation id="TR_XPUB" />}
             validateOnDevice={showXpub}
-            isCopyButtonVisible={true}
             value={xpubWithReplacedApostropheWithH ?? xpub}
             isValueChunked={false}
             data-testid="@metadata/copy-xpub-button"

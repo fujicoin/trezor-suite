@@ -1,42 +1,40 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
-import Animated, {
-    FadeInDown,
-    FadeInUp,
-    FadeOutDown,
-    LinearTransition,
-} from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeOutDown, LinearTransition } from 'react-native-reanimated';
 import { useDispatch } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 import { useKeepAwake } from 'expo-keep-awake';
 
 import { firmwareActions } from '@suite-common/firmware';
-import { Badge, Box, Button, Text, VStack, useBottomSheetModal } from '@suite-native/atoms';
+import { Box, Button, VStack, useBottomSheetModal } from '@suite-native/atoms';
 import {
     ConfirmOnTrezorWrapper,
-    setTemporaryRememberedDeviceThunk,
     useConfirmOnTrezorController,
-} from '@suite-native/device';
+} from '@suite-native/confirm-on-trezor';
 import { Translation } from '@suite-native/intl';
-import { SUITE_LITE_SUPPORT_URL, useOpenLink } from '@suite-native/link';
+import { SUITE_MOBILE_SUPPORT_URL, useOpenLink } from '@suite-native/link';
 import { DynamicScreenHeader } from '@suite-native/navigation';
 import { reportSecurityCheck } from '@suite-native/sentry';
 import TrezorConnect from '@trezor/connect';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
+import { setTemporaryRememberedDeviceThunk } from '../firmwareThunks';
+import { DoNotCloseAppBottomSheetTrigger } from './DoNotCloseAppBottomSheetTrigger';
+import { FirmwareInstallationProgressTitles } from './FirmwareInstallationProgressTitles';
 import { MayBeStuckedBottomSheet } from './MayBeStuckedBottomSheet';
-import { UpdateProgressIndicator, UpdateProgressIndicatorStatus } from './UpdateProgressIndicator';
+import { TrezorFacts } from './TrezorFacts';
+import {
+    UpdateProgressIndicator,
+    type UpdateProgressIndicatorStatus,
+} from './UpdateProgressIndicator';
 import { useFirmware } from '../hooks/useFirmware';
 import { useFirmwareAnalytics } from '../hooks/useFirmwareAnalytics';
 
-const bottomButtonsContainerStyle = prepareNativeStyle<{ isConfirmOnDeviceShown: boolean }>(
-    (utils, { isConfirmOnDeviceShown }) => ({
-        position: 'absolute',
-        left: utils.spacings.sp16,
-        right: utils.spacings.sp16,
-        bottom: isConfirmOnDeviceShown ? 180 : utils.spacings.sp52,
-    }),
-);
+const bottomButtonsContainerStyle = prepareNativeStyle(() => ({
+    position: 'absolute',
+    width: '100%',
+    bottom: 0,
+}));
 
 type FirmwareInstallationScreenContentProps = {
     onFirmwareInstallationSuccess: () => void;
@@ -82,8 +80,6 @@ export const FirmwareInstallationScreenContent = ({
         translatedText,
         mayBeStucked,
         originalDevice,
-        setIsInitialFirmwareInstallationRunning,
-        isInitialFirmwareInstallationRunning,
         targetFirmwareType,
     } = useFirmware({ navigationLocation });
     const {
@@ -129,21 +125,15 @@ export const FirmwareInstallationScreenContent = ({
     }, [dispatch, isTemporaryRememeberAllowed, resetReducer, setIsFirmwareInstallationRunning]);
 
     const handleFirmwareUpdateFinished = useCallback(() => {
-        console.warn(
-            'FirmwareInstallationScreenContent: handleFirmwareUpdateFinished = authorize device thunk need to be replaced here',
-        );
-
-        if (operation !== 'thp') {
+        if (status !== 'thp-pairing') {
             setIsFirmwareInstallationRunning(false);
         }
         onFirmwareInstallationSuccess();
-    }, [operation, onFirmwareInstallationSuccess, setIsFirmwareInstallationRunning]);
+    }, [status, onFirmwareInstallationSuccess, setIsFirmwareInstallationRunning]);
 
     const handleCancel = useCallback(() => {
-        setIsFirmwareInstallationRunning(false);
-        TrezorConnect.cancel();
         navigation.goBack();
-    }, [navigation, setIsFirmwareInstallationRunning]);
+    }, [navigation]);
 
     const startFirmwareUpdate = useCallback(async () => {
         setIsFirmwareInstallationRunning(true);
@@ -158,7 +148,7 @@ export const FirmwareInstallationScreenContent = ({
         if (!result.success) {
             if (
                 // Action cancelled on device
-                result.payload?.code === 'Failure_ActionCancelled'
+                result.error?.code === 'Failure_ActionCancelled'
             ) {
                 handleAnalyticsReportCancelled();
                 onFirmwareInstallationFailure?.();
@@ -166,7 +156,7 @@ export const FirmwareInstallationScreenContent = ({
                 return;
             }
 
-            handleAnalyticsReportFinished({ error: result.payload?.error ?? 'Unknown error' });
+            handleAnalyticsReportFinished({ error: result.error?.message ?? 'Unknown error' });
 
             return;
         }
@@ -212,18 +202,14 @@ export const FirmwareInstallationScreenContent = ({
     }, [startFirmwareUpdate, resetReducer, handleAnalyticsReportStarted]);
 
     const handleContactSupport = useCallback(() => {
-        openLink(SUITE_LITE_SUPPORT_URL);
+        openLink(SUITE_MOBILE_SUPPORT_URL);
     }, [openLink]);
 
     useEffect(() => {
-        // Preventing from triggering the action again
-        setIsInitialFirmwareInstallationRunning(true);
-
         // Small delay to let initial screen animation finish
         const timeout = setTimeout(() => {
             handleAnalyticsReportStarted({ startType: 'normal' });
 
-            setIsInitialFirmwareInstallationRunning(false);
             startFirmwareUpdate();
         }, 2000);
 
@@ -231,27 +217,37 @@ export const FirmwareInstallationScreenContent = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const isError = status === 'error' && !isInitialFirmwareInstallationRunning;
-    const isDone = status === 'done' || operation === 'completed' || operation === 'thp';
+    const isError = status === 'error';
+    const isDone = status === 'thp-pairing' || status === 'done' || operation === 'completed';
 
     const indicatorStatus: UpdateProgressIndicatorStatus = useMemo(() => {
         const isStarting = (status === 'started' && operation === null) || status === 'initial';
-        const isSuccess = operation === 'completed';
 
         if (isError) return 'error';
         if (isStarting) return 'starting';
-        if (isSuccess) return 'success';
-        if (!isStarting && !isSuccess && !isError) return 'inProgress';
+        if (isDone) return 'success';
+        if (!isStarting && !isError && !isDone) return 'inProgress';
 
         // shouldn't happen, but just to be safe
         return 'starting';
-    }, [status, operation, isError]);
+    }, [status, operation, isError, isDone]);
+
+    const indicatorProgress = useMemo(() => {
+        switch (indicatorStatus) {
+            case 'error':
+            case 'starting':
+                return 0;
+            case 'success':
+                return 100;
+            case 'inProgress':
+            default:
+                return progress;
+        }
+    }, [progress, indicatorStatus]);
 
     const showConfirmOnDevice = confirmOnDevice && !isError && !isDone;
 
-    const buttonStyle = applyStyle(bottomButtonsContainerStyle, {
-        isConfirmOnDeviceShown: showConfirmOnDevice,
-    });
+    const buttonStyle = applyStyle(bottomButtonsContainerStyle);
 
     useEffect(() => {
         if (isSheetOpen && !showConfirmOnDevice) {
@@ -263,82 +259,85 @@ export const FirmwareInstallationScreenContent = ({
         if (showConfirmOnDevice) revealConfirmOnTrezorSheet();
     }, [closeSheet, isSheetOpen, showConfirmOnDevice, revealConfirmOnTrezorSheet]);
 
+    const CancelButton = customHeader ?? (
+        <DynamicScreenHeader closeActionType="close" closeAction={handleCancel} />
+    );
+
+    const isDontCloseAppAlertDisplayed =
+        indicatorStatus === 'inProgress' && !isSheetOpen && !mayBeStucked && !isDone;
+
     return (
         <ConfirmOnTrezorWrapper
             isManualControlEnabled
             controlRef={confirmOnTrezorRef}
             closeAction={onCancelAction ?? handleCancel}
             closeActionType="close"
-            defaultHeader={
-                customHeader ?? (
-                    <DynamicScreenHeader closeActionType="close" closeAction={handleCancel} />
-                )
-            }
+            defaultHeader={isError && CancelButton}
+            isCloseButtonDisabled
         >
-            <VStack justifyContent="center" alignItems="center" flex={1}>
-                <UpdateProgressIndicator progress={progress} status={indicatorStatus} />
-                <Animated.View entering={FadeInUp} exiting={FadeOutDown} key={translatedText.title}>
-                    <Box marginTop="sp12" alignItems="center">
-                        <Text variant="titleSmall" textAlign="center">
-                            {translatedText.title}
-                        </Text>
-                    </Box>
-                    <Box marginTop="sp8" alignItems="center">
-                        <Text variant="body" color="textSubdued" textAlign="center">
-                            {translatedText.subtitle ?? ' '}
-                        </Text>
-                    </Box>
-                    <Box paddingTop="sp24" alignItems="center" justifyContent="center">
-                        {!isError && !isDone ? (
-                            <Badge
-                                variant="blue"
-                                label={
-                                    <Translation id="firmware.firmwareUpdateProgress.dontCloseAppMessage" />
-                                }
-                            />
-                        ) : (
-                            // Blank space to prevent layout shift when done
-                            <Text variant="hint"> </Text>
-                        )}
-                    </Box>
-                </Animated.View>
-            </VStack>
-            {isError && (
-                <VStack spacing="sp12" style={buttonStyle}>
-                    {isRetryAllowed && (
-                        <Button onPress={handleRetry} colorScheme="redBold">
-                            <Translation id="firmware.firmwareUpdateProgress.retryButton" />
-                        </Button>
+            <Box flex={1}>
+                <VStack justifyContent="center" alignItems="center" flex={1}>
+                    <UpdateProgressIndicator
+                        status={indicatorStatus}
+                        progress={indicatorProgress}
+                    />
+                    {operation === 'installing' ? (
+                        <TrezorFacts />
+                    ) : (
+                        <FirmwareInstallationProgressTitles
+                            title={translatedText.title}
+                            subtitle={translatedText.subtitle}
+                        />
                     )}
-                    <Button onPress={handleContactSupport} colorScheme="tertiaryElevation0">
-                        <Translation id="firmware.firmwareUpdateProgress.contactSupportButton" />
-                    </Button>
                 </VStack>
-            )}
-            {mayBeStucked && (
-                <Animated.View
-                    entering={FadeInDown}
-                    exiting={FadeOutDown}
-                    layout={LinearTransition}
-                    style={buttonStyle}
-                >
-                    <Button onPress={openMayBeStuckBottomSheet} colorScheme="tertiaryElevation0">
-                        <Translation id="firmware.firmwareUpdateProgress.stuckButton" />
-                    </Button>
-                </Animated.View>
-            )}
-            {isDone && (
-                <Animated.View
-                    entering={FadeInDown}
-                    exiting={FadeOutDown}
-                    layout={LinearTransition}
-                    style={buttonStyle}
-                >
-                    <Button onPress={handleFirmwareUpdateFinished}>
-                        <Translation id="generic.buttons.continue" />
-                    </Button>
-                </Animated.View>
-            )}
+                {isError && (
+                    <VStack spacing="sp12" style={buttonStyle}>
+                        {isRetryAllowed && (
+                            <Button onPress={handleRetry} intent="critical" priority="primary">
+                                <Translation id="firmware.firmwareUpdateProgress.retryButton" />
+                            </Button>
+                        )}
+                        <Button
+                            onPress={handleContactSupport}
+                            intent="neutral"
+                            priority="secondary"
+                        >
+                            <Translation id="firmware.firmwareUpdateProgress.contactSupportButton" />
+                        </Button>
+                    </VStack>
+                )}
+                {mayBeStucked && (
+                    <Animated.View
+                        entering={FadeInDown}
+                        exiting={FadeOutDown}
+                        layout={LinearTransition}
+                        style={buttonStyle}
+                    >
+                        <Button
+                            onPress={openMayBeStuckBottomSheet}
+                            intent="neutral"
+                            priority="secondary"
+                        >
+                            <Translation id="firmware.firmwareUpdateProgress.stuckButton" />
+                        </Button>
+                    </Animated.View>
+                )}
+                {isDone && (
+                    <Animated.View
+                        entering={FadeInDown}
+                        exiting={FadeOutDown}
+                        layout={LinearTransition}
+                        style={buttonStyle}
+                    >
+                        <Button onPress={handleFirmwareUpdateFinished}>
+                            <Translation id="generic.buttons.continue" />
+                        </Button>
+                    </Animated.View>
+                )}
+                <DoNotCloseAppBottomSheetTrigger
+                    isTriggerDisplayed={isDontCloseAppAlertDisplayed}
+                />
+            </Box>
 
             <MayBeStuckedBottomSheet
                 ref={bottomSheetRef}

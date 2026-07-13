@@ -1,8 +1,10 @@
-import { Account } from '@suite-common/wallet-types';
-import { fireEvent, renderWithStoreProviderAsync } from '@suite-native/test-utils';
-import { Address } from '@trezor/blockchain-link-types';
+import { type Account, asAccountDescriptor } from '@suite-common/wallet-types';
+import { mockAccountKey } from '@suite-common/wallet-types/mocks';
+import { getTranslation } from '@suite-native/intl';
+import { fireEvent } from '@suite-native/test-utils-store';
+import { type ReceiveAccount } from '@suite-native/trading-types';
 
-import { ReceiveAccount } from '../../../../types/general';
+import { renderWithTradingProvider } from '../../../../__tests__/tradingTestUtils';
 import { AccountListAddressItem } from '../AccountListAddressItem';
 
 jest.mock('@suite-common/wallet-core', () => {
@@ -14,129 +16,176 @@ jest.mock('@suite-common/wallet-core', () => {
     };
 });
 
-describe('AccountListAddressItem', () => {
+const createAccount = (
+    values: Pick<Account, 'key' | 'symbol' | 'accountLabel' | 'availableBalance'>,
+): Account => ({
+    deviceState: 'a@b:1',
+    index: 0,
+    path: `m/0'/0'/0'`,
+    descriptor: asAccountDescriptor(''),
+    accountType: 'normal',
+    empty: false,
+    visible: false,
+    balance: '',
+    formattedBalance: '',
+    tokens: undefined,
+    utxo: undefined,
+    history: {
+        total: 0,
+        tokens: undefined,
+        unconfirmed: 0,
+        transactions: undefined,
+        txids: undefined,
+        addrTxCount: undefined,
+    },
+    metadata: { key: '' },
+    ts: 0,
+    networkType: 'ripple',
+    marker: undefined,
+    stellarCursor: undefined,
+    page: undefined,
+    backendType: 'blockbook',
+    misc: { sequence: 0, reserve: '' },
+    ...values,
+});
+
+describe(AccountListAddressItem.name, () => {
     const onPressMock = jest.fn();
 
     const renderAccountListAddressItem = (receiveAccount: ReceiveAccount) =>
-        renderWithStoreProviderAsync(
+        renderWithTradingProvider(
             <AccountListAddressItem receiveAccount={receiveAccount} onPress={onPressMock} />,
         );
 
     beforeEach(() => {
-        jest.resetAllMocks();
+        jest.clearAllMocks();
     });
 
-    it('should call onPress callback when pressed', async () => {
+    it('should call onPress callback when pressed', () => {
         const receiveAccount: ReceiveAccount = {
-            account: {
-                key: 'btc1',
+            account: createAccount({
+                key: mockAccountKey({ symbol: 'btc', descriptor: 'btc1' }),
                 symbol: 'btc',
                 accountLabel: 'My BTC account',
                 availableBalance: '10000000',
-            } as unknown as Account,
+            }),
             address: {
                 address: 'BTC_address',
                 balance: '5000000',
-            } as unknown as Address,
+                path: '',
+                transfers: 0,
+                sent: '',
+                received: '',
+            },
         };
-        const { getByText } = await renderAccountListAddressItem(receiveAccount);
+        const { getByText } = renderAccountListAddressItem(receiveAccount);
 
         fireEvent.press(getByText('BTC_address'));
 
         expect(onPressMock).toHaveBeenCalled();
     });
 
-    it('should not display caret for address addresses', async () => {
+    it('should not display caret for address addresses', () => {
         const receiveAccount: ReceiveAccount = {
-            account: {
-                key: 'btc1',
+            account: createAccount({
+                key: mockAccountKey({ symbol: 'btc', descriptor: 'btc1' }),
                 symbol: 'btc',
                 accountLabel: 'My BTC account',
                 availableBalance: '10000000',
-            } as unknown as Account,
+            }),
             address: {
                 address: 'BTC_address',
                 balance: '5000000',
-            } as unknown as Address,
+                path: '',
+                transfers: 0,
+                sent: '',
+                received: '',
+            },
         };
         const { getByText, queryByAccessibilityHint } =
-            await renderAccountListAddressItem(receiveAccount);
+            renderAccountListAddressItem(receiveAccount);
 
         expect(getByText('BTC_address')).toBeTruthy();
         expect(queryByAccessibilityHint('Select to display account addresses')).toBeNull();
     });
 
-    it('should display address', async () => {
+    it('should display address', () => {
         const receiveAccount: ReceiveAccount = {
-            account: {
-                key: 'btc1',
+            account: createAccount({
+                key: mockAccountKey({ symbol: 'btc', descriptor: 'btc1' }),
                 symbol: 'btc',
                 accountLabel: 'My BTC account',
                 availableBalance: '10000000',
-            } as unknown as Account,
+            }),
             address: {
                 address: 'BTC_address',
                 balance: '5000000',
-            } as unknown as Address,
+                path: '',
+                transfers: 0,
+                sent: '',
+                received: '',
+            },
         };
         const { getByText, queryByText, queryByAccessibilityHint, getByLabelText } =
-            await renderAccountListAddressItem(receiveAccount);
+            renderAccountListAddressItem(receiveAccount);
 
         expect(getByText('BTC_address')).toBeTruthy();
         expect(queryByText('My BTC account')).toBeNull();
         expect(queryByAccessibilityHint('Select to display account addresses')).toBeNull();
-        expect(getByLabelText('Balance in fiat')).toHaveTextContent('$5,000,000.00');
-        expect(getByLabelText('Balance in crypto')).toHaveTextContent('0.05 BTC');
+        expect(
+            getByLabelText(getTranslation('moduleTrading.accountScreen.balanceFiat')),
+        ).toHaveTextContent('$5,000,000.00');
+        expect(
+            getByLabelText(
+                getTranslation('moduleTrading.accountScreen.balanceCrypto', {
+                    coinLabel: 'crypto',
+                }),
+            ),
+        ).toHaveTextContent('0.05 BTC');
     });
 
-    it('should display zero balance', async () => {
+    it('should display zero balance', () => {
         const receiveAccount: ReceiveAccount = {
-            account: {
-                key: 'btc1',
+            account: createAccount({
+                key: mockAccountKey({ symbol: 'btc', descriptor: 'btc1' }),
                 symbol: 'btc',
                 accountLabel: 'My BTC account',
                 availableBalance: '10000000',
-            } as unknown as Account,
+            }),
             address: {
                 address: 'BTC_address',
                 balance: '0',
-            } as unknown as Address,
+                path: '',
+                transfers: 0,
+                sent: '',
+                received: '',
+            },
         };
-        const { getByLabelText } = await renderAccountListAddressItem(receiveAccount);
+        const { getByLabelText } = renderAccountListAddressItem(receiveAccount);
 
-        expect(getByLabelText('Balance in fiat')).toHaveTextContent('$0.00');
-        expect(getByLabelText('Balance in crypto')).toHaveTextContent('0 BTC');
+        expect(
+            getByLabelText(getTranslation('moduleTrading.accountScreen.balanceFiat')),
+        ).toHaveTextContent('$0.00');
+        expect(
+            getByLabelText(
+                getTranslation('moduleTrading.accountScreen.balanceCrypto', {
+                    coinLabel: 'crypto',
+                }),
+            ),
+        ).toHaveTextContent('0 BTC');
     });
 
-    it('should not display balance when address has no balance', async () => {
+    it('should render nothing when no address is specified', () => {
         const receiveAccount: ReceiveAccount = {
-            account: {
-                key: 'btc1',
+            account: createAccount({
+                key: mockAccountKey({ symbol: 'btc', descriptor: 'btc1' }),
                 symbol: 'btc',
                 accountLabel: 'My BTC account',
                 availableBalance: '10000000',
-            } as unknown as Account,
-            address: {
-                address: 'BTC_address',
-            } as unknown as Address,
+            }),
+            address: undefined,
         };
-        const { queryByLabelText } = await renderAccountListAddressItem(receiveAccount);
-
-        expect(queryByLabelText('Balance in fiat')).toBeNull();
-        expect(queryByLabelText('Balance in crypto')).toBeNull();
-    });
-
-    it('should render nothing when no address is specified', async () => {
-        const receiveAccount: ReceiveAccount = {
-            account: {
-                key: 'btc1',
-                symbol: 'btc',
-                accountLabel: 'My BTC account',
-                availableBalance: '10000000',
-            } as unknown as Account,
-            address: undefined as unknown as Address,
-        };
-        const { toJSON } = await renderAccountListAddressItem(receiveAccount);
+        const { toJSON } = renderAccountListAddressItem(receiveAccount);
 
         expect(toJSON()).toBeNull();
     });

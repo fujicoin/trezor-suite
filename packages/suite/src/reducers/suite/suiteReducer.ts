@@ -1,41 +1,17 @@
 import { produce } from 'immer';
 
 import type { CountryCode } from '@suite-common/geolocation';
-import { Locale } from '@suite-common/suite-types';
-import type { InvityServerEnvironment, TradingType } from '@suite-common/trading';
-import { NetworkSymbol } from '@suite-common/wallet-config';
-import { AddressDisplayOptions, WalletType } from '@suite-common/wallet-types';
-import { ConnectSettings, InstallerInfo, TRANSPORT, TransportInfo } from '@trezor/connect';
-import { isWeb } from '@trezor/env-utils';
-import { SuiteThemeVariant } from '@trezor/suite-desktop-api';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { TRANSPORT, type TransportInfo } from '@trezor/connect';
 
 import { STORAGE, SUITE } from 'src/actions/suite/constants';
-import { LOCK_TYPE } from 'src/actions/suite/constants/suiteConstants';
-import { ExperimentalFeature } from 'src/constants/suite/experimental';
-import { SIDEBAR_WIDTH_NUMERIC } from 'src/constants/suite/layout';
-import { Action, TorBootstrap, TorStatus } from 'src/types/suite';
-import type { OAuthServerEnvironment } from 'src/types/suite/metadata';
-import { ensureLocale } from 'src/utils/suite/l10n';
+import { type Action } from 'src/types/suite';
 
-export interface SuiteRootState {
+export type SuiteRootState = {
     suite: SuiteState;
-}
+};
 
-export interface DebugModeOptions {
-    invityServerEnvironment?: InvityServerEnvironment;
-    oauthServerEnvironment?: OAuthServerEnvironment;
-    showDebugMenu: boolean;
-    transports: Extract<NonNullable<ConnectSettings['transports']>[number], string>[];
-    isUnlockedBootloaderAllowed: boolean;
-    showConnectLogs: boolean;
-}
-
-export interface AutodetectSettings {
-    language: boolean;
-    theme: boolean;
-}
-
-export type SuiteLifecycle =
+type SuiteLifecycle =
     | { status: 'initial' }
     | { status: 'loading' }
     | { status: 'ready' }
@@ -43,36 +19,9 @@ export type SuiteLifecycle =
     | { status: 'error'; error: string }
     // blocked if the instance cannot upgrade due to older version running,
     // blocking in case instance is running older version thus blocking other instance
-    | { status: 'db-error'; error: 'blocking' | 'blocked' };
-
-export interface Flags {
-    initialRun: boolean; // true on very first launch of Suite, will switch to false after completing onboarding process
-    // is not saved to storage at the moment, so for simplicity of types set to be optional now
-    // recoveryCompleted: boolean;
-    // pinCompleted: boolean;
-    // passphraseCompleted: boolean;
-    taprootBannerClosed: boolean; // banner in account view informing about advantages of using Taproot
-    firmwareTypeBannerClosed: boolean; // banner in Crypto settings suggesting switching firmware type
-    discreetModeCompleted: boolean; // dashboard UI, user tried discreet mode
-    securityStepsHidden: boolean; // dashboard UI
-    dashboardGraphHidden: boolean; // dashboard UI
-    dashboardAssetsGridMode: boolean; // dashboard UI
-    showTEXDashboardPromoBanner: boolean;
-    showSettingsDesktopAppPromoBanner: boolean;
-    stakeEthBannerClosed: boolean; // banner in account view (Overview tab) presenting ETH staking feature
-    stakeSolBannerClosed: boolean; // banner in account view (Overview tab) presenting SOL staking feature
-    showDashboardStakingPromoBanner: boolean;
-    isDashboardPassphraseBannerVisible: boolean;
-    suspiciousTransactionsTooltipClosed: boolean;
-    showUnhideTokenModal: boolean;
-    showCopyAddressModal: boolean;
-    enableAutoupdateOnNextRun: boolean;
-    isBluetoothEnabled: boolean;
-    showBluetoothDebugInfo: boolean;
-    stellarLimitedHistoryBannerClosed: boolean; // banner in account view (Overview tab) presenting limited history for Stellar
-    solanaLimitedHistoryBannerClosed: boolean; // banner in account view (Overview tab) presenting limited history for Solana
-    hasSeenDisconnectTooltip: boolean; // tooltip shown when device disconnects - show only once ever
-}
+    | { status: 'db-error'; error: 'blocking' | 'blocked' }
+    // inconsistent IDB state detected, need to reset storage
+    | { status: 'db-corrupted'; error: unknown };
 
 export interface EvmSettings {
     confirmExplanationModalClosed: Partial<Record<NetworkSymbol, Record<string, boolean>>>;
@@ -84,182 +33,60 @@ export interface PrefillFields {
     transactionHistory?: string;
 }
 
-export interface SuiteSettings {
-    theme: {
-        variant: Exclude<SuiteThemeVariant, 'system'> | 'debug';
-    };
-    language: Locale;
-    torOnionLinks: boolean;
-    isCoinjoinReceiveWarningHidden: boolean;
-    isDesktopSuitePromoHidden: boolean;
-    debug: DebugModeOptions;
-    autodetect: AutodetectSettings;
-    enabledSecurityChecks: {
-        deviceAuthenticity: boolean;
-        entropy: boolean;
-        firmwareRevision: boolean;
-        firmwareHash: boolean;
-    };
-    addressDisplayType: AddressDisplayOptions;
-    defaultWalletLoading: WalletType;
-    experimental?: ExperimentalFeature[];
-    sidebarWidth: number;
-    isCoinsFilterVisible: boolean;
-    autoEject: boolean;
-}
-
-export interface TransportState extends InstallerInfo {
+export interface TransportState {
     transports: TransportInfo[];
+    error?: string;
 }
 
-export interface SuiteState {
+export type SuiteState = {
     online: boolean;
-    torStatus: TorStatus;
-    torBootstrap: TorBootstrap | null;
     lifecycle: SuiteLifecycle;
     transport?: TransportState;
-    locks: Record<(typeof SUITE.LOCK_TYPE)[keyof typeof SUITE.LOCK_TYPE], number>;
-    flags: Flags;
     evmSettings: EvmSettings;
-    dismissedTradingTerms: Partial<Record<TradingType, boolean>>;
     countryCode: CountryCode | null;
     prefillFields: PrefillFields;
-    settings: SuiteSettings;
     recentlyConnectedDeviceRef: string | null; // TODO use type DeviceRef from suite-types; currently WIP in https://github.com/trezor/trezor-suite/pull/20955
     recentlyDisconnectedDevice: string | null;
     seenDisconnectNotificationForDeviceIds: string[];
-    stakingDashboardCollapsed: boolean;
-}
+};
 
 const initialState: SuiteState = {
     online: true,
-    torStatus: TorStatus.Disabled,
-    torBootstrap: null,
     lifecycle: { status: 'initial' },
-    locks: {
-        [LOCK_TYPE.UI]: 0,
-        [LOCK_TYPE.ROUTER]: 0,
-        [LOCK_TYPE.DEVICE]: 0,
-    },
-    flags: {
-        initialRun: true,
-        // recoveryCompleted: false;
-        // pinCompleted: false;
-        // passphraseCompleted: false;
-        discreetModeCompleted: false,
-        taprootBannerClosed: false,
-        firmwareTypeBannerClosed: false,
-        securityStepsHidden: false,
-        dashboardGraphHidden: false,
-        dashboardAssetsGridMode: true,
-        showTEXDashboardPromoBanner: true,
-        showSettingsDesktopAppPromoBanner: true,
-        stakeEthBannerClosed: false,
-        stakeSolBannerClosed: false,
-        showDashboardStakingPromoBanner: true,
-        suspiciousTransactionsTooltipClosed: false,
-        isDashboardPassphraseBannerVisible: true,
-        showCopyAddressModal: true,
-        showUnhideTokenModal: true,
-        enableAutoupdateOnNextRun: false,
-        isBluetoothEnabled: false,
-        showBluetoothDebugInfo: false,
-        stellarLimitedHistoryBannerClosed: false,
-        solanaLimitedHistoryBannerClosed: false,
-        hasSeenDisconnectTooltip: false,
-    },
     evmSettings: {
         confirmExplanationModalClosed: {},
         explanationBannerClosed: {},
     },
-    dismissedTradingTerms: {},
     prefillFields: {
         sendForm: '',
         transactionHistory: '',
     },
     countryCode: null,
-    settings: {
-        theme: {
-            variant: 'light',
-        },
-        language: ensureLocale('en-US'),
-        torOnionLinks: isWeb(),
-        isCoinjoinReceiveWarningHidden: false,
-        isDesktopSuitePromoHidden: false,
-        enabledSecurityChecks: {
-            deviceAuthenticity: true,
-            entropy: true,
-            firmwareRevision: true,
-            firmwareHash: true,
-        },
-        debug: {
-            invityServerEnvironment: undefined,
-            showDebugMenu: false,
-            transports: [],
-            isUnlockedBootloaderAllowed: false,
-            showConnectLogs: false,
-        },
-        autodetect: {
-            language: true,
-            theme: true,
-        },
-        addressDisplayType: AddressDisplayOptions.CHUNKED,
-        defaultWalletLoading: WalletType.STANDARD,
-        sidebarWidth: SIDEBAR_WIDTH_NUMERIC,
-        isCoinsFilterVisible: false,
-        autoEject: false,
-    },
     recentlyConnectedDeviceRef: null,
     recentlyDisconnectedDevice: null,
     seenDisconnectNotificationForDeviceIds: [],
-    stakingDashboardCollapsed: false,
 };
 
 export const suiteInitialState = initialState;
-
-const changeLock = (
-    draft: SuiteState,
-    lock: (typeof SUITE.LOCK_TYPE)[keyof typeof SUITE.LOCK_TYPE],
-    enabled: boolean,
-) => {
-    draft.locks[lock] = Math.max(draft.locks[lock] + (enabled ? 1 : -1), 0);
-};
-
-const setFlag = (draft: SuiteState, key: keyof Flags, value: boolean) => {
-    draft.flags[key] = value;
-};
 
 const suiteReducer = (state: SuiteState = initialState, action: Action): SuiteState =>
     produce(state, draft => {
         switch (action.type) {
             case STORAGE.LOAD:
-                draft.flags = {
-                    ...draft.flags,
-                    ...action.payload.suiteSettings?.flags,
-                };
                 draft.evmSettings = {
                     ...draft.evmSettings,
                     ...action.payload.suiteSettings?.evmSettings,
-                };
-                draft.dismissedTradingTerms = {
-                    ...draft.dismissedTradingTerms,
-                    ...action.payload.suiteSettings?.dismissedTradingTerms,
                 };
                 draft.seenDisconnectNotificationForDeviceIds = [
                     ...draft.seenDisconnectNotificationForDeviceIds,
                     ...(action.payload.suiteSettings?.seenDisconnectNotificationForDeviceIds ?? []),
                 ];
-                draft.settings = {
-                    ...draft.settings,
-                    ...action.payload.suiteSettings?.settings,
-                };
-                if (typeof action.payload.suiteSettings?.stakingDashboardCollapsed === 'boolean') {
-                    draft.stakingDashboardCollapsed =
-                        action.payload.suiteSettings.stakingDashboardCollapsed;
-                }
                 break;
             case STORAGE.ERROR:
                 draft.lifecycle = { status: 'db-error', error: action.payload };
+                break;
+            case STORAGE.CORRUPTED:
+                draft.lifecycle = { status: 'db-corrupted', error: action.payload };
                 break;
             case SUITE.INIT:
                 draft.lifecycle = { status: 'loading' };
@@ -270,22 +97,6 @@ const suiteReducer = (state: SuiteState = initialState, action: Action): SuiteSt
 
             case SUITE.ERROR:
                 draft.lifecycle = { status: 'error', error: action.error };
-                break;
-
-            case SUITE.SET_LANGUAGE:
-                draft.settings.language = action.locale;
-                break;
-
-            case SUITE.SET_DEBUG_MODE:
-                draft.settings.debug = { ...draft.settings.debug, ...action.payload };
-                break;
-
-            case SUITE.SET_EXPERIMENTAL_FEATURES:
-                draft.settings.experimental = action.payload.enabledFeatures;
-                break;
-
-            case SUITE.SET_FLAG:
-                setFlag(draft, action.key, action.value);
                 break;
 
             case SUITE.SET_RECENTLY_CONNECTED_DEVICE:
@@ -324,114 +135,34 @@ const suiteReducer = (state: SuiteState = initialState, action: Action): SuiteSt
                 };
                 break;
 
-            case SUITE.DISMISSED_TRADING_TERMS:
-                draft.dismissedTradingTerms = {
-                    ...draft.dismissedTradingTerms,
-                    [action.tradingType]: true,
-                };
-                break;
-            case SUITE.SET_THEME:
-                draft.settings.theme.variant = action.variant;
-                break;
-
-            case SUITE.SET_STAKING_DASHBOARD_COLLAPSED:
-                draft.stakingDashboardCollapsed = action.isCollapsed;
-                break;
-
             case SUITE.SET_SEND_FORM_PREFILL:
-                draft.prefillFields.sendForm = action.payload;
+                draft.prefillFields.sendForm = action.payload.contractAddress;
                 break;
 
             case SUITE.SET_TRANSACTION_HISTORY_PREFILL:
                 draft.prefillFields.transactionHistory = action.payload;
                 break;
 
-            case SUITE.SET_ADDRESS_DISPLAY_TYPE:
-                draft.settings.addressDisplayType = action.option;
-                break;
-
-            case SUITE.SET_DEFAULT_WALLET_LOADING:
-                draft.settings.defaultWalletLoading = action.option;
-                break;
-
-            case SUITE.SET_AUTODETECT:
-                draft.settings.autodetect = {
-                    ...draft.settings.autodetect,
-                    ...action.payload,
-                };
-                break;
-
-            case SUITE.SET_SIDEBAR_WIDTH:
-                draft.settings.sidebarWidth = action.payload.width;
-                break;
-
-            case SUITE.SET_IS_COINS_FILTER_VISIBLE:
-                draft.settings.isCoinsFilterVisible = action.payload.isCoinsFilterVisible;
-                break;
-
-            case SUITE.SET_AUTO_EJECT:
-                draft.settings.autoEject = action.payload;
-                break;
-
             case TRANSPORT.START: {
-                const { udev, bridge, ...transport } = action.payload;
+                const { ...transport } = action.payload;
                 const transports = draft.transport?.transports ?? [];
                 const index = transports.findIndex(t => t.apiType === transport.apiType);
                 if (index >= 0) transports[index] = transport;
                 else transports.push(transport);
-                draft.transport = { udev, bridge, transports };
+                draft.transport = { transports };
                 break;
             }
             case TRANSPORT.ERROR: {
-                const { udev, bridge, apiType } = action.payload;
+                const { apiType, error } = action.payload;
                 const transports =
                     !draft.transport || !apiType
                         ? (draft.transport?.transports ?? [])
                         : draft.transport.transports?.filter(t => t.apiType !== apiType);
-                draft.transport = { udev, bridge, transports };
+                draft.transport = { transports, error };
                 break;
             }
             case SUITE.ONLINE_STATUS:
                 draft.online = action.payload;
-                break;
-
-            case SUITE.TOR_STATUS:
-                draft.torStatus = action.payload;
-                break;
-
-            case SUITE.TOR_BOOTSTRAP:
-                draft.torBootstrap = action.payload;
-                break;
-
-            case SUITE.ONION_LINKS:
-                draft.settings.torOnionLinks = action.payload;
-                break;
-
-            case SUITE.COINJOIN_RECEIVE_WARNING:
-                draft.settings.isCoinjoinReceiveWarningHidden = action.payload;
-                break;
-            case SUITE.TOGGLE_DEVICE_AUTHENTICITY_CHECK:
-                draft.settings.enabledSecurityChecks.deviceAuthenticity = action.payload;
-                break;
-            case SUITE.TOGGLE_FIRMWARE_REVISION_CHECK:
-                draft.settings.enabledSecurityChecks.firmwareRevision = action.payload;
-                break;
-            case SUITE.TOGGLE_FIRMWARE_HASH_CHECK:
-                draft.settings.enabledSecurityChecks.firmwareHash = action.payload;
-                break;
-            case SUITE.TOGGLE_ENTROPY_CHECK:
-                draft.settings.enabledSecurityChecks.entropy = action.payload;
-                break;
-            case SUITE.LOCK_UI:
-                changeLock(draft, SUITE.LOCK_TYPE.UI, action.payload);
-                break;
-
-            case SUITE.LOCK_DEVICE:
-                changeLock(draft, SUITE.LOCK_TYPE.DEVICE, action.payload);
-                break;
-
-            case SUITE.LOCK_ROUTER:
-                changeLock(draft, SUITE.LOCK_TYPE.ROUTER, action.payload);
                 break;
 
             // no default

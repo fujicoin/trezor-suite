@@ -8,6 +8,6 @@ export const AccountsMenuNotice = styled.div`
     text-align: center;
     margin-top: ${spacingsPx.xxl};
     margin-bottom: ${spacingsPx.md};
-    color: ${({ theme }) => theme.textSubdued};
-    ${typography.hint}
+    color: ${({ theme }) => theme.contentSecondary};
+    ${typography['body-sm']}
 `;

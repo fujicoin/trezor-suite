@@ -1,16 +1,21 @@
 import { ipcMain } from 'electron';
 
-import TrezorConnect, { ConnectSettings, LocalFirmwares, UI, UI_EVENT } from '@trezor/connect';
-import { IpcProxyHandlerOptions, createIpcProxyHandler } from '@trezor/ipc-proxy';
+import TrezorConnect, {
+    type LocalFirmwares,
+    UI_EVENT,
+    UI_REQUEST,
+    UI_RESPONSE,
+} from '@trezor/connect';
+import { type ConnectSettingsTransport, initLog } from '@trezor/connect-common';
+import { type IpcProxyHandlerOptions, createIpcProxyHandler } from '@trezor/ipc-proxy';
 import { parseElectrumUrl } from '@trezor/utils';
 
 import { bluetoothModuleState } from './bluetooth';
 import { getStoredFirmwares } from './firmware';
+import { type MainThreadEmitter, type ModuleInit, type ModuleInitBackground } from './module';
 import { APP_NAME } from '../libs/constants';
 import { getComputerName } from '../libs/info';
 import { PowerSaveBlocker } from '../libs/power-save-blocker';
-
-import { MainThreadEmitter, ModuleInit, ModuleInitBackground } from './index';
 
 export const SERVICE_NAME = '@trezor/connect';
 
@@ -25,7 +30,7 @@ const emitOnSetCustomBackendToMainThreadToAllowDomains = ({
 }: EmitOnSetCustomBackendToMainThreadToAllowDomainsParams) => {
     const param = params[0];
 
-    if (param !== undefined && param.blockchainLink !== undefined) {
+    if (param?.blockchainLink !== undefined) {
         const domains = (param.blockchainLink.url ?? []).map(url => {
             const electrumUrlResult = parseElectrumUrl(url);
             if (electrumUrlResult !== undefined) {
@@ -43,11 +48,11 @@ const emitOnSetCustomBackendToMainThreadToAllowDomains = ({
     }
 };
 
-// override TrezorConnect.init and TrezorConnect.setTransports params
+// override TrezorConnect.init and TrezorConnect.updateConnectSettings params
 // add BluetoothTransport if bluetooth module is enabled
 const getTransportsParam = (
-    transports?: ConnectSettings['transports'],
-): ConnectSettings['transports'] => {
+    transports?: ConnectSettingsTransport[],
+): ConnectSettingsTransport[] | undefined => {
     const bluetooth = bluetoothModuleState.getTransport();
     if (!bluetooth) return transports;
 
@@ -65,12 +70,12 @@ export const initBackground: ModuleInitBackground = ({ mainThreadEmitter, store 
 
     const setProxy = () => {
         const { running, host, port, externalPort, useExternalTor } = store.getTorSettings();
-        const payload = running
-            ? { proxy: `socks://${host}:${useExternalTor ? externalPort : port}` }
-            : { proxy: '' };
+        const proxyUri = running ? `socks://${host}:${useExternalTor ? externalPort : port}` : '';
+        const payload = { proxy: { uri: proxyUri } };
+
         logger.info(SERVICE_NAME, `${running ? 'Enable' : 'Disable'} proxy ${payload.proxy}`);
 
-        return TrezorConnect.setProxy(payload);
+        return TrezorConnect.updateConnectSettings(payload);
     };
 
     const ipcProxyOptions: IpcProxyHandlerOptions<typeof TrezorConnect> = {
@@ -90,6 +95,10 @@ export const initBackground: ModuleInitBackground = ({ mainThreadEmitter, store 
                         settings.localFirmwares = localFirmwares.payload;
                     }
                     settings.transports = getTransportsParam(settings.transports);
+                    // Core runs in this (main) process; the renderer cannot send a logger factory
+                    // across IPC, so build it here from the serializable `debug` enabled hint.
+                    // TODO(logger-unification): build from a unified app-wide logger instead of initLog.
+                    settings.createLogger = (prefix: string) => initLog(prefix, !!settings.debug);
 
                     const response = await TrezorConnect.init(settings);
                     await setProxy();
@@ -110,7 +119,11 @@ export const initBackground: ModuleInitBackground = ({ mainThreadEmitter, store 
                     return response;
                 }
 
-                if (method === 'setTransports') {
+                // Only rewrite transports when the caller actually sent some. An enabledNetworks-only
+                // update (coin toggle / Cardano grant) carries no transports; injecting the bluetooth
+                // fallback here would make `newTransports` defined in Core and trigger a needless
+                // SET_TRANSPORTS → resetTransports → deviceList.init on every such update.
+                if (method === 'updateConnectSettings' && params[0].transports !== undefined) {
                     params[0].transports = getTransportsParam(params[0].transports);
                 }
 
@@ -146,7 +159,7 @@ export const initBackground: ModuleInitBackground = ({ mainThreadEmitter, store 
 export const init: ModuleInit = ({ mainThreadEmitter }) => {
     mainThreadEmitter.on('module/firmware/list', (event: LocalFirmwares) => {
         TrezorConnect.uiResponse({
-            type: UI.RECEIVE_FIRMWARE,
+            type: UI_RESPONSE.RECEIVE_FIRMWARE,
             payload: event,
         });
     });
@@ -164,7 +177,7 @@ export const init: ModuleInit = ({ mainThreadEmitter }) => {
 
         TrezorConnect.on(UI_EVENT, event => {
             const { type } = event;
-            if (type === UI.FIRMWARE_DOWNLOADED) {
+            if (type === UI_REQUEST.FIRMWARE_DOWNLOADED) {
                 mainThreadEmitter.emit('module/trezor-connect/firmware-store', event.payload);
             }
         });

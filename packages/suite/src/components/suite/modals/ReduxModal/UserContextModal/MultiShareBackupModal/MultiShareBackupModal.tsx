@@ -1,27 +1,26 @@
 import { useState } from 'react';
 
-import { selectSelectedDevice } from '@suite-common/wallet-core';
-import { Modal, ModalProps } from '@trezor/components';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { LearnMoreButton } from '@suite/external-links';
+import { Translation } from '@suite/intl';
+import { isAdditionalShamirBackupInProgress } from '@suite/recovery';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectSelectedDevice } from '@suite-common/device';
+import { Modal, type ModalProps } from '@trezor/components';
 import TrezorConnect, { PROTO } from '@trezor/connect';
-import { ConfirmOnDevice } from '@trezor/product-components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { ConfirmOnDevicePill } from '@trezor/product-components';
 import {
     HELP_CENTER_KEEPING_SEED_SAFE_URL,
     HELP_CENTER_UPGRADING_TO_MULTI_SHARE_URL,
     TREZOR_SUPPORT_RECOVERY_ISSUES_URL,
 } from '@trezor/urls';
 
-import { Translation } from 'src/components/suite';
-import { LearnMoreButton } from 'src/components/suite/LearnMoreButton';
 import { useSelector } from 'src/hooks/suite';
 
 import { MultiShareBackupStep1 } from './MultiShareBackupStep1';
 import { MultiShareBackupStep2to4 } from './MultiShareBackupStep2to4';
 import { MultiShareBackupStep5 } from './MultiShareBackupStep5';
-import { isAdditionalShamirBackupInProgress } from '../../../../../../utils/device/isRecoveryInProgress';
-
-const steps = ['first-info', 'second-info', 'verify-ownership', 'backup-seed', 'done'] as const;
-export type Steps = (typeof steps)[number];
+import { type Steps, steps } from './steps';
 
 type MultiShareBackupModalProps = {
     onCancel: () => void;
@@ -30,6 +29,7 @@ type MultiShareBackupModalProps = {
 type StepConfig = Partial<ModalProps>;
 
 export const MultiShareBackupModal = ({ onCancel }: MultiShareBackupModalProps) => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const device = useSelector(selectSelectedDevice);
 
     const isInBackupMode =
@@ -39,11 +39,10 @@ export const MultiShareBackupModal = ({ onCancel }: MultiShareBackupModalProps) 
 
     const [isChecked1, setIsChecked1] = useState(false);
     const [isChecked2, setIsChecked2] = useState(false);
-    const [isSubmitted, setIsSubmitted] = useState(false);
 
     const learnMoreClicked = () => {
         analytics.report({
-            type: EventType.SettingsMultiShareBackup,
+            type: events.settingsDeviceMultiShareBackupEvent.name,
             payload: { action: 'learn-more' },
         });
     };
@@ -51,7 +50,7 @@ export const MultiShareBackupModal = ({ onCancel }: MultiShareBackupModalProps) 
     const handleCancel = () => {
         if (step !== 'done') {
             analytics.report({
-                type: EventType.SettingsMultiShareBackup,
+                type: events.settingsDeviceMultiShareBackupEvent.name,
                 payload: { action: 'close-modal' },
             });
         }
@@ -60,7 +59,7 @@ export const MultiShareBackupModal = ({ onCancel }: MultiShareBackupModalProps) 
     };
 
     const closeWithCancelOnDevice = () => {
-        TrezorConnect.cancel('cancel');
+        TrezorConnect.cancel({ reason: 'cancel' });
         handleCancel();
     };
 
@@ -71,20 +70,14 @@ export const MultiShareBackupModal = ({ onCancel }: MultiShareBackupModalProps) 
     const getStepConfig = (): StepConfig => {
         switch (step) {
             case 'first-info': {
-                const goToStepNextStep = () => {
-                    setIsSubmitted(true);
-                    if (isChecked1 && isChecked2) {
-                        setStep('second-info');
-                    }
-                };
+                const goToStepNextStep = () => setStep('second-info');
 
                 return {
-                    size: 'small',
+                    width: 600,
                     children: (
                         <MultiShareBackupStep1
                             isChecked1={isChecked1}
                             isChecked2={isChecked2}
-                            isSubmitted={isSubmitted}
                             setIsChecked1={setIsChecked1}
                             setIsChecked2={setIsChecked2}
                         />
@@ -126,7 +119,7 @@ export const MultiShareBackupModal = ({ onCancel }: MultiShareBackupModalProps) 
                         TrezorConnect.backupDevice().then(response => {
                             if (response.success) {
                                 analytics.report({
-                                    type: EventType.SettingsMultiShareBackup,
+                                    type: events.settingsDeviceMultiShareBackupEvent.name,
                                     payload: { action: 'done' },
                                 });
 
@@ -199,7 +192,7 @@ export const MultiShareBackupModal = ({ onCancel }: MultiShareBackupModalProps) 
     return (
         <Modal.Backdrop onClick={isDeviceStep ? undefined : handleCancel}>
             {isDeviceStep && (
-                <ConfirmOnDevice
+                <ConfirmOnDevicePill
                     title={<Translation id="TR_CONFIRM_ON_TREZOR" />}
                     deviceModelInternal={device.features?.internal_model}
                     deviceUnitColor={device?.features?.unit_color}

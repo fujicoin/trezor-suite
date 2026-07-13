@@ -2,12 +2,12 @@ import { Controller, useController } from 'react-hook-form';
 
 import styled from 'styled-components';
 
-import { selectDeviceLabel, selectDeviceName } from '@suite-common/wallet-core';
+import { Translation } from '@suite/intl';
+import { selectDeviceName, selectSelectedDeviceLabelOrName } from '@suite-common/device';
 import { Button, Input, Tooltip } from '@trezor/components';
 import { SCREEN_QUERY } from '@trezor/components/src/config/variables';
 import { spacingsPx } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
 
 const Container = styled.form<{ $isVertical?: boolean }>`
@@ -33,7 +33,7 @@ export const ChangeDeviceLabelForm = ({
     isVertical,
     onClick,
 }: ChangeDeviceLabelProps) => {
-    const deviceLabel = useSelector(selectDeviceLabel);
+    const deviceLabel = useSelector(selectSelectedDeviceLabelOrName);
     const deviceName = useSelector(selectDeviceName);
 
     const { field, fieldState } = useController({
@@ -41,7 +41,7 @@ export const ChangeDeviceLabelForm = ({
     });
 
     const isDisabled =
-        isDeviceLocked || !field.value || field.value === deviceName || !!fieldState.error;
+        isDeviceLocked || !field.value || field.value === deviceLabel || !!fieldState.error;
     const placeholder = !deviceLabel ? deviceName : undefined;
 
     return (
@@ -53,7 +53,7 @@ export const ChangeDeviceLabelForm = ({
                         value={value}
                         placeholder={placeholder}
                         onChange={onChange}
-                        inputState={fieldState.error && 'error'}
+                        hasError={!!fieldState.error}
                         size={isVertical ? 'small' : 'large'}
                         bottomText={fieldState.error?.message ?? null}
                         data-testid="@settings/device/label-input"
@@ -64,14 +64,14 @@ export const ChangeDeviceLabelForm = ({
             <Tooltip
                 isActive={isDeviceLocked}
                 content={<Translation id="TR_SETTINGS_DEVICE_BANNER_TITLE_REMEMBERED" />}
-                isFullWidth
+                width="100%"
             >
                 <Button
                     onClick={onClick}
                     isDisabled={isDisabled}
                     data-testid="@settings/device/label-submit"
                     size={isVertical ? 'small' : 'large'}
-                    isFullWidth
+                    width="100%"
                     type="submit"
                 >
                     <Translation id="TR_DEVICE_SETTINGS_DEVICE_EDIT_LABEL" />

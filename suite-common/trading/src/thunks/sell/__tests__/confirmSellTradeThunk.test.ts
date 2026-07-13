@@ -1,18 +1,32 @@
 import { combineReducers } from '@reduxjs/toolkit';
-import { BankAccount, SellFiatTrade } from 'invity-api';
+import { type BankAccount, type SellFiatTrade } from 'invity-api';
 
 import { createThunk } from '@suite-common/redux-utils';
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
-import { Account } from '@suite-common/wallet-types';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
+import { type Account } from '@suite-common/wallet-types';
 
-import { sellThunks } from '../../';
+import { sellThunks } from '../';
 import { accountBtc } from '../../../__fixtures__/utils';
 import { invityAPI } from '../../../invityAPI';
-import { TradingSellState } from '../../../reducers/sellReducer';
-import { initialState, prepareTradingReducer } from '../../../reducers/tradingReducer';
+import { type TradingSellState } from '../../../reducers/sellReducer';
+import { initialState } from '../../../reducers/tradingCommonReducer';
+import { prepareTradingReducer } from '../../../reducers/tradingReducer';
 import { sellUtilsFixtures } from '../../../utils/sell/__fixtures__/sellUtils';
+import { handleSellTradeThunk } from '../handleSellTradeThunk';
 
-const tradingReducer = prepareTradingReducer(extraDependenciesMock);
+jest.mock('../handleSellTradeThunk', () => {
+    const actual = jest.requireActual('../handleSellTradeThunk');
+
+    return {
+        ...actual,
+        handleSellTradeThunk: Object.assign(
+            jest.fn(actual.handleSellTradeThunk),
+            actual.handleSellTradeThunk,
+        ),
+    };
+});
+
+const tradingReducer = prepareTradingReducer(extraDependenciesCommonMock);
 
 describe('confirmSellTradeThunk', () => {
     afterEach(() => {
@@ -29,12 +43,12 @@ describe('confirmSellTradeThunk', () => {
             extra: {},
             reducer: combineReducers({
                 wallet: combineReducers({
-                    tradingNew: tradingReducer,
+                    trading: tradingReducer,
                 }),
             }),
             preloadedState: {
                 wallet: {
-                    tradingNew: {
+                    trading: {
                         ...initialState,
                         sell: {
                             ...initialState.sell,
@@ -81,7 +95,7 @@ describe('confirmSellTradeThunk', () => {
             status: 'CANCELLED',
         };
 
-        jest.spyOn(sellThunks, 'handleTradeThunk').mockImplementation(
+        (handleSellTradeThunk as unknown as jest.Mock).mockImplementation(
             createThunk('@trading-sell/thunk/handleTrade', (_, { fulfillWithValue }) =>
                 fulfillWithValue(trade),
             ),
@@ -99,10 +113,10 @@ describe('confirmSellTradeThunk', () => {
             )
             .unwrap();
 
-        const sellState = store.getState().wallet.tradingNew.sell;
+        const sellState = store.getState().wallet.trading.sell;
 
         expect(mockTriggerAnalyticsTradeConfirmation).toHaveBeenCalledTimes(1);
-        expect(sellThunks.handleTradeThunk).toHaveBeenCalledTimes(1);
+        expect(handleSellTradeThunk).toHaveBeenCalledTimes(1);
         expect(sellState.selectedQuote).toEqual(trade);
         expect(sellState.formStep).toEqual('SEND_TRANSACTION');
     });
@@ -142,10 +156,10 @@ describe('confirmSellTradeThunk', () => {
             )
             .unwrap();
 
-        const sellState = store.getState().wallet.tradingNew.sell;
+        const sellState = store.getState().wallet.trading.sell;
 
         expect(mockTriggerAnalyticsTradeConfirmation).toHaveBeenCalledTimes(0);
-        expect(sellThunks.handleTradeThunk).toHaveBeenCalledTimes(0);
+        expect(handleSellTradeThunk).toHaveBeenCalledTimes(0);
         expect(sellState.selectedQuote).toEqual(undefined);
         expect(sellState.formStep).toEqual('BANK_ACCOUNT');
     });
@@ -160,7 +174,7 @@ describe('confirmSellTradeThunk', () => {
             mockProcessResponseData,
         } = getMocks();
 
-        jest.spyOn(sellThunks, 'handleTradeThunk').mockImplementation(
+        (handleSellTradeThunk as unknown as jest.Mock).mockImplementation(
             createThunk('@trading-sell/thunk/handleTrade', (_, { fulfillWithValue }) =>
                 fulfillWithValue(undefined),
             ),
@@ -178,10 +192,10 @@ describe('confirmSellTradeThunk', () => {
             )
             .unwrap();
 
-        const sellState = store.getState().wallet.tradingNew.sell;
+        const sellState = store.getState().wallet.trading.sell;
 
         expect(mockTriggerAnalyticsTradeConfirmation).toHaveBeenCalledTimes(1);
-        expect(sellThunks.handleTradeThunk).toHaveBeenCalledTimes(1);
+        expect(handleSellTradeThunk).toHaveBeenCalledTimes(1);
         expect(sellState.selectedQuote).toBeDefined();
         expect(sellState.formStep).toEqual('BANK_ACCOUNT');
     });

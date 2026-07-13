@@ -1,10 +1,10 @@
 import { useState } from 'react';
 
-import styled, { useTheme } from 'styled-components';
-
-import { Column, Divider, Icon } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
-import { spacingsPx, typography, zIndices } from '@trezor/theme';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { useServices } from '@suite-common/dependency-injection';
+import { Box, Column, IconCircle, useMediaQuery } from '@trezor/components';
+import { CommandIcon, LifebuoyIcon } from '@trezor/icons';
 
 import { setView } from 'src/actions/suite/guideActions';
 import {
@@ -12,67 +12,32 @@ import {
     GuideContent,
     GuideHeader,
     GuideSearch,
+    GuideSectionHeadline,
     GuideViewWrapper,
 } from 'src/components/guide';
-import { Translation } from 'src/components/suite';
 import { useDispatch, useSelector } from 'src/hooks/suite';
 
-const FeedbackLinkWrapper = styled.div`
-    padding: ${spacingsPx.md};
-`;
-
-const FeedbackButton = styled.button`
-    display: flex;
-    align-items: center;
-    width: 100%;
-    border: 0;
-    border-radius: 4px;
-    cursor: pointer;
-    text-align: left;
-    padding: 11px;
-    background: none;
-    transition: ${({ theme }) =>
-        `background ${theme.legacy.HOVER_TRANSITION_TIME} ${theme.legacy.HOVER_TRANSITION_EFFECT}`};
-
-    /* speficy position and z-index so that GuideButton does not interfere */
-    position: relative;
-    z-index: ${zIndices.guide};
-
-    &:hover,
-    &:focus {
-        background: ${({ theme }) => theme.backgroundTertiaryPressedOnElevation1};
-    }
-
-    &:last-child {
-        left: auto;
-    }
-`;
-
-const FeedbackButtonLabel = styled.div`
-    padding: 0 9px;
-    ${typography.body}
-    width: 100%;
-    white-space: nowrap;
-`;
-
-const FeedbackIconWrapper = styled.div`
-    position: relative;
-    top: -1px;
-`;
+import { GuideItem } from './GuideItem';
 
 export const Guide = () => {
-    const theme = useTheme();
     const [searchActive, setSearchActive] = useState(false);
     const indexNode = useSelector(state => state.guide.indexNode);
     const dispatch = useDispatch();
-
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const handleFeedbackButtonClick = () => {
         dispatch(setView('SUPPORT_FEEDBACK_SELECTION'));
         analytics.report({
-            type: EventType.GuideFeedbackNavigation,
+            type: events.guideFeedbackNavigationEvent.name,
             payload: { type: 'overview' },
         });
     };
+
+    const handleShortcutsClick = () => {
+        dispatch(setView('KEYBOARD_SHORTCUTS'));
+    };
+
+    // Keyboard shortcuts are irrelevant on touch devices without a physical keyboard.
+    const isTouchDevice = useMediaQuery('(hover: none) and (pointer: coarse)');
 
     return (
         <GuideViewWrapper>
@@ -80,30 +45,44 @@ export const Guide = () => {
             <Column justifyContent="space-between" height="100%">
                 <GuideContent>
                     <GuideSearch pageRoot={indexNode} setSearchActive={setSearchActive} />
-                    {!searchActive && <GuideCategories node={indexNode} />}
+                    {!searchActive && (
+                        <>
+                            <Box>
+                                <GuideSectionHeadline id="TR_GUIDE_HELP_TITLE" />
+                                <Column gap={8}>
+                                    <GuideItem
+                                        onClick={handleFeedbackButtonClick}
+                                        data-testid="@guide/button-feedback"
+                                        icon={
+                                            <IconCircle
+                                                icon={LifebuoyIcon}
+                                                size={32}
+                                                intent="neutral"
+                                            />
+                                        }
+                                    >
+                                        <Translation id="TR_GUIDE_SUPPORT_AND_FEEDBACK" />
+                                    </GuideItem>
+                                </Column>
+                            </Box>
+                            <Box margin={{ top: 16 }}>
+                                <GuideSectionHeadline id="TR_GUIDE_GUIDES_TITLE" />
+                                <GuideCategories node={indexNode} />
+                            </Box>
+                        </>
+                    )}
                 </GuideContent>
-
-                <div>
-                    <Divider margin={{ bottom: 0, top: 0 }} />
-                    <FeedbackLinkWrapper>
-                        <FeedbackButton
-                            data-testid="@guide/button-feedback"
-                            onClick={handleFeedbackButtonClick}
+                {!isTouchDevice && (
+                    <Box padding={16}>
+                        <GuideItem
+                            onClick={handleShortcutsClick}
+                            data-testid="@guide/button-shortcuts"
+                            icon={<IconCircle icon={CommandIcon} size={32} intent="neutral" />}
                         >
-                            <Icon name="users" size={24} color={theme.iconOnTertiary} />
-                            <FeedbackButtonLabel>
-                                <Translation id="TR_GUIDE_SUPPORT_AND_FEEDBACK" />
-                            </FeedbackButtonLabel>
-                            <FeedbackIconWrapper>
-                                <Icon
-                                    name="caretCircleRight"
-                                    size={24}
-                                    color={theme.iconPrimaryDefault}
-                                />
-                            </FeedbackIconWrapper>
-                        </FeedbackButton>
-                    </FeedbackLinkWrapper>
-                </div>
+                            <Translation id="TR_GUIDE_KEYBOARD_SHORTCUTS" />
+                        </GuideItem>
+                    </Box>
+                )}
             </Column>
         </GuideViewWrapper>
     );

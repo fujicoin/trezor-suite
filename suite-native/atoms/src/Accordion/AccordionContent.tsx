@@ -1,15 +1,15 @@
 import { View } from 'react-native';
 import {
-    SharedValue,
+    type SharedValue,
     measure,
     useAnimatedRef,
     useAnimatedStyle,
     withTiming,
 } from 'react-native-reanimated';
 
-import { NativeStyleObject, prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { type NativeStyleObject, prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
-import { AnimatedBox } from '../Box';
+import { AnimatedBox } from '../AnimatedBox';
 
 export type AccordionContentProps = {
     isOpened: SharedValue<boolean>;

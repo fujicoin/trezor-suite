@@ -1,52 +1,34 @@
 import { createAction } from '@reduxjs/toolkit';
 
-import type { Locale } from '@suite-common/suite-types';
+import { asTypedDesktopAnalytics, events } from '@suite/analytics';
+import { openDeferredModal } from '@suite/modal';
+import { selectRouterUrl } from '@suite/router';
+import { suiteSettingsActions } from '@suite/settings';
+import { type TorBootstrap, TorStatus, isOnionUrl, selectTorState, torActions } from '@suite/tor';
+import { type deviceActions } from '@suite-common/device';
+import { type ExtraDependencies } from '@suite-common/redux-utils';
 import { notificationsActions } from '@suite-common/toast-notifications';
-import type { TradingType } from '@suite-common/trading';
-import { deviceActions } from '@suite-common/wallet-core';
 import { getCustomBackends } from '@suite-common/wallet-utils';
-import { EventType, analytics } from '@trezor/suite-analytics';
-import { HandshakeElectron, desktopApi } from '@trezor/suite-desktop-api';
+import { type HandshakeElectron, desktopApi } from '@trezor/suite-desktop-api';
 
-import * as modalActions from 'src/actions/suite/modalActions';
-import type { TranslationKey } from 'src/components/suite/Translation';
-import { ExperimentalFeature } from 'src/constants/suite/experimental';
-import { AutodetectSettings, DebugModeOptions, EvmSettings } from 'src/reducers/suite/suiteReducer';
-import { selectTorState } from 'src/selectors/suite/suiteSelectors';
-import { TorStatus } from 'src/types/suite';
-import type { AppState, Dispatch, GetState, TorBootstrap } from 'src/types/suite';
-import { isOnionUrl } from 'src/utils/suite/tor';
+import { type EvmSettings } from 'src/reducers/suite/suiteReducer';
+import type { Dispatch, GetState } from 'src/types/suite';
 
 import { SUITE } from './constants';
+
+export const setSendFormPrefill = createAction<
+    { contractAddress: string | undefined },
+    typeof SUITE.SET_SEND_FORM_PREFILL
+>(SUITE.SET_SEND_FORM_PREFILL);
+
+type SetSendFormPrefillAction = ReturnType<typeof setSendFormPrefill>;
 
 export type SuiteAction =
     | { type: typeof SUITE.INIT }
     | { type: typeof SUITE.READY }
     | { type: typeof SUITE.ERROR; error: string }
     | { type: typeof SUITE.DESKTOP_HANDSHAKE; payload: HandshakeElectron }
-    | {
-          type: typeof SUITE.SET_LANGUAGE;
-          locale: Locale;
-      }
-    | { type: typeof SUITE.SET_DEBUG_MODE; payload: Partial<DebugModeOptions> }
     | { type: typeof SUITE.ONLINE_STATUS; payload: boolean }
-    | { type: typeof SUITE.TOR_STATUS; payload: TorStatus }
-    | { type: typeof SUITE.TOR_BOOTSTRAP; payload: TorBootstrap | null }
-    | { type: typeof SUITE.ONION_LINKS; payload: boolean }
-    | { type: typeof SUITE.COINJOIN_RECEIVE_WARNING; payload: boolean }
-    | { type: typeof SUITE.TOGGLE_DEVICE_AUTHENTICITY_CHECK; payload: boolean }
-    | { type: typeof SUITE.TOGGLE_FIRMWARE_REVISION_CHECK; payload: boolean }
-    | { type: typeof SUITE.TOGGLE_FIRMWARE_HASH_CHECK; payload: boolean }
-    | { type: typeof SUITE.TOGGLE_ENTROPY_CHECK; payload: boolean }
-    | { type: typeof SUITE.COINJOIN_RECEIVE_WARNING; payload: boolean }
-    | { type: typeof SUITE.LOCK_UI; payload: boolean }
-    | ReturnType<typeof lockDevice>
-    | { type: typeof SUITE.LOCK_ROUTER; payload: boolean }
-    | {
-          type: typeof SUITE.SET_FLAG;
-          key: keyof AppState['suite']['flags'];
-          value: boolean;
-      }
     | {
           type: typeof SUITE.SET_RECENTLY_CONNECTED_DEVICE;
           payload: string | null;
@@ -68,96 +50,16 @@ export type SuiteAction =
           type: typeof SUITE.EVM_CLOSE_EXPLANATION_BANNER;
           symbol: keyof EvmSettings['explanationBannerClosed'];
       }
-    | { type: typeof SUITE.DISMISSED_TRADING_TERMS; tradingType: TradingType }
-    | { type: typeof SUITE.APP_CHANGED; payload: AppState['router']['app'] }
-    | {
-          type: typeof SUITE.SET_THEME;
-          variant: AppState['suite']['settings']['theme']['variant'];
-      }
-    | {
-          type: typeof SUITE.SET_STAKING_DASHBOARD_COLLAPSED;
-          isCollapsed: boolean;
-      }
-    | {
-          type: typeof SUITE.SET_SEND_FORM_PREFILL;
-          payload: string;
-      }
     | {
           type: typeof SUITE.SET_TRANSACTION_HISTORY_PREFILL;
           payload: string;
       }
-    | {
-          type: typeof SUITE.SET_ADDRESS_DISPLAY_TYPE;
-          option: AppState['suite']['settings']['addressDisplayType'];
-      }
-    | {
-          type: typeof SUITE.SET_DEFAULT_WALLET_LOADING;
-          option: AppState['suite']['settings']['defaultWalletLoading'];
-      }
-    | {
-          type: typeof SUITE.SET_AUTODETECT;
-          payload: Partial<AutodetectSettings>;
-      }
     | { type: typeof deviceActions.requestDeviceReconnect.type }
-    | { type: typeof SUITE.SET_SIDEBAR_WIDTH; payload: { width: number } }
-    | {
-          type: typeof SUITE.SET_EXPERIMENTAL_FEATURES;
-          payload: {
-              enabledFeatures: ExperimentalFeature[] | undefined; // undefined means the experimental features are off as a whole
-          };
-      }
-    | {
-          type: typeof SUITE.SET_IS_COINS_FILTER_VISIBLE;
-          payload: { isCoinsFilterVisible: boolean };
-      }
-    | { type: typeof SUITE.SET_AUTO_EJECT; payload: boolean };
-
-export const appChanged = createAction(SUITE.APP_CHANGED, (payload: AppState['router']['app']) => ({
-    payload,
-}));
+    | SetSendFormPrefillAction;
 
 export const desktopHandshake = (payload: HandshakeElectron): SuiteAction => ({
     type: SUITE.DESKTOP_HANDSHAKE,
     payload,
-});
-
-// Bio auth related actions have been moved to bioAuthActions.ts
-
-export const setTheme = (
-    variant: AppState['suite']['settings']['theme']['variant'],
-): SuiteAction => ({
-    type: SUITE.SET_THEME,
-    variant,
-});
-
-export const setStakingDashboardCollapsed = (isCollapsed: boolean): SuiteAction => ({
-    type: SUITE.SET_STAKING_DASHBOARD_COLLAPSED,
-    isCollapsed,
-});
-
-export const setAddressDisplayType = (
-    option: AppState['suite']['settings']['addressDisplayType'],
-): SuiteAction => ({
-    type: SUITE.SET_ADDRESS_DISPLAY_TYPE,
-    option,
-});
-
-export const setDefaultWalletLoading = (
-    option: AppState['suite']['settings']['defaultWalletLoading'],
-): SuiteAction => ({
-    type: SUITE.SET_DEFAULT_WALLET_LOADING,
-    option,
-});
-
-export const setAutodetect = (payload: Partial<AutodetectSettings>): SuiteAction => ({
-    type: SUITE.SET_AUTODETECT,
-    payload,
-});
-
-export const setFlag = (key: keyof AppState['suite']['flags'], value: boolean): SuiteAction => ({
-    type: SUITE.SET_FLAG,
-    key,
-    value,
 });
 
 export const setRecentlyConnectedDevicePath = (payload: string | null): SuiteAction => ({
@@ -173,29 +75,6 @@ export const addDeviceIdToSeenDisconnectNotification = (deviceId: string): Suite
     payload: { deviceId },
 });
 
-export const initialRunCompleted = () => (dispatch: Dispatch, getState: GetState) => {
-    if (getState().suite.flags.initialRun) {
-        dispatch(setFlag('initialRun', false));
-    }
-};
-
-export const setSidebarWidth = (payload: { width: number }): SuiteAction => ({
-    type: SUITE.SET_SIDEBAR_WIDTH,
-    payload: { width: payload.width },
-});
-
-export const setIsCoinsFilterVisible = (payload: {
-    isCoinsFilterVisible: boolean;
-}): SuiteAction => ({
-    type: SUITE.SET_IS_COINS_FILTER_VISIBLE,
-    payload: { isCoinsFilterVisible: payload.isCoinsFilterVisible },
-});
-
-export const setDismissedTradingTerms = (tradingType: TradingType): SuiteAction => ({
-    type: SUITE.DISMISSED_TRADING_TERMS,
-    tradingType,
-});
-
 /**
  * Triggered by `@suite-support/OnlineStatus` or `@suite-native/support/OnlineStatus`
  * Set `online` status in suite reducer
@@ -207,20 +86,11 @@ export const updateOnlineStatus = (payload: boolean): SuiteAction => ({
     payload,
 });
 
-/**
- * Triggered by `@suite/tor-status`
- * Set `tor` status in suite reducer
- * @param {boolean} payload
- * @returns {Action}
- */
-export const updateTorStatus = (payload: TorStatus): SuiteAction => ({
-    type: SUITE.TOR_STATUS,
-    payload,
-});
+export const updateTorStatus = (payload: TorStatus) => torActions.setTorStatus(payload);
 
 export const toggleTor =
     (shouldEnable: boolean, modal: string | undefined) =>
-    async (dispatch: Dispatch, getState: GetState) => {
+    async (dispatch: Dispatch, getState: GetState, extra: ExtraDependencies) => {
         const { torBootstrap } = selectTorState(getState());
 
         const backends = getCustomBackends(getState().wallet.blockchain);
@@ -230,16 +100,13 @@ export const toggleTor =
         );
 
         if (!shouldEnable && hasOnlyOnionBackends) {
-            const res = await dispatch(modalActions.openDeferredModal({ type: 'disable-tor' }));
+            const res = await dispatch(openDeferredModal({ type: 'disable-tor' }));
             if (!res) return;
         }
 
         if (shouldEnable && torBootstrap) {
             // Reset Tor Bootstrap before starting it.
-            dispatch({
-                type: SUITE.TOR_BOOTSTRAP,
-                payload: null,
-            });
+            dispatch(torActions.setTorBootstrap(null));
         }
 
         if (shouldEnable) {
@@ -251,11 +118,11 @@ export const toggleTor =
         const ipcResponse = await desktopApi.toggleTor(shouldEnable);
 
         if (ipcResponse.success) {
-            analytics.report({
-                type: EventType.SettingsTor,
+            asTypedDesktopAnalytics(extra.services.analytics).report({
+                type: events.settingsTorEvent.name,
                 payload: {
                     value: shouldEnable,
-                    location: getState().router.url,
+                    location: selectRouterUrl(getState()),
                     modal,
                 },
             });
@@ -265,18 +132,13 @@ export const toggleTor =
             dispatch(
                 notificationsActions.addToast({
                     type: 'tor-toggle-error',
-                    error: ipcResponse.error as TranslationKey,
+                    error: ipcResponse.error,
                 }),
             );
 
             return Promise.reject();
         }
     };
-
-export const setOnionLinks = (payload: boolean): SuiteAction => ({
-    type: SUITE.ONION_LINKS,
-    payload,
-});
 
 export const setTorBootstrap =
     (torBootstrap: TorBootstrap) => (dispatch: Dispatch, getState: GetState) => {
@@ -288,10 +150,7 @@ export const setTorBootstrap =
             isSlow: previousTorBootstrap ? previousTorBootstrap.isSlow : false,
         };
 
-        dispatch({
-            type: SUITE.TOR_BOOTSTRAP,
-            payload,
-        });
+        dispatch(torActions.setTorBootstrap(payload));
     };
 
 export const setTorBootstrapSlow =
@@ -318,41 +177,22 @@ export const setTorBootstrapSlow =
             isSlow,
         };
 
-        dispatch({
-            type: SUITE.TOR_BOOTSTRAP,
-            payload,
-        });
+        dispatch(torActions.setTorBootstrap(payload));
     };
 
 export const hideCoinjoinReceiveWarning = () => (dispatch: Dispatch) =>
-    dispatch({
-        type: SUITE.COINJOIN_RECEIVE_WARNING,
-        payload: true,
-    });
+    dispatch(suiteSettingsActions.setCoinjoinReceiveWarningHidden(true));
 
 export const toggleDeviceAuthenticityCheck = (enable: boolean) => (dispatch: Dispatch) => {
     dispatch(notificationsActions.addToast({ type: 'settings-applied' }));
-
-    dispatch({
-        type: SUITE.TOGGLE_DEVICE_AUTHENTICITY_CHECK,
-        payload: enable,
-    });
+    dispatch(suiteSettingsActions.toggleDeviceAuthenticityCheck(enable));
 };
 
 export const toggleFirmwareAuthenticityChecks = (enable: boolean) => (dispatch: Dispatch) => {
     dispatch(notificationsActions.addToast({ type: 'settings-applied' }));
-
-    const firmwareAuthenticityChecks = [
-        SUITE.TOGGLE_FIRMWARE_REVISION_CHECK,
-        SUITE.TOGGLE_FIRMWARE_HASH_CHECK,
-    ] as const;
-
-    firmwareAuthenticityChecks.forEach(type => {
-        dispatch({
-            type,
-            payload: enable,
-        });
-    });
+    dispatch(suiteSettingsActions.toggleFirmwareRevisionCheck(enable));
+    dispatch(suiteSettingsActions.toggleFirmwareHashCheck(enable));
+    dispatch(suiteSettingsActions.toggleDeviceMetaChecks(enable));
 };
 
 /**
@@ -362,51 +202,4 @@ export const toggleFirmwareAuthenticityChecks = (enable: boolean) => (dispatch: 
  */
 export const onSuiteReady = (): SuiteAction => ({
     type: SUITE.READY,
-});
-
-/**
- * Triggered by user action in:
- * - Debug Settings
- * Set `debug` object in suite reducer
- * @param {boolean} payload
- * @returns {SuiteAction}
- */
-export const setDebugMode = (payload: Partial<DebugModeOptions>): SuiteAction => ({
-    type: SUITE.SET_DEBUG_MODE,
-    payload,
-});
-
-/**
- * Called from multiple places before and after TrezorConnect call
- * Prevent from mad clicking
- * Set `lock` field in suite reducer
- * @returns {SuiteAction}
- */
-export const lockUI = (payload: boolean): SuiteAction => ({
-    type: SUITE.LOCK_UI,
-    payload,
-});
-
-/**
- * Prevent TrezorConnect multiple calls
- * Called before and after specific process, like onboarding
- * Set `lock` field in suite reducer
- * @returns {SuiteAction}
- */
-export const lockDevice = createAction(SUITE.LOCK_DEVICE, (payload: boolean) => ({ payload }));
-
-/**
- * Prevent route change and rendering
- * Called before and after specific process, like onboarding
- * Set `lock` field in suite reducer
- * @returns {SuiteAction}
- */
-export const lockRouter = (payload: boolean): SuiteAction => ({
-    type: SUITE.LOCK_ROUTER,
-    payload,
-});
-
-export const setAutoEject = (payload: boolean): SuiteAction => ({
-    type: SUITE.SET_AUTO_EJECT,
-    payload,
 });

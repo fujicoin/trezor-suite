@@ -1,17 +1,18 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
+import { Translation } from '@suite/intl';
+import { goto } from '@suite/router';
 import {
     selectIsDeviceBackedUp,
     selectSelectedDevice,
     selectSelectedDeviceLabelOrName,
-} from '@suite-common/wallet-core';
+} from '@suite-common/device';
 import { Banner, Card, Checkbox, Column, H4, Modal, Paragraph } from '@trezor/components';
+import { WarningIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { PrerequisitesGuide, Translation } from 'src/components/suite';
+import { PrerequisitesGuide } from 'src/components/suite';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-
-import { goto } from '../../../actions/suite/routerActions';
 
 type StepCheckSeedProps = {
     deviceWillBeWiped: boolean;
@@ -52,7 +53,7 @@ export const StepCheckSeed = ({
                 ),
                 description: (
                     <>
-                        <Paragraph variant="tertiary">
+                        <Paragraph intent="neutral" priority="secondary">
                             <Translation
                                 id={
                                     isDeviceBackedUp
@@ -61,7 +62,7 @@ export const StepCheckSeed = ({
                                 }
                             />
                         </Paragraph>
-                        <Paragraph variant="tertiary">
+                        <Paragraph intent="neutral" priority="secondary">
                             <Translation
                                 id={
                                     isDeviceBackedUp
@@ -80,7 +81,7 @@ export const StepCheckSeed = ({
             ? {
                   heading: <Translation id="TR_SECURITY_CHECKPOINT_GOT_SEED" />,
                   description: (
-                      <Paragraph variant="tertiary">
+                      <Paragraph intent="neutral" priority="secondary">
                           <Translation id="TR_BEFORE_ANY_FURTHER_ACTIONS" />
                       </Paragraph>
                   ),
@@ -91,7 +92,7 @@ export const StepCheckSeed = ({
                       <Translation id="TR_DEVICE_LABEL_IS_NOT_BACKED_UP" values={{ deviceLabel }} />
                   ),
                   description: (
-                      <Paragraph variant="tertiary">
+                      <Paragraph intent="neutral" priority="secondary">
                           <Translation id="TR_FIRMWARE_IS_POTENTIALLY_RISKY" />
                       </Paragraph>
                   ),
@@ -112,17 +113,22 @@ export const StepCheckSeed = ({
                         onClick={install}
                         data-testid="@firmware/confirm-seed-button"
                         isDisabled={!device?.connected || !isChecked}
-                        variant={deviceWillBeWiped ? 'destructive' : 'primary'}
+                        intent={deviceWillBeWiped ? 'critical' : 'brand'}
                     >
                         <Translation
                             id={deviceWillBeWiped ? 'TR_WIPE_AND_REINSTALL' : 'TR_INSTALL'}
                         />
                     </Modal.Button>
                     <Modal.Button
-                        variant="tertiary"
+                        intent="neutral"
+                        priority="secondary"
                         onClick={() => {
                             resetReducer();
-                            dispatch(goto(isDeviceBackedUp ? 'recovery-index' : 'backup-index'));
+                            dispatch(
+                                goto({
+                                    routeName: isDeviceBackedUp ? 'recovery-index' : 'backup-index',
+                                }),
+                            );
                         }}
                     >
                         <Translation id={isDeviceBackedUp ? 'TR_CHECK_SEED' : 'TR_CREATE_BACKUP'} />
@@ -136,14 +142,16 @@ export const StepCheckSeed = ({
                     {description}
                 </Column>
                 {deviceWillBeWiped && (
-                    <Banner variant="destructive" icon="warning">
-                        <Translation id="TR_FIRMWARE_SWITCH_WARNING_3" />
-                    </Banner>
+                    <Banner
+                        intent="critical"
+                        icon={WarningIcon}
+                        description={<Translation id="TR_FIRMWARE_SWITCH_WARNING_3" />}
+                    />
                 )}
                 <Card>
                     <Checkbox
                         isChecked={isChecked}
-                        onClick={() => setIsChecked(!isChecked)}
+                        onChange={() => setIsChecked(!isChecked)}
                         data-testid="@firmware/confirm-seed-checkbox"
                     >
                         {checkbox}

@@ -1,18 +1,7 @@
-import { asBaseCurrencyAmount } from '@suite-common/wallet-utils';
-import { typedObjectEntries } from '@trezor/utils';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { asBaseCurrencyAmount } from '@suite-common/wallet-types';
+import { BigNumber, typedObjectEntries } from '@trezor/utils';
 
-import { AggregatedAccountHistory, AggregatedDashboardHistory } from 'src/types/wallet/graph';
-
-import type { FiatValueMap } from './utilsWorker';
-
-export type ObjectType<T> = T extends 'account'
-    ? AggregatedAccountHistory
-    : T extends 'dashboard'
-      ? AggregatedDashboardHistory
-      : never;
-
-export type TypeName = 'account' | 'dashboard';
+import { type FiatValueMap } from './types';
 
 /**
  * Mutates the first object param and adds values from second object.

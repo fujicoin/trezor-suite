@@ -1,11 +1,13 @@
 import { useDerivedValue } from 'react-native-reanimated';
+import { useSelector } from 'react-redux';
 
-import { Box, SwipeableWalkthroughStep, Text, VStack } from '@suite-native/atoms';
+import { Box, Text, VStack } from '@suite-native/atoms';
 import { useIsMultiline } from '@suite-native/helpers';
-import { Translation } from '@suite-native/intl';
+import { Translation, selectLocale } from '@suite-native/intl';
+import { SwipeableWalkthroughStep } from '@suite-native/swipeable-walkthrough';
 
 import { Underline } from './Underline';
-import { WalletBackupTutorialNumberedStepProps } from './WalletBackupRecapStep1';
+import { type WalletBackupTutorialNumberedStepProps } from './WalletBackupRecapStep1';
 import { WalletRecapStepContent } from '../WalletRecapStepContent';
 import { WALLET_BACKUP_RECAP_STEPS } from './presets';
 
@@ -14,9 +16,13 @@ const CURRENT_STEP_INDEX = 1;
 export const WalletBackupRecapStep2 = ({
     currentStepIndex,
 }: WalletBackupTutorialNumberedStepProps) => {
+    const locale = useSelector(selectLocale);
     const isFocused = useDerivedValue(() => currentStepIndex.value === CURRENT_STEP_INDEX);
 
-    const { onTextLayout, isMultiline } = useIsMultiline('titleMedium');
+    const { onTextLayout, numberOfLines } = useIsMultiline('headline-md');
+
+    // We can be sure that the underline word `Never` is at the beginning of the sentence for english locale only.
+    const isUnderlineVisible = numberOfLines === 2 && locale === 'en-US';
 
     return (
         <SwipeableWalkthroughStep
@@ -26,19 +32,16 @@ export const WalletBackupRecapStep2 = ({
         >
             <WalletRecapStepContent>
                 <VStack spacing="sp12" alignItems="center">
-                    <Text variant="highlight" color="textSecondaryHighlight" textAlign="center">
+                    <Text variant="body-md-strong" color="contentBrand" textAlign="center">
                         <Translation id="moduleDeviceOnboarding.walletBackupRecapScreen.step2.callout" />
                     </Text>
                     <Box>
                         <Box alignSelf="center">
-                            <Text variant="titleMedium" textAlign="center" onLayout={onTextLayout}>
-                                <Translation id="moduleDeviceOnboarding.walletBackupRecapScreen.step2.titleUnderlined" />
+                            <Text variant="headline-md" textAlign="center" onLayout={onTextLayout}>
+                                <Translation id="moduleDeviceOnboarding.walletBackupRecapScreen.step2.title" />
                             </Text>
-                            {!isMultiline && <Underline isFocused={isFocused} />}
+                            {isUnderlineVisible && <Underline isFocused={isFocused} />}
                         </Box>
-                        <Text variant="titleMedium" textAlign="center">
-                            <Translation id="moduleDeviceOnboarding.walletBackupRecapScreen.step2.titleRegular" />
-                        </Text>
                     </Box>
                 </VStack>
             </WalletRecapStepContent>

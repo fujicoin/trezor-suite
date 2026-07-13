@@ -1,15 +1,11 @@
 import { useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 
-import {
-    AccountsRootState,
-    selectAccountByKey,
-    selectAccountLabel,
-} from '@suite-common/wallet-core';
-import { TokenAddress } from '@suite-common/wallet-types';
-import { EventType, analytics } from '@suite-native/analytics';
+import { useServices } from '@suite-common/dependency-injection';
+import { type Account, type TokenAddress } from '@suite-common/wallet-types';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { Screen } from '@suite-native/navigation';
-import { TokensRootState, selectAccountTokenInfo } from '@suite-native/tokens';
+import { type TokensRootState, selectAccountTokenInfo } from '@suite-native/tokens';
 import { TransactionList } from '@suite-native/transactions';
 
 import { AccountDetailScreenHeader } from '../components/AccountDetailScreenHeader';
@@ -17,29 +13,23 @@ import { TokenAccountDetailScreenHeader } from '../components/TokenAccountDetail
 import { TransactionListHeader } from '../components/TransactionListHeader';
 
 type AccountDetailContentScreenProps = {
-    accountKey: string;
+    account: Account;
     tokenContract?: TokenAddress;
 };
 
 export const AccountDetailContentScreen = ({
-    accountKey,
+    account,
     tokenContract,
 }: AccountDetailContentScreenProps) => {
-    const account = useSelector((state: AccountsRootState) =>
-        selectAccountByKey(state, accountKey),
-    );
-    const accountLabel = useSelector((state: AccountsRootState) =>
-        selectAccountLabel(state, accountKey),
-    );
-
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const token = useSelector((state: TokensRootState) =>
-        selectAccountTokenInfo(state, accountKey, tokenContract),
+        selectAccountTokenInfo(state, account.key, tokenContract),
     );
 
     useEffect(() => {
         if (account) {
             analytics.report({
-                type: EventType.AssetDetail,
+                type: events.assetDetailEvent.name,
                 payload: {
                     assetSymbol: account.symbol,
                     tokenSymbol: token?.symbol,
@@ -47,32 +37,33 @@ export const AccountDetailContentScreen = ({
                 },
             });
         }
-    }, [account, token?.symbol, token?.contract]);
+    }, [account, token?.symbol, token?.contract, analytics, token]);
 
     const listHeaderComponent = useMemo(
-        () => <TransactionListHeader accountKey={accountKey} tokenContract={tokenContract} />,
-        [accountKey, tokenContract],
+        () => <TransactionListHeader accountKey={account.key} tokenContract={tokenContract} />,
+        [account.key, tokenContract],
     );
 
     return (
         <Screen
+            /** Adding scrollable wraps content in ScrollView which is unwanted for this screen because list component already adds the scrollview **/
+            isScrollable={false}
             header={
                 tokenContract ? (
                     <TokenAccountDetailScreenHeader
                         tokenContract={tokenContract}
-                        accountKey={accountKey}
+                        accountKey={account.key}
                     />
                 ) : (
-                    <AccountDetailScreenHeader
-                        accountLabel={accountLabel}
-                        accountKey={accountKey}
-                    />
+                    <AccountDetailScreenHeader account={account} />
                 )
             }
             noHorizontalPadding
+            noBottomPadding
+            hasBottomInset={false}
         >
             <TransactionList
-                accountKey={accountKey}
+                account={account}
                 tokenContract={tokenContract}
                 listHeaderComponent={listHeaderComponent}
             />

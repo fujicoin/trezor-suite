@@ -1,15 +1,20 @@
 import { createThunk } from '@suite-common/redux-utils';
 import { selectBaseCurrency, selectIsElectrumBackendSelected } from '@suite-common/wallet-core';
+import { type AccountKey, createAccountKey } from '@suite-common/wallet-types';
 import { isTrezorConnectBackendType, tryGetAccountIdentity } from '@suite-common/wallet-utils';
 import TrezorConnect from '@trezor/connect';
 
-import { Dispatch, GetState } from 'src/types/suite';
-import { Account } from 'src/types/wallet';
-import { GraphData, GraphRange, GraphScale } from 'src/types/wallet/graph';
+import { type Dispatch, type GetState } from 'src/types/suite';
+import { type Account } from 'src/types/wallet';
 import {
-    accountGraphDataFilterFn,
+    type AccountHistoryWithBalance,
+    type GraphData,
+    type GraphRange,
+} from 'src/types/wallet/graph';
+import {
     enhanceBlockchainAccountHistory,
     ensureHistoryRates,
+    isNetworkWithGraphFeature,
 } from 'src/utils/wallet/graph';
 
 import {
@@ -19,7 +24,6 @@ import {
     AGGREGATED_GRAPH_START,
     AGGREGATED_GRAPH_SUCCESS,
     SET_SELECTED_RANGE,
-    SET_SELECTED_VIEW,
 } from './constants/graphConstants';
 
 export type GraphAction =
@@ -44,20 +48,11 @@ export type GraphAction =
     | {
           type: typeof SET_SELECTED_RANGE;
           payload: GraphRange;
-      }
-    | {
-          type: typeof SET_SELECTED_VIEW;
-          payload: GraphScale;
       };
 
 export const setSelectedRange = (range: GraphRange): GraphAction => ({
     type: SET_SELECTED_RANGE,
     payload: range,
-});
-
-export const setSelectedView = (view: GraphScale): GraphAction => ({
-    type: SET_SELECTED_VIEW,
-    payload: view,
 });
 
 /**
@@ -142,12 +137,12 @@ export const fetchAccountGraphData =
 
 export const updateGraphData = createThunk<
     void,
-    { accounts: Account[]; newAccountsOnly?: boolean; abortSignal?: AbortSignal },
+    { accounts: Account[]; abortSignal?: AbortSignal },
     void
 >(
     'wallet/updateGraphData',
     async (
-        { accounts, newAccountsOnly, abortSignal },
+        { accounts, abortSignal },
         {
             dispatch,
             getState,
@@ -158,16 +153,38 @@ export const updateGraphData = createThunk<
     ) => {
         const { graph } = getState().wallet;
 
-        // TODO: default behaviour should be fetch only new data (since last timestamp)
-        // exclude accounts with unsupported backend type
-        let filteredAccounts = accounts.filter(a => isTrezorConnectBackendType(a.backendType));
-        if (newAccountsOnly) {
-            // add only accounts for which we don't have any data for given interval
-            filteredAccounts = filteredAccounts.filter(
-                account => !graph.data.find(d => accountGraphDataFilterFn(d, account)),
-            );
-        }
-        if (filteredAccounts.length === 0) {
+        const supportedAccounts = accounts.filter(
+            a =>
+                isTrezorConnectBackendType(a.backendType) &&
+                isNetworkWithGraphFeature(a.symbol, a.backendType),
+        );
+
+        const graphDataPointsByAccount = new Map<AccountKey, AccountHistoryWithBalance[]>(
+            graph.data.map(({ account, data }) => [
+                createAccountKey({
+                    accountDescriptor: account.descriptor,
+                    networkSymbol: account.symbol,
+                    deviceStaticSessionId: account.deviceState,
+                }),
+                data,
+            ]),
+        );
+
+        const graphTxCountByAccount = new Map<AccountKey, number>(
+            Array.from(graphDataPointsByAccount.entries()).map(([key, data]) => {
+                const txCount = data.reduce((acc, point) => acc + point.txs, 0);
+
+                return [key, txCount];
+            }),
+        );
+
+        const accountsToFetch = supportedAccounts.filter(account => {
+            const txCount = graphTxCountByAccount.get(account.key) ?? 0;
+
+            return txCount !== account.history.total;
+        });
+
+        if (accountsToFetch.length === 0) {
             return;
         }
 
@@ -175,8 +192,12 @@ export const updateGraphData = createThunk<
             dispatch({
                 type: AGGREGATED_GRAPH_START,
             });
-            const promises = filteredAccounts.map(
-                a => dispatch(fetchAccountGraphData(a, { abortSignal })), // fetch for all range
+            const promises = accountsToFetch.map(a =>
+                dispatch(
+                    fetchAccountGraphData(a, {
+                        abortSignal,
+                    }),
+                ),
             );
             await Promise.all(promises);
 
@@ -185,16 +206,12 @@ export const updateGraphData = createThunk<
             dispatch({
                 type: AGGREGATED_GRAPH_SUCCESS,
             });
-
-            return;
         } catch (error) {
             if (error.name === 'AbortError') {
                 dispatch({
                     type: AGGREGATED_GRAPH_SUCCESS,
                 });
             }
-
-            return;
         }
     },
 );

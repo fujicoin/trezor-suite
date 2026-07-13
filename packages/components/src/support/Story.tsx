@@ -1,16 +1,16 @@
-import React, { ComponentProps, Fragment } from 'react';
+import React, { type ComponentProps, Fragment } from 'react';
 
 import styled, { ThemeProvider } from 'styled-components';
 
-import { intermediaryTheme } from '../index';
+import { intermediaryTheme } from '../config/colors';
 
 const Wrapper = styled.div`
     padding: 20px;
     display: flex;
     height: 100%;
     flex-wrap: wrap;
-    background: ${({ theme }) => theme.backgroundSurfaceElevation0};
-    color: ${({ theme }) => theme.textDefault};
+    background: ${({ theme }) => theme.surfaceFillPage};
+    color: ${({ theme }) => theme.contentPrimary};
 `;
 
 export const StoryWrapper = (story: any) =>

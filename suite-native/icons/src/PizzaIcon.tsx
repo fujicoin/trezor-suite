@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Easing, SharedValue, useDerivedValue, withTiming } from 'react-native-reanimated';
+import { Easing, type SharedValue, useDerivedValue, withTiming } from 'react-native-reanimated';
 
 import { Group, Image, Skia, mix, rect, useImage } from '@shopify/react-native-skia';
 
@@ -26,6 +26,7 @@ export const usePizzaAnimation = ({
     const [displayedPizzaIndex, setDisplayedPizzaIndex] = useState<0 | PIZZA_INDEX>(1);
 
     const handleChangePizza = () => {
+        // eslint-disable-next-line react-hooks/immutability
         animationProgress.value = 0;
         setDisplayedPizzaIndex(currentPizzaIndex => ((currentPizzaIndex + 1) % 4) as PIZZA_INDEX);
         animationProgress.value = withTiming(percentage / 100, {

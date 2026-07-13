@@ -1,29 +1,28 @@
-import { CryptoId, ExchangeProviderInfo, ExchangeTrade, SellFiatTrade } from 'invity-api';
+import {
+    type CryptoId,
+    type ExchangeProviderInfo,
+    type ExchangeTrade,
+    type SellFiatTrade,
+} from 'invity-api';
 
-import { NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 import type { Account } from '@suite-common/wallet-types';
+import { mockAccountKey } from '@suite-common/wallet-types/mocks';
 
 import * as BUY_FIXTURE from '../__fixtures__/buyUtils';
 import * as EXCHANGE_FIXTURE from '../__fixtures__/exchangeUtils';
 import * as SELL_FIXTURE from '../__fixtures__/sellUtils';
 import { accountBtc, accountEth } from '../__fixtures__/utils';
-import type {
-    TradingAccountOptionsGroupOptionProps,
-    TradingExchangeType,
-    TradingSellType,
-} from '../types';
+import type { TradingExchangeType, TradingSellType } from '../types';
 import {
     addIdsToQuotes,
     cryptoIdToNetwork,
     cryptoIdToNetworkAndContractAddress,
     cryptoIdToSymbol,
     filterQuotesAccordingTags,
-    getBestRatedQuote,
     getDefaultCountry,
-    getTagAndInfoNote,
+    getDefaultCountrySubdivision,
     getTradingFormState,
-    getTradingNetworkDecimals,
-    getTradingPaymentMethods,
     getTradingQuotesByPaymentMethod,
     getUnusedAddressFromAccount,
     isCryptoIdForNativeToken,
@@ -33,6 +32,9 @@ import {
     toTokenCryptoId,
 } from '../utils';
 
+const sendAccountKey = mockAccountKey({ descriptor: 'sendAccountKey' });
+const receiveAccountKey = mockAccountKey({ descriptor: 'receiveAccountKey' });
+
 describe('getUnusedAddressFromAccount', () => {
     it('should return unused value from the passed account', () => {
         expect(getUnusedAddressFromAccount(accountBtc as Account)).toStrictEqual({
@@ -41,7 +43,7 @@ describe('getUnusedAddressFromAccount', () => {
         });
 
         expect(getUnusedAddressFromAccount(accountEth as Account)).toStrictEqual({
-            address: 'eth-descriptor',
+            address: 'ethDescriptor',
             path: "m/44'/60'/0'/0/1",
         });
     });
@@ -53,49 +55,15 @@ describe('mapTestnetCryptoCurrency', () => {
         ['eth', 'eth'],
         ['test', 'btc'],
         ['tsep', 'eth'],
-        ['thol', 'eth'],
+        ['thod', 'eth'],
         ['txrp', 'xrp'],
         ['txlm', 'xlm'],
-        ['tada', 'ada'],
     ] as [NetworkSymbol, NetworkSymbol][])(
         'should transform testnet network symbol [%s] to mainnet',
         (symbol, expectedValue) => {
             expect(mapTestnetSymbol(symbol)).toStrictEqual(expectedValue);
         },
     );
-});
-
-describe('getTagAndInfoNote', () => {
-    it('should return tag and info not from passed data', () => {
-        expect(getTagAndInfoNote({})).toStrictEqual({ infoNote: '', tag: '' });
-        expect(getTagAndInfoNote({ infoNote: '' })).toStrictEqual({ infoNote: '', tag: '' });
-        expect(getTagAndInfoNote({ infoNote: 'Foo' })).toStrictEqual({ infoNote: 'Foo', tag: '' });
-        expect(getTagAndInfoNote({ infoNote: ' #Foo' })).toStrictEqual({
-            infoNote: '',
-            tag: 'Foo',
-        });
-        expect(getTagAndInfoNote({ infoNote: 'Foo#Bar' })).toStrictEqual({
-            infoNote: 'Foo#Bar',
-            tag: '',
-        });
-        expect(getTagAndInfoNote({ infoNote: '#Foo' })).toStrictEqual({ infoNote: '', tag: 'Foo' });
-        expect(getTagAndInfoNote({ infoNote: '# Foo' })).toStrictEqual({
-            infoNote: '',
-            tag: ' Foo',
-        });
-        expect(getTagAndInfoNote({ infoNote: '##Bar' })).toStrictEqual({
-            infoNote: 'Bar',
-            tag: '',
-        });
-        expect(getTagAndInfoNote({ infoNote: '#Foo#Bar' })).toStrictEqual({
-            infoNote: 'Bar',
-            tag: 'Foo',
-        });
-        expect(getTagAndInfoNote({ infoNote: '  #Foo#Bar \t' })).toStrictEqual({
-            infoNote: 'Bar',
-            tag: 'Foo',
-        });
-    });
 });
 
 describe('filterQuotesAccordingTags', () => {
@@ -108,7 +76,7 @@ describe('filterQuotesAccordingTags', () => {
 
         expect(filterQuotesAccordingTags([])).toStrictEqual([]);
         expect(filterQuotesAccordingTags(quotes).length).toStrictEqual(
-            quotes.filter(q => !q.tags || !q.tags.includes('alternativeCurrency')).length,
+            quotes.filter(q => !q.tags?.includes('alternativeCurrency')).length,
         );
     });
 });
@@ -120,12 +88,16 @@ describe('addIdsToQuotes', () => {
 
         expect(addIdsToQuotes([], 'buy')).toStrictEqual([]);
         expect(addIdsToQuotes(undefined, 'buy')).toStrictEqual([]);
-        expect(addIdsToQuotes(quotes, 'buy').length).toStrictEqual(
-            quotes.filter(q => q.orderId && q.paymentId).length,
-        );
-        expect(addIdsToQuotes(quotesExchange, 'exchange').length).toStrictEqual(
-            quotesExchange.filter(q => q.orderId).length,
-        );
+
+        const buyResult = addIdsToQuotes(quotes, 'buy');
+        expect(buyResult.length).toStrictEqual(quotes.length);
+        expect(
+            buyResult.filter(q => q.orderId && 'paymentId' in q && q.paymentId).length,
+        ).toStrictEqual(quotes.length);
+
+        const exchangeResult = addIdsToQuotes(quotesExchange, 'exchange');
+        expect(exchangeResult.length).toStrictEqual(quotesExchange.length);
+        expect(exchangeResult.filter(q => q.orderId).length).toStrictEqual(quotesExchange.length);
     });
 });
 
@@ -171,23 +143,6 @@ describe('isCryptoIdForNativeToken', () => {
     });
 });
 
-describe('getTradingPaymentMethods', () => {
-    it('should get payment methods from quotes', () => {
-        const paymentMethods = getTradingPaymentMethods([
-            ...BUY_FIXTURE.MIN_MAX_QUOTES_OK,
-            BUY_FIXTURE.MIN_MAX_QUOTES_OK[1], // duplicate applePay
-        ]);
-
-        const findApplePay = paymentMethods.find(
-            paymentMethod =>
-                paymentMethod.value === 'applePay' && paymentMethod.label === 'Apple Pay',
-        );
-
-        expect(paymentMethods.length).toBe(2);
-        expect(findApplePay).toBeDefined();
-    });
-});
-
 describe('getTradingQuotesByPaymentMethod', () => {
     it('should select quotes according to payment method', () => {
         const quotes = getTradingQuotesByPaymentMethod(BUY_FIXTURE.MIN_MAX_QUOTES_OK, 'applePay');
@@ -195,40 +150,6 @@ describe('getTradingQuotesByPaymentMethod', () => {
         const allQuotesApplePay = quotes?.find(quote => quote.paymentMethod === 'applePay');
 
         expect(allQuotesApplePay).toBeDefined();
-    });
-});
-
-describe('getTradingNetworkDecimals', () => {
-    it('should select network decimals according to network or select', () => {
-        const network = getNetwork('base');
-        const decimals = getTradingNetworkDecimals({
-            network,
-        });
-
-        expect(decimals).toEqual(network.decimals);
-
-        const decimalsDefault = getTradingNetworkDecimals({
-            network: null,
-        });
-
-        expect(decimalsDefault).toEqual(8);
-
-        const sendCryptoSelect: TradingAccountOptionsGroupOptionProps = {
-            value: 'ethereum' as CryptoId,
-            label: 'ETH',
-            cryptoName: 'Ethereum',
-            balance: '0.0022992',
-            descriptor: 'ethereum',
-            decimals: 18,
-            accountType: 'normal',
-        };
-
-        const decimalsWithAccount = getTradingNetworkDecimals({
-            network,
-            sendCryptoSelect,
-        });
-
-        expect(decimalsWithAccount).toEqual(sendCryptoSelect.decimals);
     });
 });
 
@@ -291,40 +212,66 @@ describe('toTokenCryptoId', () => {
 
 describe('getDefaultCountry', () => {
     it('should return default country for unknown country', () => {
-        expect(getDefaultCountry()).toEqual({ label: '🌍 Worldwide', value: 'unknown' });
+        expect(getDefaultCountry()).toEqual({
+            codeAlpha3: 'unknown',
+            flag: '🌍',
+            label: '🌍 Worldwide',
+            name: 'Worldwide',
+            shortLabel: '🌍 Worldwide',
+            value: 'unknown',
+        });
     });
 
     it('should return correct value', () => {
         expect(getDefaultCountry('US')).toEqual({
+            codeAlpha3: 'USA',
+            flag: '🇺🇸',
             label: '🇺🇸 United States of America',
+            name: 'United States of America',
+            shortLabel: '🇺🇸 USA',
             value: 'US',
         });
     });
 
     it('should return default country for non existing code', () => {
-        expect(getDefaultCountry('XX')).toEqual({ label: '🌍 Worldwide', value: 'unknown' });
+        expect(getDefaultCountry('XX')).toEqual({
+            codeAlpha3: 'unknown',
+            flag: '🌍',
+            label: '🌍 Worldwide',
+            name: 'Worldwide',
+            shortLabel: '🌍 Worldwide',
+            value: 'unknown',
+        });
     });
 });
 
-describe('getBestRatedQuote', () => {
-    it('should return undefined if quotes are undefined', () => {
-        expect(getBestRatedQuote(undefined, 'buy')).toStrictEqual(undefined);
+describe('getDefaultCountrySubdivision', () => {
+    it('should return undefined when subdivision is undefined', () => {
+        expect(getDefaultCountrySubdivision(undefined)).toBeUndefined();
     });
 
-    it('should get buy best trade', () => {
-        expect(getBestRatedQuote(BUY_FIXTURE.MIN_MAX_QUOTES_OK, 'buy')).toStrictEqual(
-            BUY_FIXTURE.MIN_MAX_QUOTES_OK[1],
-        );
+    it('should return undefined when subdivision code is not in the list', () => {
+        expect(getDefaultCountrySubdivision('XX')).toBeUndefined();
     });
-    it('should get sell best trade', () => {
-        expect(getBestRatedQuote(SELL_FIXTURE.MIN_MAX_QUOTES_LOW, 'sell')).toStrictEqual(
-            SELL_FIXTURE.MIN_MAX_QUOTES_LOW[0],
-        );
+
+    it('should return correct option for a known subdivision code', () => {
+        expect(getDefaultCountrySubdivision('CA')).toEqual({
+            value: 'CA',
+            label: 'California',
+            name: 'California',
+        });
     });
-    it('should get exchange best trade', () => {
-        expect(getBestRatedQuote(EXCHANGE_FIXTURE.MIN_MAX_QUOTES_OK, 'exchange')).toStrictEqual(
-            EXCHANGE_FIXTURE.MIN_MAX_QUOTES_OK[EXCHANGE_FIXTURE.MIN_MAX_QUOTES_OK.length - 1],
-        );
+
+    it('should return correct option for a known subdivision code and country code', () => {
+        expect(getDefaultCountrySubdivision('CA', 'US')).toEqual({
+            value: 'CA',
+            label: 'California',
+            name: 'California',
+        });
+    });
+
+    it('should return undefined when country does not require subdivision', () => {
+        expect(getDefaultCountrySubdivision('CA', 'CZ')).toBeUndefined();
     });
 });
 
@@ -384,6 +331,7 @@ describe('getTradingFormState', () => {
         it('should return default state when required fields are missing', () => {
             const incompleteTrade = {
                 exchange: 'test-exchange',
+                isSlip24Active: false,
                 // Missing required fields
             } as SellFiatTrade;
 
@@ -395,10 +343,12 @@ describe('getTradingFormState', () => {
                 activeSection,
                 trade: incompleteTrade,
                 providers,
+                sendAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'sell',
+                isSlip24Active: false,
             });
         });
 
@@ -415,10 +365,12 @@ describe('getTradingFormState', () => {
                 activeSection,
                 trade,
                 providers: {},
+                sendAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'sell',
+                isSlip24Active: false,
             });
         });
 
@@ -439,10 +391,13 @@ describe('getTradingFormState', () => {
                 activeSection,
                 trade,
                 providers,
+                sendAccountKey,
+                isSlip24Active: false,
             });
 
             expect(result).toEqual({
                 activeSection: 'sell',
+                isSlip24Active: false,
             });
         });
 
@@ -464,12 +419,17 @@ describe('getTradingFormState', () => {
                 trade,
                 providers,
                 isSlip24Active: true,
+                sendAccountKey,
+                receiveAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'sell',
+                isSlip24Active: true,
                 recipientName: 'Test Exchange',
                 send: {
+                    accountKey: sendAccountKey,
+                    cryptoId: 'bitcoin',
                     symbol: 'btc',
                     contractAddress: undefined,
                     amount: '0.025',
@@ -499,15 +459,20 @@ describe('getTradingFormState', () => {
                 trade,
                 providers,
                 isSlip24Active: true,
+                sendAccountKey,
+                receiveAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'sell',
                 recipientName: 'Test Exchange',
+                isSlip24Active: true,
                 send: {
+                    accountKey: sendAccountKey,
                     symbol: 'eth',
                     contractAddress: '0x123456789',
                     amount: '100',
+                    cryptoId: 'ethereum--0x123456789',
                 },
                 receive: {
                     amount: '500',
@@ -535,10 +500,12 @@ describe('getTradingFormState', () => {
                 trade: incompleteTrade,
                 providers,
                 isSlip24Active: true,
+                sendAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'exchange',
+                isSlip24Active: true,
             });
         });
 
@@ -556,10 +523,12 @@ describe('getTradingFormState', () => {
                 trade,
                 providers: {},
                 isSlip24Active: true,
+                sendAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'exchange',
+                isSlip24Active: true,
             });
         });
 
@@ -581,10 +550,12 @@ describe('getTradingFormState', () => {
                 trade,
                 providers,
                 isSlip24Active: true,
+                sendAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'exchange',
+                isSlip24Active: true,
             });
         });
 
@@ -606,10 +577,12 @@ describe('getTradingFormState', () => {
                 trade,
                 providers,
                 isSlip24Active: true,
+                sendAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'exchange',
+                isSlip24Active: true,
             });
         });
 
@@ -631,17 +604,24 @@ describe('getTradingFormState', () => {
                 trade,
                 providers,
                 isSlip24Active: true,
+                sendAccountKey,
+                receiveAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'exchange',
                 recipientName: 'Test Exchange',
+                isSlip24Active: true,
                 send: {
+                    accountKey: sendAccountKey,
+                    cryptoId: 'bitcoin',
                     symbol: 'btc',
                     contractAddress: undefined,
                     amount: '0.025',
                 },
                 receive: {
+                    accountKey: receiveAccountKey,
+                    cryptoId: 'ethereum',
                     symbol: 'eth',
                     contractAddress: undefined,
                     amount: '1',
@@ -667,21 +647,52 @@ describe('getTradingFormState', () => {
                 trade,
                 providers,
                 isSlip24Active: true,
+                sendAccountKey,
+                receiveAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'exchange',
                 recipientName: 'Test Exchange',
+                isSlip24Active: true,
                 send: {
+                    accountKey: sendAccountKey,
+                    cryptoId: 'ethereum--0xsend456',
                     symbol: 'eth',
                     contractAddress: '0xsend456',
                     amount: '50',
                 },
                 receive: {
+                    accountKey: receiveAccountKey,
+                    cryptoId: 'ethereum--0xreceive123',
                     symbol: 'eth',
                     contractAddress: '0xreceive123',
                     amount: '100',
                 },
+            });
+        });
+
+        it('should propagate trade.receiveAddress', () => {
+            const trade = {
+                exchange: 'test-exchange',
+                receive: 'ethereum' as CryptoId,
+                receiveStringAmount: '1',
+                send: 'bitcoin' as CryptoId,
+                sendStringAmount: '0.025',
+                receiveAddress: '0x9eA3721B5Bf3b64b4418c38B603154d2D597FAE3',
+            } as ExchangeTrade;
+
+            const result = getTradingFormState({
+                activeSection,
+                trade,
+                providers: { 'test-exchange': mockProvider },
+                isSlip24Active: false,
+                sendAccountKey,
+                receiveAccountKey,
+            });
+
+            expect(result).toMatchObject({
+                receiveAddress: '0x9eA3721B5Bf3b64b4418c38B603154d2D597FAE3',
             });
         });
     });
@@ -701,10 +712,12 @@ describe('getTradingFormState', () => {
                 trade,
                 providers: undefined,
                 isSlip24Active: true,
+                sendAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'sell',
+                isSlip24Active: true,
             });
         });
 
@@ -722,10 +735,12 @@ describe('getTradingFormState', () => {
                 trade,
                 providers: { 'test-exchange': mockProvider },
                 isSlip24Active: true,
+                sendAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'sell',
+                isSlip24Active: true,
             });
         });
 
@@ -747,10 +762,12 @@ describe('getTradingFormState', () => {
                 trade,
                 providers,
                 isSlip24Active: true,
+                sendAccountKey,
             });
 
             expect(result).toEqual({
                 activeSection: 'sell',
+                isSlip24Active: true,
             });
         });
     });

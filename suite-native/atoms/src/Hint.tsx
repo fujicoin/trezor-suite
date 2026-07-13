@@ -1,22 +1,20 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import { Icon, IconName } from '@suite-native/icons';
-import { NativeStyleObject, prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-import { Color } from '@trezor/theme';
+import { Icon, type IconName } from '@suite-native/icons';
+import { type NativeStyleObject, prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+import { type Color } from '@trezor/theme';
 
 import { HStack } from './Stack';
 import { Text } from './Text';
 
-type HintVariant = 'hint' | 'error' | 'info';
+export const HINT_VARIANTS = ['hint', 'error', 'info'] as const;
+export type HintVariant = (typeof HINT_VARIANTS)[number];
 
-type HintProps = {
+export type HintProps = {
     variant?: HintVariant;
     style?: NativeStyleObject;
     children?: ReactNode;
 };
-
-const ICON_SIZE = 14;
-const SPACE_SIZE = 6;
 
 const hintStyle = prepareNativeStyle(() => ({
     display: 'flex',
@@ -25,22 +23,22 @@ const hintStyle = prepareNativeStyle(() => ({
 }));
 
 const hintTextStyle = prepareNativeStyle<{ color: Color }>((utils, { color }) => ({
-    ...utils.typography.label,
+    ...utils.typography['body-xs'],
     color: utils.colors[color],
     flex: 1,
 }));
 
 const hintVariants: Record<HintVariant, { iconName: IconName; color: Color }> = {
     hint: {
-        color: 'textSubdued',
+        color: 'contentSecondary',
         iconName: 'question',
     },
     error: {
-        color: 'textAlertRed',
+        color: 'contentCritical',
         iconName: 'warningCircle',
     },
     info: {
-        color: 'textAlertBlue',
+        color: 'contentInfo',
         iconName: 'info',
     },
 };
@@ -51,8 +49,8 @@ export const Hint = ({ style, children, variant = 'hint' }: HintProps) => {
     const { iconName, color } = hintVariants[variant];
 
     return (
-        <HStack spacing={SPACE_SIZE} style={[applyStyle(hintStyle), style]}>
-            <Icon name={iconName} color={color} size={ICON_SIZE} />
+        <HStack style={[applyStyle(hintStyle), style]}>
+            <Icon name={iconName} color={color} size="medium" />
             <Text style={applyStyle(hintTextStyle, { color })}>{children}</Text>
         </HStack>
     );

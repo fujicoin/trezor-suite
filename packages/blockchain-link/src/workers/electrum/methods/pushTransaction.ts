@@ -1,9 +1,11 @@
-import type { PushTransaction as Req } from '@trezor/blockchain-link-types/src/messages';
-import type { PushTransaction as Res } from '@trezor/blockchain-link-types/src/responses';
+import type { MessageTypes, ResponseTypes } from '@trezor/blockchain-link-types';
 
-import { Api } from '../utils';
+import { type Api } from '../utils';
 
-const pushTransaction: Api<Req, Res> = async (client, payload) => {
+type Req = MessageTypes.PushTransaction;
+type Res = ResponseTypes.PushTransaction;
+
+const pushTransaction: Api<Req, Res> = async ({ client }, payload) => {
     const res = await client.request('blockchain.transaction.broadcast', payload.hex);
 
     return res;

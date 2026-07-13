@@ -1,261 +1,355 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
-import styled from 'styled-components';
+import { AnimatePresence, motion } from 'framer-motion';
 
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { selectAdapterStatus, selectIsDeviceOsUnpairingRequired } from '@suite-common/bluetooth';
+import { useServices } from '@suite-common/dependency-injection';
 import {
-    bluetoothActions,
-    prepareSelectAllDevices,
-    selectAdapterStatus,
-    selectKnownDevices,
-    selectNearbyDevices,
-} from '@suite-common/bluetooth';
-import { Button, Column, H2, Modal } from '@trezor/components';
+    Box,
+    Button,
+    Card,
+    Column,
+    Divider,
+    H3,
+    IconCircle,
+    Image,
+    Modal,
+    Row,
+    Spinner,
+    Text,
+    motionEasing,
+} from '@trezor/components';
+import { DeviceModelInternal } from '@trezor/device-utils';
 import { isDesktop } from '@trezor/env-utils';
-import { spacings, spacingsPx } from '@trezor/theme';
-import { TimerId } from '@trezor/type-utils';
+import { BluetoothIcon, CableUsbCIcon, QuestionIcon } from '@trezor/icons';
+import { getLargeModelImagePath } from '@trezor/product-components';
 
-import { DesktopBluetoothDevice } from 'src/actions/bluetooth/DesktopBluetoothDevice';
-import { bluetoothConnectDeviceThunk } from 'src/actions/bluetooth/bluetoothConnectDeviceThunk';
-import { bluetoothDisconnectDeviceThunk } from 'src/actions/bluetooth/bluetoothDisconnectDeviceThunk';
-import { bluetoothStartScanningThunk } from 'src/actions/bluetooth/bluetoothStartScanningThunk';
-import { bluetoothStopScanningThunk } from 'src/actions/bluetooth/bluetoothStopScanningThunk';
 import {
+    selectIsManualPairingRequired,
     selectIsUnpairingDevice,
-    selectUnpairedDeviceNeedsManualOsRemoval,
 } from 'src/actions/bluetooth/desktopBluetoothSelectors';
-import { selectDeviceDefaultConnectionMode } from 'src/actions/device/deviceSelectors';
-import { setConnectionMode } from 'src/actions/device/deviceSlice';
-import { Translation } from 'src/components/suite/Translation';
-import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectSuiteFlags } from 'src/selectors/suite/suiteSelectors';
+import { useSelector } from 'src/hooks/suite';
 
 import { BluetoothAdapterStatusModal } from './BluetoothAdapterStatusModal';
 import { BluetoothConnectionModal } from './BluetoothConnectionModal';
+import { BluetoothManualPairingModal } from './BluetoothManualPairingModal';
 import { CantSeeTrezorModal } from './CantSeeTrezorModal';
 import { CableConnectionAnimation } from './DeviceConnectionAnimation';
+import { useConnectionGlobalModalContext } from './context/ConnectionGlobalModalContext';
+import { selectHasTransportOfType } from '../../selectors/suite/suiteSelectors';
+import { WebUsbButton } from '../suite/WebUsbButton';
+import { BluetoothDeviceList } from '../suite/bluetooth/BluetoothDeviceList';
+import { UnpairBluetoothDeviceFromOsModal } from '../suite/bluetooth/UnpairBluetoothDeviceFromOsModal';
 
-const SCAN_TIMEOUT = 30_000;
-const UNPAIRED_DEVICES_LAST_UPDATED_LIMIT = 15_000;
+type DontSeeTrezorPillProps = {
+    onClick: () => void;
+};
 
-const selectAllDevices = prepareSelectAllDevices<DesktopBluetoothDevice>();
+const DontSeeTrezorPill = ({ onClick }: DontSeeTrezorPillProps) => (
+    <Button onClick={onClick} iconLeft={QuestionIcon} intent="info" priority="secondary" isFloating>
+        <Translation id="TR_STILL_DONT_SEE_YOUR_TREZOR" />
+    </Button>
+);
 
-const Content = styled.div`
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    max-height: calc(80vh - 86px);
-    overflow-y: hidden;
-    gap: ${spacingsPx.xxxl};
-`;
+type ConnectModalContentProps = {
+    children?: React.ReactNode;
+    isBluetoothMode: boolean;
+};
+
+const ConnectModalContent = ({ children, isBluetoothMode }: ConnectModalContentProps) => {
+    const isWebUsbTransport = useSelector(selectHasTransportOfType('WebUsbTransport'));
+
+    return (
+        <Column alignItems="center" gap={32} overflow="hidden">
+            <H3 typographyStyle="headline-md" align="center" textWrap="balance">
+                <Translation
+                    id={
+                        isBluetoothMode
+                            ? 'TR_CONNECT_UNLOCK_BLUETOOTH_DEVICE'
+                            : 'TR_CONNECT_UNLOCK_YOUR_DEVICE'
+                    }
+                />
+            </H3>
+            {!isWebUsbTransport && (
+                <Row gap={8} alignItems="center" justifyContent="center" height={36}>
+                    <Spinner size={16} />
+                    <Text intent="brand">
+                        <Translation
+                            id={
+                                isBluetoothMode
+                                    ? 'TR_SCAN_TREZORS_NEARBY'
+                                    : 'TR_CHECK_CONNECTED_TREZORS'
+                            }
+                        />
+                    </Text>
+                </Row>
+            )}
+            {children}
+            <CableConnectionAnimation isBluetoothMode={isBluetoothMode} />
+        </Column>
+    );
+};
+
+type ConnectionModeCardProps = {
+    onClick: () => void;
+};
+
+const ViaBluetoothCard = ({ onClick }: ConnectionModeCardProps) => (
+    <Card onClick={onClick} paddingType="large">
+        <Column alignItems="center" gap={24}>
+            <Image image={getLargeModelImagePath(DeviceModelInternal.T3W1)} height={128} />
+            <H3>
+                <Column alignItems="center">
+                    <Text>
+                        <Translation
+                            id="TR_CONNECT_DEVICE_NAME"
+                            values={{
+                                deviceName: 'Trezor Safe 7',
+                                b: chunks => (
+                                    <Text textWrap="nowrap">
+                                        <strong>{chunks}</strong>
+                                    </Text>
+                                ),
+                            }}
+                        />
+                    </Text>
+                    <Row gap={8}>
+                        <Text>
+                            <Translation id="TR_VIA_BLUETOOTH" />
+                        </Text>
+                        <IconCircle intent="neutral" icon={BluetoothIcon} size={32} />
+                    </Row>
+                </Column>
+            </H3>
+        </Column>
+    </Card>
+);
+
+const ViaCableCard = ({ onClick }: ConnectionModeCardProps) => (
+    <Card onClick={onClick} paddingType="large">
+        <Column alignItems="center" gap={24}>
+            <Row justifyContent="center">
+                {[
+                    DeviceModelInternal.T2T1,
+                    DeviceModelInternal.T3T1,
+                    DeviceModelInternal.T3W1,
+                    DeviceModelInternal.T2B1,
+                    DeviceModelInternal.T1B1,
+                ].map((model, index, array) => {
+                    const distanceFromEdge = Math.min(index, array.length - 1 - index);
+
+                    return (
+                        <Box
+                            key={index}
+                            position={{ type: 'relative' }}
+                            // T1B1 is narrower than other models, so we skip the negative margin
+                            margin={
+                                model !== DeviceModelInternal.T1B1 ? { horizontal: -8 } : undefined
+                            }
+                            zIndex={distanceFromEdge}
+                        >
+                            <AnimatePresence>
+                                <motion.div
+                                    initial={
+                                        index !== Math.floor(array.length / 2)
+                                            ? {
+                                                  x: index < array.length / 2 ? 20 : -20,
+                                              }
+                                            : undefined
+                                    }
+                                    animate={{ x: 0 }}
+                                    transition={{
+                                        duration: 1,
+                                        ease: motionEasing.enter,
+                                    }}
+                                >
+                                    <Image
+                                        image={getLargeModelImagePath(model)}
+                                        height={80 + distanceFromEdge * 24}
+                                    />
+                                </motion.div>
+                            </AnimatePresence>
+                        </Box>
+                    );
+                })}
+            </Row>
+            <H3>
+                <Column alignItems="center">
+                    <Text>
+                        <Translation
+                            id="TR_CONNECT_DEVICE_NAME"
+                            values={{
+                                deviceName: <Translation id="TR_ANY_TREZOR" />,
+                                b: chunks => (
+                                    <Text textWrap="nowrap">
+                                        <strong>{chunks}</strong>
+                                    </Text>
+                                ),
+                            }}
+                        />
+                    </Text>
+                    <Row gap={8}>
+                        <Text>
+                            <Translation id="TR_VIA_CABLE" />
+                        </Text>
+                        <IconCircle intent="neutral" icon={CableUsbCIcon} size={32} />
+                    </Row>
+                </Column>
+            </H3>
+        </Column>
+    </Card>
+);
 
 export const ConnectDeviceGlobalModal = ({ onCancel }: { onCancel: () => void }) => {
-    const dispatch = useDispatch();
-    const [showHints, setShowHints] = useState(false);
-    const scannerTimerId = useRef<TimerId | null>(null);
-    const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
-    const [shouldPairAgain, setShouldPairAgain] = useState(false);
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
+    const [isModeSelected, setIsModeSelected] = useState(false);
+    const isWebUsbTransport = useSelector(selectHasTransportOfType('WebUsbTransport'));
+    const {
+        toggleBluetoothMode,
+        toggleShowHints,
+        isBluetoothMode,
+        showHints,
+        openShowRemoveFromOsBluetooth,
+        shouldShowBluetoothUnPairDeviceList,
+        notConnectedKnownDevices,
+        notConnectedNearbyDevices,
+        manuallyPairedConnectedDevices,
+        showRemoveFromOsBluetooth,
+        closeShowRemoveFromOsBluetooth,
+        selectedDevice,
+    } = useConnectionGlobalModalContext();
 
-    const wasBluetoothDeviceWiped = useSelector(selectUnpairedDeviceNeedsManualOsRemoval);
+    const isManualPairingRequired = useSelector(selectIsManualPairingRequired);
+    const wasBluetoothDeviceWiped = useSelector(selectIsDeviceOsUnpairingRequired);
     const isUnpairingDevice = useSelector(selectIsUnpairingDevice);
 
-    const { isBluetoothEnabled } = useSelector(selectSuiteFlags);
     const bluetoothAdapterStatus = useSelector(selectAdapterStatus);
 
-    const defaultConnectionMode = useSelector(selectDeviceDefaultConnectionMode);
+    if (wasBluetoothDeviceWiped?.isRequired || isUnpairingDevice) return null;
 
-    const isBluetoothMode = defaultConnectionMode === 'bluetooth';
+    if (isBluetoothMode && isManualPairingRequired) {
+        return <BluetoothManualPairingModal onCancel={onCancel} />;
+    }
 
-    const bluetoothMode = isBluetoothMode && isBluetoothEnabled && isDesktop();
+    // handle Bluetooth adapter non ideal status cases
+    if (
+        isBluetoothMode &&
+        ['disabled', 'permission-denied', 'not-compatible'].includes(bluetoothAdapterStatus)
+    ) {
+        return <BluetoothAdapterStatusModal onCancel={onCancel} />;
+    }
 
-    const toggleBluetoothMode = () => {
-        dispatch(setConnectionMode(bluetoothMode ? 'cable' : 'bluetooth'));
-    };
+    // prompt user to remove the device from OS bluetooth settings
+    if (showRemoveFromOsBluetooth) {
+        return <UnpairBluetoothDeviceFromOsModal onFinish={closeShowRemoveFromOsBluetooth} />;
+    }
 
-    const toggleShowHints = () => {
-        setShowHints(!showHints);
-    };
+    // no nearby devices found, but there are known devices that user might troubleshoot, so let him pair again
+    if (isBluetoothMode && shouldShowBluetoothUnPairDeviceList) {
+        return (
+            <Modal
+                onCancel={onCancel}
+                heading={<Translation id="TR_CONNECT_YOUR_TREZOR" />}
+                description={<Translation id="TR_CONNECT_YOUR_TREZOR_DESCRIPTION" />}
+                width={600}
+            >
+                <BluetoothDeviceList
+                    deviceList={notConnectedKnownDevices}
+                    isScanning={false}
+                    onPairAgain={openShowRemoveFromOsBluetooth}
+                />
+            </Modal>
+        );
+    }
 
-    const toggleShouldPairAgain = () => {
-        setShouldPairAgain(!shouldPairAgain);
-    };
-
-    const allDevices = useSelector(selectAllDevices);
-    const nearbyDevices = useSelector(selectNearbyDevices);
-    const knownDevices = useSelector(selectKnownDevices);
-
-    const lastUpdatedBoundaryTimestamp = Date.now() - UNPAIRED_DEVICES_LAST_UPDATED_LIMIT;
-
-    const devices = allDevices.filter(it => {
-        const isDeviceUnresponsiveForTooLong =
-            it.lastUpdatedTimestamp < lastUpdatedBoundaryTimestamp;
-
-        if (isDeviceUnresponsiveForTooLong) {
-            // If the device is connected or paired (it may have been paired in the OS system directly)
-            // => do not filter it based isDeviceUnresponsiveForTooLong
-
-            return it.connected;
-        }
-
-        return true;
-    });
-
-    const selectedDevice =
-        selectedDeviceId !== null
-            ? devices.find(device => device.id === selectedDeviceId)
-            : undefined;
-
-    // starts to scan for devices when connection mode is bluetooth
-    useEffect(() => {
-        if (isBluetoothMode) dispatch(bluetoothStartScanningThunk());
-
-        return () => {
-            dispatch(bluetoothStopScanningThunk());
-        };
-    }, [dispatch, isBluetoothMode]);
-
-    const clearScanTimer = useCallback(() => {
-        if (scannerTimerId.current !== null) {
-            clearTimeout(scannerTimerId.current);
-        }
-    }, []);
-
-    // stop scanning after 15s
-    useEffect(() => {
-        if (isBluetoothMode)
-            scannerTimerId.current = setTimeout(() => {
-                setShowHints(true);
-                dispatch(bluetoothActions.scanStatusAction({ status: 'idle' }));
-            }, SCAN_TIMEOUT);
-
-        return clearScanTimer;
-    }, [dispatch, clearScanTimer, isBluetoothMode]);
-
-    useEffect(() => {
-        if (devices.length > 0) {
-            clearScanTimer();
-            dispatch(bluetoothActions.scanStatusAction({ status: 'idle' }));
-        }
-    }, [devices, dispatch, clearScanTimer]);
-
-    const onReScanClick = () => {
-        setSelectedDeviceId(null);
-        clearScanTimer();
-
-        dispatch(bluetoothStartScanningThunk());
-        scannerTimerId.current = setTimeout(() => {
-            setShowHints(true);
-            dispatch(bluetoothActions.scanStatusAction({ status: 'idle' }));
-        }, SCAN_TIMEOUT);
-    };
-
-    const handlePairingCancel = async (deviceId: string) => {
-        await dispatch(bluetoothDisconnectDeviceThunk({ id: deviceId }));
-        setSelectedDeviceId(null);
-        onReScanClick();
-    };
-
-    const handleBluetoothConnectionCancel = () => {
-        setSelectedDeviceId(null);
-        onReScanClick();
-        toggleBluetoothMode();
-    };
-
-    const onConnect = async (deviceId: string) => {
-        setSelectedDeviceId(deviceId);
-        const result = await dispatch(bluetoothConnectDeviceThunk({ deviceId })).unwrap();
-
-        if (result.success) {
-            onCancel();
-        } else {
-            // No additional failure handling needed, it is handled in bluetoothConnectDeviceThunk
-            setSelectedDeviceId(null);
-        }
-    };
-
-    if (wasBluetoothDeviceWiped || isUnpairingDevice) return null;
+    // there are nearby devices which can be selected to proceed, show the list and let user connect
+    const areConnectableDevices =
+        selectedDevice ||
+        notConnectedNearbyDevices.length > 0 ||
+        manuallyPairedConnectedDevices.length > 0;
+    if (isBluetoothMode && areConnectableDevices) {
+        return <BluetoothConnectionModal onClose={onCancel} />;
+    }
 
     if (showHints) {
         return (
             <CantSeeTrezorModal
-                isBluetoothMode={isBluetoothMode}
-                onRescan={onReScanClick}
-                onGoBack={toggleShowHints}
-                onStillDontWork={toggleShouldPairAgain}
+                onClose={() => {
+                    analytics.report({
+                        type: events.deviceConnectionHintModalEvent.name,
+                        payload: {
+                            option: 'close',
+                        },
+                    });
+                    onCancel();
+                }}
             />
         );
     }
 
-    // handle Bluetooth adapter status cases
-    if (
-        bluetoothMode &&
-        (bluetoothAdapterStatus === 'disabled' ||
-            bluetoothAdapterStatus === 'permission-denied' ||
-            bluetoothAdapterStatus === 'not-compatible')
-    ) {
+    // scanning for nearby devices
+    if (isBluetoothMode) {
         return (
-            <BluetoothAdapterStatusModal
-                bluetoothAdapterStatus={bluetoothAdapterStatus}
-                onCancel={toggleBluetoothMode}
-            />
+            <Modal.Backdrop onClick={onCancel}>
+                <DontSeeTrezorPill onClick={toggleShowHints} />
+                <Modal.ModalBase
+                    data-testid="@suite/connection-modal"
+                    width={400}
+                    onCancel={onCancel}
+                    onBackClick={() => {
+                        setIsModeSelected(false);
+                        toggleBluetoothMode();
+                    }}
+                >
+                    <ConnectModalContent isBluetoothMode={true} />
+                </Modal.ModalBase>
+            </Modal.Backdrop>
         );
     }
 
-    if (bluetoothMode && devices.length > 0) {
+    if (isDesktop() && !isModeSelected) {
         return (
-            <BluetoothConnectionModal
-                nearbyDevices={nearbyDevices}
-                knownDevices={knownDevices}
-                devices={devices}
-                selectedDevice={selectedDevice}
-                shouldPairAgain={shouldPairAgain}
-                onPairingCancel={handlePairingCancel}
-                onRescanClick={onReScanClick}
-                onConnect={onConnect}
-                onCancel={handleBluetoothConnectionCancel}
-            />
+            <Modal data-testid="@suite/connection-modal" width={400} onCancel={onCancel}>
+                <Column gap={16}>
+                    <ViaBluetoothCard
+                        onClick={() => {
+                            setIsModeSelected(true);
+                            toggleBluetoothMode();
+                        }}
+                    />
+                    <Row gap={24}>
+                        <Divider margin={0} />
+                        <Text
+                            typographyStyle="body-sm"
+                            intent="neutral"
+                            priority="secondary"
+                            case="uppercase"
+                        >
+                            or
+                        </Text>
+                        <Divider margin={0} />
+                    </Row>
+                    <ViaCableCard onClick={() => setIsModeSelected(true)} />
+                </Column>
+            </Modal>
         );
     }
 
+    // waiting for user to connect device via wired connection
     return (
         <Modal.Backdrop onClick={onCancel}>
-            <Button onClick={toggleShowHints} icon="question" variant="infoLight">
-                <Translation id="TR_STILL_DONT_SEE_YOUR_TREZOR" />
-            </Button>
+            <DontSeeTrezorPill onClick={toggleShowHints} />
             <Modal.ModalBase
-                padding={{ bottom: isBluetoothMode ? spacings.md : spacings.zero }}
-                size="tiny"
+                data-testid="@suite/connection-modal"
+                width={400}
                 onCancel={onCancel}
+                onBackClick={isDesktop() ? () => setIsModeSelected(false) : undefined}
             >
-                <Content>
-                    <Column
-                        alignItems="center"
-                        justifyContent="center"
-                        gap={spacings.xxl}
-                        maxWidth={320}
-                    >
-                        <H2 align="center">
-                            <Translation id="TR_CONNECT_UNLOCK_YOUR_DEVICE" />
-                        </H2>
-                        {isBluetoothEnabled && (
-                            <Button
-                                icon={isBluetoothMode ? 'cableUsbC' : 'bluetooth'}
-                                onClick={toggleBluetoothMode}
-                                variant="tertiary"
-                                size="small"
-                            >
-                                <Translation
-                                    id={
-                                        isBluetoothMode
-                                            ? 'TR_BLUETOOTH_TIP_CABLE_HEADER'
-                                            : 'TR_PAIR_NEW_BLUETOOTH_DEVICE'
-                                    }
-                                />
-                            </Button>
-                        )}
-                    </Column>
-                    <CableConnectionAnimation isBluetoothMode={isBluetoothMode} />
-                </Content>
+                <ConnectModalContent isBluetoothMode={false}>
+                    {isWebUsbTransport && <WebUsbButton intent="brand" size="medium" />}
+                </ConnectModalContent>
             </Modal.ModalBase>
         </Modal.Backdrop>
     );

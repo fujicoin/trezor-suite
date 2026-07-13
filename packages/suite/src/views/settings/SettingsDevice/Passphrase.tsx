@@ -1,12 +1,15 @@
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useDevice } from '@suite/device';
+import { LearnMoreButton } from '@suite/external-links';
+import { Translation } from '@suite/intl';
+import { Anchor, SettingsAnchor } from '@suite/router';
+import { useServices } from '@suite-common/dependency-injection';
 import { Switch, Tooltip } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { ActionColumn, SectionItem, TextColumn } from '@trezor/product-components';
 import { HELP_CENTER_PASSPHRASE_URL } from '@trezor/urls';
 
 import { applySettings } from 'src/actions/settings/deviceSettingsActions';
-import { SettingsSectionItem } from 'src/components/settings';
-import { ActionColumn, TextColumn, Translation } from 'src/components/suite';
-import { SettingsAnchor } from 'src/constants/suite/anchors';
-import { useDevice, useDispatch } from 'src/hooks/suite';
+import { useDispatch } from 'src/hooks/suite';
 
 interface PassphraseProps {
     isDeviceLocked: boolean;
@@ -15,42 +18,49 @@ interface PassphraseProps {
 export const Passphrase = ({ isDeviceLocked }: PassphraseProps) => {
     const dispatch = useDispatch();
     const { device } = useDevice();
-
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const passphraseProtection = !!device?.features?.passphrase_protection;
 
     const handleChange = () => {
         dispatch(applySettings({ use_passphrase: !passphraseProtection }));
         analytics.report({
-            type: EventType.SettingsDeviceChangePassphraseProtection,
+            type: events.settingsDeviceChangePassphraseProtectionEvent.name,
             payload: {
                 use_passphrase: !passphraseProtection,
             },
         });
     };
 
-    // We don't want to let users disable passphrase anymore. But we should allow users with disabled passphrase to turn it on.
-    if (passphraseProtection === true) return null;
-
     return (
-        <SettingsSectionItem anchorId={SettingsAnchor.Passphrase}>
-            <TextColumn
-                title={<Translation id="TR_DEVICE_SETTINGS_PASSPHRASE_TITLE" />}
-                description={<Translation id="TR_DEVICE_SETTINGS_PASSPHRASE_DESC" />}
-                buttonLink={HELP_CENTER_PASSPHRASE_URL}
-            />
-            <ActionColumn>
-                <Tooltip
-                    isActive={isDeviceLocked}
-                    content={<Translation id="TR_SETTINGS_DEVICE_BANNER_TITLE_REMEMBERED" />}
+        <Anchor anchorId={SettingsAnchor.Passphrase}>
+            {({ anchorId, anchorRef, shouldHighlight }) => (
+                <SectionItem
+                    data-testid={anchorId}
+                    ref={anchorRef}
+                    shouldHighlight={shouldHighlight}
                 >
-                    <Switch
-                        isChecked={passphraseProtection}
-                        onChange={handleChange}
-                        data-testid="@settings/device/passphrase-switch"
-                        isDisabled={isDeviceLocked}
+                    <TextColumn
+                        title={<Translation id="TR_DEVICE_SETTINGS_PASSPHRASE_TITLE" />}
+                        description={<Translation id="TR_DEVICE_SETTINGS_PASSPHRASE_DESC" />}
+                        bottomContent={<LearnMoreButton url={HELP_CENTER_PASSPHRASE_URL} />}
                     />
-                </Tooltip>
-            </ActionColumn>
-        </SettingsSectionItem>
+                    <ActionColumn>
+                        <Tooltip
+                            isActive={isDeviceLocked}
+                            content={
+                                <Translation id="TR_SETTINGS_DEVICE_BANNER_TITLE_REMEMBERED" />
+                            }
+                        >
+                            <Switch
+                                isChecked={passphraseProtection}
+                                onChange={handleChange}
+                                data-testid="@settings/device/passphrase-switch"
+                                isDisabled={isDeviceLocked}
+                            />
+                        </Tooltip>
+                    </ActionColumn>
+                </SectionItem>
+            )}
+        </Anchor>
     );
 };

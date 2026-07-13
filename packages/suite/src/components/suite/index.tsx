@@ -1,8 +1,12 @@
+/*
+WARNING - do NOT import from this file in the suite/src/components/suite/ subdirectories!
+*/
+
 /* eslint-disable import/order */
-import { AccountLabel } from './AccountLabel';
-import { Address } from './Address';
+// TODO Change this to direct export {} from, instead of importing and re-exporting, but currently cannot be done because of circular dependencies.
 import { DeviceConfirmImage } from './DeviceConfirmImage';
 import { CheckItem } from './CheckItem';
+import { FakeSelect } from './FakeSelect';
 import { PrerequisitesGuide } from './PrerequisitesGuide/PrerequisitesGuide';
 import { WordInput } from './WordInput';
 import { WordInputAdvanced } from './WordInputAdvanced';
@@ -10,44 +14,29 @@ import { Loading } from './Loading';
 import { BundleLoader } from './BundleLoader';
 import { BaseCurrencyValue } from './BaseCurrencyValue';
 import { WebUsbButton } from './WebUsbButton';
-import { HiddenPlaceholder } from './HiddenPlaceholder';
+import { HiddenPlaceholder, RedactNumericalValue } from '@suite/discreet-mode';
 import { QuestionTooltip } from './QuestionTooltip';
 import { TrendTicker } from './Ticker/TrendTicker';
 import { PriceTicker } from './Ticker/PriceTicker';
-import { Translation } from './Translation';
-import {
-    AccountLabeling,
-    AddressLabeling,
-    MetadataLabeling,
-    WalletLabeling,
-    useGetWalletLabel,
-} from './labeling';
 import { FormattedCryptoAmount } from './FormattedCryptoAmount';
 import { FormattedNftAmount } from './FormattedNftAmount';
 import { Sign } from './Sign';
-import { TrezorLink } from './TrezorLink';
-import { ReadMoreLink } from './ReadMoreLink';
-import { RedactNumericalValue } from './RedactNumericalValue';
 import { FormattedDate } from './FormattedDate';
 import { FormattedDateWithBullet } from './FormattedDateWithBullet';
 import { Metadata } from './Metadata';
 import { HomescreenGallery } from './HomescreenGallery';
 import { DeviceMatrixExplanation } from './DeviceMatrixExplanation';
 import { TroubleshootingTips } from './troubleshooting/TroubleshootingTips';
-import { ConnectDevicePrompt } from './ConnectDevicePrompt';
-import { CoinGroup } from './CoinGroup/CoinGroup';
-import { CoinList } from './CoinList/CoinList';
-import { CloseButton } from './CloseButton';
-import TooltipSymbol from './TooltipSymbol';
+import { getMessageId } from './getMessageId';
+import { NetworkList } from './NetworkList/NetworkList';
 import { StatusLight } from './StatusLight';
 import { AmountUnitSwitchWrapper } from './AmountUnitSwitchWrapper';
 import { TorLoader } from './TorLoader/TorLoader';
 import { CountdownTimer } from './CountdownTimer';
 import { QrCode } from './QrCode';
 import { CoinBalance } from './CoinBalance';
-import { DeviceAuthenticationExplainer } from './DeviceAuthenticationExplainer';
 import { Preloader } from './Preloader/Preloader';
-import { TrafficLightDraggableWindowHeader } from './TrafficLightOffset';
+import { TrafficLightDraggableWindowHeader } from '@suite/macos';
 import { PinMatrix } from './PinMatrix/PinMatrix';
 import { StakingFeature } from './StakingFeature';
 import { StakeAmountWrapper } from './StakeAmountWrapper';
@@ -55,51 +44,37 @@ import { MarkdownWithComponents } from './MarkdownWithComponents';
 import { AppRouter } from './AppRouter';
 
 export {
-    Address,
-    AccountLabel,
     DeviceConfirmImage,
     CheckItem,
+    FakeSelect,
     PrerequisitesGuide,
     BaseCurrencyValue,
-    Translation,
     WordInput,
     WordInputAdvanced,
     Loading,
     BundleLoader,
     WebUsbButton,
     HiddenPlaceholder,
-    AccountLabeling,
-    AddressLabeling,
-    WalletLabeling,
-    useGetWalletLabel,
-    MetadataLabeling,
     QuestionTooltip,
     FormattedCryptoAmount,
     FormattedNftAmount,
     TrendTicker,
     PriceTicker,
     Sign,
-    ReadMoreLink,
     RedactNumericalValue,
-    TrezorLink,
     FormattedDate,
     FormattedDateWithBullet,
     Metadata,
     HomescreenGallery,
     DeviceMatrixExplanation,
     TroubleshootingTips,
-    ConnectDevicePrompt,
-    CoinGroup,
-    CoinList,
-    CloseButton,
-    TooltipSymbol,
+    NetworkList,
     StatusLight,
     AmountUnitSwitchWrapper,
     TorLoader,
     CountdownTimer,
     QrCode,
     CoinBalance,
-    DeviceAuthenticationExplainer,
     Preloader,
     TrafficLightDraggableWindowHeader,
     PinMatrix,
@@ -107,8 +82,7 @@ export {
     StakeAmountWrapper,
     MarkdownWithComponents,
     AppRouter,
+    getMessageId,
 };
 export * from './graph';
 export * from './notifications';
-export * from './section';
-export * from './styled';

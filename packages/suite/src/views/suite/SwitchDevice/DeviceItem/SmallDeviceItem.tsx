@@ -1,23 +1,14 @@
-import styled from 'styled-components';
-
-import { selectDeviceLabelOrNameById, selectSelectedDevice } from '@suite-common/wallet-core';
+import { Translation } from '@suite/intl';
+import { selectDeviceLabelOrNameById, selectSelectedDevice } from '@suite-common/device';
+import { getDeviceInternalModel } from '@suite-common/suite-utils';
 import { Image, Row } from '@trezor/components';
-import { DeviceModelInternal } from '@trezor/device-utils';
+import { LinkBreakIcon, LinkIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
+
+import { useSelector } from 'src/hooks/suite';
 
 import { DeviceConnectionText } from './DeviceConnectionText';
 import { DeviceDetail } from './DeviceDetail';
-import { Translation } from '../../../../components/suite';
-import { useSelector } from '../../../../hooks/suite';
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const DeviceImage = styled(Image)`
-    object-fit: contain;
-`;
-
-const SmallDeviceImage = styled(DeviceImage)`
-    width: 18px;
-`;
 
 type SmallDeviceItemProps = {
     forceAlternativeDeviceLabel?: string;
@@ -31,8 +22,7 @@ export const SmallDeviceItem = ({ forceAlternativeDeviceLabel }: SmallDeviceItem
 
     const isConnected = selectedDevice !== undefined;
 
-    const selectedDeviceModelInternal =
-        selectedDevice?.features?.internal_model || DeviceModelInternal.UNKNOWN;
+    const selectedDeviceModelInternal = getDeviceInternalModel(selectedDevice);
 
     return (
         <Row
@@ -40,12 +30,17 @@ export const SmallDeviceItem = ({ forceAlternativeDeviceLabel }: SmallDeviceItem
             padding={{ vertical: spacings.xs, horizontal: spacings.xs }}
             alignItems="center"
         >
-            <SmallDeviceImage alt="Trezor" image={`TREZOR_${selectedDeviceModelInternal}`} />
+            <Image
+                width={18}
+                objectFit="contain"
+                alt="Trezor"
+                image={`TREZOR_${selectedDeviceModelInternal}`}
+            />
 
             <DeviceDetail label={forceAlternativeDeviceLabel || deviceLabel || 'Trezor'}>
                 <DeviceConnectionText
-                    icon={isConnected ? 'link' : 'linkBreak'}
-                    variant={isConnected ? 'primary' : 'destructive'}
+                    icon={isConnected ? LinkIcon : LinkBreakIcon}
+                    intent={isConnected ? 'brand' : 'critical'}
                 >
                     <Translation id={isConnected ? 'TR_CONNECTED' : 'TR_DISCONNECTED'} />
                 </DeviceConnectionText>

@@ -1,84 +1,80 @@
-import { storage } from '@trezor/connect-common';
-import { Capability } from '@trezor/protobuf/src/messages';
-import { typedObjectKeys, versionUtils } from '@trezor/utils';
-
-import { ERRORS, NETWORK } from '../constants';
-import { config } from '../data/config';
-import type { Device } from '../device/Device';
-import {
+import { ERRORS, UI_REQUEST } from '@trezor/connect-common';
+import type {
     CallMethodPayload,
     CallMethodResponse,
+    CoinInfo,
     CoreEventMessage,
-    DEVICE,
-    UI,
-    UiPromiseCreator,
-    UiRequestButtonData,
-    UiRequestConfirmation,
-    createDeviceMessage,
-} from '../events';
-import type {
-    ConnectSettings,
     DeviceState,
-    FirmwareRange,
+    FirmwareCapability,
+    MethodInfo,
+    MethodPermission,
+    PermissionRequest,
     PrecomposeResultFinal,
     StaticSessionId,
-} from '../types';
-import { getHost } from '../utils/urlUtils';
+    UiRequestButtonData,
+    UiRequestConfirmation,
+} from '@trezor/connect-common';
+import { isStaticSessionId } from '@trezor/device-utils';
+import type { Capability } from '@trezor/protobuf/src/definitions';
+import { isNotUndefined, isUUID, versionUtils } from '@trezor/utils';
+
+import { DEFAULT_FIRMWARE_RANGE, getFirmwareRange } from '../api/common/paramsValidator';
+import * as enabledNetworksStore from '../data/enabledNetworksStore';
+import type { Device } from '../device/Device';
+import type { UiPromiseCreator } from '../events/ui-promise';
+import { isDebugFirmware } from '../utils/firmwareUtils';
+
+export { DEFAULT_FIRMWARE_RANGE };
 
 export type Payload<M> = Extract<CallMethodPayload, { method: M }> & { override?: boolean };
 export type MethodReturnType<M extends CallMethodPayload['method']> = CallMethodResponse<M>;
 
-export type MethodPermission = 'read' | 'write' | 'management' | 'push_tx';
-export type DeviceMode = typeof UI.SEEDLESS | typeof UI.BOOTLOADER | typeof UI.INITIALIZE;
+export type DeviceMode =
+    | typeof UI_REQUEST.SEEDLESS
+    | typeof UI_REQUEST.BOOTLOADER
+    | typeof UI_REQUEST.INITIALIZE;
 
-export type MethodInfo = {
-    // static fields
-    useUi: boolean;
-    useDevice: boolean;
-    useDeviceState: boolean;
-    name: string;
-    requiredPermissions: MethodPermission[];
-    // available after init
-    info: string;
-    precomposed?: PrecomposeResultFinal;
-    confirmation?: UiRequestConfirmation['payload'];
+export type MethodContext = {
+    sendCoreMessage: (message: CoreEventMessage) => void;
+    createUiPromise: UiPromiseCreator;
 };
 
-export const DEFAULT_FIRMWARE_RANGE: FirmwareRange = {
-    UNKNOWN: { min: '1.0.0', max: '0' },
-    T1B1: { min: '1.0.0', max: '0' },
-    T2T1: { min: '2.0.0', max: '0' },
-    T2B1: { min: '2.6.1', max: '0' },
-    T3B1: { min: '2.8.1', max: '0' },
-    T3T1: { min: '2.7.1', max: '0' },
-    T3W1: { min: '2.7.1', max: '0' }, // TODO T3W1
+export type MethodMessage<Name extends CallMethodPayload['method']> = {
+    id?: string;
+    payload: Payload<Name>;
 };
 
 function validateStaticSessionId(input: unknown): StaticSessionId {
-    if (typeof input !== 'string')
+    if (!isStaticSessionId(input)) {
         throw ERRORS.TypedError(
             'Method_InvalidParameter',
             'DeviceState: invalid staticSessionId: ' + input,
         );
-    const [firstTestnetAddress, rest] = input.split('@');
-    const [deviceId, instance] = rest.split(':');
-    if (
-        typeof firstTestnetAddress === 'string' &&
-        typeof deviceId === 'string' &&
-        typeof instance === 'string' &&
-        Number.parseInt(instance) >= 0
-    ) {
-        return input as StaticSessionId;
     }
-    throw ERRORS.TypedError(
-        'Method_InvalidParameter',
-        'DeviceState: invalid staticSessionId: ' + input,
-    );
+
+    return input;
+}
+
+function validateCallId(callId: unknown): string | undefined {
+    if (callId === undefined) return undefined;
+
+    if (!isUUID(callId)) {
+        throw ERRORS.TypedError(
+            'Method_InvalidParameter',
+            `callId must be a valid UUID, got: ${callId}`,
+        );
+    }
+
+    return callId;
 }
 
 // validate expected state from method parameter.
 // it could be undefined
-function validateDeviceState(input: unknown): DeviceState | undefined {
+function validateDeviceState(device: CallMethodPayload['device']): DeviceState | undefined {
+    if (!device || !('state' in device)) return {}; // no change in device state
+
+    const input = device.state;
+
     if (typeof input === 'string') {
         return { staticSessionId: validateStaticSessionId(input) };
     }
@@ -97,207 +93,144 @@ function validateDeviceState(input: unknown): DeviceState | undefined {
         return state;
     }
 
-    return undefined;
+    return undefined; // reset device state
 }
 
 export abstract class AbstractMethod<Name extends CallMethodPayload['method'], Params = undefined> {
-    responseID: number;
+    public responseID: string;
 
-    // @ts-expect-error: strictPropertyInitialization
-    device: Device;
-    // @ts-expect-error: strictPropertyInitialization
-    params: Params;
+    public callId?: string;
 
-    deviceState?: DeviceState;
+    public device: Device | undefined;
 
-    hasExpectedDeviceState: boolean;
+    protected params: Params;
 
-    keepSession: boolean;
+    public deviceState?: DeviceState;
 
-    skipFinalReload: boolean;
+    public keepSession: boolean;
 
-    skipFirmwareCheck: boolean;
+    public skipFinalReload: boolean;
 
-    overridePreviousCall: boolean;
+    public overridePreviousCall: boolean;
 
-    overridden: boolean;
+    public overridden: boolean;
 
-    name: Name; // method name
+    public readonly name: Name; // method name
 
-    payload: Payload<Name>; // method payload
-
-    get info() {
+    protected get info() {
         return '';
     } // method info, displayed in popup info-panel
 
-    get confirmation(): UiRequestConfirmation['payload'] | undefined {
+    protected get confirmation(): UiRequestConfirmation['payload'] | undefined {
         return undefined;
     }
 
-    useUi: boolean; // should use popup?
+    public useUi: boolean; // should use popup?
 
-    useDevice: boolean; // use device
+    public useDevice: boolean; // use device
 
-    useDeviceState: boolean; // should validate device state?
+    public useDeviceState: boolean; // should validate device state?
 
-    preauthorized?: boolean; // another variant of device state validation
+    public preauthorized?: boolean; // another variant of device state validation
 
-    useEmptyPassphrase: boolean;
+    public useEmptyPassphrase: boolean;
 
-    allowSeedlessDevice: boolean;
+    abstract get requiredPermissions(): PermissionRequest[];
 
-    firmwareRange: FirmwareRange;
+    // Build a `PermissionRequest` for a single coin (or coin-less when `coin`
+    // is undefined). The coin key is `coinInfo.shortcut`.
+    protected coinPerm(permission: MethodPermission, coin?: CoinInfo): PermissionRequest {
+        return coin ? { permission, coin: coin.shortcut } : { permission };
+    }
 
-    requiredPermissions: MethodPermission[];
+    // Build a list of `PermissionRequest` entries from a list of coins,
+    // deduplicating by `coinInfo.shortcut`. Undefined coins collapse to a
+    // single coin-less entry.
+    protected coinPerms(
+        permission: MethodPermission,
+        coins: (CoinInfo | undefined)[],
+    ): PermissionRequest[] {
+        const seen = new Set<string>();
+        const out: PermissionRequest[] = [];
+        let hasCoinless = false;
+        for (const c of coins) {
+            if (!c) {
+                if (!hasCoinless) {
+                    hasCoinless = true;
+                    out.push({ permission });
+                }
+                continue;
+            }
+            if (seen.has(c.shortcut)) continue;
+            seen.add(c.shortcut);
+            out.push({ permission, coin: c.shortcut });
+        }
 
-    allowDeviceMode: DeviceMode[]; // used in device management (like ResetDevice allow !UI.INITIALIZED)
+        return out;
+    }
 
-    requireDeviceMode: DeviceMode[];
+    public allowDeviceMode: DeviceMode[]; // used in device management (like ResetDevice allow !UI_REQUEST.INITIALIZED)
 
-    requiredDeviceCapabilities: Capability[] = [];
+    protected requiredDeviceCapabilities: Capability[] = [];
+    protected requiredFirmwareCapabilities: FirmwareCapability[] = [];
+    protected requiredFirmwareCoins: (CoinInfo | undefined)[] = [];
 
-    network: NETWORK.NetworkType;
+    public useCardanoDerivation: boolean;
 
-    useCardanoDerivation: boolean;
+    public confirmMissingBackup: boolean;
 
-    noBackupConfirmationMode: 'never' | 'always' | 'popup-only';
+    public getButtonRequestData?(code: string, name?: string): UiRequestButtonData | undefined;
 
-    getButtonRequestData?(code: string, name?: string): UiRequestButtonData | undefined;
+    public initAsync?(): Promise<void>;
 
-    // callbacks
-    // @ts-expect-error: strictPropertyInitialization
-    postMessage: (message: CoreEventMessage) => void;
-    // @ts-expect-error: strictPropertyInitialization
-    createUiPromise: UiPromiseCreator;
-
-    initAsync?(): Promise<void>;
-
-    constructor(message: { id?: number; payload: Payload<Name> }) {
+    constructor(message: MethodMessage<Name>, params: Params) {
         const { payload } = message;
         this.name = payload.method;
-        this.payload = payload;
-        this.responseID = message.id || 0;
-        this.deviceState = validateDeviceState(payload.device?.state);
-        this.hasExpectedDeviceState = payload.device
-            ? Object.prototype.hasOwnProperty.call(payload.device, 'state')
-            : false;
+        this.params = params;
+        this.responseID = message.id ?? '';
+        this.callId = validateCallId(payload.callId);
+        this.deviceState = validateDeviceState(payload.device);
         this.keepSession = typeof payload.keepSession === 'boolean' ? payload.keepSession : false;
-        this.skipFinalReload =
-            typeof payload.skipFinalReload === 'boolean' ? payload.skipFinalReload : true;
-        this.skipFirmwareCheck = false;
-        this.overridePreviousCall =
-            typeof payload.override === 'boolean' ? payload.override : false;
+        this.skipFinalReload = true;
+        this.overridePreviousCall = false;
         this.overridden = false;
         this.useEmptyPassphrase =
-            typeof payload.useEmptyPassphrase === 'boolean' ? payload.useEmptyPassphrase : false;
-        this.allowSeedlessDevice =
-            typeof payload.allowSeedlessDevice === 'boolean' ? payload.allowSeedlessDevice : false;
-        this.allowDeviceMode = [];
-        this.requireDeviceMode = [];
-        if (this.allowSeedlessDevice) {
-            this.allowDeviceMode = [UI.SEEDLESS];
-        }
-        // Determine the type based on the method name
-        this.network = 'bitcoin';
-        typedObjectKeys(NETWORK.TYPES).forEach(key => {
-            if (this.name.startsWith(key)) {
-                this.network = key;
-            }
-        });
+            typeof payload.device?.useEmptyPassphrase === 'boolean'
+                ? payload.device.useEmptyPassphrase
+                : false;
+        this.allowDeviceMode = [UI_REQUEST.SEEDLESS]; // Allow seedless by default
+
         // default values for all methods
-        this.firmwareRange = DEFAULT_FIRMWARE_RANGE;
-        this.requiredPermissions = [];
         this.useDevice = true;
         this.useDeviceState = true;
         this.useUi = true;
-        // should derive cardano seed? respect provided option or fall back to do it only when cardano method is called
+        this.useCardanoDerivation = false;
+        this.confirmMissingBackup = false;
+    }
+
+    // Resolves the Cardano session capability against the runtime enabled-networks set. MUST run on
+    // the real device-call path (NOT the constructor): keeps `__info` unblocked, and reflects any
+    // enablement applied between introspection and the call (e.g. a permission grant projected into
+    // the store). Sets `useCardanoDerivation` (→ `derive_cardano` at session create).
+    public resolveCardanoCapability(): void {
         this.useCardanoDerivation =
-            typeof payload.useCardanoDerivation === 'boolean'
-                ? payload.useCardanoDerivation
-                : payload.method.startsWith('cardano');
-        this.noBackupConfirmationMode = 'never';
+            enabledNetworksStore.has('ada') || enabledNetworksStore.has('tada');
     }
 
-    setDevice(device: Device) {
+    public setDevice(device: Device) {
         this.device = device;
-        // NOTE: every method should always send "device" parameter
-        const originalFn = this.createUiPromise;
-        this.createUiPromise = (t, d) => originalFn(t, d || device);
     }
 
-    private getOriginPermissions({ origin }: Pick<ConnectSettings, 'origin'>) {
-        if (!origin) {
-            return [];
+    public getDevice() {
+        if (!this.device) {
+            throw ERRORS.TypedError('Device_NotFound');
         }
 
-        return storage.loadForOrigin(origin)?.permissions || [];
+        return this.device;
     }
 
-    checkPermissions({ origin }: Pick<ConnectSettings, 'origin'>) {
-        const originPermissions = this.getOriginPermissions({ origin });
-        let notPermitted = [...this.requiredPermissions];
-        if (originPermissions.length > 0) {
-            // check if permission was granted
-            notPermitted = notPermitted.filter(np => {
-                const granted = originPermissions.find(
-                    p => p.type === np && p.device === this.device.features.device_id,
-                );
-
-                return !granted;
-            });
-        }
-        this.requiredPermissions = notPermitted;
-    }
-
-    savePermissions(temporary = false, { origin }: Pick<ConnectSettings, 'origin'>) {
-        const originPermissions = this.getOriginPermissions({ origin });
-
-        let permissionsToSave = this.requiredPermissions.map(p => ({
-            type: p,
-            device: this.device.features.device_id || undefined,
-        }));
-
-        // check if this will be first time granted permission to read this device
-        // if so, emit "device_connect" event because this wasn't send before
-        let emitEvent = false;
-        if (this.requiredPermissions.indexOf('read') >= 0) {
-            const wasAlreadyGranted = originPermissions.filter(
-                p => p.type === 'read' && p.device === this.device.features.device_id,
-            );
-            if (wasAlreadyGranted.length < 1) {
-                emitEvent = true;
-            }
-        }
-
-        if (originPermissions.length > 0) {
-            permissionsToSave = permissionsToSave.filter(p2s => {
-                const granted = originPermissions.find(
-                    p => p.type === p2s.type && p.device === p2s.device,
-                );
-
-                return !granted;
-            });
-        }
-
-        storage.saveForOrigin(
-            state => ({
-                ...state,
-                permissions: [...(state.permissions || []), ...permissionsToSave],
-            }),
-            origin!,
-            temporary,
-        );
-
-        if (emitEvent) {
-            this.postMessage(createDeviceMessage(DEVICE.CONNECT, this.device.toMessageObject()));
-        }
-    }
-
-    checkFirmwareRange() {
-        if (this.skipFirmwareCheck) {
-            return;
-        }
-        const { device } = this;
+    public checkFirmwareRange() {
+        const device = this.getDevice();
 
         // do not do fw range check for devices in BL mode as fw version of T1B1 in BL mode is not defined
         if (!device.features || device.isBootloader()) return;
@@ -305,17 +238,23 @@ export abstract class AbstractMethod<Name extends CallMethodPayload['method'], P
         // seedless devices do not offer firmware update - it is not desirable to update something that does not have seed
         if (device.isSeedless()) return;
 
-        const range = this.firmwareRange[device.features.internal_model];
+        const firmwareRange = getFirmwareRange(
+            [this.name, ...this.requiredFirmwareCapabilities],
+            this.requiredFirmwareCoins.filter(isNotUndefined),
+            DEFAULT_FIRMWARE_RANGE,
+            isDebugFirmware(device.features),
+        );
+        const range = firmwareRange[device.features.internal_model];
 
         if (device.firmwareStatus === 'none') {
-            return UI.FIRMWARE_NOT_INSTALLED;
+            return UI_REQUEST.FIRMWARE_NOT_INSTALLED;
         }
         if (!range) {
             // range not known only for custom (unknown) models
             return;
         }
         if (range.min === '0') {
-            return UI.FIRMWARE_NOT_SUPPORTED;
+            return UI_REQUEST.FIRMWARE_NOT_SUPPORTED;
         }
 
         const version = device.getVersion();
@@ -327,28 +266,15 @@ export abstract class AbstractMethod<Name extends CallMethodPayload['method'], P
             (device.firmwareStatus === 'required' ||
                 !versionUtils.isNewerOrEqual(version, range.min))
         ) {
-            return UI.FIRMWARE_OLD;
+            return UI_REQUEST.FIRMWARE_OLD;
         }
 
         if (range.max !== '0' && versionUtils.isNewer(version, range.max)) {
-            return UI.FIRMWARE_NOT_COMPATIBLE;
+            return UI_REQUEST.FIRMWARE_NOT_COMPATIBLE;
         }
     }
 
-    isManagementRestricted({ popup, origin }: Pick<ConnectSettings, 'popup' | 'origin'>) {
-        if (popup && this.requiredPermissions.includes('management')) {
-            const host = getHost(origin);
-            const allowed = config.management.find(
-                item => item.origin === host || item.origin === origin,
-            );
-
-            return !allowed;
-        }
-    }
-
-    abstract init(): void;
-
-    getMethodInfo(): MethodInfo {
+    public getMethodInfo(): MethodInfo {
         return {
             useUi: this.useUi,
             useDevice: this.useDevice,
@@ -361,17 +287,17 @@ export abstract class AbstractMethod<Name extends CallMethodPayload['method'], P
         };
     }
 
-    payloadToPrecomposed(): Promise<PrecomposeResultFinal | undefined> {
+    public payloadToPrecomposed(): Promise<PrecomposeResultFinal | undefined> {
         // Suite uses precomposed result for transaction review modals
         return Promise.resolve(undefined);
     }
 
-    checkDeviceCapability() {
+    public checkDeviceCapability() {
         const deviceHasAllRequiredCapabilities = (this.requiredDeviceCapabilities || []).every(
-            capability => this.device.features.capabilities.includes(capability),
+            capability => this.getDevice().features.capabilities.includes(capability),
         );
         if (!deviceHasAllRequiredCapabilities) {
-            if (this.device.firmwareType === 'bitcoin-only') {
+            if (this.getDevice().firmwareType === 'bitcoin-only') {
                 throw ERRORS.TypedError(
                     'Device_MissingCapabilityBtcOnly',
                     `Trezor has Bitcoin-only firmware installed, which does not support this operation. Please install Universal firmware through Trezor Suite.`,
@@ -384,7 +310,7 @@ export abstract class AbstractMethod<Name extends CallMethodPayload['method'], P
         }
     }
 
-    abstract run(): Promise<MethodReturnType<Name>>;
+    public abstract run(context: MethodContext): Promise<MethodReturnType<Name>>;
 
-    dispose() {}
+    public dispose() {}
 }

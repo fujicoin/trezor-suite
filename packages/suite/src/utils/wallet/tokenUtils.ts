@@ -1,20 +1,19 @@
+import { type TranslationId } from '@suite/intl';
+import { type TokenDefinitionsState } from '@suite-common/token-definitions';
+import { type NetworkSymbol, type NetworkType } from '@suite-common/wallet-config';
+import { type GetTokensOutputType, getTokens } from '@suite-common/wallet-core';
 import {
-    EnhancedTokenInfo,
-    TokenDefinition,
-    TokenDefinitionsState,
-    isTokenDefinitionKnown,
-} from '@suite-common/token-definitions';
-import { NetworkSymbol, NetworkType, getNetworkFeatures } from '@suite-common/wallet-config';
-import { Account, Rate, RatesByKey, TokenAddress } from '@suite-common/wallet-types';
-import {
-    getFiatRateKey,
-    isNftMatchesSearch,
-    isNftToken,
-    isTokenMatchesSearch,
-} from '@suite-common/wallet-utils';
+    type Account,
+    type Rate,
+    type RatesByKey,
+    type TokenAddress,
+} from '@suite-common/wallet-types';
+import { getFiatRateKey } from '@suite-common/wallet-utils';
 import type { BaseCurrencyCode } from '@trezor/blockchain-link-types';
-import { TokenInfo } from '@trezor/connect';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { type TokenInfo } from '@trezor/connect';
+import { BigNumber } from '@trezor/utils';
+
+export { getTokens, type GetTokensOutputType };
 
 export interface TokensWithRates extends TokenInfo {
     fiatValue: BigNumber;
@@ -31,7 +30,7 @@ export const sortTokensWithRates = (a: TokensWithRates, b: TokensWithRates) => {
         // If USD rate is equal or missing, sort by symbol length
         (a.symbol || '').length - (b.symbol || '').length ||
         // If symbol length is equal, sort by symbol name alphabetically
-        (a.symbol || '').localeCompare(b.symbol || '');
+        (a.symbol || '').localeCompare(b.symbol || '', undefined, { sensitivity: 'base' });
 
     return balanceSort;
 };
@@ -64,104 +63,11 @@ export const enhanceTokensWithRates = (
     return tokensWithRates;
 };
 
-export const formatTokenSymbol = (symbol: string) => {
-    const upperCasedSymbol = symbol.toUpperCase();
-    const isTokenSymbolLong = upperCasedSymbol.length > 7;
-
-    return isTokenSymbolLong ? `${upperCasedSymbol.slice(0, 7)}...` : upperCasedSymbol;
-};
-
-type GetTokens = {
-    tokens: EnhancedTokenInfo[] | TokenInfo[];
-    symbol: NetworkSymbol;
-    tokenDefinitions?: TokenDefinition;
-    searchQuery?: string;
-    isNft?: boolean;
-};
-
-export type GetTokensOutputType = {
-    shownWithBalance: EnhancedTokenInfo[];
-    shownWithoutBalance: EnhancedTokenInfo[];
-    hiddenWithBalance: EnhancedTokenInfo[];
-    hiddenWithoutBalance: EnhancedTokenInfo[];
-    unverifiedWithBalance: EnhancedTokenInfo[];
-    unverifiedWithoutBalance: EnhancedTokenInfo[];
-};
-
-export const getTokens = ({
-    tokens = [],
-    symbol,
-    tokenDefinitions,
-    searchQuery,
-    isNft = false,
-}: GetTokens): GetTokensOutputType => {
-    const filteredTokens = isNft
-        ? tokens.filter(token => isNftToken(token))
-        : tokens.filter(token => !isNftToken(token));
-
-    const hasDefinitions = getNetworkFeatures(symbol).includes(
-        isNft ? 'nft-definitions' : 'coin-definitions',
-    );
-
-    const shownWithBalance: EnhancedTokenInfo[] = [];
-    const shownWithoutBalance: EnhancedTokenInfo[] = [];
-    const hiddenWithBalance: EnhancedTokenInfo[] = [];
-    const hiddenWithoutBalance: EnhancedTokenInfo[] = [];
-    const unverifiedWithBalance: EnhancedTokenInfo[] = [];
-    const unverifiedWithoutBalance: EnhancedTokenInfo[] = [];
-
-    filteredTokens.forEach(token => {
-        const isKnown = isTokenDefinitionKnown(tokenDefinitions?.data, symbol, token.contract);
-        const isHidden = tokenDefinitions?.hide.includes(token.contract);
-        const isShown = tokenDefinitions?.show.includes(token.contract);
-
-        const query = searchQuery ? searchQuery.trim().toLowerCase() : '';
-
-        if (
-            searchQuery &&
-            !(isNft ? isNftMatchesSearch(token, query) : isTokenMatchesSearch(token, query))
-        )
-            return;
-
-        const hasBalance =
-            new BigNumber(token?.balance || '0').gt(0) ||
-            (isNft && (token?.multiTokenValues?.length || token?.ids?.length || 0) > 0);
-
-        const pushToArray = (
-            arrayWithBalance: EnhancedTokenInfo[],
-            arrayWithoutBalance: EnhancedTokenInfo[],
-        ) => {
-            if (hasBalance) {
-                arrayWithBalance.push(token);
-            } else {
-                arrayWithoutBalance.push(token);
-            }
-        };
-
-        if (isShown) {
-            pushToArray(shownWithBalance, shownWithoutBalance);
-        } else if (hasDefinitions && !isKnown) {
-            pushToArray(unverifiedWithBalance, unverifiedWithoutBalance);
-        } else if (isHidden) {
-            pushToArray(hiddenWithBalance, hiddenWithoutBalance);
-        } else {
-            pushToArray(shownWithBalance, shownWithoutBalance);
-        }
-    });
-
-    return {
-        shownWithBalance,
-        shownWithoutBalance,
-        hiddenWithBalance,
-        hiddenWithoutBalance,
-        unverifiedWithBalance,
-        unverifiedWithoutBalance,
-    };
-};
+export type EnahncedTokenInfoWithFiat = ReturnType<typeof enhanceTokensWithRates>[number];
 
 export const hasVisibleTokens = (
     symbol: NetworkSymbol,
-    tokens: TokenInfo[],
+    tokens: TokenInfo[] | undefined,
     tokenDefinitions: Partial<TokenDefinitionsState>,
     isNft: boolean = false,
 ): boolean => {
@@ -183,7 +89,7 @@ export const hasVisibleTokens = (
     return visibleTokenCount > 0;
 };
 
-export const getTokenAddressTranslationId = (networkType: NetworkType) => {
+export const getTokenAddressTranslationId = (networkType: NetworkType): TranslationId => {
     switch (networkType) {
         case 'solana':
             return 'TR_TOKEN_ADDRESS';
@@ -193,3 +99,12 @@ export const getTokenAddressTranslationId = (networkType: NetworkType) => {
             return 'TR_CONTRACT_ADDRESS';
     }
 };
+
+export function getAccountsWithPositiveBalanceOrVisibleTokens(
+    accounts: Account[],
+    tokenDefinitions: TokenDefinitionsState,
+): Account[] {
+    return accounts.filter(account =>
+        hasVisibleTokens(account.symbol, account.tokens, tokenDefinitions),
+    );
+}

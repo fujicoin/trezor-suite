@@ -12,8 +12,10 @@ import { useSendFormContext } from 'src/hooks/wallet';
 
 import { Address } from './Address';
 import { Amount } from './Amount/Amount';
+import { CardanoMinAmountInfo } from './CardanoMinAmountInfo';
 import { OpReturn } from './OpReturn';
 import { TokenSelect } from './TokenSelect/TokenSelect';
+import { TronNewAccountInfo } from './TronNewAccountInfo';
 import { DestinationTag } from '../Options/MiscNetworkOptions/DestinationTag';
 
 const Container = styled.div<{ $height: number }>`
@@ -32,7 +34,11 @@ export const Outputs = ({ disableAnim }: OutputsProps) => {
     const {
         outputs,
         account: { symbol },
+        getValues,
     } = useSendFormContext();
+
+    const formOutputs = getValues().outputs;
+    const isSendingTokens = formOutputs?.some(output => !!output.token);
 
     const ref = useRef<HTMLDivElement>(null);
 
@@ -86,19 +92,33 @@ export const Outputs = ({ disableAnim }: OutputsProps) => {
                                     ) : (
                                         <Column gap={spacings.md}>
                                             <Address
-                                                output={outputs[index]}
+                                                output={output}
                                                 outputId={index}
                                                 outputsCount={outputs.length}
                                             />
-                                            <Amount output={outputs[index]} outputId={index} />
-                                            <DestinationTag networkSymbol={symbol} />
+                                            <Amount output={output} outputId={index} />
+                                            {outputs.length === 1 && isSendingTokens && (
+                                                <CardanoMinAmountInfo />
+                                            )}
+                                            <TronNewAccountInfo />
                                         </Column>
                                     )}
                                 </Card>
+
+                                {output.type !== 'opreturn' && (
+                                    <DestinationTag networkSymbol={symbol} />
+                                )}
                             </Column>
                         </motion.div>
                     ))}
                 </Column>
+                {outputs.length > 1 && isSendingTokens && (
+                    <Card margin={{ vertical: spacings.md }}>
+                        <Column gap={spacings.md}>
+                            <CardanoMinAmountInfo />
+                        </Column>
+                    </Card>
+                )}
             </div>
         </Container>
     );

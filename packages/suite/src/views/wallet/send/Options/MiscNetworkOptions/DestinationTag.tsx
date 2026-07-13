@@ -1,14 +1,14 @@
+import { Translation, useTranslation } from '@suite/intl';
 import { formInputsMaxLength } from '@suite-common/validators';
-import { NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
+import { type NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
 import { U_INT_32 } from '@suite-common/wallet-constants';
-import { getInputState, isInteger } from '@suite-common/wallet-utils';
-import { Banner, Button, Column, Input, Note, Row, Switch } from '@trezor/components';
+import { isInteger } from '@suite-common/wallet-utils';
+import { Banner, Button, Card, Column, Input, Note, Row, Switch } from '@trezor/components';
+import { WarningIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { BigNumber } from '@trezor/utils';
 
-import { Translation } from 'src/components/suite';
 import { useGuideOpenNode } from 'src/hooks/guide';
-import { useTranslation } from 'src/hooks/suite';
 import { useSendFormContext } from 'src/hooks/wallet';
 
 export const DESTINATION_TAG_GUIDE_PATH =
@@ -74,42 +74,57 @@ export const DestinationTag = ({ networkSymbol }: DestinationTagProps) => {
     };
 
     return (
-        <Column gap={spacings.md}>
-            <Row justifyContent="space-between">
-                <Switch
-                    isChecked={destinationEnabled}
-                    onChange={handleToggleOption}
-                    label={<Translation id="DESTINATION_TAG_SWITCH" />}
-                />
-                <Button variant="tertiary" type="button" size="tiny" onClick={handleOpenGuide}>
-                    <Translation id="DESTINATION_TAG_GUIDE_LINK" />
-                </Button>
-            </Row>
-            {destinationEnabled ? (
-                <>
-                    <Input
-                        inputState={getInputState(error)}
-                        data-testid={inputName}
-                        defaultValue={inputValue}
-                        maxLength={
-                            networkType === 'ripple'
-                                ? formInputsMaxLength.xrpDestinationTag
-                                : formInputsMaxLength.stellarTextMemo
-                        }
-                        label={<Translation id="DESTINATION_TAG" />}
-                        bottomText={error?.message || null}
-                        innerRef={inputRef}
-                        {...inputField}
+        <Card>
+            <Column gap={spacings.md}>
+                <Row justifyContent="space-between">
+                    <Switch
+                        isChecked={destinationEnabled}
+                        onChange={handleToggleOption}
+                        label={<Translation id="DESTINATION_TAG_SWITCH" />}
                     />
-                    <Note gap={spacings.xs}>
-                        <Translation id="DESTINATION_TAG_NOTE" />
-                    </Note>
-                </>
-            ) : (
-                <Banner variant="warning" icon="warning">
-                    <Translation id="DESTINATION_TAG_BANNER_SEND" values={{ networkName: name }} />
-                </Banner>
-            )}
-        </Column>
+                    <Button
+                        intent="neutral"
+                        priority="secondary"
+                        type="button"
+                        size="small"
+                        onClick={handleOpenGuide}
+                    >
+                        <Translation id="DESTINATION_TAG_GUIDE_LINK" />
+                    </Button>
+                </Row>
+                {destinationEnabled ? (
+                    <>
+                        <Input
+                            hasError={!!error}
+                            data-testid={inputName}
+                            defaultValue={inputValue}
+                            maxLength={
+                                networkType === 'ripple'
+                                    ? formInputsMaxLength.xrpDestinationTag
+                                    : formInputsMaxLength.stellarTextMemo
+                            }
+                            label={<Translation id="DESTINATION_TAG" />}
+                            bottomText={error?.message || null}
+                            innerRef={inputRef}
+                            {...inputField}
+                        />
+                        <Note gap={spacings.xs}>
+                            <Translation id="DESTINATION_TAG_NOTE" />
+                        </Note>
+                    </>
+                ) : (
+                    <Banner
+                        intent="warning"
+                        icon={WarningIcon}
+                        description={
+                            <Translation
+                                id="DESTINATION_TAG_BANNER_SEND"
+                                values={{ networkName: name }}
+                            />
+                        }
+                    />
+                )}
+            </Column>
+        </Card>
     );
 };

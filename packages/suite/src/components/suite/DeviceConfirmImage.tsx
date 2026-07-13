@@ -1,16 +1,31 @@
 import { getDeviceInternalModel } from '@suite-common/suite-utils';
-import { Image, ImageKey, ImageProps } from '@trezor/components';
-import { Device } from '@trezor/connect';
-import { DeviceModelInternal } from '@trezor/device-utils';
+import { type ImageProps } from '@trezor/components';
+import { type Device } from '@trezor/connect';
+import { DeviceWithScene } from '@trezor/product-components';
 
 type DeviceConfirmImageProps = Omit<ImageProps, 'image'> & {
-    device: Pick<Device, 'features' | 'thp'>;
+    device?: Pick<Device, 'features' | 'thp'>;
+} & {
+    width?: number;
+    height?: number;
 };
 
-export const DeviceConfirmImage = ({ device }: DeviceConfirmImageProps) => {
-    const deviceModelInternal = getDeviceInternalModel(device) ?? DeviceModelInternal.UNKNOWN;
+export const DeviceConfirmImage = ({
+    device,
+    height = 300,
+    width,
+    ...rest
+}: DeviceConfirmImageProps) => {
+    const deviceModelInternal = getDeviceInternalModel(device);
 
-    const imgName: ImageKey = `DEVICE_CONFIRM_TREZOR_${deviceModelInternal}`;
-
-    return <Image image={imgName} />;
+    return (
+        <DeviceWithScene
+            deviceModel={deviceModelInternal}
+            width={width}
+            unitColor={device?.features?.unit_color}
+            height={height}
+            margin={20}
+            {...rest}
+        />
+    );
 };

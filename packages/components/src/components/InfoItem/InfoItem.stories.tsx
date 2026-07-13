@@ -1,7 +1,8 @@
 import React from 'react';
 
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 
+import * as generatedIcons from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
 import {
@@ -9,15 +10,15 @@ import {
     allowedInfoItemFrameProps,
     allowedInfoItemTextProps,
 } from './InfoItem';
-import { infoItemVariants, infoItemVerticalAlignments } from './types';
-import { variables } from '../../config';
+import { infoItemVerticalAlignments } from './types';
 import { getFramePropsStory } from '../../utils/frameProps';
-import { flexDirection } from '../Flex/Flex';
+import { flexDirection } from '../Flex/FlexProp';
+import { textIntents, textPriorities } from '../typography/Text/Text';
 import { getTextPropsStory } from '../typography/utils';
 
-const meta: Meta = {
+const meta: Meta<typeof InfoItemComponent> = {
     title: 'InfoItem',
-} as Meta;
+};
 export default meta;
 
 export const InfoItem: StoryObj<typeof InfoItemComponent> = {
@@ -27,10 +28,17 @@ export const InfoItem: StoryObj<typeof InfoItemComponent> = {
         ...getFramePropsStory(allowedInfoItemFrameProps).args,
         direction: 'column',
         label: 'Label',
-        variant: 'tertiary',
-        typographyStyle: 'hint',
+        icon: generatedIcons.InfoIcon,
+        intent: 'neutral',
+        priority: 'secondary',
+        typographyStyle: 'body-sm',
     },
     argTypes: {
+        icon: {
+            options: ['none', ...Object.keys(generatedIcons)],
+            mapping: { none: undefined, ...generatedIcons },
+            control: { type: 'select' },
+        },
         direction: {
             options: flexDirection,
             control: {
@@ -42,23 +50,19 @@ export const InfoItem: StoryObj<typeof InfoItemComponent> = {
                 type: 'text',
             },
         },
-        iconName: {
-            options: ['none', ...variables.ICONS],
-            mapping: {
-                ...variables.ICONS,
-                none: undefined,
-            },
-            control: {
-                type: 'select',
-            },
-        },
         labelWidth: {
             control: {
                 type: 'number',
             },
         },
-        variant: {
-            options: infoItemVariants,
+        intent: {
+            options: textIntents,
+            control: {
+                type: 'select',
+            },
+        },
+        priority: {
+            options: textPriorities,
             control: {
                 type: 'select',
             },

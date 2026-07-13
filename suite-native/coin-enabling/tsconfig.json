@@ -3,6 +3,13 @@
     "compilerOptions": { "outDir": "libDev" },
     "references": [
         {
+            "path": "../../suite-common/dependency-injection"
+        },
+        { "path": "../../suite-common/device" },
+        {
+            "path": "../../suite-common/validators"
+        },
+        {
             "path": "../../suite-common/wallet-config"
         },
         {
@@ -12,11 +19,11 @@
         { "path": "../analytics" },
         { "path": "../atoms" },
         { "path": "../discovery" },
+        { "path": "../forms" },
         { "path": "../icons" },
         { "path": "../intl" },
         { "path": "../navigation" },
         { "path": "../toasts" },
-        { "path": "../tokens" },
-        { "path": "../../packages/styles" }
+        { "path": "../../packages/styles-native" }
     ]
 }

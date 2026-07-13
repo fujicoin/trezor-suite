@@ -1,50 +1,72 @@
-import { tradingExchangeActions } from '@suite-common/trading';
-import {
-    TestStore,
-    act,
-    initStore,
-    renderHookWithStoreProviderAsync,
-} from '@suite-native/test-utils';
+import { combineReducers } from '@reduxjs/toolkit';
 
-import { getBtcAccount } from '../../../../__fixtures__/account';
-import { getWalletState } from '../../../../__fixtures__/walletState';
-import { selectExchangeSelectedReceiveAccount } from '../../../../selectors/exchangeSelectors';
+import { extraDependenciesCommonMock } from '@suite-common/test-utils';
+import { tradingExchangeActions } from '@suite-common/trading';
+import { initialWalletSettingsState } from '@suite-common/wallet-core';
+import { asAccountDescriptor } from '@suite-common/wallet-types';
+import { localeReducer } from '@suite-native/intl';
+import {
+    type TestStore,
+    act,
+    createLightStore,
+    createStaticReducer,
+    renderHookWithStoreProvider,
+} from '@suite-native/test-utils-store';
+import { getBtcAccount, getWalletState } from '@suite-native/trading-fixtures';
+import { selectExchangeSelectedReceiveAccount, tradingSlice } from '@suite-native/trading-state';
+
 import { useReceiveAccountChangeEffect } from '../useReceiveAccountChangeEffect';
 
 describe('useReceiveAccountChangeEffect', () => {
     let store: TestStore;
     let setValue: jest.Mock;
 
+    const reducer = {
+        locale: localeReducer,
+        wallet: combineReducers({
+            settings: createStaticReducer(initialWalletSettingsState),
+            accounts: createStaticReducer(getWalletState({ tradeType: 'exchange' }).accounts),
+            trading: tradingSlice.prepareReducer(extraDependenciesCommonMock),
+        }),
+    } as const;
+
     const renderUseReceiveAccountChangeEffect = () =>
-        renderHookWithStoreProviderAsync(
+        renderHookWithStoreProvider(
             () => useReceiveAccountChangeEffect(setValue, selectExchangeSelectedReceiveAccount),
             { store },
         );
 
-    beforeEach(async () => {
-        const preloadState = { wallet: getWalletState({ tradeType: 'exchange' }) };
-        store = await initStore(preloadState);
+    beforeEach(() => {
+        store = createLightStore({
+            reducer,
+            preloadedState: {
+                wallet: {
+                    trading: getWalletState({ tradeType: 'exchange' }).trading,
+                },
+            },
+        });
         setValue = jest.fn();
     });
 
-    it('should set receiveAccount based on store value', async () => {
-        await renderUseReceiveAccountChangeEffect();
+    it('should set receiveAccount based on store value', () => {
+        renderUseReceiveAccountChangeEffect();
 
         expect(setValue).toHaveBeenCalledTimes(1);
         expect(setValue).toHaveBeenCalledWith('receiveAccount', undefined);
     });
 
-    it('should set receiveAccount on change', async () => {
-        await renderUseReceiveAccountChangeEffect();
+    it('should set receiveAccount on change', () => {
+        const btc1Account = getBtcAccount({ descriptor: asAccountDescriptor('btc1normal') });
+        renderUseReceiveAccountChangeEffect();
 
         setValue.mockClear();
         act(() => {
-            store.dispatch(tradingExchangeActions.setReceiveAccountKey('btc-account-1'));
+            store.dispatch(tradingExchangeActions.setReceiveAccountKey(btc1Account.key));
         });
 
         expect(setValue).toHaveBeenCalledTimes(1);
         expect(setValue).toHaveBeenCalledWith('receiveAccount', {
-            account: getBtcAccount('btc-account-1'),
+            account: btc1Account,
             address: undefined,
         });
     });

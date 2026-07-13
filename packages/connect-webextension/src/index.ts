@@ -1,64 +1,20 @@
-// NOTE: @trezor/connect part is intentionally not imported from the index so we do include the whole library.
-import {
-    ConnectSettings,
-    ConnectSettingsPublic,
-    ConnectSettingsWebextension,
-    Manifest,
-    POPUP,
-} from '@trezor/connect/src/exports';
-import { ConnectFactoryDependencies, factory } from '@trezor/connect/src/factory';
-import { TrezorConnectDynamic } from '@trezor/connect/src/impl/dynamic';
+// note: at the moment, there is something in the root of @trezor/connect-common that pulls entire PROTO runtime, thus
+// these targeted imports
+import { CORE_CALL_CANCEL, POPUP } from '@trezor/connect-common/src/events';
+import { factory } from '@trezor/connect-common/src/factory';
+import { TrezorConnectDynamic } from '@trezor/connect-common/src/impl/dynamic';
 // Import as src not lib due to webpack issues with inlining content script later
-import { ServiceWorkerWindowChannel } from '@trezor/connect-web/src/channels/serviceworker-window';
+import { ServiceWorkerWindowChannel } from '@trezor/connect-common/src/messageChannel/serviceworker-window';
+import { type ConnectDynamicSettings } from '@trezor/connect-common/src/types/settings';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- intra-tier wiring: connect-webextension composes implementations from connect-web (see #27376)
+import { CoreInSuiteDesktop } from '@trezor/connect-web/src/impl/core-in-suite-desktop';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- intra-tier wiring: connect-webextension composes implementations from connect-web (see #27376)
+import { CoreInSuiteWeb } from '@trezor/connect-web/src/impl/core-in-suite-web';
 
-import { parseConnectSettings } from './connectSettings';
-import { CoreInPopupWebextension, CoreInSuiteDesktopWebextension } from './impl';
-
-const _settings = parseConnectSettings();
-
-const impl = new TrezorConnectDynamic<
-    'core-in-popup' | 'core-in-suite-desktop',
-    ConnectSettingsWebextension,
-    ConnectFactoryDependencies<ConnectSettingsWebextension>
->({
-    implementations: [
-        {
-            type: 'core-in-popup',
-            impl: new CoreInPopupWebextension(),
-        },
-        {
-            type: 'core-in-suite-desktop',
-            impl: new CoreInSuiteDesktopWebextension(),
-        },
-    ],
-    getInitTarget: (settings: Partial<ConnectSettingsPublic & ConnectSettingsWebextension>) => {
-        if (settings.coreMode === 'suite-desktop') {
-            return 'core-in-suite-desktop';
-        } else {
-            return 'core-in-popup';
-        }
-    },
-    handleBeforeCall: async () => {
-        // Always try if desktop is available again
-        const isCoreModeDesktop = impl.lastSettings?.coreMode === 'suite-desktop';
-        const isCoreModeAuto =
-            impl.lastSettings?.coreMode === 'auto' || impl.lastSettings?.coreMode === undefined;
-        if (isCoreModeDesktop || isCoreModeAuto) {
-            await impl.switchTarget('core-in-suite-desktop');
-        }
-    },
-    handleErrorFallback: async errorCode => {
-        // Handle desktop errors
-        if (
-            impl.getTargetType() === 'core-in-suite-desktop' &&
-            errorCode === 'Desktop_ConnectionMissing'
-        ) {
-            await impl.switchTarget('core-in-popup');
-
-            return true;
-        }
-
-        return false;
+const impl = new TrezorConnectDynamic({
+    implementations: {
+        'core-in-suite-desktop': new CoreInSuiteDesktop(),
+        'core-in-suite-web': new CoreInSuiteWeb(),
     },
 });
 
@@ -67,10 +23,8 @@ const TrezorConnect = factory({
     eventEmitter: impl.eventEmitter,
     init: impl.init.bind(impl),
     call: impl.call.bind(impl),
-    setTransports: impl.setTransports.bind(impl),
-    manifest: impl.manifest.bind(impl),
-    requestLogin: impl.requestLogin.bind(impl),
     uiResponse: impl.uiResponse.bind(impl),
+    updateConnectSettings: impl.updateConnectSettings.bind(impl),
     cancel: impl.cancel.bind(impl),
     dispose: impl.dispose.bind(impl),
 });
@@ -79,7 +33,11 @@ const initProxyChannel = () => {
     const channel = new ServiceWorkerWindowChannel<{
         type: string;
         method: keyof typeof TrezorConnect;
-        settings: { manifest: Manifest } & Partial<ConnectSettings>;
+        settings: ConnectDynamicSettings;
+        reason?: string;
+        // We need `error` field for backward compatibility, for connect10 with older clients.
+        error?: string;
+        callId?: string;
     }>({
         name: 'trezor-connect-proxy',
         channel: {
@@ -90,33 +48,62 @@ const initProxyChannel = () => {
         allowSelfOrigin: true,
     });
 
-    let proxySettings: ConnectSettings = parseConnectSettings();
+    let proxySettings: ConnectDynamicSettings;
 
     channel.init();
     channel.on('message', message => {
         const { id, payload, type } = message;
+
+        // Handle cancel before the payload guard — cancel messages may
+        // carry no meaningful payload.
+        if (type === POPUP.CLOSED) {
+            TrezorConnect.cancel({ reason: payload?.error, callId: payload?.callId });
+
+            return;
+        }
+        if (type === CORE_CALL_CANCEL) {
+            TrezorConnect.cancel({ reason: payload?.reason, callId: payload?.callId });
+
+            return;
+        }
+
         if (!payload) return;
         const { method, settings } = payload;
 
         if (type === POPUP.INIT) {
-            proxySettings = parseConnectSettings({ ..._settings, ...settings });
+            proxySettings = settings;
 
             return;
         }
 
         // Core is loaded in popup and initialized every time, so we send the settings from here.
-        TrezorConnect.init(
-            proxySettings as { manifest: Manifest } & Partial<
-                ConnectSettingsPublic & ConnectSettingsWebextension
-            >,
-        ).then(() => {
-            (TrezorConnect as any)[method](payload).then((response: any) => {
-                channel.postMessage({
-                    ...response,
-                    id,
-                });
+        impl.init({ env: 'webextension', ...proxySettings })
+            .then(() =>
+                (TrezorConnect as any)[method](payload).then((response: any) => {
+                    // Response must use usePromise: false so the original
+                    // message `id` from the proxy is preserved.  The default
+                    // (usePromise: true) would overwrite `id` with the SW's
+                    // own counter, which can desynchronize from the proxy's
+                    // counter and leave the proxy's call() promise unresolved.
+                    channel.postMessage(
+                        {
+                            ...response,
+                            id,
+                        },
+                        { usePromise: false },
+                    );
+                }),
+            )
+            .catch((error: any) => {
+                channel.postMessage(
+                    {
+                        success: false,
+                        payload: { error: error?.message ?? String(error) },
+                        id,
+                    },
+                    { usePromise: false },
+                );
             });
-        });
     });
 };
 
@@ -124,4 +111,6 @@ initProxyChannel();
 
 // eslint-disable-next-line import/no-default-export
 export default TrezorConnect;
-export * from '@trezor/connect/src/exports';
+export * from '@trezor/connect-common/src/constants';
+export * from '@trezor/connect-common/src/events';
+export type * from '@trezor/connect-common/src/types';

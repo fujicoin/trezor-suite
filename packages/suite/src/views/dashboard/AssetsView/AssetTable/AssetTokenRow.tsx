@@ -1,8 +1,9 @@
-import { Network } from '@suite-common/wallet-config';
+import { Translation } from '@suite/intl';
+import { type Network } from '@suite-common/wallet-config';
 import { Table } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
-import { BaseCurrencyValue, Translation } from 'src/components/suite';
+import { BaseCurrencyValue } from 'src/components/suite';
 
 import { AssetTableExtraRowsSection as Section } from './AssetTableExtraRowsSection';
 

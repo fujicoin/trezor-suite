@@ -1,16 +1,17 @@
 import { useMemo } from 'react';
 
-import { Account } from '@suite-common/wallet-types';
-import { getUtxoOutpoint } from '@suite-common/wallet-utils';
-import { AccountUtxo } from '@trezor/connect';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
-
-import { useSelector, useTranslation } from 'src/hooks/suite';
 import {
+    WabiSabiProtocolErrorCode,
     selectCoinjoinAccountByKey,
     selectCoinjoinClient,
-} from 'src/reducers/wallet/coinjoinReducer';
-import { WabiSabiProtocolErrorCode } from 'src/types/wallet/coinjoin';
+} from '@suite/coinjoin';
+import { useTranslation } from '@suite/intl';
+import { type Account } from '@suite-common/wallet-types';
+import { getUtxoOutpoint } from '@suite-common/wallet-utils';
+import { type AccountUtxo } from '@trezor/connect';
+import { BigNumber } from '@trezor/utils';
+
+import { useSelector } from 'src/hooks/suite';
 
 interface UseCoinjoinUnavailableUtxosProps {
     account: Account;

@@ -1,7 +1,7 @@
+import { Translation } from '@suite/intl';
 import { Button, Column, Divider, H2, Image, Paragraph, Row } from '@trezor/components';
 import { borders, spacings } from '@trezor/theme';
 
-import { Translation } from '../../suite';
 import { SecurityCheckLayout } from '../../suite/SecurityCheck/SecurityCheckLayout';
 
 // only relevant for bootloader 1.12.1
@@ -45,7 +45,7 @@ export const FirmwareInstallationProgressCheckPrompt = ({
             width="100%"
             margin={{ top: spacings.xxxxl }}
         >
-            <Button variant="tertiary" onClick={toggleView} flex="1">
+            <Button intent="neutral" priority="secondary" onClick={toggleView} flex="1">
                 <Translation id="TR_FIRMWARE_INSTALLATION_PROGRESS_CHECK_NO_BUTTON" />
             </Button>
             <Button onClick={handleDismiss} flex="1">

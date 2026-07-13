@@ -4,17 +4,12 @@ FROM joseluisq/rust-linux-darwin-builder:1.85.1
 
 RUN apt-get update && apt-get install -y mingw-w64 curl ca-certificates
 
-# Node.js
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && corepack enable
-
 WORKDIR /app
 
 COPY ./src ./src
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./Cargo.lock ./Cargo.lock
-COPY ./build.rs ./build.rs
+COPY ./build/ ./build/
 
 ARG BUILD_VERSION_TAG
 ENV BUILD_VERSION_TAG=${BUILD_VERSION_TAG}
@@ -38,11 +33,15 @@ RUN cargo build --target x86_64-unknown-linux-gnu --release --bins && \
   cp ./target/x86_64-unknown-linux-gnu/release/trezor-bluetooth /output/linux-x64/trezor-bluetooth && \
   strip /output/linux-x64/trezor-bluetooth
 
-# Build NAPI for macOS (ARM64 and x64)
-COPY ./package.json ./package.json
-RUN yarn global add @napi-rs/cli && \
-  yarn build:napi && \
+# Build for macOS ARM64
+RUN rustup target add aarch64-apple-darwin && \
+  cargo build --target aarch64-apple-darwin --release --bins && \
   mkdir -p /output/mac-arm64 && \
+  cp ./target/aarch64-apple-darwin/release/trezor-bluetooth /output/mac-arm64/trezor-bluetooth && \
+  llvm-strip /output/mac-arm64/trezor-bluetooth
+
+# Build for macOS x64
+RUN cargo build --target x86_64-apple-darwin --release --bins && \
   mkdir -p /output/mac-x64 && \
-  cp ./napi/trezor_bluetooth.darwin-arm64.node /output/mac-arm64/trezor-bluetooth.node && \
-  cp ./napi/trezor_bluetooth.darwin-x64.node /output/mac-x64/trezor-bluetooth.node
+  cp ./target/x86_64-apple-darwin/release/trezor-bluetooth /output/mac-x64/trezor-bluetooth && \
+  llvm-strip /output/mac-x64/trezor-bluetooth

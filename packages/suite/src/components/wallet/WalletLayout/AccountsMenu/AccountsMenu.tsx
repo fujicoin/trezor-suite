@@ -1,29 +1,17 @@
-import React from 'react';
-
 import styled from 'styled-components';
 
-import { selectSelectedDevice } from '@suite-common/wallet-core';
+import { Translation } from '@suite/intl';
+import { selectSelectedDevice } from '@suite-common/device';
 import { useScrollShadow } from '@trezor/components';
-import { spacingsPx, zIndices } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
 import { ReduxAccountSearchProvider } from 'src/hooks/suite/useAccountSearch';
+import { useResponsiveContext } from 'src/support/suite/ResponsiveContext';
+import { selectDiscoveryOverallStatus } from 'src/utils/wallet/selectDiscoveryOverallStatus';
 
 import { AccountsList } from './AccountsList';
 import { AccountsMenuHeader } from './AccountsMenuHeader';
 import { AccountsMenuNotice } from './AccountsMenuNotice';
-import { RefreshAfterDiscoveryNeeded } from './RefreshAfterDiscoveryNeeded';
-import { useIsSidebarCollapsed } from '../../../suite/layouts/SuiteLayout/Sidebar/utils';
-
-const Wrapper = styled.div`
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    z-index: ${zIndices.expandableNavigationHeader};
-    overflow: auto;
-    gap: ${spacingsPx.sm};
-`;
 
 const ScrollContainer = styled.div`
     height: auto;
@@ -32,37 +20,39 @@ const ScrollContainer = styled.div`
 
 export const AccountsMenu = () => {
     const device = useSelector(selectSelectedDevice);
-
+    const discoveryStatus = useSelector(selectDiscoveryOverallStatus);
     const { scrollElementRef, onScroll, ShadowTop, ShadowBottom, ShadowContainer } =
-        useScrollShadow();
-    const isSidebarCollapsed = useIsSidebarCollapsed();
+        useScrollShadow({
+            backgroundColor: 'surfaceFillSunken',
+        });
+    const { isSidebarCollapsed } = useResponsiveContext();
+
+    const isDiscoveryEmpty = discoveryStatus?.type === 'discovery-empty';
+
+    if (isDiscoveryEmpty) {
+        return null;
+    }
 
     if (!device) {
-        if (isSidebarCollapsed) return <Wrapper />;
+        if (isSidebarCollapsed) return null;
 
         return (
-            <Wrapper>
-                <AccountsMenuNotice>
-                    <Translation id="TR_ACCOUNT_NO_ACCOUNTS" />
-                </AccountsMenuNotice>
-            </Wrapper>
+            <AccountsMenuNotice>
+                <Translation id="TR_ACCOUNT_NO_ACCOUNTS" />
+            </AccountsMenuNotice>
         );
     }
 
     return (
         <ReduxAccountSearchProvider>
-            <Wrapper>
-                <AccountsMenuHeader />
-                <ShadowContainer>
-                    <ShadowTop backgroundColor="backgroundSurfaceElevationNegative" />
-                    <ScrollContainer ref={scrollElementRef} onScroll={onScroll}>
-                        <AccountsList />
-
-                        <RefreshAfterDiscoveryNeeded />
-                    </ScrollContainer>
-                    <ShadowBottom backgroundColor="backgroundSurfaceElevationNegative" />
-                </ShadowContainer>
-            </Wrapper>
+            <AccountsMenuHeader />
+            <ShadowContainer>
+                <ShadowTop />
+                <ScrollContainer ref={scrollElementRef} onScroll={onScroll}>
+                    <AccountsList />
+                </ScrollContainer>
+                <ShadowBottom />
+            </ShadowContainer>
         </ReduxAccountSearchProvider>
     );
 };

@@ -1,30 +1,22 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import { SpacingValues, spacings } from '@trezor/theme';
+import { InfoIcon } from '@trezor/icons';
+import { type SpacingValues, spacings } from '@trezor/theme';
 
-import { UIVariant } from '../../config/types';
-import { FrameProps, FramePropsKeys } from '../../utils/frameProps';
+import { type FrameProps, type FramePropsKeys } from '../../utils/frameProps';
 import { Row } from '../Flex/Flex';
-import { Icon, IconName } from '../Icon/Icon';
+import { Icon, type IconComponent } from '../Icon/Icon';
 import { Paragraph } from '../typography/Paragraph/Paragraph';
+import { type TextIntent, type TextPriority } from '../typography/Text/Text';
 
 export const allowedNoteFrameProps = ['margin', 'minWidth'] as const satisfies FramePropsKeys[];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedNoteFrameProps)[number]>;
 
-export const noteVariants = [
-    'tertiary',
-    'primary',
-    'default',
-    'info',
-    'warning',
-    'destructive',
-    'disabled',
-] as const;
-export type NoteVariant = Extract<UIVariant, (typeof noteVariants)[number]>;
-
 export type NoteProps = AllowedFrameProps & {
-    iconName?: IconName;
-    variant?: NoteVariant;
+    icon?: IconComponent;
+    intent?: TextIntent;
+    priority?: TextPriority;
+    isDisabled?: boolean;
     gap?: SpacingValues;
     children: ReactNode;
     'data-testid'?: string;
@@ -32,16 +24,24 @@ export type NoteProps = AllowedFrameProps & {
 
 export const Note = ({
     children,
-    iconName = 'info',
+    icon = InfoIcon,
     margin,
     gap = spacings.xxs,
     minWidth,
-    variant = 'tertiary',
+    intent = 'neutral',
+    priority = 'secondary',
+    isDisabled = false,
     'data-testid': dataTestId,
 }: NoteProps) => (
     <Row gap={gap} margin={margin} minWidth={minWidth}>
-        <Icon name={iconName} size={16} variant={variant} />
-        <Paragraph data-testid={dataTestId} typographyStyle="hint" variant={variant}>
+        <Icon as={icon} size={16} intent={intent} priority={priority} isDisabled={isDisabled} />
+        <Paragraph
+            data-testid={dataTestId}
+            typographyStyle="body-sm"
+            intent={intent}
+            priority={priority}
+            isDisabled={isDisabled}
+        >
             {children}
         </Paragraph>
     </Row>

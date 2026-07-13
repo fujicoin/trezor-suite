@@ -1,16 +1,15 @@
 import { Menu } from 'electron';
 
+import type { ModuleInit } from './module';
 import { buildMainMenu, inputMenu, selectionMenu } from '../libs/menu';
 import { b2t } from '../libs/utils';
-
-import type { ModuleInit } from './index';
 
 export const SERVICE_NAME = 'menu';
 
 export const init: ModuleInit = ({ mainWindowProxy }) => {
     const { logger } = global;
 
-    Menu.setApplicationMenu(buildMainMenu());
+    Menu.setApplicationMenu(buildMainMenu(mainWindowProxy));
     mainWindowProxy.on('init', mainWindow => {
         mainWindow.setMenuBarVisibility(false);
 

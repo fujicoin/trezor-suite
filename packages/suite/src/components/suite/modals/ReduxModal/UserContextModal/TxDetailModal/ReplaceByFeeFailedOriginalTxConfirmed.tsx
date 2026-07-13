@@ -1,16 +1,15 @@
-import { NetworkType } from '@suite-common/wallet-config';
-import { RbfTransactionType } from '@suite-common/wallet-types';
-import { Box, Card, Column, IconCircle, Text } from '@trezor/components';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { type NetworkType } from '@suite-common/wallet-config';
+import { type RbfTransactionType } from '@suite-common/wallet-types';
+import { Box, Card, Column, IconCircle, Text, TextButton } from '@trezor/components';
+import { WarningIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 import {
     HELP_CENTER_CANCEL_TRANSACTION,
     HELP_CENTER_REPLACE_BY_FEE_BITCOIN,
     HELP_CENTER_REPLACE_BY_FEE_ETHEREUM,
-    Url,
+    type Url,
 } from '@trezor/urls';
-
-import { Translation, TranslationKey } from '../../../../Translation';
-import { TrezorLink } from '../../../../TrezorLink';
 
 export type ReplaceByFeeFailedOriginalTxConfirmedProps = {
     type: RbfTransactionType;
@@ -43,6 +42,7 @@ const helpLink: Record<
     ripple: null,
     solana: null,
     stellar: null,
+    tron: null,
 };
 
 export const ReplaceByFeeFailedOriginalTxConfirmed = ({
@@ -52,21 +52,21 @@ export const ReplaceByFeeFailedOriginalTxConfirmed = ({
     const link = helpLink[networkType]?.[type];
 
     return (
-        <Card fillType="flat">
+        <Card type="contrast">
             <Column gap={spacings.xs}>
                 <Box margin={{ bottom: spacings.md }}>
-                    <IconCircle name="warning" size={110} variant="destructive" />
+                    <IconCircle icon={WarningIcon} size={112} intent="critical" />
                 </Box>
 
-                <Text typographyStyle="titleSmall">
+                <Text typographyStyle="headline-sm">
                     <Translation id={titleMap[type]} />
                 </Text>
                 <Translation id={descriptionMap[type]} />
 
                 {link && (
-                    <TrezorLink typographyStyle="hint" href={link} icon="arrowUpRight">
+                    <TextButton href={link} size="small" isUnderlined>
                         <Translation id="TR_LEARN_MORE" />
-                    </TrezorLink>
+                    </TextButton>
                 )}
             </Column>
         </Card>

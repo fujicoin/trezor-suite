@@ -1,12 +1,12 @@
 import { G } from '@mobily/ts-belt';
-import { PayloadAction, createSlice } from '@reduxjs/toolkit';
+import { type PayloadAction, createSlice } from '@reduxjs/toolkit';
 import { createTransform } from 'redux-persist';
 
-import { deviceActions } from '@suite-common/wallet-core';
-import { AccountKey } from '@suite-common/wallet-types';
+import { deviceActions } from '@suite-common/device';
+import { type AccountKey } from '@suite-common/wallet-types';
 import { filterKeysByPartialMatch, selectDeviceStatesNotRemembered } from '@suite-native/storage';
 
-import { TimeframeHoursValue } from './types';
+import { type TimeframeHoursValue } from './types';
 
 // Default is 720 hours (1 month).
 const DEFAULT_GRAPH_TIMEFRAME_HOURS = 720;
@@ -37,7 +37,7 @@ export const graphPersistTransform = createTransform<GraphState, GraphState>(
     { whitelist: ['graph'] },
 );
 
-export const graphSlice = createSlice({
+const graphSlice = createSlice({
     name: 'graph',
     initialState: graphInitialState,
     reducers: {
@@ -70,7 +70,7 @@ export const graphSlice = createSlice({
                     );
                 }
             })
-            .addCase(deviceActions.rememberDevice, state => {
+            .addCase(deviceActions.setRememberDevice, state => {
                 // Persistence of graph depends on device.remember state,
                 // but redux-persist is not checking for changes in other reducers.
                 // This is a workaround to update redux-persist state.

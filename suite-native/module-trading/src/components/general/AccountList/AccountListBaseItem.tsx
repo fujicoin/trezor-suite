@@ -1,14 +1,17 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Pressable } from 'react-native';
+import { useSelector } from 'react-redux';
 
 import { BASE_CRYPTO_MAX_DISPLAYED_DECIMALS } from '@suite-common/formatters';
+import { selectAccountLabel } from '@suite-native/accounts';
 import { Box, HStack, Text, VStack } from '@suite-native/atoms';
+import { useCoinLabel } from '@suite-native/device';
 import { CryptoAmountFormatter, CryptoToFiatAmountFormatter } from '@suite-native/formatters';
 import { CryptoIcon, Icon } from '@suite-native/icons';
 import { useTranslate } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-
-import { ReceiveAccount } from '../../../types/general';
+import { type CombinedLabelingState } from '@suite-native/labeling';
+import { type ReceiveAccount } from '@suite-native/trading-types';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 export type AccountListBaseItemProps = {
     receiveAccount: ReceiveAccount;
@@ -18,9 +21,7 @@ export type AccountListBaseItemProps = {
     onPress: () => void;
 };
 
-type TextColor = 'textDefault' | 'textSubdued';
-
-export const ACCOUNT_LIST_ITEM_HEIGHT = 68 as const;
+type TextColor = 'contentPrimary' | 'contentSecondary';
 
 const labelTextStyle = prepareNativeStyle<{ textColor: TextColor; flex: number }>(
     ({ colors }, { textColor, flex }) => ({
@@ -52,7 +53,10 @@ const AccountListLabel = ({ label, flex }: { label: ReactNode; flex: number }) =
     const { applyStyle } = useNativeStyles();
 
     return (
-        <Text variant="body" style={applyStyle(labelTextStyle, { textColor: 'textDefault', flex })}>
+        <Text
+            variant="body-md"
+            style={applyStyle(labelTextStyle, { textColor: 'contentPrimary', flex })}
+        >
             {label}
         </Text>
     );
@@ -67,18 +71,20 @@ export const AccountListBaseItem = ({
 }: AccountListBaseItemProps) => {
     const { applyStyle } = useNativeStyles();
     const { translate } = useTranslate();
+    const coinLabel = useCoinLabel();
 
     const cryptoValue = isAddressDetail ? (address?.balance ?? '0') : account.availableBalance;
 
     const shouldDisplayCaret = !isAddressDetail && !!account.addresses;
     const shouldDisplayBalance = !isAddressDetail || address?.balance != null;
 
+    const accountLabel =
+        useSelector((state: CombinedLabelingState) =>
+            selectAccountLabel(state, account.deviceState, account.descriptor, account.symbol),
+        ) ?? undefined;
+
     return (
-        <Pressable
-            onPress={onPress}
-            accessibilityRole="button"
-            accessibilityLabel={account.accountLabel}
-        >
+        <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={accountLabel}>
             <HStack
                 alignItems="center"
                 spacing="sp12"
@@ -101,12 +107,13 @@ export const AccountListBaseItem = ({
                             <CryptoAmountFormatter
                                 value={cryptoValue}
                                 symbol={account.symbol}
-                                variant="body"
+                                variant="body-md"
                                 style={applyStyle(amountTextStyle, {
-                                    textColor: 'textDefault',
+                                    textColor: 'contentPrimary',
                                 })}
                                 accessibilityLabel={translate(
                                     'moduleTrading.accountScreen.balanceCrypto',
+                                    { coinLabel },
                                 )}
                                 isBalance={false}
                                 decimals={BASE_CRYPTO_MAX_DISPLAYED_DECIMALS}
@@ -119,9 +126,9 @@ export const AccountListBaseItem = ({
                             <CryptoToFiatAmountFormatter
                                 value={cryptoValue}
                                 symbol={account.symbol}
-                                variant="hint"
+                                variant="body-sm"
                                 style={applyStyle(labelTextStyle, {
-                                    textColor: 'textDefault',
+                                    textColor: 'contentPrimary',
                                     flex: 1,
                                 })}
                                 accessibilityLabel={translate(
@@ -135,7 +142,7 @@ export const AccountListBaseItem = ({
                     <Box justifyContent="center">
                         <Icon
                             name="caretRight"
-                            color="textSecondaryHighlight"
+                            color="contentPrimary"
                             accessibilityHint={translate('moduleTrading.accountScreen.step2Hint')}
                         />
                     </Box>

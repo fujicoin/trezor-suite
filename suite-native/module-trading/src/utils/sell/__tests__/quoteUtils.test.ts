@@ -1,21 +1,23 @@
-import { act, renderHookWithStoreProviderAsync } from '@suite-native/test-utils';
+import { type CryptoId } from 'invity-api';
 
-import { btcAsset } from '../../../__fixtures__/tradeableAssets';
-import { getWalletState } from '../../../__fixtures__/walletState';
+import { type MinimalSellFormProps } from '@suite-common/trading';
+import { act, renderHookWithStoreProvider } from '@suite-native/test-utils-store';
+import { btcAsset, getWalletState } from '@suite-native/trading-fixtures';
+import { type SellFormType } from '@suite-native/trading-types';
+
 import { useSellForm } from '../../../hooks/sell/useSellForm';
-import { SellFormType } from '../../../types/sell';
 import { tradingSellFormToTradingSellFormProps } from '../quotesUtils';
 
 describe('quoteUtils', () => {
     let form: SellFormType;
 
     const renderUseTradingSellForm = () =>
-        renderHookWithStoreProviderAsync(() => useSellForm(), {
+        renderHookWithStoreProvider(() => useSellForm(), {
             preloadedState: { wallet: getWalletState({ tradeType: 'sell' }) },
         });
 
-    beforeEach(async () => {
-        const { result } = await renderUseTradingSellForm();
+    beforeEach(() => {
+        const { result } = renderUseTradingSellForm();
         form = result.current;
     });
 
@@ -61,17 +63,21 @@ describe('quoteUtils', () => {
                     {
                         amount: '0.1',
                         fiat: undefined,
-                        currency: { value: 'usd' }, // Assuming USD is the default fiat currency
+                        currency: { value: 'usd' },
                     },
                 ],
                 countrySelect: {
-                    label: '🇨🇿 Czech Republic',
+                    label: '🇨🇿 Czechia',
+                    shortLabel: '🇨🇿 CZE',
                     value: 'CZ',
+                    codeAlpha3: 'CZE',
+                    flag: '🇨🇿',
+                    name: 'Czechia',
                 },
                 sendCryptoSelect: {
-                    value: 'bitcoin',
+                    id: 'bitcoin' as CryptoId,
                 },
-            });
+            } satisfies MinimalSellFormProps);
         });
 
         it('should return correct MinimalSellFormProps when all values are specified and amountInCrypto is false', () => {
@@ -91,13 +97,17 @@ describe('quoteUtils', () => {
                     },
                 ],
                 countrySelect: {
-                    label: '🇨🇿 Czech Republic',
+                    label: '🇨🇿 Czechia',
+                    shortLabel: '🇨🇿 CZE',
                     value: 'CZ',
+                    codeAlpha3: 'CZE',
+                    flag: '🇨🇿',
+                    name: 'Czechia',
                 },
                 sendCryptoSelect: {
-                    value: 'bitcoin',
+                    id: 'bitcoin' as CryptoId,
                 },
-            });
+            } satisfies MinimalSellFormProps);
         });
     });
 });

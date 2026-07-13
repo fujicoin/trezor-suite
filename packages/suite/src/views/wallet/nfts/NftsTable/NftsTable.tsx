@@ -1,12 +1,12 @@
 import { useState } from 'react';
 
+import { Translation } from '@suite/intl';
 import { getNetwork } from '@suite-common/wallet-config';
-import { SelectedAccountLoaded } from '@suite-common/wallet-types';
+import { type SelectedAccountLoaded } from '@suite-common/wallet-types';
 import { Card, Column, Table } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite/Translation';
-import { GetTokensOutputType } from 'src/utils/wallet/tokenUtils';
+import { type GetTokensOutputType } from 'src/utils/wallet/tokenUtils';
 
 import NftsRow from './NftsRow';
 import { DropdownRow } from '../../tokens/DropdownRow';
@@ -44,7 +44,7 @@ const NftsTable = ({ selectedAccount, isShown, verified, nfts }: NftsTableProps)
 
     return nftsToShow.length > 0 || nftsWithoutBalance.length > 0 ? (
         <Column width="100%" alignItems="start" gap={12}>
-            <Card paddingType="none" overflow="hidden">
+            <Card paddingType="none">
                 <Table
                     margin={{ top: spacings.xs }}
                     colWidths={[
@@ -82,8 +82,9 @@ const NftsTable = ({ selectedAccount, isShown, verified, nfts }: NftsTableProps)
                                         <DropdownRow
                                             isActive={isEmptyCollectionsOpen}
                                             text="EMPTY_NFT_COLLECTIONS"
-                                            typographyStyle="hint"
-                                            variant="tertiary"
+                                            typographyStyle="body-sm"
+                                            intent="neutral"
+                                            priority="secondary"
                                         />
                                     </Table.Cell>
                                 </Table.Row>

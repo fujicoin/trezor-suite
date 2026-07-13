@@ -1,5 +1,8 @@
-import type { AccountInfo, AccountInfoParams } from '@trezor/blockchain-link-types';
-import type { AccountInfo as BlockbookAccountInfo } from '@trezor/blockchain-link-types/src/blockbook';
+import type {
+    AccountInfo,
+    AccountInfoParams,
+    BlockbookAccountInfo,
+} from '@trezor/blockchain-link-types';
 import type { DeepPartial } from '@trezor/type-utils';
 
 const fixtures: {
@@ -455,7 +458,6 @@ const fixtures: {
                         nonTokenTxs: 0,
                         tokens: [
                             {
-                                type: 'ERC20',
                                 standard: 'ERC20',
                                 name: 'Token name',
                                 symbol: 'TKNNME',
@@ -476,13 +478,12 @@ const fixtures: {
             },
             tokens: [
                 {
-                    type: 'ERC20',
                     standard: 'ERC20',
                     name: 'Token name',
                     symbol: 'TKNNME',
                     contract: '0x0',
                     balance: '1',
-                    decimals: 0,
+                    decimals: 18,
                 },
             ],
         },
@@ -601,7 +602,6 @@ const fixtures: {
                         nonce: '100',
                         address: '0x3c205C8B3e02421Da82064646788c82f7bd753B9',
                         contractInfo: {
-                            type: 'ERC20',
                             standard: 'ERC20',
                             contract: '0x3c205C8B3e02421Da82064646788c82f7bd753B9',
                             name: 'PureFi Token',
@@ -621,7 +621,6 @@ const fixtures: {
                 stakingPools: undefined,
                 addressAliases: undefined,
                 contractInfo: {
-                    type: 'ERC20',
                     standard: 'ERC20',
                     contract: '0x3c205C8B3e02421Da82064646788c82f7bd753B9',
                     name: 'PureFi Token',

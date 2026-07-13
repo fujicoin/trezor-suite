@@ -1,6 +1,9 @@
 import { isAnyOf } from '@reduxjs/toolkit';
 import type { MiddlewareAPI } from 'redux';
 
+import { selectSelectedAccountKey } from '@suite/account';
+import { routerLocationChange, selectRouteName } from '@suite/router';
+import { deviceActions } from '@suite-common/device';
 import { getTxsPerPage } from '@suite-common/suite-utils';
 import { tradingActions } from '@suite-common/trading';
 import {
@@ -8,8 +11,6 @@ import {
     accountsActions,
     blockchainActions,
     convertSendFormDraftsBtcAmountUnitsThunk,
-    deviceActions,
-    forgetAccountsThunk,
     sendFormActions,
     setCustomBackendThunk,
     stakeActions,
@@ -18,12 +19,8 @@ import {
     unsubscribeBlockchainThunk,
 } from '@suite-common/wallet-core';
 
-import { ROUTER } from 'src/actions/suite/constants';
-import * as cardanoStakingActions from 'src/actions/wallet/cardanoStakingActions';
-import * as receiveActions from 'src/actions/wallet/receiveActions';
 import * as selectedAccountActions from 'src/actions/wallet/selectedAccountActions';
 import * as tradingCommonActions from 'src/actions/wallet/trading/tradingCommonActions';
-import { selectSelectedAccountKey } from 'src/reducers/wallet/selectedAccountReducer';
 import type { Action, AppState, Dispatch } from 'src/types/suite';
 
 const walletMiddleware =
@@ -34,10 +31,10 @@ const walletMiddleware =
 
         if (deviceActions.forgetDevice.match(action)) {
             const deviceState = action.payload.device.state?.staticSessionId;
-            const accounts = api
+            const accountsToRemove = api
                 .getState()
                 .wallet.accounts.filter(a => a.deviceState === deviceState);
-            api.dispatch(forgetAccountsThunk({ accountsToRemove: accounts }));
+            api.dispatch(accountsActions.removeAccount(accountsToRemove));
         }
 
         // propagate action to reducers, this needs to happen before addTransaction is dispatched because it needs to have account in redux already
@@ -53,15 +50,6 @@ const walletMiddleware =
                     page: 1,
                     perPage: getTxsPerPage(account.networkType),
                 }),
-            );
-        }
-
-        if (transactionsActions.addTransaction.match(action)) {
-            api.dispatch(
-                cardanoStakingActions.validatePendingStakeTxOnTx(
-                    action.payload.account,
-                    action.payload.transactions,
-                ),
             );
         }
 
@@ -91,7 +79,7 @@ const walletMiddleware =
             resetReducers = true;
         }
 
-        if (prevRouter.app === 'wallet' && action.type === ROUTER.LOCATION_CHANGE) {
+        if (prevRouter.app === 'wallet' && action.type === routerLocationChange.type) {
             // leaving wallet app or switching between accounts
             resetReducers =
                 (nextRouter.app !== 'wallet' && !nextRouter.route?.isForegroundApp) ||
@@ -100,16 +88,17 @@ const walletMiddleware =
         if (resetReducers) {
             api.dispatch(accountsActions.disposeAccount());
             api.dispatch(sendFormActions.dispose());
-            api.dispatch(receiveActions.dispose());
             api.dispatch(tradingActions.setVerifiedAddress(undefined));
             api.dispatch(stakeActions.dispose());
         }
 
         if (action.type === WALLET_SETTINGS.SET_BITCOIN_AMOUNT_UNITS) {
             const nextSelectedAccountKey = selectSelectedAccountKey(api.getState());
+            const suiteRouteName = selectRouteName(api.getState());
             api.dispatch(
                 convertSendFormDraftsBtcAmountUnitsThunk({
                     selectedAccountKey: nextSelectedAccountKey,
+                    isOnSendPage: suiteRouteName === 'wallet-send',
                 }),
             );
             api.dispatch(tradingCommonActions.convertDrafts());

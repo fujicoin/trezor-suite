@@ -2,15 +2,13 @@
 
 /docker @vdovhanych @mroz22
 
-/scripts/list-outdated-dependencies/connect-dependencies.txt @mroz22
-/scripts/list-outdated-dependencies/engagement-dependencies.txt @jvaclavik
-/scripts/list-outdated-dependencies/foundation-dependencies.txt @komret
-/scripts/list-outdated-dependencies/mobile-dependencies.txt @matejkriz
-/scripts/list-outdated-dependencies/qa-dependencies.txt @HajekOndrej
-/scripts/list-outdated-dependencies/trends-dependencies.txt @tomasklim
-/scripts @karliatto
-
-/packages/analytics @tomasklim
+/scripts @vdovhanych
+/scripts/list-outdated-dependencies/connect-dependencies.txt @martykan @vdovhanych
+/scripts/list-outdated-dependencies/foundation-dependencies.txt @matejkriz @vdovhanych
+/scripts/list-outdated-dependencies/growth-dependencies.txt @jvaclavik @vdovhanych
+/scripts/list-outdated-dependencies/trade-dependencies.txt @vytick @vdovhanych
+/scripts/list-outdated-dependencies/qa-dependencies.txt @Vere-Grey @vdovhanych
+/scripts/list-outdated-dependencies/wallet-dependencies.txt @tomasklim @vdovhanych
 
 /packages/blockchain-link @mroz22 @marekrjpolak
 
@@ -20,9 +18,9 @@
 
 /packages/coinjoin @marekrjpolak @szymonlesisz
 
-/packages/components @trezor/suite-engagement
+/packages/components @trezor/suite-growth @seibei-iguchi @jvaclavik
 
-/packages/product-components @trezor/suite-engagement
+/packages/product-components @trezor/suite-growth @seibei-iguchi @jvaclavik
 
 /packages/connect @mroz22 @szymonlesisz @martykan @marekrjpolak
 
@@ -32,41 +30,21 @@
 
 /packages/connect-explorer @mroz22 @martykan
 
-/packages/connect-iframe @mroz22 @martykan
-
 /packages/connect-plugin-ethereum @mroz22 @martykan
 
 /packages/connect-plugin-stellar @mroz22 @martykan
 
-/packages/connect-popup @mroz22 @martykan
-
 /packages/connect-web @mroz22 @martykan
 
-/packages/connect-webextension @mroz22 @karliatto @martykan
+/packages/connect-webextension @mroz22 @martykan
 
-/packages/connect-mobile @mroz22 @karliatto @martykan
+/packages/connect-mobile @mroz22 @martykan
 
 /packages/crypto-utils @mroz22 @marekrjpolak
 
 /packages/icons @trezor/suite-mobile
 
-/suite-common/message-system @tomasklim @matejkriz @MiroslavProchazka @pavelmario
-
-/suite-common/token-definitions @tomasklim
-
-/packages/suite-analytics @tomasklim
-
-/packages/suite-build @komret
-
-/packages/suite-data @komret
-
-/packages/suite-desktop @komret
-
-/packages/suite-desktop-ui @komret
-
 /packages/suite-desktop-api @szymonlesisz @marekrjpolak
-
-/suite-native @trezor/suite-mobile
 
 /packages/suite-storage @matejkriz
 
@@ -78,23 +56,22 @@
 
 /packages/transport-test @mroz22
 
-/packages/theme @trezor/suite-engagement
+/packages/theme @trezor/suite-growth
 
 /packages/urls @marekrjpolak @pavelmario
 
-/packages/utils @karliatto
+/packages/utils @marekrjpolak
 
-/packages/node-utils @karliatto
+/packages/node-utils @marekrjpolak
 
 /packages/utxo-lib @szymonlesisz
 
-/packages/styles @trezor/suite-engagement
+/packages/styles @trezor/suite-growth
 
-/packages/suite/src/support/messages.ts @pavelmario
+/packages/dom-utils @trezor/suite-growth
 
-/suite-common/graph @trezor/suite-mobile
-
-/packages/connect/src/data/deviceAuthenticityConfig.ts @tsusanka @MiroslavProchazka
+/packages/device-authenticity/src/config/deviceAuthenticityConfig.ts @tsusanka @MiroslavProchazka
+/packages/device-authenticity/src/config/deviceAuthenticityBlacklistConfig.ts @tsusanka @MiroslavProchazka
 
 /packages/schema-utils @martykan
 
@@ -102,4 +79,44 @@
 
 /packages/websocket-client @mroz22 @marekrjpolak
 
-packages/suite-desktop-core/e2e @HajekOndrej @Vere-Grey
+# Automation
+/.github/actions @Vere-Grey @vdovhanych
+/.github/workflows/build-llm-** @Vere-Grey @vdovhanych
+/.github/workflows/check-test-health-** @Vere-Grey @vdovhanych
+/.github/workflows/template-suite-** @Vere-Grey @vdovhanych
+/.github/workflows/test-suite-** @Vere-Grey @vdovhanych
+/docs/tests @Vere-Grey
+/packages/e2e-utils @Vere-Grey
+/packages/trezor-user-env-link @Vere-Grey
+/suite/e2e @Vere-Grey
+/suite-common/e2e-evolu-client @Vere-Grey
+/suite-native/app/e2e @Vere-Grey
+
+# Analytics
+/packages/analytics-docs @jvaclavik
+/packages/analytics-log-server @jvaclavik
+/packages/analytics-uploader @jvaclavik
+
+# Suite Desktop Packages
+/suite/analytics @jvaclavik
+/suite/analytics/src/events @jvaclavik @kolomaznikt
+/suite/analytics/src/constants.ts @jvaclavik @kolomaznikt
+/suite/src/messages.ts @pavelmario
+
+# Suite Mobile Packages
+/suite-native/analytics @jvaclavik
+/suite-native/analytics/src/events @jvaclavik @kolomaznikt
+/suite-native/analytics/src/constants.ts @jvaclavik @kolomaznikt
+/suite-native/analytics/src/types.ts @jvaclavik @kolomaznikt
+/suite-native/module-authorize-device @juriczech
+/suite-native/module-passphrase @juriczech
+/suite-native/passphrase @juriczech
+
+# Suite Common Packages
+/suite-common/analytics @jvaclavik
+/suite-common/analytics/src/events @jvaclavik @kolomaznikt
+/suite-common/analytics/src/constants.ts @jvaclavik @kolomaznikt
+/suite-common/analytics/src/types.ts @jvaclavik @kolomaznikt
+/suite-common/graph @trezor/suite-mobile
+/suite-common/message-system @tomasklim @matejkriz @MiroslavProchazka @pavelmario
+/suite-common/token-definitions @tomasklim

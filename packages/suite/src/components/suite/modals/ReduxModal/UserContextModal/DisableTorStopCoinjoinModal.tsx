@@ -1,8 +1,8 @@
-import { UserContextPayload } from '@suite-common/suite-types';
+import { Translation } from '@suite/intl';
+import { type UserContextPayload } from '@suite-common/suite-types';
 import { Banner, Column, Modal, Paragraph } from '@trezor/components';
+import { TorBrowserIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
-
-import { Translation } from 'src/components/suite';
 
 type DisableTorStopCoinjoinModalProps = {
     decision: Extract<UserContextPayload, { type: 'disable-tor-stop-coinjoin' }>['decision'];
@@ -27,31 +27,35 @@ export const DisableTorStopCoinjoinModal = ({
         <Modal
             onCancel={onKeepRunningTor}
             heading={<Translation id="TR_TOR_DISABLE" />}
-            variant="warning"
-            size="small"
+            intent="warning"
+            width={600}
             bottomContent={
                 <>
                     <Modal.Button onClick={onStopRunningTor}>
                         <Translation id="TR_TOR_STOP" />
                     </Modal.Button>
-                    <Modal.Button variant="tertiary" onClick={onKeepRunningTor}>
+                    <Modal.Button intent="neutral" priority="secondary" onClick={onKeepRunningTor}>
                         <Translation id="TR_TOR_KEEP_RUNNING" />
                     </Modal.Button>
                 </>
             }
         >
             <Column gap={spacings.xl}>
-                <Banner variant="warning" icon="torBrowser" iconSize="large">
-                    <Paragraph typographyStyle="body">
-                        <Translation
-                            id="TR_TOR_REQUEST_ENABLE_FOR_COIN_JOIN_TITLE"
-                            values={{
-                                b: chunks => <strong>{chunks}</strong>,
-                            }}
-                        />
-                    </Paragraph>
-                </Banner>
-                <Paragraph variant="tertiary" typographyStyle="hint">
+                <Banner
+                    intent="warning"
+                    icon={TorBrowserIcon}
+                    description={
+                        <Paragraph typographyStyle="body-md">
+                            <Translation
+                                id="TR_TOR_REQUEST_ENABLE_FOR_COIN_JOIN_TITLE"
+                                values={{
+                                    b: chunks => <strong>{chunks}</strong>,
+                                }}
+                            />
+                        </Paragraph>
+                    }
+                />
+                <Paragraph intent="neutral" priority="secondary" typographyStyle="body-sm">
                     <Translation id="TR_TOR_KEEP_RUNNING_FOR_COIN_JOIN_SUBTITLE" />
                 </Paragraph>
             </Column>

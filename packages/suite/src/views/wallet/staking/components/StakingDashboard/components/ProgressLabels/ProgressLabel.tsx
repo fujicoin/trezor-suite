@@ -1,12 +1,12 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
-import styled, { DefaultTheme } from 'styled-components';
+import styled, { type DefaultTheme } from 'styled-components';
 
 import { IconCircle, Row, Text } from '@trezor/components';
-import { IconCirclePaddingType } from '@trezor/components/src/components/IconCircle/types';
+import { CheckIcon, DotOutlineFilledIcon, SpinnerIcon } from '@trezor/icons';
 import { borders, spacings, spacingsPx } from '@trezor/theme';
 
-import { ProgressLabelState } from './types';
+import { type ProgressLabelState } from './types';
 
 const DEFAULT_LABEL_HEIGHT = 48;
 
@@ -19,39 +19,37 @@ const mapProgressStateToBackground = ({
 }) => {
     switch ($progressState) {
         case 'active':
-            return theme.backgroundAlertYellowSubtleOnElevation2;
+            return theme.elementFillWarningSoft;
         case 'done':
-            return theme.backgroundPrimarySubtleOnElevation1;
+            return theme.elementFillBrandSoft;
         default:
-            return theme.backgroundSurfaceElevation2;
+            return theme.surfaceFillSunken;
     }
 };
 
 const getProgressStateIcon = (progressState: ProgressLabelState) => {
     const props = {
-        paddingType: 'small' as IconCirclePaddingType,
-        size: 28,
-        hasBorder: false,
-    };
+        size: 32,
+    } as const;
 
     switch (progressState) {
         case 'active':
-            return <IconCircle {...props} name="spinner" variant="warning" />;
+            return <IconCircle {...props} icon={SpinnerIcon} intent="warning" />;
         case 'done':
-            return <IconCircle {...props} name="check" variant="primary" />;
+            return <IconCircle {...props} icon={CheckIcon} intent="brand" />;
         default:
-            return <IconCircle {...props} name="dotOutlineFilled" variant="tertiary" />;
+            return <IconCircle {...props} icon={DotOutlineFilledIcon} intent="neutral" />;
     }
 };
 
-const getProgressStateVariant = (progressState: ProgressLabelState) => {
+const getProgressStateTextProps = (progressState: ProgressLabelState) => {
     switch (progressState) {
         case 'active':
-            return 'warning';
+            return { intent: 'warning' } as const;
         case 'done':
-            return 'primary';
+            return { intent: 'brand' } as const;
         default:
-            return 'tertiary';
+            return { intent: 'neutral', priority: 'secondary' } as const;
     }
 };
 
@@ -98,7 +96,7 @@ const ProgressLabelItem = styled.div<{
             position: absolute;
             top: 0;
             left: 0;
-            border-left: 12px solid ${({ theme }) => theme.backgroundSurfaceElevation1};
+            border-left: 12px solid ${({ theme }) => theme.surfaceFillRaised};
             border-top: ${({ $currentHeight = DEFAULT_LABEL_HEIGHT }) => $currentHeight / 2}px solid
                 transparent;
             border-bottom: ${({ $currentHeight = DEFAULT_LABEL_HEIGHT }) => $currentHeight / 2}px
@@ -138,6 +136,8 @@ export const ProgressLabel = ({
         };
     }, [currentHeight]);
 
+    const textProps = getProgressStateTextProps(progressState);
+
     return (
         <ProgressLabelItem
             data-testid={`${dataTestId}/container`}
@@ -149,8 +149,9 @@ export const ProgressLabel = ({
                 {getProgressStateIcon(progressState)}
                 <Text
                     as="div"
-                    variant={getProgressStateVariant(progressState)}
-                    typographyStyle="hint"
+                    intent={textProps.intent}
+                    priority={textProps.priority}
+                    typographyStyle="body-sm"
                 >
                     {children}
                 </Text>

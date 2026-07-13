@@ -1,13 +1,13 @@
-import { WalletAccountTransaction } from '@suite-common/wallet-types';
+import { Translation } from '@suite/intl';
+import { type WalletAccountTransaction } from '@suite-common/wallet-types';
 import { convertAmountSubunitsToUnits, isNftTokenTransfer } from '@suite-common/wallet-utils';
-import { TokenTransfer } from '@trezor/blockchain-link-types';
+import { type TokenTransfer } from '@trezor/blockchain-link-types';
 import { Column, H4 } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
 import { FormattedNftAmount } from 'src/components/suite/FormattedNftAmount';
-import { Translation } from 'src/components/suite/Translation';
 
-import { IODetails } from './IODetails';
+import { type IODetailsType } from './IODetailsType';
 import { IOGroup } from './IOGroup';
 
 type TokensByStandard = {
@@ -51,49 +51,62 @@ export const TokenSpecificBalanceDetailsRow = ({
                         <IOGroup
                             key={index}
                             tx={tx}
-                            inputs={[{ addresses: [from], value: amount }] as IODetails[]}
-                            outputs={[{ addresses: [to] }] as IODetails[]}
-                            isPhishingTransaction={isPhishingTransaction}
+                            inputs={[{ addresses: [from], value: amount }] as IODetailsType[]}
+                            outputs={[{ addresses: [to] }] as IODetailsType[]}
                             hasHeadings={false}
+                            isPhishingTransaction={isPhishingTransaction}
                         />
                     ))}
                 </Column>
             ) : null}
 
-            {Object.entries(tokensByStandard).map(([key, tokens]) => (
-                <Column key={key} gap={spacings.xs}>
-                    <H4>
-                        <Translation
-                            id="TR_TOKEN_TRANSFERS"
-                            values={{ standard: key.toUpperCase() }}
-                        />
-                    </H4>
-                    {tokens.map((transfer, index) => {
-                        const value = isNftTokenTransfer(transfer) ? (
-                            <FormattedNftAmount
-                                transfer={transfer}
-                                isWithLink
-                                alignMultitoken="flex-start"
-                                linkTypographyStyle="label"
-                            />
-                        ) : (
-                            convertAmountSubunitsToUnits(transfer.amount, transfer.decimals)
-                        );
+            {Object.entries(tokensByStandard).map(([key, tokens]) => {
+                const getStandardDisplayName = (standard: string) => {
+                    switch (standard) {
+                        case 'STELLAR-CLASSIC':
+                            return 'Stellar';
+                        default:
+                            return standard.toUpperCase();
+                    }
+                };
 
-                        return (
-                            <IOGroup
-                                key={index}
-                                tx={{ ...tx, symbol: transfer.symbol || '' }}
-                                contractAddress={transfer.contract}
-                                inputs={[{ addresses: [transfer.from], value }] as IODetails[]}
-                                outputs={[{ addresses: [transfer.to] }] as IODetails[]}
-                                isPhishingTransaction={isPhishingTransaction}
-                                hasHeadings={false}
+                return (
+                    <Column key={key} gap={spacings.xs}>
+                        <H4>
+                            <Translation
+                                id="TR_TOKEN_TRANSFERS"
+                                values={{ standard: getStandardDisplayName(key) }}
                             />
-                        );
-                    })}
-                </Column>
-            ))}
+                        </H4>
+                        {tokens.map((transfer, index) => {
+                            const value = isNftTokenTransfer(transfer) ? (
+                                <FormattedNftAmount
+                                    transfer={transfer}
+                                    isWithLink
+                                    alignMultitoken="flex-start"
+                                    linkTypographyStyle="body-xs"
+                                />
+                            ) : (
+                                convertAmountSubunitsToUnits(transfer.amount, transfer.decimals)
+                            );
+
+                            return (
+                                <IOGroup
+                                    key={index}
+                                    tx={{ ...tx, symbol: transfer.symbol || '' }}
+                                    contractAddress={transfer.contract}
+                                    inputs={
+                                        [{ addresses: [transfer.from], value }] as IODetailsType[]
+                                    }
+                                    outputs={[{ addresses: [transfer.to] }] as IODetailsType[]}
+                                    hasHeadings={false}
+                                    isPhishingTransaction={isPhishingTransaction}
+                                />
+                            );
+                        })}
+                    </Column>
+                );
+            })}
         </>
     );
 };

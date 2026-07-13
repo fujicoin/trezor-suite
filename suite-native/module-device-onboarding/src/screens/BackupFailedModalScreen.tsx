@@ -6,14 +6,14 @@ import { useWipeDevice } from '@suite-native/device';
 import { Translation } from '@suite-native/intl';
 import { useOpenLink } from '@suite-native/link';
 import { Screen, ScreenHeader } from '@suite-native/navigation';
+import { HELP_CENTER_RECOVERY_ISSUES_URL } from '@trezor/urls';
 
-export const BACKUP_FAILED_SUPPORT_URL =
-    'https://trezor.io/support/troubleshooting/trezor-suite-issues/trezor-recovery-issues#open-chat';
+const BACKUP_FAILED_SUPPORT_URL = `${HELP_CENTER_RECOVERY_ISSUES_URL}#open-chat`;
 
 export const BackupFailedModalScreen = () => {
     const openLink = useOpenLink();
     const { showAlert } = useAlert();
-    const { wipeDevice } = useWipeDevice();
+    const { navigateToWipeDeviceStack } = useWipeDevice();
 
     const handleSecondaryButtonPress = () => openLink(BACKUP_FAILED_SUPPORT_URL);
 
@@ -29,22 +29,22 @@ export const BackupFailedModalScreen = () => {
                 primaryButtonTitle: (
                     <Translation id="moduleDeviceOnboarding.backupFailedModalScreen.alert.primaryButton" />
                 ),
-                primaryButtonVariant: 'redBold',
-                onPressPrimaryButton: wipeDevice,
+                primaryButtonColorProps: { intent: 'critical', priority: 'primary' },
+                onPressPrimaryButton: navigateToWipeDeviceStack,
                 secondaryButtonTitle: (
                     <Translation id="moduleDeviceOnboarding.backupFailedModalScreen.alert.secondaryButton" />
                 ),
-                secondaryButtonVariant: 'redElevation1',
+                secondaryButtonColorProps: { intent: 'critical', priority: 'secondary' },
                 onPressSecondaryButton: () => openLink(BACKUP_FAILED_SUPPORT_URL),
             }),
-        [showAlert, openLink, wipeDevice],
+        [showAlert, openLink, navigateToWipeDeviceStack],
     );
 
     return (
         <Screen header={<ScreenHeader />}>
             <VStack spacing="sp32" flex={1} paddingTop="sp16">
                 <TitleHeader
-                    titleVariant="titleMedium"
+                    titleVariant="headline-md"
                     titleSpacing="sp12"
                     title={
                         <Translation id="moduleDeviceOnboarding.backupFailedModalScreen.title" />
@@ -57,7 +57,7 @@ export const BackupFailedModalScreen = () => {
                     <IconListTextItem
                         icon="plugs"
                         variant="red"
-                        textVariant="highlight"
+                        textVariant="body-md-strong"
                         iconSize="large"
                     >
                         <Translation id="moduleDeviceOnboarding.backupFailedModalScreen.steps.wipe" />
@@ -66,7 +66,7 @@ export const BackupFailedModalScreen = () => {
                     <IconListTextItem
                         icon="chatCircle"
                         variant="red"
-                        textVariant="highlight"
+                        textVariant="body-md-strong"
                         iconSize="large"
                     >
                         <Translation id="moduleDeviceOnboarding.backupFailedModalScreen.steps.contact" />
@@ -74,10 +74,10 @@ export const BackupFailedModalScreen = () => {
                 </VStack>
             </VStack>
             <VStack spacing="sp12">
-                <Button colorScheme="redBold" onPress={showWipeDeviceAlert}>
+                <Button intent="critical" priority="primary" onPress={showWipeDeviceAlert}>
                     <Translation id="moduleDeviceOnboarding.backupFailedModalScreen.primaryButton" />
                 </Button>
-                <Button colorScheme="redElevation1" onPress={handleSecondaryButtonPress}>
+                <Button intent="critical" priority="secondary" onPress={handleSecondaryButtonPress}>
                     <Translation id="moduleDeviceOnboarding.backupFailedModalScreen.secondaryButton" />
                 </Button>
             </VStack>

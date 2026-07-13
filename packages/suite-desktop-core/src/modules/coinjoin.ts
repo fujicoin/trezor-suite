@@ -5,18 +5,22 @@
 import { captureMessage, withScope } from '@sentry/electron/main';
 import { ipcMain } from 'electron';
 
-import { coinjoinNetworkTag, coinjoinReportTag } from '@suite-common/sentry';
-import { CoinjoinBackend, CoinjoinBackendSettings, CoinjoinClient } from '@trezor/coinjoin';
-import { IpcProxyHandlerOptions, createIpcProxyHandler } from '@trezor/ipc-proxy';
+import { COINJOIN_NETWORK_TAG, COINJOIN_REPORT_TAG } from '@suite-common/sentry';
+import {
+    type CoinjoinBackend,
+    type CoinjoinBackendSettings,
+    CoinjoinClient,
+    type LogEvent,
+} from '@trezor/coinjoin';
+import { type IpcProxyHandlerOptions, createIpcProxyHandler } from '@trezor/ipc-proxy';
 import { getFreePort } from '@trezor/node-utils';
-import { InterceptedEvent } from '@trezor/request-manager';
+import { type InterceptedEvent } from '@trezor/request-manager';
 import { getSynchronize } from '@trezor/utils';
 
+import type { ModuleInit } from './module';
 import { PowerSaveBlocker } from '../libs/power-save-blocker';
 import { CoinjoinProcess } from '../libs/processes/CoinjoinProcess';
 import { ThreadProxy } from '../libs/thread-proxy';
-
-import type { ModuleInit } from './index';
 
 export const SERVICE_NAME = '@trezor/coinjoin';
 
@@ -52,8 +56,8 @@ export const init: ModuleInit = ({ mainWindowProxy, store, mainThreadEmitter }) 
     const sentryError = (network: string, payload: string) => {
         withScope(scope => {
             scope.clear(); // scope is also cleared in beforeSend sentry handler, this is just to be safe.
-            scope.setTag(coinjoinReportTag, true);
-            scope.setTag(coinjoinNetworkTag, network);
+            scope.setTag(COINJOIN_REPORT_TAG, true);
+            scope.setTag(COINJOIN_NETWORK_TAG, network);
             captureMessage(payload, scope);
         });
     };
@@ -76,11 +80,11 @@ export const init: ModuleInit = ({ mainWindowProxy, store, mainThreadEmitter }) 
                 mainThreadEmitter.emit('module/request-interceptor', event),
             );
 
-            backend.subscribe('log', ({ level, payload }) => {
+            backend.subscribe('log', ({ level, payload }: LogEvent) => {
                 if (level === 'error') {
                     sentryError(settings.network, payload);
                 }
-                (logger as any)[level](SERVICE_NAME, `${BACKEND_CHANNEL} ${payload}`);
+                logger[level](SERVICE_NAME, `${BACKEND_CHANNEL} ${payload}`);
             });
 
             const unsubscribeTorSettingsChange = store.onTorSettingsChange(torSettings =>

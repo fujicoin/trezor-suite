@@ -1,8 +1,8 @@
 import { useSelector } from 'react-redux';
 
-import { selectSelectedDevice } from '@suite-common/wallet-core';
+import { selectDeviceModel, selectDeviceName } from '@suite-common/device';
 import { Box, HStack, Text } from '@suite-native/atoms';
-import { useNativeStyles } from '@trezor/styles';
+import { useNativeStyles } from '@trezor/styles-native';
 
 import { DeviceConnectionStatus } from './DeviceItem/DeviceConnectionStatus';
 import {
@@ -16,23 +16,24 @@ import { headerStyle } from './DeviceItem/SimpleDeviceItemContent';
 export const BootloaderModeItemContent = () => {
     const { applyStyle } = useNativeStyles();
 
-    const device = useSelector(selectSelectedDevice);
+    const deviceModel = useSelector(selectDeviceModel);
+    const deviceName = useSelector(selectDeviceName);
 
-    if (!device) return null;
+    if (!deviceModel) return null;
 
     return (
         <HStack
             style={applyStyle(contentWrapperStyle, { height: DEVICE_SWITCHER_ITEM_CONTENT_HEIGHT })}
         >
-            <DeviceItemIcon deviceId={null} />
+            <DeviceItemIcon deviceModel={deviceModel} />
             <Box style={applyStyle(itemStyle, { isCompact: true })}>
                 <Text
-                    variant="highlight"
+                    variant="body-md-strong"
                     ellipsizeMode="tail"
                     numberOfLines={1}
                     style={applyStyle(headerStyle)}
                 >
-                    {device.name}
+                    {deviceName}
                 </Text>
                 <Box>
                     <DeviceConnectionStatus isConnected={false} isDeviceInBootloaderMode={true} />

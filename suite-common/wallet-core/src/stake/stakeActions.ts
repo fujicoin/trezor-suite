@@ -1,7 +1,7 @@
 import { createAction } from '@reduxjs/toolkit';
 
 import { type NetworkSymbol } from '@suite-common/wallet-config';
-import { PrecomposedTransactionFinal, StakeFormState } from '@suite-common/wallet-types';
+import { type PrecomposedTransactionFinal, type StakeFormState } from '@suite-common/wallet-types';
 
 export const STAKE_MODULE_PREFIX = '@common/wallet-core/stake';
 
@@ -14,6 +14,17 @@ type RequestPushTransactionPayload = {
     tx: string;
     symbol: NetworkSymbol;
 };
+
+export type VotingDelegationOption =
+    | { type: 'everstake' }
+    | { type: 'another_drep'; drepId: string };
+
+const setVotingDelegationOption = createAction(
+    `${STAKE_MODULE_PREFIX}/setVotingDelegationOption`,
+    (payload: VotingDelegationOption) => ({
+        payload,
+    }),
+);
 
 const requestSignTransaction = createAction(
     `${STAKE_MODULE_PREFIX}/requestSignTransaction`,
@@ -34,5 +45,6 @@ const dispose = createAction(`${STAKE_MODULE_PREFIX}/dispose`);
 export const stakeActions = {
     requestSignTransaction,
     requestPushTransaction,
+    setVotingDelegationOption,
     dispose,
 };

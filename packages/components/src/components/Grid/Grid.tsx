@@ -1,37 +1,55 @@
 import styled from 'styled-components';
 
-import { SpacingValues } from '@trezor/theme';
+import { type SpacingValues, type SpacingValuesNew } from '@trezor/theme';
 
+import { type GridAlignItems, type GridJustifyContent } from './types';
 import {
-    FrameProps,
-    FramePropsKeys,
+    type FrameProps,
+    type FramePropsKeys,
     pickAndPrepareFrameProps,
     withFrameProps,
 } from '../../utils/frameProps';
-import { TransientProps } from '../../utils/transientProps';
+import { type TransientProps } from '../../utils/transientProps';
 
-export const allowedGridFrameProps: FramePropsKeys[] = ['margin', 'width', 'height', 'flex'];
+export const allowedGridFrameProps: FramePropsKeys[] = [
+    'margin',
+    'padding',
+    'width',
+    'height',
+    'flex',
+    'overflow',
+    'borderRadius',
+];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedGridFrameProps)[number]>;
 
 const Container = styled.div<
     TransientProps<AllowedFrameProps> & {
         $columns: number | string;
-        $gap: SpacingValues;
+        $rowGap: SpacingValues | SpacingValuesNew;
+        $columnGap: SpacingValues | SpacingValuesNew;
+        $alignItems: GridAlignItems;
+        $justifyContent: GridJustifyContent;
         $forceEqualColumns: boolean;
     }
 >`
     display: grid;
-    gap: ${({ $gap }) => $gap}px;
-    grid-template-columns:
-        ${({ $columns, $forceEqualColumns }) =>
-            typeof $columns === 'number'
-                ? `repeat(${$columns}, minmax(${$forceEqualColumns ? '0' : 'min-content'}, 1fr));`
-                : $columns}
-        ${withFrameProps};
+    gap: ${({ $rowGap, $columnGap }) => `${$rowGap}px ${$columnGap}px`};
+    grid-template-columns: ${({ $columns, $forceEqualColumns }) =>
+        typeof $columns === 'number'
+            ? `repeat(${$columns}, minmax(${$forceEqualColumns ? '0' : 'min-content'}, 1fr))`
+            : $columns};
+    align-items: ${({ $alignItems }) => $alignItems};
+    justify-content: ${({ $justifyContent }) => $justifyContent};
+
+    ${withFrameProps}
 `;
 
 export type GridProps = AllowedFrameProps & {
-    gap?: SpacingValues;
+    gap?: SpacingValues | SpacingValuesNew;
+    rowGap?: SpacingValues | SpacingValuesNew;
+    columnGap?: SpacingValues | SpacingValuesNew;
+    alignItems?: GridAlignItems;
+    justifyContent?: GridJustifyContent;
     columns: number | string;
     children: React.ReactNode;
     forceEqualColumns?: boolean;
@@ -40,6 +58,10 @@ export type GridProps = AllowedFrameProps & {
 export const Grid = ({
     columns,
     gap = 0,
+    rowGap = gap,
+    columnGap = gap,
+    alignItems = 'normal',
+    justifyContent = 'normal',
     children,
     forceEqualColumns = false,
     ...rest
@@ -49,8 +71,11 @@ export const Grid = ({
     return (
         <Container
             $columns={columns}
-            $gap={gap}
+            $rowGap={rowGap}
+            $columnGap={columnGap}
             $forceEqualColumns={forceEqualColumns}
+            $alignItems={alignItems}
+            $justifyContent={justifyContent}
             {...frameProps}
         >
             {children}

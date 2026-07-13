@@ -1,12 +1,12 @@
 import { useFormatters } from '@suite-common/formatters';
-import { SignValue } from '@suite-common/suite-types';
-import { NetworkSymbol } from '@suite-common/wallet-config';
-import { TokenAddress } from '@suite-common/wallet-types';
-import { BASE_CURRENCY_ZERO } from '@suite-common/wallet-utils';
-import { Box, TextProps } from '@suite-native/atoms';
+import { type SignValue } from '@suite-common/suite-types';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { type TokenAddress } from '@suite-common/wallet-types';
+import { Box, type TextProps } from '@suite-native/atoms';
 
-import { FormatterProps } from '../types';
+import { type FormatterProps } from '../types';
 import { AmountText } from './AmountText';
+import { EmptyAmountSkeleton } from './EmptyAmountSkeleton';
 import { SignValueFormatter } from './SignValueFormatter';
 import { useFiatFromCryptoValue } from '../hooks/useFiatFromCryptoValue';
 
@@ -33,6 +33,7 @@ export const TokenToFiatAmountFormatter = ({
     numberOfLines,
     historicRate,
     useHistoricRate,
+    isForcedDiscreetMode,
     ...rest
 }: TokenToFiatAmountFormatterProps) => {
     const { BaseCurrencyAmountFormatter } = useFormatters();
@@ -45,26 +46,33 @@ export const TokenToFiatAmountFormatter = ({
         useHistoricRate,
     });
 
-    const formattedFiatValue = BaseCurrencyAmountFormatter.format(fiatValue ?? BASE_CURRENCY_ZERO);
+    if (fiatValue === null && !isForcedDiscreetMode) {
+        return <EmptyAmountSkeleton />;
+    }
 
-    return signValue ? (
-        <Box flexDirection="row">
-            <SignValueFormatter value={signValue} />
-            <AmountText
-                value={formattedFiatValue}
-                isDiscreetText={isDiscreetText}
-                ellipsizeMode={ellipsizeMode}
-                numberOfLines={numberOfLines}
-                {...rest}
-            />
-        </Box>
-    ) : (
+    const formattedFiatValue = isForcedDiscreetMode
+        ? '$0.00' // in case of isForceDiscreetMode the value is blurred, so the real value does not matter
+        : BaseCurrencyAmountFormatter.format(fiatValue!);
+
+    const amountText = (
         <AmountText
             value={formattedFiatValue}
             isDiscreetText={isDiscreetText}
             ellipsizeMode={ellipsizeMode}
             numberOfLines={numberOfLines}
+            isForcedDiscreetMode={isForcedDiscreetMode}
             {...rest}
         />
+    );
+
+    if (!signValue) {
+        return amountText;
+    }
+
+    return (
+        <Box flexDirection="row">
+            {!isForcedDiscreetMode && <SignValueFormatter value={signValue} />}
+            {amountText}
+        </Box>
     );
 };

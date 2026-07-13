@@ -1,87 +1,78 @@
-import { useEffect } from 'react';
-
 import styled from 'styled-components';
 
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { Anchor, SettingsAnchor } from '@suite/router';
+import { useServices } from '@suite-common/dependency-injection';
 import { Switch, Tooltip } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { ActionColumn, SectionItem, TextColumn } from '@trezor/product-components';
 
-import {
-    checkBioAuthAvailableThunk,
-    requestBioAuthChangeThunk,
-} from 'src/actions/suite/bioAuthThunks';
-import { SettingsSectionItem } from 'src/components/settings';
-import { ActionColumn, TextColumn } from 'src/components/suite';
-import { Translation } from 'src/components/suite/Translation';
-import { SettingsAnchor } from 'src/constants/suite/anchors';
-import { useDispatch, useSelector, useTranslation } from 'src/hooks/suite';
-import {
-    selectBioAuthChangeNextValue,
-    selectBioAuthEnabled,
-    selectIsBioAuthAvailable,
-    selectIsBioAuthAvailableStateKnown,
-    selectIsRequestingBioAuthChange,
-} from 'src/reducers/bioAuth';
+import { useBioAuthDesktopApi } from 'src/hooks/suite/useBioAuthDesktopApi';
 
 const PositionedSwitch = styled.div`
     align-self: center;
 `;
 
 export const BioAuthSettings = () => {
-    const biometricAuthEnabled = useSelector(selectBioAuthEnabled);
-    const isRequestingBioAuthChange = useSelector(selectIsRequestingBioAuthChange);
-    const bioAuthChangeNextValue = useSelector(selectBioAuthChangeNextValue);
-    const isBioAuthStateKnown = useSelector(selectIsBioAuthAvailableStateKnown);
-    const isBioAuthAvailable = useSelector(selectIsBioAuthAvailable);
-    const optimisticValue = bioAuthChangeNextValue ?? biometricAuthEnabled;
-    const { translationString } = useTranslation();
-    const dispatch = useDispatch();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
+    const {
+        isBioAuthEnabled,
+        isBioAuthAvailable,
+        requestBioAuthChange,
+        optimisticUpdateIsBioAuthEnabled,
+        isCallInProgress,
+    } = useBioAuthDesktopApi();
 
     const onChange = (nextBioAuthEnabledValue: boolean) => {
-        dispatch(requestBioAuthChangeThunk({ translationString, nextBioAuthEnabledValue }));
+        requestBioAuthChange();
         analytics.report({
-            type: EventType.SettingsGeneralBioAuth,
+            type: events.settingsGeneralBioAuthEvent.name,
             payload: {
                 value: nextBioAuthEnabledValue,
             },
         });
     };
 
-    useEffect(() => {
-        dispatch(checkBioAuthAvailableThunk());
-    }, [dispatch]);
-
-    const tooltipActive = !isBioAuthStateKnown || !isBioAuthAvailable;
+    const tooltipActive = isBioAuthAvailable === false;
 
     return (
-        <SettingsSectionItem anchorId={SettingsAnchor.AddressDisplay}>
-            <TextColumn
-                title={<Translation id="TR_BIO_AUTH" />}
-                description={<Translation id="TR_BIO_AUTH_DESCRIPTION" />}
-            />
-            <ActionColumn>
-                <PositionedSwitch>
-                    <Tooltip
-                        isActive={tooltipActive}
-                        isFullWidth
-                        placement="bottom"
-                        cursor={tooltipActive ? 'not-allowed' : undefined}
-                        content={
-                            !isBioAuthStateKnown ? (
-                                <Translation id="TR_BIO_AUTH_STATE_UNKNOWN_TOOLTIP" />
-                            ) : (
-                                <Translation id="TR_BIO_AUTH_UNAVAILABLE_TOOLTIP" />
-                            )
-                        }
-                    >
-                        <Switch
-                            isDisabled={isRequestingBioAuthChange || tooltipActive}
-                            data-testid="@bioAuth/toggle-switch"
-                            isChecked={optimisticValue}
-                            onChange={onChange}
-                        />
-                    </Tooltip>
-                </PositionedSwitch>
-            </ActionColumn>
-        </SettingsSectionItem>
+        <Anchor anchorId={SettingsAnchor.BioAuth}>
+            {({ anchorId, anchorRef, shouldHighlight }) => (
+                <SectionItem
+                    data-testid={anchorId}
+                    ref={anchorRef}
+                    shouldHighlight={shouldHighlight}
+                >
+                    <TextColumn
+                        title={<Translation id="TR_BIO_AUTH" />}
+                        description={<Translation id="TR_BIO_AUTH_DESCRIPTION" />}
+                    />
+                    <ActionColumn>
+                        <PositionedSwitch>
+                            <Tooltip
+                                isActive={tooltipActive}
+                                width="100%"
+                                placement="bottom"
+                                cursor={tooltipActive ? 'not-allowed' : undefined}
+                                content={
+                                    isBioAuthAvailable === null ? (
+                                        <Translation id="TR_BIO_AUTH_STATE_UNKNOWN_TOOLTIP" />
+                                    ) : (
+                                        <Translation id="TR_BIO_AUTH_UNAVAILABLE_TOOLTIP" />
+                                    )
+                                }
+                            >
+                                <Switch
+                                    isDisabled={isCallInProgress || tooltipActive}
+                                    data-testid="@bioAuth/toggle-switch"
+                                    isChecked={optimisticUpdateIsBioAuthEnabled ?? isBioAuthEnabled}
+                                    onChange={onChange}
+                                />
+                            </Tooltip>
+                        </PositionedSwitch>
+                    </ActionColumn>
+                </SectionItem>
+            )}
+        </Anchor>
     );
 };

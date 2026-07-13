@@ -1,26 +1,23 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Animated, { FadeInLeft, FadeOutLeft } from 'react-native-reanimated';
 
-import { type NetworkSymbol, getNetworkType } from '@suite-common/wallet-config';
-import { AccountKey } from '@suite-common/wallet-types';
+import { type NetworkSymbol, type NetworkType, getNetworkType } from '@suite-common/wallet-config';
+import { type AccountKey, type FormState } from '@suite-common/wallet-types';
 import { Box, Button, useBottomSheetModal } from '@suite-native/atoms';
 import { useFormContext } from '@suite-native/forms';
-import { Icon } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
 
 import { CustomFeeBottomSheet } from './CustomFeeBottomSheet';
 import { CustomFeeCard } from './CustomFeeCard';
-import { FeesFormValues } from '../../../feesFormSchema';
-import { NativeSupportedFeeLevel } from '../../../types/fees';
+import { type FeesFormValues } from '../../../feesFormSchema';
+import { type CustomFeeParams } from '../../../hooks';
+import { useCustomFee } from '../../../hooks/fees/useCustomFee';
 
 type CustomFeeProps = {
     accountKey: AccountKey;
     symbol: NetworkSymbol;
-    feeValue: string;
-    isFeeLoading: boolean;
-    isSubmittable: boolean;
-    isErrorBoxVisible: boolean;
-    onCustomFeeSet: (feePerUnit: string, feeLimit?: string) => void;
+    formDraft: FormState | null | undefined;
+    onCustomFeeSet: (customFeeParams: CustomFeeParams) => void;
 };
 
 type CustomFeeButtonProps = {
@@ -31,9 +28,10 @@ export const CustomFeeButton = ({ onPress }: CustomFeeButtonProps) => (
     <Animated.View entering={FadeInLeft.delay(300)} exiting={FadeOutLeft}>
         <Box alignSelf="center">
             <Button
-                colorScheme="tertiaryElevation0"
-                size="small"
-                viewLeft={<Icon name="plus" size="mediumLarge" />}
+                intent="neutral"
+                priority="secondary"
+                size="medium"
+                iconLeft="plus"
                 testID="@transactionManagement/fees-level-custom"
                 onPress={onPress}
             >
@@ -43,40 +41,48 @@ export const CustomFeeButton = ({ onPress }: CustomFeeButtonProps) => (
     </Animated.View>
 );
 
-export const CustomFee = ({
-    accountKey,
-    symbol,
-    feeValue,
-    isFeeLoading,
-    isSubmittable,
-    isErrorBoxVisible,
-    onCustomFeeSet,
-}: CustomFeeProps) => {
+const CustomFeeContentWrapper = ({ accountKey, formDraft, onCustomFeeSet }: CustomFeeProps) => {
     const { bottomSheetRef, openModal, closeModal } = useBottomSheetModal();
 
-    const [previousSelectedFeeLevelLabel, setPreviousSelectedFeeLevelLabel] =
-        useState<NativeSupportedFeeLevel>('normal');
-    const { watch, setValue, getValues } = useFormContext<FeesFormValues>();
+    const {
+        watch,
+        getValues,
+        reset,
+        formState: { defaultValues },
+    } = useFormContext<FeesFormValues>();
 
     const isCustomFeeSelected = watch('feeLevel') === 'custom';
+    const lastSavedValuesRef = useRef<FeesFormValues>(undefined);
+    const initialFormValuesRef = useRef<FeesFormValues>(undefined);
+
+    useEffect(() => {
+        initialFormValuesRef.current = getValues();
+    }, [getValues]);
+
+    // Use the hook to get fee-related values
+    const { feeValue, isFeeLoading, isSubmittable, isErrorBoxVisible } = useCustomFee({
+        accountKey,
+        formState: formDraft,
+    });
 
     const openCustomFeeBottomSheet = () => {
         openModal();
+        lastSavedValuesRef.current = defaultValues as FeesFormValues;
 
+        // Store the initial form values when opening the modal in case of cancellation
         const currentSelectedFeeLevelLabel = getValues('feeLevel');
-        if (currentSelectedFeeLevelLabel !== 'custom')
-            setPreviousSelectedFeeLevelLabel(currentSelectedFeeLevelLabel);
+        if (currentSelectedFeeLevelLabel !== 'custom' && initialFormValuesRef.current !== undefined)
+            // This allows the "Cancel" button to return to the last known standard fee
+            initialFormValuesRef.current = {
+                ...initialFormValuesRef.current,
+                feeLevel: currentSelectedFeeLevelLabel,
+            };
     };
 
     const cancelCustomFee = () => {
-        setValue('feeLevel', previousSelectedFeeLevelLabel);
+        reset(initialFormValuesRef.current);
         closeModal();
     };
-
-    // custom fees are not allowed for solana
-    if (getNetworkType(symbol) === 'solana') {
-        return null;
-    }
 
     return (
         <Box flex={1}>
@@ -91,6 +97,7 @@ export const CustomFee = ({
             )}
 
             <CustomFeeBottomSheet
+                lastSavedValuesRef={lastSavedValuesRef}
                 ref={bottomSheetRef}
                 accountKey={accountKey}
                 onClose={closeModal}
@@ -101,5 +108,23 @@ export const CustomFee = ({
                 isErrorBoxVisible={isErrorBoxVisible}
             />
         </Box>
+    );
+};
+
+const CUSTOM_FEE_UNSUPPORTED_NETWORK_TYPES: NetworkType[] = ['solana', 'tron'];
+
+export const CustomFee = ({ accountKey, symbol, formDraft, onCustomFeeSet }: CustomFeeProps) => {
+    const networkType = getNetworkType(symbol);
+    if (CUSTOM_FEE_UNSUPPORTED_NETWORK_TYPES.includes(networkType)) {
+        return null;
+    }
+
+    return (
+        <CustomFeeContentWrapper
+            accountKey={accountKey}
+            symbol={symbol}
+            formDraft={formDraft}
+            onCustomFeeSet={onCustomFeeSet}
+        />
     );
 };

@@ -1,4 +1,4 @@
-import { ReactNode, useId } from 'react';
+import { type ReactNode, useId } from 'react';
 
 import styled, { css } from 'styled-components';
 
@@ -6,8 +6,8 @@ import { borders, spacings } from '@trezor/theme';
 
 import { type SwitchLabelPosition, type SwitchSize } from './types';
 import { mapSizeToHandleSize, mapSizeToLabelContainerGap, mapSizeToLabelTypography } from './utils';
-import { FrameProps, FramePropsKeys } from '../../../utils/frameProps';
-import { focusStyleTransition, getFocusShadowStyle } from '../../../utils/utils';
+import { type FrameProps, type FramePropsKeys } from '../../../utils/frameProps';
+import { commonFocusStyles, focusStyleTransition } from '../../../utils/utils';
 import { Box } from '../../Box/Box';
 import { Row } from '../../Flex/Flex';
 import { Text } from '../../typography/Text/Text';
@@ -41,22 +41,24 @@ const Container = styled.div<{
         $isDisabled
             ? css`
                   background: ${$isChecked
-                      ? theme.stateFillElementBrandBoldActiveDisabled
-                      : theme.stateFillElementBoldDisabled};
+                      ? theme.elementFillFieldSelectedDisabled
+                      : theme.elementFillBoldDisabled};
               `
             : css`
                   background: ${$isChecked
-                      ? theme.stateFillElementBrandBoldActive
-                      : theme.baseFillElementNeutralBold};
+                      ? theme.elementFillFieldSelected
+                      : theme.elementFillNeutralBold};
 
                   :focus-within:has(:focus-visible),
                   &:hover {
                       background: ${$isChecked
-                          ? theme.stateFillElementBrandBoldActiveHovered
-                          : theme.stateFillElementNeutralBoldHovered};
+                          ? theme.elementFillFieldSelectedHovered
+                          : theme.elementFillNeutralBoldHovered};
                   }
 
-                  ${getFocusShadowStyle(':focus-within:has(:focus-visible)')}
+                  &:focus-within:has(:focus-visible) {
+                      ${commonFocusStyles}
+                  }
               `};
 `;
 
@@ -66,16 +68,16 @@ const Handle = styled.button<{ $isChecked: boolean }>`
     aspect-ratio: 1;
     border: none;
     border-radius: ${borders.radii.full};
-    background: ${({ theme }) => theme.baseContentReversePrimary};
+    background: ${({ theme }) => theme.contentPrimaryInverse};
     transform: ${({ $isChecked }) => $isChecked && `translateX(100%)`};
     transition: transform 0.25s ease 0s;
     pointer-events: none;
-    box-shadow: ${({ theme }) => theme.boxShadowBase};
+    box-shadow: ${({ theme }) => theme.elementShadowElevated};
 `;
 
 const CheckboxInput = styled.input`
     border: 0;
-    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
     height: 1px;
     margin: -1px;
     overflow: hidden;
@@ -101,7 +103,7 @@ export const Switch = ({
         onChange?.(!isChecked);
     };
 
-    const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const handleContainerClick = (e: React.MouseEvent<HTMLElement>) => {
         // Prevent handling clicks that originate from the input or label
         const target = e.target as HTMLElement;
         if (target.tagName === 'INPUT' || target.tagName === 'LABEL') return;
@@ -128,7 +130,7 @@ export const Switch = ({
                     height={mapSizeToHandleSize(size)}
                     aspectRatio="2 / 1"
                     margin={spacings.xxxs}
-                    opacity={isDisabled ? 0.66 : 1}
+                    opacity={isDisabled ? 0.74 : 1}
                 >
                     <Handle tabIndex={-1} $isChecked={isChecked} type="button" />
                 </Box>
@@ -145,7 +147,8 @@ export const Switch = ({
             {label && (
                 <label htmlFor={id}>
                     <Text
-                        variant={isDisabled ? 'disabled' : 'tertiary'}
+                        intent="neutral"
+                        isDisabled={isDisabled}
                         typographyStyle={mapSizeToLabelTypography(size)}
                         cursor={isDisabled ? undefined : 'pointer'}
                     >

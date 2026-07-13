@@ -3,18 +3,23 @@ import HtmlWebpackPlugin from 'html-webpack-plugin';
 import path from 'path';
 import webpack from 'webpack';
 
+if (!process.env.__SUITE_WEB_URL__) {
+    console.warn(`
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║   ⚠️  __SUITE_WEB_URL__ is not set!                              ║
+║                                                                  ║
+║   The webextension build will fall back to the production        ║
+║   suite.trezor.io URL.                                           ║
+║                                                                  ║
+║   Set __SUITE_WEB_URL__ env variable to point to a custom        ║
+║   suite-web instance.                                            ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+`);
+}
+
 const DIST = path.resolve(__dirname, '../build-webextension');
-const CONNECT_WEB_PATH = path.join(__dirname, '..', '..', 'connect-web');
-
-const CONNECT_WEB_EXTENSION_PATH = path.join(CONNECT_WEB_PATH, 'src', 'webextension');
-
-const CONNECT_WEB_EXTENSION_PACKAGE_PATH = path.join(
-    __dirname,
-    '..',
-    '..',
-    'connect-webextension',
-    'build',
-);
 
 const config: webpack.Configuration = {
     target: 'web',
@@ -97,6 +102,9 @@ const config: webpack.Configuration = {
         hints: false,
     },
     plugins: [
+        new webpack.DefinePlugin({
+            __SUITE_WEB_URL__: JSON.stringify(process.env.__SUITE_WEB_URL__),
+        }),
         new HtmlWebpackPlugin({
             chunks: ['extensionPopup'],
             filename: 'extension-popup.html',
@@ -116,22 +124,6 @@ const config: webpack.Configuration = {
                 {
                     from: path.join(__dirname, '..', 'src-webextension', 'manifest.json'),
                     to: `${DIST}/`,
-                },
-                {
-                    from: path.join(
-                        CONNECT_WEB_EXTENSION_PACKAGE_PATH,
-                        'trezor-connect-webextension.js',
-                    ),
-                    to: `${DIST}/vendor`,
-                    info: { minimized: false },
-                },
-                {
-                    from: path.join(CONNECT_WEB_EXTENSION_PATH, 'trezor-usb-permissions.js'),
-                    to: `${DIST}/vendor`,
-                },
-                {
-                    from: path.join(CONNECT_WEB_EXTENSION_PATH, 'trezor-usb-permissions.html'),
-                    to: `${DIST}`,
                 },
             ],
         }),

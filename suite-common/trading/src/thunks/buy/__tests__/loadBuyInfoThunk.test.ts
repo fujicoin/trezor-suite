@@ -1,12 +1,17 @@
 import { combineReducers } from '@reduxjs/toolkit';
-import { BuyCryptoPaymentMethod, BuyProviderInfo, CryptoId, FiatCurrenciesProps } from 'invity-api';
+import {
+    type BuyCryptoPaymentMethod,
+    type BuyProviderInfo,
+    type CryptoId,
+    type FiatCurrenciesProps,
+} from 'invity-api';
 
 import { configureMockStore } from '@suite-common/test-utils';
 
-import { buyThunks } from '../../';
 import { invityAPI } from '../../../invityAPI';
 import { buyInitialState, tradingBuyReducer } from '../../../reducers/buyReducer';
 import { regional } from '../../../regional';
+import { buyThunks } from '../index';
 
 describe('loadBuyInfoThunk', () => {
     jest.mock('../../../invityAPI');
@@ -18,14 +23,14 @@ describe('loadBuyInfoThunk', () => {
         extra: {},
         reducer: combineReducers({
             wallet: combineReducers({
-                tradingNew: combineReducers({
+                trading: combineReducers({
                     buy: tradingBuyReducer,
                 }),
             }),
         }),
         preloadedState: {
             wallet: {
-                tradingNew: {
+                trading: {
                     buy: buyInitialState,
                 },
             },
@@ -86,6 +91,7 @@ describe('loadBuyInfoThunk', () => {
             isActive: true,
             paymentMethods: [] as BuyCryptoPaymentMethod[],
             supportedCountries: [],
+            supportedSubdivisions: {},
         };
 
         const buyInfoAPI = {

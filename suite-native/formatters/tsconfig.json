@@ -21,9 +21,16 @@
             "path": "../../suite-common/wallet-utils"
         },
         { "path": "../atoms" },
+        { "path": "../intl" },
         { "path": "../tokens" },
         { "path": "../../packages/env-utils" },
-        { "path": "../../packages/styles" },
-        { "path": "../../packages/utils" }
+        { "path": "../../packages/protobuf" },
+        {
+            "path": "../../packages/styles-native"
+        },
+        { "path": "../../packages/theme" },
+        { "path": "../../packages/utils" },
+        { "path": "../test-utils" },
+        { "path": "../test-utils-store" }
     ]
 }

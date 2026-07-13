@@ -1,22 +1,43 @@
-import { useTradingBuyForm } from 'src/hooks/wallet/trading/form/useTradingBuyForm';
-import { TradingFormContext } from 'src/hooks/wallet/trading/form/useTradingCommonForm';
-import { UseTradingProps } from 'src/types/trading/trading';
-import { TradingContainer } from 'src/views/wallet/trading/common/TradingContainer';
-import { TradingSelectedOffer } from 'src/views/wallet/trading/common/TradingSelectedOffer/TradingSelectedOffer';
+import {
+    selectTradingBuySelectedQuote,
+    selectTradingProviderByNameAndTradeType,
+} from '@suite-common/trading';
+import { selectHasRunningDiscovery } from '@suite-common/wallet-core';
+import { Column } from '@trezor/components';
 
-const TradingBuyConfirmComponent = ({ selectedAccount }: UseTradingProps) => {
-    const tradingBuyContextValues = useTradingBuyForm({
-        selectedAccount,
-        pageType: 'confirm',
-    });
+import { useSelector } from 'src/hooks/suite';
+import { useTradingBuyConfirm } from 'src/hooks/wallet/trading/useTradingBuyConfirm';
+import { DiscoveryWarning } from 'src/views/wallet/staking/components/StakingDashboard/components/DiscoveryWarning';
+import { TradingFooter } from 'src/views/wallet/trading/common/TradingFooter/TradingFooter';
+import { useTradingPageHeader } from 'src/views/wallet/trading/common/TradingLayout/useTradingPageHeader';
+import { TradingOfferBuy } from 'src/views/wallet/trading/common/TradingSelectedOffer/TradingOfferBuy/TradingOfferBuy';
+
+export const TradingBuyConfirm = () => {
+    const { confirmTrade, isConfirmDisabled } = useTradingBuyConfirm();
+    const selectedQuote = useSelector(selectTradingBuySelectedQuote);
+    const provider = useSelector(state =>
+        selectTradingProviderByNameAndTradeType(state, selectedQuote?.exchange, 'buy'),
+    );
+    const isDiscoveryRunning = useSelector(selectHasRunningDiscovery);
+    useTradingPageHeader();
+
+    if (!selectedQuote) {
+        return null;
+    }
 
     return (
-        <TradingFormContext.Provider value={tradingBuyContextValues}>
-            <TradingSelectedOffer />
-        </TradingFormContext.Provider>
+        <>
+            {isDiscoveryRunning && (
+                <Column margin={{ bottom: 16 }}>
+                    <DiscoveryWarning />
+                </Column>
+            )}
+            <TradingOfferBuy
+                selectedQuote={selectedQuote}
+                confirmTrade={confirmTrade}
+                isConfirmDisabled={isConfirmDisabled}
+            />
+            <TradingFooter provider={provider} />
+        </>
     );
 };
-
-export const TradingBuyConfirm = () => (
-    <TradingContainer SectionComponent={TradingBuyConfirmComponent} />
-);

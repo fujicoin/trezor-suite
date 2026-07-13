@@ -1,28 +1,32 @@
-import { WalletKitTypes } from '@reown/walletkit';
+import { type WalletKitTypes } from '@reown/walletkit';
 import type { ProposalTypes } from '@walletconnect/types';
 
 import * as trezorConnectPopupActions from '@suite-common/connect-popup';
+import { selectSelectedDevice } from '@suite-common/device';
+import { selectIsMevProtectionFeatureEnabled } from '@suite-common/mev';
 import { createThunk } from '@suite-common/redux-utils';
-import { Network, getNetwork, networksCollection } from '@suite-common/wallet-config';
+import { type Network, getNetwork, networksCollection } from '@suite-common/wallet-config';
 import { ETH_CONTRACT_CALL_BACKUP_GAS_LIMIT } from '@suite-common/wallet-constants';
 import {
+    ethereumGetCurrentNonceThunk,
     selectAccounts,
     selectIsMevProtectionEnabled,
-    selectIsMevProtectionFeatureEnabled,
-    selectSelectedDevice,
 } from '@suite-common/wallet-core';
-import { ethereumGetCurrentNonceThunk } from '@suite-common/wallet-core/src/send/sendFormEthereumThunks';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
 import { getAccountIdentity, getMevProtectedTxData, sanitizeHex } from '@suite-common/wallet-utils';
-import TrezorConnect, { CallMethodResponse } from '@trezor/connect';
-import { isAscii, isHex } from '@trezor/utils';
+import TrezorConnect, {
+    type CallMethodResponse,
+    type EthereumSignTypedData,
+    type EthereumSignTypedDataTypes,
+} from '@trezor/connect';
+import { isAscii, isHex, throwError } from '@trezor/utils';
 
 import { WALLETCONNECT_MODULE } from '../walletConnectConstants';
 import { selectSessionByTopic } from '../walletConnectReducer';
 import {
-    PendingConnectionProposalNetwork,
-    WalletConnectAdapter,
-    WalletConnectNamespace,
+    type PendingConnectionProposalNetwork,
+    type WalletConnectAdapter,
+    type WalletConnectNamespace,
 } from '../walletConnectTypes';
 
 const methods = [
@@ -42,19 +46,14 @@ const ethereumRequestThunk = createThunk<
     const isMevProtectionEnabled = selectIsMevProtectionEnabled(getState());
     const isMevProtectionFeatureEnabled = selectIsMevProtectionFeatureEnabled(getState());
 
-    const getAccount = (address: string, chainId?: number) => {
-        const account = selectAccounts(getState()).find(
+    const getAccount = (address: string, chainId?: number) =>
+        selectAccounts(getState()).find(
             a =>
                 a.descriptor.toLowerCase() === address.toLowerCase() &&
                 a.networkType === 'ethereum' &&
                 (!chainId || getNetwork(a.symbol).chainId === chainId),
-        );
-        if (!account) {
-            throw new Error('Account not found');
-        }
+        ) || throwError('Account not found');
 
-        return account;
-    };
     const session = selectSessionByTopic(getState(), event.topic);
     if (!session) {
         throw new Error('WalletConnect Session not found');
@@ -77,7 +76,7 @@ const ethereumRequestThunk = createThunk<
             const messageDecoded = message.startsWith('0x')
                 ? Buffer.from(message.slice(2), 'hex').toString('utf8')
                 : message;
-            const messageHex = isHex(message)
+            const messageHex = isHex(message, { prefix: 'optional', allowEmpty: false })
                 ? sanitizeHex(message)
                 : Buffer.from(message, 'utf8').toString('hex');
             const isReadable = isAscii(messageDecoded);
@@ -104,15 +103,21 @@ const ethereumRequestThunk = createThunk<
         case 'eth_signTypedData_v4': {
             const [address, data] = event.params.request.params;
             const account = getAccount(address);
+            const parsedData = JSON.parse(data);
+
+            // EIP-712 hashes for T1B1 are computed by @trezor/connect internally
+            // since Connect 10 — pass `data` directly for all device models.
+            const payload: EthereumSignTypedData<EthereumSignTypedDataTypes> = {
+                path: account.path,
+                data: parsedData,
+                metamask_v4_compat: true,
+            };
+
             dispatch(
                 trezorConnectPopupActions.connectPopupCallThunk({
                     ...popupCallCommonParams,
                     method: 'ethereumSignTypedData',
-                    payload: {
-                        path: account.path,
-                        data: JSON.parse(data),
-                        metamask_v4_compat: true,
-                    },
+                    payload,
                 }),
             );
             const response = await trezorConnectPopupActions.getPopupCallDeferred(true).promise;
@@ -166,7 +171,10 @@ const ethereumRequestThunk = createThunk<
                 transaction.value = '0x0';
             }
             const { nonce } = await dispatch(
-                ethereumGetCurrentNonceThunk({ selectedAccount: account }),
+                ethereumGetCurrentNonceThunk({
+                    selectedAccount: account,
+                    fetchConfirmedNonce: true,
+                }),
             ).unwrap();
             const nonceHex = sanitizeHex(parseInt(nonce).toString(16));
             const payload = {
@@ -179,7 +187,6 @@ const ethereumRequestThunk = createThunk<
                     chainId,
                 },
                 device,
-                useEmptyPassphrase: device?.useEmptyPassphrase,
             };
             dispatch(
                 trezorConnectPopupActions.connectPopupCallThunk({
@@ -199,8 +206,7 @@ const ethereumRequestThunk = createThunk<
             const txData = getMevProtectedTxData(
                 account.symbol,
                 typedSignPayload.serializedTx,
-                isMevProtectionEnabled,
-                isMevProtectionFeatureEnabled,
+                isMevProtectionEnabled && isMevProtectionFeatureEnabled,
             );
 
             const pushResponse = await TrezorConnect.pushTransaction({
@@ -298,6 +304,7 @@ const processNamespaces = (
 export const ethereumAdapter = {
     methods,
     networkType: 'ethereum',
+    namespaceId: 'eip155',
     requestThunk: ethereumRequestThunk,
     getNamespace,
     getChainId,

@@ -1,23 +1,23 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 import styled, { css } from 'styled-components';
 
-import { Color, Elevation, SpacingValues, mapElevationToBorder, spacings } from '@trezor/theme';
+import { type Color, type SpacingValues, spacings } from '@trezor/theme';
 
 import {
-    FrameProps,
-    FramePropsKeys,
+    type FrameProps,
+    type FramePropsKeys,
     pickAndPrepareFrameProps,
     withFrameProps,
 } from '../../utils/frameProps';
-import { TransientProps } from '../../utils/transientProps';
-import { useElevation } from '../ElevationContext/ElevationContext';
+import { type TransientProps } from '../../utils/transientProps';
 import { Column, Row } from '../Flex/Flex';
 
 export const allowedDividerFrameProps = [
     'margin',
     'width',
     'overflow',
+    'height',
 ] as const satisfies FramePropsKeys[];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedDividerFrameProps)[number]>;
 type DividerOrientation = 'horizontal' | 'vertical';
@@ -33,7 +33,6 @@ export type DividerProps = AllowedFrameProps & {
 
 const Line = styled.div<
     {
-        $elevation: Elevation;
         $strokeWidth: DividerProps['strokeWidth'];
         $color: DividerProps['color'];
         $orientation: DividerOrientation;
@@ -52,8 +51,7 @@ const Line = styled.div<
                   min-height: ${$strokeWidth}px;
               `}
 
-    background: ${({ theme, $elevation, $color }) =>
-        $color ? theme[$color] : mapElevationToBorder({ theme, $elevation })};
+    background: ${({ theme, $color }) => theme[$color ?? 'borderNeutral']};
 
     ${withFrameProps}
 `;
@@ -100,8 +98,6 @@ export const Divider = ({
     gap = spacings.xxl,
     ...rest
 }: DividerProps) => {
-    const { elevation } = useElevation();
-
     const frameProps: AllowedFrameProps = {
         ...rest,
         margin: rest.margin ?? { top: spacings.md, bottom: spacings.md },
@@ -111,7 +107,6 @@ export const Divider = ({
 
     const line = (
         <Line
-            $elevation={elevation}
             $color={color}
             $strokeWidth={strokeWidth}
             $orientation={orientation}

@@ -1,11 +1,22 @@
-import { ThpState } from './thpReducer';
+import { type ThpState } from './thpReducer';
 
-export type WithThpState = {
+export type ThpRootState = {
     thp: ThpState;
 };
 
-export const selectIsThpInProgress = (state: WithThpState) => state.thp.step !== null;
+export const selectThp = (state: ThpRootState) => state.thp;
 
-export const selectThpStep = (state: WithThpState) => state.thp.step;
+export const selectIsThpInProgress = (state: ThpRootState) => state.thp.step !== null;
 
-export const selectThpCredentials = (state: WithThpState) => state.thp.credentials;
+export const selectThpStep = (state: ThpRootState) => state.thp.step;
+
+export const selectThpAutoconnectStep = (state: ThpRootState) => state.thp.autoconnectStep;
+
+export const selectThpLastCode = (state: ThpRootState) => state.thp.lastThpCode;
+
+export const selectThpCredentials = (state: ThpRootState) => state.thp.credentials;
+
+export const selectThpPairingRequestId = (state: ThpRootState) => state.thp.pairingRequestId;
+
+export const selectThpConfirmationRequestId = (state: ThpRootState) =>
+    state.thp.confirmationRequestId;

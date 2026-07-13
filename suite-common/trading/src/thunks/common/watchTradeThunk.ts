@@ -1,15 +1,17 @@
 import { createThunk } from '@suite-common/redux-utils';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
 import { exhaustive } from '@trezor/type-utils';
 
 import { TRADING_THUNK_PREFIX } from '../../constants';
 import { invityAPI } from '../../invityAPI';
-import { tradingActions } from '../../reducers/tradingReducer';
+import { tradingSellActions } from '../../reducers/sellReducer';
+import { tradingActions } from '../../reducers/tradingCommonReducer';
+import { selectTradingSellSelectedQuote } from '../../selectors/tradingSelectors';
 import {
-    TradingTradeMapProps,
-    TradingTransaction,
-    TradingType,
-    TradingWatchTradeResponsePropsMap,
+    type TradingTradeMapProps,
+    type TradingTransaction,
+    type TradingType,
+    type TradingWatchTradeResponsePropsMap,
 } from '../../types';
 
 export type WatchTradeThunk = {
@@ -50,7 +52,7 @@ const watchTradeData = async <T extends TradingType>({
 
 export const watchTradeThunk = createThunk(
     `${TRADING_THUNK_PREFIX}/watchTrade`,
-    async ({ account, trade, refreshCount }: WatchTradeThunk, { dispatch }) => {
+    async ({ account, trade, refreshCount }: WatchTradeThunk, { dispatch, getState }) => {
         invityAPI.createInvityAPIKey(account.descriptor);
 
         const { tradeType } = trade;
@@ -93,6 +95,12 @@ export const watchTradeThunk = createThunk(
 
                 if (data.response.cryptoStringAmount) {
                     data.tradeData.cryptoStringAmount = data.response.cryptoStringAmount;
+                }
+
+                const selectedQuote = selectTradingSellSelectedQuote(getState());
+
+                if (data.tradeData && selectedQuote?.orderId === data.tradeData.orderId) {
+                    dispatch(tradingSellActions.saveSelectedQuote(data.tradeData));
                 }
 
                 dispatch(

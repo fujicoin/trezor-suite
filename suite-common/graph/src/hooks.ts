@@ -4,16 +4,17 @@ import { useDispatch, useSelector } from 'react-redux';
 import { A } from '@mobily/ts-belt';
 import { roundToNearestMinutes, subHours } from 'date-fns';
 
-import { selectHasRunningDiscovery, selectIsDeviceAuthorized } from '@suite-common/wallet-core';
+import { selectIsDeviceAuthorized } from '@suite-common/device';
+import { selectHasRunningDiscovery } from '@suite-common/wallet-core';
 import type { BaseCurrencyCode } from '@trezor/blockchain-link-types';
 
 import { getAccountMovementEvents } from './graphBalanceEvents';
 import { getMultipleAccountBalanceHistoryWithFiat } from './graphDataFetching';
 import {
-    AccountItem,
-    FiatGraphPoint,
-    FiatGraphPointWithCryptoBalance,
-    GroupedBalanceMovementEvent,
+    type AccountItem,
+    type FiatGraphPoint,
+    type FiatGraphPointWithCryptoBalance,
+    type GroupedBalanceMovementEvent,
 } from './types';
 
 export type CommonUseGraphParams = {
@@ -59,11 +60,11 @@ const normalizeExtremeGraphEvents = (
     const minimalEventDate = startOfTimeFrameDate.getTime() + minimalEdgeOffset;
     const maximalEventDate = endOfTimeFrameDate.getTime() - minimalEdgeOffset;
 
-    if (firstEvent.date.getTime() < minimalEventDate) {
+    if (firstEvent && firstEvent.date.getTime() < minimalEventDate) {
         firstEvent.date = new Date(minimalEventDate);
     }
 
-    if (lastEvent.date.getTime() > maximalEventDate) {
+    if (lastEvent && lastEvent.date.getTime() > maximalEventDate) {
         lastEvent.date = new Date(maximalEventDate);
     }
 };
@@ -124,21 +125,24 @@ export function useGraphForAccounts(params: useGraphForAccountsParams): {
 
                     // Process transaction events only for the single account detail graph.
                     if (!isPortfolioGraph) {
-                        await getAccountMovementEvents({
-                            account: accounts[0],
-                            startOfTimeFrameDate,
-                            endOfTimeFrameDate,
-                            dispatch,
-                        }).then(events => {
-                            normalizeExtremeGraphEvents(
-                                events,
-                                startOfTimeFrameDate ?? points[0].date,
+                        const firstAccount = accounts[0];
+                        if (firstAccount) {
+                            await getAccountMovementEvents({
+                                account: firstAccount,
+                                startOfTimeFrameDate,
                                 endOfTimeFrameDate,
-                            );
-                            // We need to set events after graph points, othewise it will mess up events randomly
-                            // because of strange useEffect in AnimatedLineGraph component
-                            setGraphEvents(events);
-                        });
+                                dispatch,
+                            }).then(events => {
+                                normalizeExtremeGraphEvents(
+                                    events,
+                                    startOfTimeFrameDate ?? points[0]?.date ?? new Date(),
+                                    endOfTimeFrameDate,
+                                );
+                                // We need to set events after graph points, othewise it will mess up events randomly
+                                // because of strange useEffect in AnimatedLineGraph component
+                                setGraphEvents(events);
+                            });
+                        }
                     }
 
                     // If the fetch was interrupted by a new fetch, do not set the values.

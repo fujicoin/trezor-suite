@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 
 import { spacings } from '@trezor/theme';
 
-import { Tabs as TabsComponent, TabsProps } from './Tabs';
+import { Tabs as TabsComponent, type TabsProps } from './Tabs';
 import { tabsSizes } from './types';
 import { Column } from '../Flex/Flex';
 
-const meta: Meta = {
+const meta: Meta<typeof TabsComponent> = {
     title: 'Tabs',
-} as Meta;
+};
 export default meta;
 
 const TabsApp = (props: Partial<TabsProps>) => {
@@ -80,7 +80,7 @@ const TabsApp = (props: Partial<TabsProps>) => {
 
     return (
         <Column gap={spacings.md}>
-            <TabsComponent activeItemId={items[selectedTab].id} {...props}>
+            <TabsComponent activeItemId={items[selectedTab]?.id ?? ''} {...props}>
                 {items.map(item => (
                     <TabsComponent.Item key={item.id} {...item}>
                         {item.title}

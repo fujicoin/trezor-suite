@@ -1,30 +1,22 @@
 import { expect as jestExpect } from '@jest/globals';
 import { exec } from 'child_process';
-import { expect as detoxExpect } from 'detox';
-import http from 'http';
 
-import { conditionalDescribe } from '@suite-common/test-utils';
+import { CARDANO, PROTO } from '@trezor/connect';
 import TrezorConnect from '@trezor/connect-mobile';
-import { MNEMONICS, TrezorUserEnvLink } from '@trezor/trezor-user-env-link';
+import { TrezorUserEnvLink } from '@trezor/trezor-user-env-link';
 
-import { onboardingCompleted } from '../fixtures/onboardingCompleted';
-import { onCoinEnabling } from '../pageObjects/coinEnablingActions';
-import {
-    appIsFullyLoaded,
-    disconnectTrezorUserEnv,
-    openApp,
-    prepareTrezorEmulator,
-    restartApp,
-    wait,
-} from '../utils';
+import { btcDiscoveryFinishedStateT3T1 } from '../fixtures/btcDiscoveryFinishedStateT3T1';
+import { deviceAutoEjectState } from '../fixtures/deviceAutoEjectState';
+import { onboardingCompletedState } from '../fixtures/onboardingCompletedState';
+import { onDeviceManager } from '../pageObjects/deviceManagerActions';
+import { DeepLinkServer } from '../support/deepLinkServer';
+import { openApp, preparePreloadedReduxState, prepareTrezorEmulator } from '../support/setup';
+import { waitForVisible } from '../support/utils';
 
-const SERVER_PORT = 8080;
-const SERVER_URL = `http://localhost:${SERVER_PORT}`;
-
-let server: http.Server | undefined;
+const deepLinkServer = new DeepLinkServer();
 
 const openUriScheme = (url: string, platformToOpen: 'android') => {
-    const command = `npx uri-scheme open '${url.replace(/'/g, '%27')}' --${platformToOpen} --raw`;
+    const command = `yarn exec uri-scheme open '${url.replace(/'/g, '%27')}' --${platformToOpen} --raw`;
 
     exec(command, (err, stdout, stderr) => {
         if (err) {
@@ -38,48 +30,22 @@ const openUriScheme = (url: string, platformToOpen: 'android') => {
     });
 };
 
-conditionalDescribe(device.getPlatform() === 'android', 'Deeplink connect popup.', () => {
+const preloadedState = preparePreloadedReduxState(
+    onboardingCompletedState,
+    btcDiscoveryFinishedStateT3T1,
+    deviceAutoEjectState,
+);
+
+describe('Deeplink connect popup. [@androidOnly @T3T1]', () => {
     beforeAll(async () => {
-        await new Promise(resolve => {
-            server = http.createServer((req, res) => {
-                if (req.url) {
-                    const url = new URL(req.url, SERVER_URL);
-                    TrezorConnect.handleDeeplink(url.href);
-                    res.statusCode = 200;
-                    res.setHeader('Content-Type', 'text/plain');
-                    res.end('Callback URL received successfully!\n');
-                }
-            });
+        await deepLinkServer.start();
+        await device.reverseTcpPort(deepLinkServer.port);
+    });
 
-            server.listen(SERVER_PORT, 'localhost', () => {
-                // eslint-disable-next-line no-console
-                console.info(`Server running at ${SERVER_URL}`);
-                resolve(null);
-            });
-        });
-        await device.reverseTcpPort(SERVER_PORT);
-
+    beforeEach(async () => {
         await prepareTrezorEmulator();
-        await openApp({
-            newInstance: true,
-            args: {
-                preloadedState: {
-                    appSettings: {
-                        ...onboardingCompleted?.appSettings,
-                    },
-                    device: {
-                        isDeviceAutoEjectEnabled: true,
-                        devices: [],
-                    },
-                },
-            },
-        });
-
-        await onCoinEnabling.waitForInitScreen();
-        await onCoinEnabling.toggleNetwork('btc');
-        await onCoinEnabling.clickOnConfirmButton();
-
-        await detoxExpect(element(by.id('@home/portfolio/header'))).toExist();
+        await openApp({ args: { preloadedState } });
+        await onDeviceManager.assertDeviceSwitcherState({ title: 'Connected' });
 
         // This `TrezorConnect` instance here is pretending to be the integrator or @trezor/connect-mobile
         await TrezorConnect.init({
@@ -91,30 +57,14 @@ conditionalDescribe(device.getPlatform() === 'android', 'Deeplink connect popup.
             deeplinkOpen: url => {
                 openUriScheme(url, 'android');
             },
-            deeplinkCallbackUrl: `${SERVER_URL}/connect/`,
+            deeplinkCallbackUrl: `${deepLinkServer.url}/connect/`,
             connectSrc: 'https://dev.suite.sldev.cz/connect/develop/',
         });
     });
 
-    beforeEach(async () => {
-        await prepareTrezorEmulator({ seed: MNEMONICS.mnemonic_12 });
-        await restartApp();
-
-        await appIsFullyLoaded();
-        await wait(5000); // wait for trezor device to start communicating with the app
-    });
-
     afterAll(async () => {
-        await disconnectTrezorUserEnv();
-
-        await new Promise(resolve => {
-            if (server) {
-                server.close(() => {
-                    resolve(null);
-                });
-            }
-        });
-        await device.terminateApp();
+        await device.unreverseTcpPort(deepLinkServer.port);
+        await deepLinkServer.stop();
     });
 
     it('Handle deeplink', async () => {
@@ -123,26 +73,72 @@ conditionalDescribe(device.getPlatform() === 'android', 'Deeplink connect popup.
             coin: 'btc',
         });
 
-        await element(by.id('@popup/deeplink-info'));
+        await waitForVisible(by.id('@popup/deeplink-info'));
+
+        // Skip waiting for Reanimated animations.
+        await device.disableSynchronization();
 
         const permissionButton = element(by.id('@popup/call-device'));
-        await waitFor(permissionButton).toBeVisible().withTimeout(30000);
+        await waitForVisible(permissionButton);
         await permissionButton.tap();
 
         const confirmButton = element(by.id('@popup/confirm-addresses'));
-        await waitFor(confirmButton).toBeVisible().withTimeout(10000);
+        await waitForVisible(confirmButton);
         await confirmButton.tap();
 
+        await device.enableSynchronization();
         await TrezorUserEnvLink.pressYes();
 
         const response = await promise;
 
         jestExpect(response).toEqual({
             success: true,
-            id: jestExpect.any(Number),
+            id: jestExpect.any(String),
             payload: jestExpect.objectContaining({
                 path: [2147483697, 2147483648, 2147483648, 0, 0],
                 serializedPath: "m/49'/0'/0'/0/0",
+                address: jestExpect.any(String),
+            }),
+        });
+    });
+
+    it('Handle Cardano deeplink — permission grant enables derive_cardano', async () => {
+        // The preloaded wallet enables only BTC, so 'ada' is NOT in Connect's init-seeded enabled
+        // set. Cardano derivation here depends entirely on the permission grant being projected
+        // into Connect's enabledNetworks by the shared connect-popup call thunk — the regression
+        // guard for the native deeplink path. Without that projection the session is created
+        // without derive_cardano and the call fails.
+        const promise = TrezorConnect.cardanoGetAddress({
+            addressParameters: {
+                addressType: PROTO.CardanoAddressType.BYRON,
+                path: "m/44'/1815'/0'/0/0",
+            },
+            protocolMagic: CARDANO.PROTOCOL_MAGICS.mainnet,
+            networkId: CARDANO.NETWORK_IDS.mainnet,
+        });
+
+        await waitForVisible(by.id('@popup/deeplink-info'));
+
+        // Skip waiting for Reanimated animations.
+        await device.disableSynchronization();
+
+        const permissionButton = element(by.id('@popup/call-device'));
+        await waitForVisible(permissionButton);
+        await permissionButton.tap();
+
+        const confirmButton = element(by.id('@popup/confirm-addresses'));
+        await waitForVisible(confirmButton);
+        await confirmButton.tap();
+
+        await device.enableSynchronization();
+        await TrezorUserEnvLink.pressYes();
+
+        const response = await promise;
+
+        jestExpect(response).toEqual({
+            success: true,
+            id: jestExpect.any(String),
+            payload: jestExpect.objectContaining({
                 address: jestExpect.any(String),
             }),
         });

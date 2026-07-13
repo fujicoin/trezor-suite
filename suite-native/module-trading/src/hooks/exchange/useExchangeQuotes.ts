@@ -1,40 +1,50 @@
-import { RefObject, useEffect, useRef } from 'react';
+import { type RefObject, useCallback, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
+import { isFulfilled } from '@reduxjs/toolkit';
+import type { ExchangeTrade } from 'invity-api';
+
+import { useServices } from '@suite-common/dependency-injection';
 import { invariant } from '@suite-common/suite-utils';
 import {
-    HandleExchangeRequestThunkProps,
+    type HandleExchangeRequestThunkProps,
     cryptoIdToNetwork,
     exchangeThunks,
     selectTradingExchangeIsLoading,
+    useTradingRefetchScheduler,
 } from '@suite-common/trading';
-import { WalletSettingsRootState, selectIsAmountInSats } from '@suite-common/wallet-core';
+import { type WalletSettingsRootState, selectIsAmountInSats } from '@suite-common/wallet-core';
+import {
+    type AnalyticsNativeEvents,
+    events,
+    selectNativeAnalyticsDep,
+} from '@suite-native/analytics';
 import { useFormState } from '@suite-native/forms';
-import { Timer, useDebounce } from '@trezor/react-utils';
+import { getSymbolFromTradeableAsset } from '@suite-native/trading-atoms';
+import { exchangeActions, selectExchangeQuotes } from '@suite-native/trading-state';
+import { type AbortablePromise, type ExchangeFormType } from '@suite-native/trading-types';
+import { type Analytics } from '@trezor/analytics-uploader';
+import { useDebounce } from '@trezor/react-utils';
+import { noop } from '@trezor/utils';
 
-import { exchangeActions } from '../../reducers';
-import { selectExchangeQuotes } from '../../selectors/exchangeSelectors';
-import { ExchangeFormType } from '../../types/exchange';
-import { AbortablePromise } from '../../types/general';
 import { tradingExchangeFormToTradingExchangeFormProps } from '../../utils/exchange/quotesUtils';
-import { getSymbolFromTradeableAsset } from '../../utils/general/tradeableAssetUtils';
+import { getReceiveAccountAddressText } from '../../utils/general/receiveAccountUtils';
 import { useQuotesInvalidator } from '../general/useQuotesInvalidator';
-import { useReloadTimer } from '../general/useReloadTimer';
 
 type ShouldFetchExchangeQuotesRef = {
     sendAsset: string | undefined;
     receiveAsset: string | undefined;
     sendCryptoAmount: string | undefined;
-    accountDescriptor: string | undefined;
+    sendAccountDescriptor: string | undefined;
+    receiveAccountAddress: string | undefined;
 };
-
-const noop = () => {};
 
 const defaultState = {
     sendAsset: undefined,
     receiveAsset: undefined,
     sendCryptoAmount: undefined,
-    accountDescriptor: undefined,
+    sendAccountDescriptor: undefined,
+    receiveAccountAddress: undefined,
 } as const;
 
 const useShouldFetchExchangeQuotes = (
@@ -53,21 +63,25 @@ const useShouldFetchExchangeQuotes = (
         };
     }
 
-    const [sendAsset, receiveAsset, sendCryptoAmount, sendAccount] = watch([
+    const [sendAsset, receiveAsset, sendCryptoAmount, sendAccount, receiveAccount] = watch([
         'sendAsset',
         'receiveAsset',
         'sendCryptoAmount',
         'sendAccount',
+        'receiveAccount',
     ]);
 
     const isFetchAllowed =
         !!sendAsset && !!receiveAsset && !!sendCryptoAmount && parseFloat(sendCryptoAmount) > 0;
 
+    const receiveAccountAddress = getReceiveAccountAddressText(receiveAccount);
+
     if (
         sendAsset?.cryptoId === prevState.current.sendAsset &&
         receiveAsset?.cryptoId === prevState.current.receiveAsset &&
         sendCryptoAmount === prevState.current.sendCryptoAmount &&
-        sendAccount?.descriptor === prevState.current.accountDescriptor
+        sendAccount?.descriptor === prevState.current.sendAccountDescriptor &&
+        receiveAccountAddress === prevState.current.receiveAccountAddress
     ) {
         return {
             isFetchAllowed,
@@ -79,7 +93,8 @@ const useShouldFetchExchangeQuotes = (
         sendAsset: sendAsset?.cryptoId,
         receiveAsset: receiveAsset?.cryptoId,
         sendCryptoAmount,
-        accountDescriptor: sendAccount?.descriptor,
+        sendAccountDescriptor: sendAccount?.descriptor,
+        receiveAccountAddress,
     };
 
     return {
@@ -88,13 +103,33 @@ const useShouldFetchExchangeQuotes = (
     };
 };
 
+const waitForPromiseAndReport = async (
+    promise: AbortablePromise | undefined,
+    analytics: Analytics<AnalyticsNativeEvents>,
+) => {
+    if (!promise) {
+        return;
+    }
+
+    const action = await promise;
+    if (isFulfilled(action) && (action.payload as ExchangeTrade[]).length > 0) {
+        analytics.report({
+            type: events.tradingQuoteReceivedEvent.name,
+            payload: {
+                type: 'exchange',
+            },
+        });
+    }
+};
+
 const useExchangeQuotesThunk = (
     getValues: ExchangeFormType['getValues'],
-    timer: Timer,
-    shouldRefetchQuotes: boolean,
+    isFetchAllowed: boolean,
+    shouldFetchQuotes: boolean,
     quotesPromiseRef: RefObject<AbortablePromise | undefined>,
     debounce: ReturnType<typeof useDebounce>,
 ) => {
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const dispatch = useDispatch();
     const asset = getValues('sendAsset');
     const symbol = getSymbolFromTradeableAsset(asset);
@@ -102,38 +137,39 @@ const useExchangeQuotesThunk = (
         selectIsAmountInSats(state, symbol),
     );
 
+    const fetchQuotes = useCallback(async () => {
+        const selectedAsset = getValues('sendAsset');
+        invariant(selectedAsset, 'Asset is not defined');
+        const network = cryptoIdToNetwork(selectedAsset.cryptoId);
+        invariant(network, `Network not found for [${selectedAsset.cryptoId}]`);
+
+        const payload: HandleExchangeRequestThunkProps = {
+            formValues: tradingExchangeFormToTradingExchangeFormProps(getValues),
+            network,
+            shouldSendInSats,
+            composeRequestCallback: noop,
+        };
+
+        quotesPromiseRef.current = dispatch(exchangeThunks.handleRequestThunk(payload));
+        await waitForPromiseAndReport(quotesPromiseRef.current, analytics);
+    }, [getValues, shouldSendInSats, quotesPromiseRef, dispatch, analytics]);
+
     useEffect(() => {
-        if (shouldRefetchQuotes) {
-            if (quotesPromiseRef.current?.abort) {
-                quotesPromiseRef.current.abort('Request was replaced by another one.');
-            }
+        if (!isFetchAllowed || !shouldFetchQuotes) return;
 
-            debounce(() => {
-                const selectedAsset = getValues('sendAsset');
-                invariant(selectedAsset, 'Asset is not defined');
-                const network = cryptoIdToNetwork(selectedAsset.cryptoId);
-                invariant(network, `Network not found for [${selectedAsset.cryptoId}]`);
-
-                const payload: HandleExchangeRequestThunkProps = {
-                    formValues: tradingExchangeFormToTradingExchangeFormProps(getValues),
-                    network,
-                    timer,
-                    shouldSendInSats,
-                    composeRequestCallback: noop,
-                };
-
-                quotesPromiseRef.current = dispatch(exchangeThunks.handleRequestThunk(payload));
-            });
+        if (quotesPromiseRef.current?.abort) {
+            quotesPromiseRef.current.abort('Request was replaced by another one.');
         }
-    }, [
-        dispatch,
-        getValues,
-        shouldRefetchQuotes,
-        timer,
-        quotesPromiseRef,
-        debounce,
-        shouldSendInSats,
-    ]);
+
+        debounce(fetchQuotes);
+    }, [isFetchAllowed, shouldFetchQuotes, quotesPromiseRef, debounce, fetchQuotes]);
+
+    useTradingRefetchScheduler({
+        onRefetch: () => {
+            if (!isFetchAllowed) return;
+            debounce(fetchQuotes);
+        },
+    });
 };
 
 const useExchangeQuotesInvalidator = (
@@ -161,19 +197,6 @@ export const useExchangeQuotes = ({ watch, getValues, control }: ExchangeFormTyp
 
     const { isFetchAllowed, shouldFetchQuotes } = useShouldFetchExchangeQuotes(watch, control);
 
-    const { timer, shouldReload } = useReloadTimer({ isEnabled: isFetchAllowed });
-
     useExchangeQuotesInvalidator(isFetchAllowed, promiseRef, debounce);
-    useExchangeQuotesThunk(
-        getValues,
-        timer,
-        isFetchAllowed && (shouldFetchQuotes || shouldReload),
-        promiseRef,
-        debounce,
-    );
-
-    return {
-        timer,
-        quotesRequest: promiseRef.current,
-    };
+    useExchangeQuotesThunk(getValues, isFetchAllowed, shouldFetchQuotes, promiseRef, debounce);
 };

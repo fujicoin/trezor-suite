@@ -1,17 +1,18 @@
-import { ApplySettings } from '@trezor/protobuf/src/messages-schema';
-import {
-    EmuStartOptsType,
-    MNEMONICS,
-    TrezorUserEnvLink,
-    type TrezorUserEnvLinkClass,
-} from '@trezor/trezor-user-env-link';
+// eslint-disable-next-line import/no-extraneous-dependencies
+import TrezorConnect from '@trezor/connect';
+import { UI_REQUEST, UI_RESPONSE } from '@trezor/connect-common';
+import type { ApplySettings } from '@trezor/protobuf/src/definitions';
+import type { EmuStartOptsType, TrezorUserEnvLinkClass } from '@trezor/trezor-user-env-link';
+import { MNEMONICS, TrezorUserEnvLink } from '@trezor/trezor-user-env-link';
 import { versionUtils } from '@trezor/utils';
 
-import TrezorConnect from '../src';
-import { UI } from '../src/events';
+// import TrezorConnect from '../src';
 
-const emulatorStartOpts: EmuStartOptsType =
-    (process.env.emulatorStartOpts as any) || global.emulatorStartOpts || {};
+// Read emulator start options from EMULATOR_START_OPTS env var (JSON string set by run.ts).
+// In browser mode, Vite's `define` replaces process.env.EMULATOR_START_OPTS at build time.
+const emulatorStartOpts: EmuStartOptsType = process.env.EMULATOR_START_OPTS
+    ? JSON.parse(process.env.EMULATOR_START_OPTS)
+    : {};
 
 const emuStartType = emulatorStartOpts.type;
 const firmware: string | null =
@@ -49,6 +50,22 @@ export const getController = () => {
     });
 
     return TrezorUserEnvLink;
+};
+
+// Captures device screen content at every ButtonRequest the autoConfirm handler
+// processes — but only when explicitly enabled per-test via
+// setScreenCaptureEnabled(true). getScreenContent() is a round-trip to
+// trezor-user-env (~500ms) so we don't pay it for tests that don't assert on
+// it. Stored as JSON strings so structural fields (e.g. {lines, title})
+// survive substring assertions. Reset per-test by methods.test.ts.
+const capturedScreens: string[] = [];
+let screenCaptureEnabled = false;
+export const resetCapturedScreens = () => {
+    capturedScreens.length = 0;
+};
+export const getCapturedScreens = () => [...capturedScreens];
+export const setScreenCaptureEnabled = (enabled: boolean) => {
+    screenCaptureEnabled = enabled;
 };
 
 type Options = {
@@ -127,6 +144,25 @@ export const setup = async (
     );
 };
 
+export const restartEmu = async (controller: TrezorUserEnvLinkClass) => {
+    await controller.stopEmu();
+    await new Promise<void>(resolve => {
+        const onDeviceDisconnected = () => {
+            TrezorConnect.off('device-disconnect', onDeviceDisconnected);
+            resolve();
+        };
+        TrezorConnect.on('device-disconnect', onDeviceDisconnected);
+    });
+    await controller.startEmu({ ...emulatorStartOpts, wipe: false });
+    await new Promise<void>(resolve => {
+        const onDeviceConnected = () => {
+            TrezorConnect.off('device-connect', onDeviceConnected);
+            resolve();
+        };
+        TrezorConnect.on('device-connect', onDeviceConnected);
+    });
+};
+
 type InitParams = Partial<Parameters<typeof TrezorConnect.init>[0]> & { autoConfirm?: boolean };
 
 export const initTrezorConnect = async (
@@ -158,17 +194,28 @@ export const initTrezorConnect = async (
         console.log('Transport started: ', event.version);
     });
 
-    TrezorConnect.on(UI.REQUEST_CONFIRMATION, () => {
+    TrezorConnect.on(UI_REQUEST.REQUEST_CONFIRMATION, () => {
         TrezorConnect.uiResponse({
-            type: UI.RECEIVE_CONFIRMATION,
+            type: UI_RESPONSE.RECEIVE_CONFIRMATION,
             payload: true,
         });
     });
 
     if (autoConfirm) {
-        TrezorConnect.on(UI.REQUEST_BUTTON, e => {
+        TrezorConnect.on(UI_REQUEST.REQUEST_BUTTON, async e => {
             if (e.code === 'ButtonRequest_PinEntry') return;
-            setTimeout(() => TrezorUserEnvLink.send({ type: 'emulator-press-yes' }), 1);
+            if (screenCaptureEnabled) {
+                try {
+                    const screen = await TrezorUserEnvLink.getScreenContent();
+                    capturedScreens.push(
+                        typeof screen === 'string' ? screen : JSON.stringify(screen),
+                    );
+                } catch (err) {
+                    // capture failure shouldn't block the press-yes path
+                    capturedScreens.push(`<getScreenContent error: ${(err as Error).message}>`);
+                }
+            }
+            TrezorUserEnvLink.send({ type: 'emulator-press-yes' });
         });
     }
 
@@ -179,21 +226,31 @@ export const initTrezorConnect = async (
             email: 'tests@connect.trezor.io',
         },
         transports: ['BridgeTransport'],
-        debug: false,
-        popup: false,
+        debug: true,
         pendingTransportEvent: true,
         transportReconnect: false,
-        connectSrc: process.env.TREZOR_CONNECT_SRC, // custom source for karma tests
         thp: {
             appName: 'TrezorConnect',
             hostName: 'tests:e2e',
-            staticKey: '0007070707070707070707070707070707070707070707070707070707070747',
             knownCredentials: [
+                // all all seed credential generated from thpPairing.test
                 {
+                    host_static_key:
+                        '0007070707070707070707070707070707070707070707070707070707070747',
                     trezor_static_public_key:
-                        'f60b84cdb80a2139f80489c811dc129937a4f4f75ca7710c7570c5085f1ffe68',
+                        '566f6976fd42cafadf1b843ce4e6275c930d52efac878217df0ea2a23933b07d',
                     credential:
-                        '0a1c0a0974657374733a65326510011a0d5472657a6f72436f6e6e656374122098264da94889d9b3bd52a61f6e94da83795c83ffb7be34e7e3a06f1c90eb8cfc',
+                        '0a1c0a0974657374733a65326510011a0d5472657a6f72436f6e6e65637412203fa725f325ba34cce19e39e6c87f573a9db1a532c28f67a363f0ea8317f64af9',
+                    autoconnect: true,
+                },
+                // credential for newer TENV image
+                {
+                    host_static_key:
+                        '0007070707070707070707070707070707070707070707070707070707070747',
+                    trezor_static_public_key:
+                        'ca9a6e4682ac461c59d75a8625c05bf3a4af01e084abc5a7fe8ad126c2d6f772',
+                    credential:
+                        '0a1c0a0974657374733a65326510011a0d5472657a6f72436f6e6e65637412204cd0d3ccab3d615430d218e96d78cd5b89a06783581e5948d8cc532e423bd145',
                     autoconnect: true,
                 },
             ],
@@ -210,13 +267,18 @@ export const initTrezorConnect = async (
 // "1.9.3" - skip for FW exact with 1.9.3
 // "1.9.3-1.9.6" - skip for FW gte 1.9.3 && lte 1.9.6
 // "!T3T1" - skip for specific device model
+// "*T3T1" - run only on specific device models
 export const skipTest = (rules: string[]) => {
     if (!rules || !Array.isArray(rules)) return;
     if (!firmware) return;
     const fwModel = firmware.substring(0, 1);
     const fwMaster = firmware.includes('-main');
-    const deviceRule = rules.find(skip => skip === '!' + deviceModel);
-    if (deviceRule) return deviceRule;
+    const deviceRuleNegative = rules.find(skip => skip === '!' + deviceModel);
+    if (deviceRuleNegative) return deviceRuleNegative;
+
+    const anyDeviceRulePositive = rules.find(skip => skip.startsWith('*'));
+    const deviceRulePositive = rules.find(skip => skip === '*' + deviceModel);
+    if (anyDeviceRulePositive && !deviceRulePositive) return anyDeviceRulePositive;
 
     const rule = rules
         .filter(skip => skip.substring(0, 1) === fwModel || skip.substring(1, 2) === fwModel) // filter rules only for current model
@@ -257,16 +319,7 @@ export const skipTest = (rules: string[]) => {
 };
 
 export const conditionalTest = (rules: string[], ...args: any) => {
-    const skipMethod = typeof jest !== 'undefined' ? it.skip : xit;
-    const testMethod = skipTest(rules) ? skipMethod : it;
-
-    // @ts-expect-error
-    return testMethod(...args);
-};
-
-export const conditionalDescribe = (rules: string[], ...args: any) => {
-    const skipMethod = typeof jest !== 'undefined' ? describe.skip : xdescribe;
-    const testMethod = skipTest(rules) ? skipMethod : describe;
+    const testMethod = skipTest(rules) ? it.skip : it;
 
     // @ts-expect-error
     return testMethod(...args);

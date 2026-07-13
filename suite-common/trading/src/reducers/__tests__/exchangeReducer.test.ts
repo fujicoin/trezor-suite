@@ -2,8 +2,11 @@ import { combineReducers } from '@reduxjs/toolkit';
 
 import { configureMockStore } from '@suite-common/test-utils';
 
-import { exchangeTradingFixtures } from '../__fixtures__/exchangeTradingReducer';
-import { tradingExchangeReducer } from '../exchangeReducer';
+import {
+    changellyExchangeQuote,
+    exchangeTradingFixtures,
+} from '../__fixtures__/exchangeTradingReducer';
+import { tradingExchangeActions, tradingExchangeReducer } from '../exchangeReducer';
 
 describe('tradingExchangeReducer', () => {
     exchangeTradingFixtures.forEach(fixture => {
@@ -12,14 +15,14 @@ describe('tradingExchangeReducer', () => {
                 extra: {},
                 reducer: combineReducers({
                     wallet: combineReducers({
-                        tradingNew: combineReducers({
+                        trading: combineReducers({
                             exchange: tradingExchangeReducer,
                         }),
                     }),
                 }),
                 preloadedState: {
                     wallet: {
-                        tradingNew: {
+                        trading: {
                             exchange: fixture.initialState,
                         },
                     },
@@ -28,7 +31,60 @@ describe('tradingExchangeReducer', () => {
             fixture.actions.forEach(action => {
                 store.dispatch(action);
             });
-            expect(store.getState().wallet.tradingNew.exchange).toEqual(fixture.result);
+            expect(store.getState().wallet.trading.exchange).toEqual(fixture.result);
+        });
+    });
+
+    describe('lastErrorMessage', () => {
+        it('should be undefined initially', () => {
+            const state = tradingExchangeReducer(undefined, { type: 'unknown' });
+
+            expect(state.lastErrorMessage).toBeUndefined();
+        });
+
+        it('setLastErrorMessage should set lastErrorMessage', () => {
+            const state = tradingExchangeReducer(
+                undefined,
+                tradingExchangeActions.setLastErrorMessage('Some error'),
+            );
+
+            expect(state.lastErrorMessage).toBe('Some error');
+        });
+    });
+
+    describe('setSelectedQuoteSwapSlippage', () => {
+        it('should do nothing when no quote is selected', () => {
+            const actions = [tradingExchangeActions.setSelectedQuoteSwapSlippage('3')];
+
+            const state = actions.reduce(tradingExchangeReducer, undefined);
+
+            expect(state?.selectedQuote).toBeUndefined();
+        });
+
+        it('should do nothing when CEX quote is selected', () => {
+            const actions = [
+                tradingExchangeActions.saveSelectedQuote(changellyExchangeQuote),
+                tradingExchangeActions.setSelectedQuoteSwapSlippage('3'),
+            ];
+
+            const state = actions.reduce(tradingExchangeReducer, undefined);
+
+            expect(state?.selectedQuote).toBeDefined();
+            expect(state?.selectedQuote?.swapSlippage).toBeUndefined();
+        });
+
+        it('should set selected quote swap slippage for DEX quote', () => {
+            const actions = [
+                tradingExchangeActions.saveSelectedQuote({
+                    ...changellyExchangeQuote,
+                    isDex: true,
+                }),
+                tradingExchangeActions.setSelectedQuoteSwapSlippage('3'),
+            ];
+
+            const state = actions.reduce(tradingExchangeReducer, undefined);
+
+            expect(state?.selectedQuote?.swapSlippage).toBe('3');
         });
     });
 });

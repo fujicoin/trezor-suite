@@ -2,10 +2,10 @@ import styled from 'styled-components';
 
 import { SelectBar } from '@trezor/components';
 
-import { FieldWithUnion } from '../../types';
+import { type FieldWithUnion } from '../../types';
 
 const UnionHeader = styled.div`
-    word-wrap: break-word;
+    overflow-wrap: break-word;
     word-break: break-all;
     display: flex;
     justify-content: space-between;
@@ -30,7 +30,7 @@ interface UnionWrapperProps {
 export const UnionWrapper = ({ field, onChange, children }: UnionWrapperProps) => (
     <Wrapper>
         <UnionHeader>
-            <p>Union</p>
+            <p>{field.name ? field.name : 'Union'}</p>
             <SelectBar
                 selectedOption={0}
                 options={field.labels.map((label, index) => ({ value: index, label }))}

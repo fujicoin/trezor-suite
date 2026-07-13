@@ -1,9 +1,8 @@
-import { BankAccount } from 'invity-api';
+import { type BankAccount } from 'invity-api';
 
 import { createThunk } from '@suite-common/redux-utils';
 
-import { HandleSellTradeThunkProps } from './handleSellTradeThunk';
-import { sellThunks } from '../';
+import { type HandleSellTradeThunkProps, handleSellTradeThunk } from './handleSellTradeThunk';
 import { TRADING_SELL_THUNK_PREFIX } from '../../constants';
 import { tradingSellActions } from '../../reducers/sellReducer';
 import { selectTradingSellSelectedQuote } from '../../selectors/tradingSelectors';
@@ -33,7 +32,7 @@ export const confirmSellTradeThunk = createThunk(
 
         const trade = { ...selectedQuote, bankAccount };
         const response = await dispatch(
-            sellThunks.handleTradeThunk({
+            handleSellTradeThunk({
                 account,
                 trade,
                 returnUrl,

@@ -1,7 +1,6 @@
+import { Translation, type TranslationKey } from '@suite/intl';
 import { Icon, Row, Spinner, Text } from '@trezor/components';
-import { spacings } from '@trezor/theme';
-
-import { Translation, TranslationKey } from '../Translation';
+import { CheckIcon } from '@trezor/icons';
 
 type PairingStateProps = {
     isLoading?: boolean;
@@ -9,9 +8,16 @@ type PairingStateProps = {
 };
 
 export const PairingState = ({ isLoading, text }: PairingStateProps) => (
-    <Row gap={isLoading ? spacings.xxs : spacings.md} alignItems="center">
-        {isLoading ? <Spinner size={spacings.md} /> : <Icon size="small" name="check" />}
-        <Text variant={isLoading ? 'tertiary' : 'primary'}>
+    <Row gap={10}>
+        {isLoading ? (
+            <Spinner size={20} isDisabled={true} />
+        ) : (
+            <Icon size={18} as={CheckIcon} intent="brand" />
+        )}
+        <Text
+            intent={isLoading ? 'neutral' : 'brand'}
+            priority={isLoading ? 'secondary' : 'primary'}
+        >
             <Translation id={text} />
         </Text>
     </Row>

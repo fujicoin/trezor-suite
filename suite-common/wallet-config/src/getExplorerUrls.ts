@@ -1,4 +1,4 @@
-import { Explorer, NetworkType } from './types';
+import { type Explorer, type NetworkType } from './types';
 
 type NetworkTypeExplorerMap = {
     [key in NetworkType]: Explorer;
@@ -13,40 +13,41 @@ export const getExplorerUrls = (
         bitcoin: {
             base: baseUrl,
             tx: `${baseUrl}/tx/`,
-            account: `${baseUrl}/xpub/`,
             address: `${baseUrl}/address/`,
         },
         ethereum: {
             base: baseUrl,
             tx: `${baseUrl}/tx/`,
-            account: `${baseUrl}/address/`,
             address: `${baseUrl}/address/`,
             nft: `${baseUrl}/nft/`,
+        },
+        tron: {
+            base: baseUrl,
+            tx: `${baseUrl}/transaction/`,
+            address: `${baseUrl}/address/`,
+            nft: `${baseUrl}/contract/`, // should be trc721, trc1155 instead of contract
+            token: `${baseUrl}/contract/`, // should be trc10, trc20 instead of contract
         },
         ripple: {
             base: baseUrl,
             tx: `${baseUrl}/tx/`,
-            account: `${baseUrl}/account/`,
             address: `${baseUrl}/account/`,
         },
         solana: {
             base: baseUrl,
             tx: `${baseUrl}/tx/`,
-            account: `${baseUrl}/account/`,
             address: `${baseUrl}/account/`,
             queryString: solanaDevnet ? `?cluster=devnet` : '',
         },
         cardano: {
             base: baseUrl,
             tx: `${baseUrl}/tx/`,
-            account: `${baseUrl}/address/`,
             address: `${baseUrl}/address/`,
             token: `${baseUrl}/asset/`,
         },
         stellar: {
             base: baseUrl,
             tx: `${baseUrl}/tx/`,
-            account: `${baseUrl}/account/`,
             address: `${baseUrl}/account/`,
             token: `${baseUrl}/asset/`,
         },
@@ -55,55 +56,43 @@ export const getExplorerUrls = (
     return networkTypeExplorerMap[networkType];
 };
 
-export const getExplorerUrlsRaw = (
-    baseUrl: string,
-    networkType: NetworkType,
-    queryString?: string,
-): Explorer => {
-    const networkTypeExplorerMap: NetworkTypeExplorerMap = {
-        bitcoin: {
-            base: baseUrl,
-            tx: 'tx',
-            account: 'xpub',
-            address: 'address',
-        },
-        ethereum: {
-            base: baseUrl,
-            tx: 'tx',
-            account: 'address',
-            address: 'address',
-            nft: 'nft',
-        },
-        ripple: {
-            base: baseUrl,
-            tx: 'tx',
-            account: 'account',
-            address: 'account',
-        },
-        solana: {
-            base: baseUrl,
-            tx: 'tx',
-            account: 'account',
-            address: 'account',
-            queryString: queryString ?? '',
-        },
-        cardano: {
-            base: baseUrl,
-            tx: 'tx',
-            account: 'address',
-            address: 'address',
-            token: 'asset',
-        },
-        stellar: {
-            base: baseUrl,
-            tx: 'tx',
-            account: 'account',
-            address: 'account',
-            token: 'asset',
-        },
-    };
+// `{} extends Pick<T, K>` is the canonical TS idiom for distinguishing required vs
+// optional properties — it relies on {}'s "any non-nullish" semantics and cannot be
+// expressed with Record<string, never>, which is strictly empty.
+type RequiredKeys<T> = {
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+    [K in keyof T]-?: {} extends Pick<T, K> ? never : K;
+}[keyof T];
 
-    return networkTypeExplorerMap[networkType];
+type OptionalKeys<T> = {
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+    [K in keyof T]-?: {} extends Pick<T, K> ? K : never;
+}[keyof T];
+
+function getExplorerUrlSuffix<T, K extends RequiredKeys<T>>(obj: T, key: K): string;
+function getExplorerUrlSuffix<T, K extends OptionalKeys<T>>(obj: T, key: K): string | undefined;
+
+function getExplorerUrlSuffix<T, K extends keyof T>(obj: T, key: K): string | undefined {
+    const value = obj[key];
+
+    if (typeof value === 'string') {
+        const slug = value.split('/');
+
+        return slug[slug.length - 2];
+    }
+
+    return undefined;
+}
+
+export const getParsedExplorerUrls = (explorer: Explorer): Explorer => {
+    const { base, queryString } = explorer;
+
+    const tx = getExplorerUrlSuffix(explorer, 'tx');
+    const address = getExplorerUrlSuffix(explorer, 'address');
+    const nft = getExplorerUrlSuffix(explorer, 'nft');
+    const token = getExplorerUrlSuffix(explorer, 'token');
+
+    return { base, tx, address, nft, token, queryString };
 };
 
 export const getExplorerUrl = (explorer: Explorer | undefined, key: keyof Explorer) => {

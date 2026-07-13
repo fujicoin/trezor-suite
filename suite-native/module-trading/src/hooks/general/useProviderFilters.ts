@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
 
-import { TradingTradeType } from '@suite-common/trading';
+import { type TradingTradeType } from '@suite-common/trading';
 import { useTranslate } from '@suite-native/intl';
-
-import { SectionListData, SectionListDataArray } from './useSectionList';
-import { FilterItem } from '../../components/general/FilterTabs';
-import { QuotesByCategories, QuotesCategory } from '../../types/general';
+import type { FilterItem, SectionListData } from '@suite-native/trading-atoms';
+import { type QuotesByCategories, type QuotesCategory } from '@suite-native/trading-types';
+import { exhaustive } from '@trezor/type-utils';
 
 export type FilterValue = 'all' | 'cex' | 'dex';
 
@@ -31,7 +30,7 @@ export const useProviderFilters = <T extends TradingTradeType>(
 
             return {
                 key: category,
-                data: items as SectionListDataArray<T>,
+                data: items,
                 label: '',
                 sectionData: typedCategory,
             };
@@ -41,17 +40,18 @@ export const useProviderFilters = <T extends TradingTradeType>(
             return allSections;
         }
 
-        if (selectedFilter === 'cex') {
-            return allSections.filter(
-                section => section.key === 'fixed' || section.key === 'float',
-            );
-        }
+        switch (selectedFilter) {
+            case 'cex':
+                return allSections.filter(
+                    section => section.key === 'fixed' || section.key === 'float',
+                );
 
-        if (selectedFilter === 'dex') {
-            return allSections.filter(section => section.key === 'dex');
-        }
+            case 'dex':
+                return allSections.filter(section => section.key === 'dex');
 
-        return allSections;
+            default:
+                return exhaustive(selectedFilter, 'Unexpected filter value');
+        }
     }, [quotes, selectedFilter, shouldShowFilters]);
 
     return {

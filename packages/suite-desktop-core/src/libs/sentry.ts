@@ -1,8 +1,13 @@
-import { ElectronMainOptions, IPCMode, init } from '@sentry/electron/main';
+import {
+    type ElectronMainOptions,
+    IPCMode,
+    captureConsoleIntegration,
+    init,
+} from '@sentry/electron/main';
 import { session } from 'electron';
 
-import { SENTRY_CONFIG } from '@suite-common/sentry';
-import { TorStatus } from '@trezor/suite-desktop-api';
+import { SENTRY_CONFIG } from '@suite/sentry';
+import { TorStatus } from '@suite/tor';
 
 import type { Store } from './store';
 import type { MainThreadEmitter } from '../modules';
@@ -11,6 +16,25 @@ interface InitSentryParams {
     mainThreadEmitter: MainThreadEmitter;
     store: Store;
 }
+
+const ELECTRON_MAIN_SENTRY_CONFIG = {
+    ...SENTRY_CONFIG,
+    // Important: must be a function to keep default Sentry integrations; an array would mean ONLY those specific integrations.
+    integrations: defaults => [
+        ...defaults.filter(i => i.name !== 'MainProcessSession'),
+        captureConsoleIntegration({ levels: ['error'] }),
+    ],
+
+    ipcMode: IPCMode.Classic,
+    getSessions: () => [session.defaultSession],
+    // Required for renderer (browser) profiling: the renderer collects profiles via
+    // browserProfilingIntegration and ships them to the main process over IPC, but they are
+    // only re-attached to transaction envelopes (and thus actually sent to Sentry) when the
+    // main process runs rendererProfilingIntegration, which is added by this flag. Enabling it
+    // also makes the SDK inject the `Document-Policy: js-profiling` response header required by
+    // the JS Self-Profiling API into every session returned by getSessions().
+    enableRendererProfiling: true,
+} as ElectronMainOptions;
 
 export const initSentry = ({ mainThreadEmitter, store }: InitSentryParams) => {
     let torStatus = TorStatus.Enabling;
@@ -25,13 +49,6 @@ export const initSentry = ({ mainThreadEmitter, store }: InitSentryParams) => {
         shouldSend: () => !(store.getTorSettings().running && torStatus !== TorStatus.Enabled),
     };
 
-    const sentryConfig: ElectronMainOptions = {
-        ...SENTRY_CONFIG,
-        ipcMode: IPCMode.Classic,
-        getSessions: () => [session.defaultSession],
-        transportOptions,
-    };
-
     // Sentry ignore userPath change by environment so even in local build it uses @trezor/suite-desktop/sentry folder.
-    init(sentryConfig);
+    init({ ...ELECTRON_MAIN_SENTRY_CONFIG, transportOptions });
 };

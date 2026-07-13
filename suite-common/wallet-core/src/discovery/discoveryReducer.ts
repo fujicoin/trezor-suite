@@ -1,6 +1,6 @@
 import { createReducerWithExtraDeps } from '@suite-common/redux-utils';
-import { Discovery, DiscoveryStatus, Timestamp } from '@suite-common/wallet-types';
-import { DeviceUniquePath } from '@trezor/connect';
+import { type Discovery, type DiscoveryStatus } from '@suite-common/wallet-types';
+import { type DeviceUniquePath } from '@trezor/connect';
 
 import { discoveryActions } from './discoveryActions';
 
@@ -10,14 +10,15 @@ export type DiscoveryRootState = {
     };
 };
 
-const initialState: Discovery = {};
+export const discoveryInitialState: Discovery = {};
 
 const update = (draft: Discovery, payload: { status: DiscoveryStatus; path: DeviceUniquePath }) => {
-    if (!draft[payload.path]) {
+    const { path } = payload;
+    if (!draft[path]) {
         return;
     }
 
-    const currentStatus = draft[payload.path];
+    const currentStatus: (typeof draft)[DeviceUniquePath] = draft[path];
     const hasLoadedAnyNonEmptyAccount =
         currentStatus.hasLoadedAnyNonEmptyAccount || payload.status.hasLoadedAnyNonEmptyAccount;
 
@@ -31,23 +32,22 @@ const update = (draft: Discovery, payload: { status: DiscoveryStatus; path: Devi
             passphraseSubmitted:
                 payload.status.passphraseSubmitted ?? currentStatus.passphraseSubmitted,
         },
-        // NOTE: this flag is used for just one status, so whene status is changed, make it undefined
+        // NOTE: this flag is used for just one status, so when status is changed, make it undefined
         // eg. submitting "first" passphrase and then confirming the passphrase, then we want submitted false again
         ...(statusChanged ? { passphraseSubmitted: undefined } : {}),
     };
 };
 
 export const prepareDiscoveryReducer = createReducerWithExtraDeps(
-    initialState,
+    discoveryInitialState,
     (builder, _extra) => {
         builder.addCase(discoveryActions.startDiscovery, (state, { payload }) => {
             state[payload.path] = {
                 status: 'starting',
                 isAddingHiddenWallet: payload.isAddingHiddenWallet,
                 isAddingExistingWallet: payload.isAddingExistingWallet,
-                isAddingHiddenWalletWithRespectToSettings:
-                    payload.isAddingHiddenWalletWithRespectToSettings,
-                startTimestamp: Date.now() as Timestamp,
+                useScopedCallIds: payload.useScopedCallIds,
+                startTimestamp: Date.now(),
             };
         });
         builder.addCase(discoveryActions.updateDiscovery, (state, { payload }) => {

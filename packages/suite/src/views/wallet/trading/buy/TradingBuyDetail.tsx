@@ -1,21 +1,28 @@
+import { selectTradingProviderByNameAndTradeType } from '@suite-common/trading';
+
+import { useSelector } from 'src/hooks/suite';
 import { TradingDetailContext, useTradingDetail } from 'src/hooks/wallet/trading/useTradingDetail';
-import { UseTradingProps } from 'src/types/trading/trading';
 import { TradingContainer } from 'src/views/wallet/trading/common/TradingContainer';
 import { TradingDetailBuy } from 'src/views/wallet/trading/common/TradingDetail/TradingDetailBuy/TradingDetailBuy';
 
-const TradingBuyDetailComponent = ({ selectedAccount }: UseTradingProps) => {
+export const TradingBuyDetail = () => {
     const tradingDetailContext = useTradingDetail({
-        selectedAccount,
         tradeType: 'buy',
     });
 
+    const provider = useSelector(state =>
+        selectTradingProviderByNameAndTradeType(
+            state,
+            tradingDetailContext.trade?.data.exchange,
+            'buy',
+        ),
+    );
+
     return (
         <TradingDetailContext.Provider value={tradingDetailContext}>
-            <TradingDetailBuy />
+            <TradingContainer provider={provider}>
+                <TradingDetailBuy />
+            </TradingContainer>
         </TradingDetailContext.Provider>
     );
 };
-
-export const TradingBuyDetail = () => (
-    <TradingContainer SectionComponent={TradingBuyDetailComponent} />
-);

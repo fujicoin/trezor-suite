@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 import { Button, IconListTextItem, TitleHeader, VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
@@ -36,13 +36,13 @@ export const DeviceCompromisedModalContent = ({
 }: DeviceCompromisedModalContentProps) => {
     const openLink = useOpenLink();
 
-    const handleContactSupportClick = () => openLink(contactSupportUrl);
+    const handleContactSupportClick = () => openLink(`${contactSupportUrl}#open-chat`);
 
     return (
         <Screen header={screenHeaderContent}>
             <VStack spacing="sp32" flex={1}>
                 <TitleHeader
-                    titleVariant="titleMedium"
+                    titleVariant="headline-md"
                     titleSpacing="sp12"
                     title={<Translation id="moduleAuthenticityChecks.deviceCompromised.title" />}
                     subtitle={subtitleContent}
@@ -50,7 +50,7 @@ export const DeviceCompromisedModalContent = ({
                 <InformativeList />
             </VStack>
             <VStack spacing="sp12">
-                <Button colorScheme="redBold" onPress={handleContactSupportClick}>
+                <Button intent="critical" priority="primary" onPress={handleContactSupportClick}>
                     <Translation id="moduleAuthenticityChecks.deviceCompromised.buttonContactSupport" />
                 </Button>
                 {closeButtonContent}

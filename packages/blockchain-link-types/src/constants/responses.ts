@@ -10,6 +10,7 @@ export const GET_FIAT_RATES_TICKERS_LIST = 'r_GET_FIAT_RATES_TICKERS_LIST';
 export const GET_ACCOUNT_INFO = 'r_account_info';
 export const GET_ACCOUNT_UTXO = 'r_get_account_utxo';
 export const GET_ACCOUNT_BALANCE_HISTORY = 'r_get_account_balance_history';
+export const GET_CONTRACT_INFO = 'r_get_contract_info';
 export const GET_TRANSACTION = 'r_get_transaction';
 export const GET_TRANSACTION_HEX = 'r_get_transaction_hex';
 export const ESTIMATE_FEE = 'r_estimate_fee';
@@ -17,6 +18,7 @@ export const RPC_CALL = 'r_rpc_call';
 export const SUBSCRIBE = 'r_subscribe';
 export const UNSUBSCRIBE = 'r_unsubscribe';
 export const PUSH_TRANSACTION = 'r_push_tx';
+export const VALIDATE_EVM_RPC = 'r_validate_evm_rpc';
 
 // emitted events
 export const CONNECTED = 'r_connected';

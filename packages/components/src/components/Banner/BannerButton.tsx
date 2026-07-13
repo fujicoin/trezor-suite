@@ -1,21 +1,12 @@
-import { BannerContext, useBannerContext } from './BannerContext';
-import { DEFAULT_VARIANT } from './consts';
-import { Button, ButtonProps } from '../buttons/Button/Button';
+import { useBannerContext } from './BannerContext';
+import { Button, type ButtonProps } from '../buttons/Button/Button';
 
-export const BannerButton = ({ children, ...rest }: ButtonProps) => {
-    const { variant } = useBannerContext();
-    const value = { variant: DEFAULT_VARIANT };
+export const BannerButton = ({ children, intent, size = 'small', ...rest }: ButtonProps) => {
+    const { intent: bannerIntent } = useBannerContext();
 
     return (
-        <BannerContext.Provider value={value}>
-            <Button
-                {...rest}
-                textWrap={rest.textWrap ?? false}
-                variant={rest.variant ?? variant}
-                size={rest.size ?? 'small'}
-            >
-                {children}
-            </Button>
-        </BannerContext.Provider>
+        <Button intent={intent ?? bannerIntent} size={size} {...rest}>
+            {children}
+        </Button>
     );
 };

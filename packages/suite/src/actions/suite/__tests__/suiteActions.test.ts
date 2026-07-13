@@ -1,35 +1,35 @@
 // unit test for suite actions
 // data provided by TrezorConnect are mocked
+import { flagsInitialState, prepareFlagsReducer } from '@suite/flags';
+import { modalReducer } from '@suite/modal';
+import { routerReducer } from '@suite/router';
+import { torReducer } from '@suite/tor';
 import { connectInitThunk } from '@suite-common/connect-init';
+import { deviceActions, prepareDeviceReducer } from '@suite-common/device';
 import { prepareFirmwareReducer } from '@suite-common/firmware';
-import { testMocks } from '@suite-common/test-utils';
+import { suiteSyncReducer } from '@suite-common/suite-sync';
+import { mockSuiteDevice } from '@suite-common/suite-types/mocks';
+import { filterThunkActionTypes, testMocks } from '@suite-common/test-utils';
 import {
     acquireDevice,
-    deviceActions,
     forgetDisconnectedDevices,
-    handleDeviceDisconnect,
     observeSelectedDevice,
-    prepareDeviceReducer,
     selectDeviceThunk,
+    selectNewlyConnectedDeviceThunk,
 } from '@suite-common/wallet-core';
-import { DEVICE } from '@trezor/connect';
 
-import { handleDeviceConnect } from 'src/actions/wallet/handleDeviceConnectThunk';
-import modalReducer from 'src/reducers/suite/modalReducer';
-import routerReducer from 'src/reducers/suite/routerReducer';
+import { markDeviceAsRecentlyConnectedThunk } from 'src/actions/wallet/markDeviceAsRecentlyConnectedThunk';
 import suiteReducer from 'src/reducers/suite/suiteReducer';
 import { extraDependencies } from 'src/support/extraDependencies';
-import { configureStore, filterThunkActionTypes } from 'src/support/tests/configureStore';
+import { configureStore } from 'src/support/tests/configureStore';
 import { discardMockedConnectInitActions } from 'src/utils/suite/storage';
 
 import fixtures from '../__fixtures__/suiteActions';
 import { SUITE } from '../constants';
-import * as suiteActions from '../suiteActions';
-
-const { getSuiteDevice } = testMocks;
 
 const firmwareReducer = prepareFirmwareReducer(extraDependencies);
 const deviceReducer = prepareDeviceReducer(extraDependencies);
+const flagsReducer = prepareFlagsReducer(extraDependencies);
 
 const TrezorConnect = testMocks.getTrezorConnectMock();
 
@@ -45,7 +45,9 @@ const setTrezorConnectFixtures = (fixture: any) => {
             fixture || {
                 success: true,
                 payload: {
-                    state: `state@device-id:${device ? device.instance : undefined}`,
+                    state: {
+                        staticSessionId: `state@device-id:${device ? device.instance : undefined}`,
+                    },
                 },
             },
     );
@@ -67,11 +69,15 @@ const getInitialState = (
     device?: Partial<DevicesState>,
     router?: RouterState,
     firmware?: Partial<FirmwareState>,
+    suiteSyncData?: Partial<ReturnType<typeof suiteSyncReducer>>,
 ) => ({
     suite: {
         ...suiteReducer(undefined, { type: 'foo' } as any),
         ...suite,
     },
+    tor: torReducer(undefined, { type: 'foo' } as any),
+    discreetMode: { isActive: false },
+    flags: flagsInitialState,
     device: {
         ...deviceReducer(undefined, { type: 'foo' } as any),
         ...device,
@@ -84,6 +90,12 @@ const getInitialState = (
     firmware: {
         ...firmwareReducer(undefined, { type: 'foo' } as any),
         ...firmware,
+    },
+    suiteSync: {
+        ...suiteSyncReducer(undefined, { type: 'foo' } as any),
+    },
+    suiteSyncData: {
+        ...(suiteSyncData ?? {}),
     },
     wallet: {
         settings: {
@@ -99,8 +111,9 @@ const initStore = (state: State) => {
     const store = mockStore(state);
     store.subscribe(() => {
         const action = store.getActions().pop();
-        const { suite, device, router } = store.getState();
+        const { suite, flags, device, router } = store.getState();
         store.getState().suite = suiteReducer(suite, action);
+        store.getState().flags = flagsReducer(flags, action);
         store.getState().device = deviceReducer(device, action);
         store.getState().router = routerReducer(router, action);
         // add action back to stack
@@ -117,17 +130,10 @@ describe('Suite Actions', () => {
             const store = initStore(state);
             f.actions.forEach((action: any, i: number) => {
                 store.dispatch(action);
-                expect(store.getState().suite).toMatchObject(f.result[i]);
+                const result = f.result[i];
+                if (!result) throw new Error(`Missing expected result at index ${i}`);
+                expect(store.getState().suite).toMatchObject(result);
             });
-        });
-    });
-
-    fixtures.initialRun.forEach(f => {
-        it(f.description, () => {
-            const state = getInitialState(f.state);
-            const store = initStore(state);
-            store.dispatch(suiteActions.initialRunCompleted());
-            expect(store.getState().suite.flags.initialRun).toBe(false);
         });
     });
 
@@ -145,38 +151,28 @@ describe('Suite Actions', () => {
         });
     });
 
-    fixtures.handleDeviceConnect.forEach(f => {
-        it(`handleDeviceConnect: ${f.description}`, async () => {
-            const state = getInitialState(f.state.suite, f.state.device, undefined);
+    fixtures.selectNewlyConnectedDevice.forEach(f => {
+        it(`selectNewlyConnectedDevice: ${f.description}`, async () => {
+            const state = getInitialState({}, f.state.device, undefined);
             const store = initStore(state);
 
             const device = f.newlyConnectedDevice;
-            await store.dispatch(handleDeviceConnect(device));
+            await store.dispatch(selectNewlyConnectedDeviceThunk({ device }));
             // a lot of actions may get called, and the one we are interested in may not be the last one
             expect(store.getActions().some(a => a?.type === f.expectedNextActionType)).toBe(true);
         });
     });
 
-    fixtures.handleDeviceDisconnect.forEach(f => {
-        it(`handleDeviceDisconnect: ${f.description}`, () => {
-            const state = getInitialState(f.state.suite, f.state.device);
+    fixtures.markDeviceAsRecentlyConnected.forEach(f => {
+        it(`markDeviceAsRecentlyConnected: ${f.description}`, async () => {
+            const state = getInitialState(f.state.suite, f.state.device, undefined);
             const store = initStore(state);
-            store.dispatch({
-                type: DEVICE.DISCONNECT, // TrezorConnect event to affect "deviceReducer"
-                payload: f.device,
-            });
-            store.dispatch(handleDeviceDisconnect(f.device));
-            if (!f.result) {
-                expect(filterThunkActionTypes(store.getActions()).pop()?.type).toEqual(
-                    deviceActions.deviceDisconnect.type,
-                );
-            } else {
-                const action = store.getActions().pop();
-                if (f.result.type) {
-                    expect(action.type).toEqual(f.result.type);
-                }
-                expect(action.payload).toEqual(f.result.payload);
-            }
+
+            const device = f.newlyConnectedDevice;
+            await store.dispatch(markDeviceAsRecentlyConnectedThunk(device));
+            expect(
+                store.getActions().some(a => a?.type === SUITE.SET_RECENTLY_CONNECTED_DEVICE),
+            ).toBe(f.isSetAsRecentlyConnected);
         });
     });
 
@@ -188,7 +184,9 @@ describe('Suite Actions', () => {
             const actions = filterThunkActionTypes(store.getActions());
             expect(actions.length).toEqual(f.result.length);
             actions.forEach((a, i) => {
-                expect(a.payload.device).toMatchObject(f.result[i]);
+                const result = f.result[i];
+                if (!result) throw new Error(`Missing expected result at index ${i}`);
+                expect(a.payload.device).toMatchObject(result);
             });
         });
     });
@@ -230,12 +228,9 @@ describe('Suite Actions', () => {
 
     // just for coverage
     it('misc', () => {
-        const SUITE_DEVICE = getSuiteDevice({ path: '1' });
+        const SUITE_DEVICE = mockSuiteDevice({ path: '1' });
         expect(deviceActions.forgetDevice({ device: SUITE_DEVICE })).toMatchObject({
             type: deviceActions.forgetDevice.type,
-        });
-        expect(suiteActions.setDebugMode({ showDebugMenu: true })).toMatchObject({
-            type: SUITE.SET_DEBUG_MODE,
         });
     });
 });

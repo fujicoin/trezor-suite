@@ -1,13 +1,13 @@
 import { useSelector } from 'react-redux';
 
-import { RequireAllOrNone } from 'type-fest';
+import { type RequireAllOrNone } from 'type-fest';
 
-import { selectDeviceModel } from '@suite-common/wallet-core';
+import { selectDeviceModel } from '@suite-common/device';
 import { Box, Button, Text, VStack } from '@suite-native/atoms';
-import { Translation, TxKeyPath } from '@suite-native/intl';
+import { Translation, type TxKeyPath } from '@suite-native/intl';
 import { DeviceModelInternal } from '@trezor/device-utils';
 import { getScreenHeight } from '@trezor/env-utils';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { ConnectorImage } from './ConnectorImage';
 import { DeviceImage } from './DeviceImage';
@@ -43,30 +43,29 @@ export const ContinueOnTrezorScreenContent = ({
     const deviceModel = useSelector(selectDeviceModel);
 
     return (
-        <>
-            <VStack spacing="sp24">
-                <Text variant="titleMedium" style={applyStyle(titleStyle)}>
-                    <Translation id={titleTxKey} />
-                </Text>
-                {onActionPress && (
-                    <Button
-                        size="small"
-                        colorScheme="tertiaryElevation0"
-                        style={applyStyle(actionButtonStyle)}
-                        onPress={onActionPress}
-                    >
-                        <Translation id={actionLabelTxKey} />
-                    </Button>
-                )}
-            </VStack>
+        <VStack testID="@continue-on-trezor" flex={1} spacing="sp24">
+            <Text variant="headline-md" style={applyStyle(titleStyle)}>
+                <Translation id={titleTxKey} />
+            </Text>
+            {onActionPress && (
+                <Button
+                    size="medium"
+                    intent="neutral"
+                    priority="secondary"
+                    style={applyStyle(actionButtonStyle)}
+                    onPress={onActionPress}
+                >
+                    <Translation id={actionLabelTxKey} />
+                </Button>
+            )}
             <Box flex={1} alignItems="center" justifyContent="flex-end">
                 <DeviceImage
-                    deviceModel={deviceModel || DeviceModelInternal.T3T1}
+                    deviceModel={deviceModel || DeviceModelInternal.T3W1}
                     size="large"
                     maxHeight={0.42 * SCREEN_HEIGHT}
                 />
                 <ConnectorImage maxHeight={0.18 * SCREEN_HEIGHT} />
             </Box>
-        </>
+        </VStack>
     );
 };

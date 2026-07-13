@@ -1,8 +1,10 @@
 import { combineReducers } from '@reduxjs/toolkit';
 import { getStoredState } from 'redux-persist';
 
-import { prepareAnalyticsReducer } from '@suite-common/analytics';
+import { prepareAnalyticsReducer } from '@suite-common/analytics-redux';
 import { prepareConnectPopupReducer } from '@suite-common/connect-popup';
+import { prepareDeviceReducer } from '@suite-common/device';
+import { discreetModeReducer } from '@suite-common/discreet-mode';
 import { prepareFirmwareReducer } from '@suite-common/firmware';
 import { geolocationReducer } from '@suite-common/geolocation';
 import { logsSlice } from '@suite-common/logger';
@@ -10,57 +12,79 @@ import {
     messageSystemPersistedWhitelist,
     prepareMessageSystemReducer,
 } from '@suite-common/message-system';
+import { suiteSyncDataReducer, suiteSyncReducer } from '@suite-common/suite-sync';
+import { suiteSyncQuotaManagerReducer } from '@suite-common/suite-sync-quota-manager';
 import { prepareThpReducer } from '@suite-common/thp';
-import { notificationsReducer } from '@suite-common/toast-notifications';
+import { createNotificationsReducer } from '@suite-common/toast-notifications';
 import { prepareTokenDefinitionsReducer } from '@suite-common/token-definitions';
 import {
     feesReducer,
+    formDraftReducer,
     prepareAccountsReducer,
     prepareBlockchainReducer,
-    prepareDeviceReducer,
     prepareDiscoveryReducer,
+    prepareExplorerReducer,
     prepareFiatRatesReducer,
+    preparePhishingReducer,
     prepareStakeReducer,
     prepareTransactionsReducer,
     prepareWalletSettingsReducer,
+    stablecoinYieldReducer,
     walletSettingsPersistedWhitelist,
 } from '@suite-common/wallet-core';
 // Suite Native has circular in @suite-native/test-utils -> @suite-native/state -> ... -> @suite-native/test-utils
 // This is causing problems handling types in WalletConnect, so we import the reducer directly instead of the whole module
+// eslint-disable-next-line local-rules/no-package-deep-imports
 import { prepareWalletConnectReducer } from '@suite-common/walletconnect/src/walletConnectReducer';
 import { bannerFlagsPersistWhitelist, bannerFlagsReducer } from '@suite-native/banner-flags';
+import { biometricsPersistWhitelist, biometricsSlice } from '@suite-native/biometrics';
 import { bluetoothSlice } from '@suite-native/bluetooth';
 import { deviceAuthorizationReducer } from '@suite-native/device-authorization';
+import { deviceOnboardingReducer } from '@suite-native/device-onboarding';
+import { pendingCoinVisibilitySlice } from '@suite-native/discovery';
+import { featureFeedbackReducer } from '@suite-native/feature-feedback';
 import { featureFlagsPersistedKeys, featureFlagsReducer } from '@suite-native/feature-flags';
 import { nativeFirmwareReducer } from '@suite-native/firmware';
 import { graphPersistTransform, graphReducer } from '@suite-native/graph';
-import { tradingSlice } from '@suite-native/module-trading';
+import { type TxKeyPath, localePersistWhitelist, localeReducer } from '@suite-native/intl';
 import { appSettingsPersistWhitelist, appSettingsReducer } from '@suite-native/settings';
 import {
+    type MMKVStorageDep,
+    backfillDeviceAuthenticityChecks,
+    backfillManualCheckResult,
+    backfillPortfolioTrackerUnavailableCapabilities,
+    blockchainPersistTransform,
     bluetoothPersistTransform,
     deriveAccountTypeFromPaymentType,
     devicePersistTransform,
-    initMmkvStorage,
+    initialMigrateAppSettingsAndDiscoveryConfig,
     migrateAccountBnbToBsc,
     migrateAccountLabel,
     migrateAccountsDeprecateNetworks,
+    migrateAutoEjectToWalletSettings,
+    migrateBiometricsAtomToRedux,
     migrateDeviceState,
-    migrateDiscoveryConfigToWalletSettings,
+    migrateLocaleTagToAppLocaleCode,
     migrateTransactionsBnbToBsc,
     migrateTransactionsDeprecateNetworks,
     preparePersistReducer,
+    sortAccountsByCoin,
+    tokenDefinitionsPersistTransform,
     walletPersistTransform,
     walletStopPersistTransform,
 } from '@suite-native/storage';
+import { tradingInitialState, tradingSlice } from '@suite-native/trading-state';
 import { sendFormSlice } from '@suite-native/transaction-management';
 
 import { appReducer } from './appSlice';
 import { extraDependencies } from './extraDependencies';
 
 const transactionsReducer = prepareTransactionsReducer(extraDependencies);
+const phishingReducer = preparePhishingReducer(extraDependencies);
 const accountsReducer = prepareAccountsReducer(extraDependencies);
 const fiatRatesReducer = prepareFiatRatesReducer(extraDependencies);
 const blockchainReducer = prepareBlockchainReducer(extraDependencies);
+const explorerReducer = prepareExplorerReducer(extraDependencies);
 const analyticsReducer = prepareAnalyticsReducer(extraDependencies);
 const messageSystemReducer = prepareMessageSystemReducer(extraDependencies);
 const deviceReducer = prepareDeviceReducer(extraDependencies);
@@ -76,87 +100,150 @@ const walletSettingsReducer = prepareWalletSettingsReducer(extraDependencies);
 const bluetoothReducer = bluetoothSlice.prepareReducer(extraDependencies);
 const thpReducer = prepareThpReducer(extraDependencies);
 
-export const prepareRootReducers = async () => {
-    const appSettingsPersistedReducer = await preparePersistReducer({
+type PrepareRootReducersDeps = MMKVStorageDep;
+
+export const prepareRootReducers = (deps: PrepareRootReducersDeps) => {
+    const appSettingsPersistedReducer = preparePersistReducer({
         reducer: appSettingsReducer,
         persistedKeys: appSettingsPersistWhitelist,
         key: 'appSettings',
+        // Note: Migrations have been removed.
+        // To version 3: The `isCoinEnablingInitFinished` property was deleted, and
+        // `areTestnetsEnabled` is a developer-only option and does not require migration.
+        // To version 2: moved to initialMigrateAppSettingsAndDiscoveryConfig
+        version: 3,
+        storage: deps.mmkvStorage,
+    });
+
+    const blockchainPersistedReducer = preparePersistReducer({
+        reducer: blockchainReducer,
+        persistedKeys: ['btc'],
+        key: 'blockchain',
+        version: 1,
+        transforms: [blockchainPersistTransform],
+        storage: deps.mmkvStorage,
+    });
+
+    const biometricsPersistedReducer = preparePersistReducer({
+        reducer: biometricsSlice.reducer,
+        persistedKeys: biometricsPersistWhitelist,
+        key: biometricsSlice.name,
+        version: 1,
+        migrations: {
+            1: migrateBiometricsAtomToRedux,
+        },
+        storage: deps.mmkvStorage,
+    });
+
+    const tradingPersistedReducer = preparePersistReducer({
+        reducer: tradingReducer,
+        persistedKeys: ['favouriteAssets', 'trades', 'residence', 'tradingEnvironment'],
+        key: 'trading',
         version: 3,
         migrations: {
-            2: (oldState: any) => ({ ...oldState, fiatCurrencyCode: oldState.fiatCurrency.label }),
-            3: async (oldState: any) => {
-                const discoveryConfig = (await getStoredState({
-                    key: 'discoveryConfig',
-                    storage: await initMmkvStorage(),
-                })) as any;
-                if (discoveryConfig)
-                    return {
-                        ...oldState,
-                        areTestnetsEnabled: discoveryConfig.areTestnetsEnabled,
-                        isCoinEnablingInitFinished: discoveryConfig.isCoinEnablingInitFinished,
-                    };
+            2: (oldState: any /* FIXME */) => {
+                if (!oldState) return oldState;
 
-                return oldState;
+                return {
+                    ...oldState,
+                    residence: tradingInitialState.residence,
+                };
+            },
+            3: (oldState: any /* FIXME */) => {
+                if (!oldState) return oldState;
+
+                const { settings: _settings, ...rest } = oldState;
+
+                return rest;
             },
         },
+        storage: deps.mmkvStorage,
     });
 
-    const tradingPersistedReducer = await preparePersistReducer({
-        reducer: tradingReducer,
-        persistedKeys: ['favouriteAssets', 'trades', 'settings'],
-        key: 'trading',
+    const discreetModePersistedReducer = preparePersistReducer({
+        reducer: discreetModeReducer,
+        persistedKeys: ['isActive'],
+        key: 'discreetMode',
         version: 1,
+        migrations: {
+            1: async (oldState: any /* FIXME */) => {
+                // Seed discreetMode from the old walletSettings persist key
+                const walletSettingsState = await getStoredState({
+                    key: 'walletSettings',
+                    storage: deps.mmkvStorage,
+                });
+
+                const isActive =
+                    walletSettingsState &&
+                    typeof walletSettingsState === 'object' &&
+                    'discreetMode' in walletSettingsState
+                        ? walletSettingsState.discreetMode === true
+                        : false;
+
+                return { ...(oldState ?? {}), isActive };
+            },
+        },
+        storage: deps.mmkvStorage,
     });
 
-    const walletSettingsPersistedReducer = await preparePersistReducer({
+    const walletSettingsPersistedReducer = preparePersistReducer({
         reducer: walletSettingsReducer,
         persistedKeys: walletSettingsPersistedWhitelist,
         key: 'walletSettings',
-        version: 1,
-        initialMigration: async () => {
-            const appSettings = (await getStoredState({
-                key: 'appSettings',
-                storage: await initMmkvStorage(),
-            })) as any;
-            const discoveryConfig = (await getStoredState({
-                key: 'discoveryConfig',
-                storage: await initMmkvStorage(),
-            })) as any;
-            if (appSettings && discoveryConfig) {
-                const enabledNetworks = migrateDiscoveryConfigToWalletSettings(
-                    discoveryConfig.enabledDiscoveryNetworkSymbols,
-                );
+        version: 3,
+        migrations: {
+            1: initialMigrateAppSettingsAndDiscoveryConfig({
+                mmkvStorage: deps.mmkvStorage,
+                getStoredState,
+            }),
+            2: migrateAutoEjectToWalletSettings({
+                mmkvStorage: deps.mmkvStorage,
+                getStoredState,
+            }),
+            3: (oldState: any /* FIXME */) => {
+                if (!oldState) return oldState;
+                // Remove discreetMode — it now lives in its own persist key
+                const { discreetMode: _, ...rest } = oldState;
 
-                return {
-                    localCurrency: appSettings.fiatCurrencyCode,
-                    enabledNetworks,
-                    bitcoinAmountUnit: appSettings.bitcoinUnits,
-                };
-            }
+                return rest;
+            },
         },
+        storage: deps.mmkvStorage,
+    });
+
+    const phishingPersistedReducer = preparePersistReducer({
+        reducer: phishingReducer,
+        persistedKeys: ['dustPhishing'],
+        key: 'phishingMetadata',
+        version: 1,
+        storage: deps.mmkvStorage,
     });
 
     const walletReducers = combineReducers({
         accounts: accountsReducer,
-        blockchain: blockchainReducer,
+        blockchain: blockchainPersistedReducer,
+        explorer: explorerReducer,
         fiat: fiatRatesReducer,
         transactions: transactionsReducer,
+        phishing: phishingPersistedReducer,
         discovery: discoveryReducer,
         send: sendFormReducer,
         fees: feesReducer,
         stake: stakeReducer,
-        tradingNew: tradingPersistedReducer,
+        stablecoinYield: stablecoinYieldReducer,
+        trading: tradingPersistedReducer,
         settings: walletSettingsPersistedReducer,
+        formDrafts: formDraftReducer,
     });
 
-    const walletPersistedReducer = await preparePersistReducer({
+    const walletPersistedReducer = preparePersistReducer({
         reducer: walletReducers,
         persistedKeys: ['accounts', 'transactions'],
         key: 'wallet',
-        version: 3,
+        version: 4,
         migrations: {
-            2: (oldState: any) => {
-                if (!oldState.accounts) return oldState;
+            2: (oldState: any /* FIXME */) => {
+                if (!oldState?.accounts) return oldState;
 
                 const oldAccountsState: { accounts: any } = { accounts: oldState.accounts };
                 const migratedAccounts = migrateAccountLabel(oldAccountsState.accounts);
@@ -164,8 +251,8 @@ export const prepareRootReducers = async () => {
 
                 return migratedState;
             },
-            3: oldState => {
-                if (!oldState.accounts) return oldState;
+            3: (oldState: any /* FIXME */) => {
+                if (!oldState?.accounts) return oldState;
 
                 const oldAccountsState: { accounts: any } = { accounts: oldState.accounts };
                 const migratedAccounts = deriveAccountTypeFromPaymentType(
@@ -175,29 +262,42 @@ export const prepareRootReducers = async () => {
 
                 return migratedState;
             },
+            4: (oldState: any /* FIXME */) => {
+                if (!oldState?.accounts) return oldState;
+
+                return { ...oldState, accounts: sortAccountsByCoin(oldState.accounts) };
+            },
         },
         transforms: [walletStopPersistTransform],
         // This remains for backward compatibility. If any data was persisted under the 'wallet' key,
         // it is retrieved from storage and migrated. Subsequently, the 'wallet' key is cleared because
         // the data is now stored under the 'root' key.
+        storage: deps.mmkvStorage,
     });
 
-    const analyticsPersistedReducer = await preparePersistReducer({
+    const analyticsPersistedReducer = preparePersistReducer({
         reducer: analyticsReducer,
-        persistedKeys: ['instanceId', 'enabled', 'confirmed'],
+        persistedKeys: [
+            'instanceId',
+            'enabled',
+            'confirmed',
+            'customAnalyticsUrl',
+            'loggerEnabled',
+        ],
         key: 'analytics',
         version: 1,
+        storage: deps.mmkvStorage,
     });
 
-    const devicePersistedReducer = await preparePersistReducer({
+    const devicePersistedReducer = preparePersistReducer({
         reducer: deviceReducer,
-        persistedKeys: ['devices', 'isDeviceAutoEjectEnabled'],
+        persistedKeys: ['devices', 'persistentDeviceData'],
         key: 'devices',
-        version: 2,
+        version: 5,
         transforms: [devicePersistTransform],
         migrations: {
-            2: oldState => {
-                if (!oldState.devices) return oldState;
+            2: (oldState: any /* FIXME */) => {
+                if (!oldState?.devices) return oldState;
 
                 const oldDevicesState: { devices: any } = { devices: oldState.devices };
                 const migratedDevices = migrateDeviceState(oldDevicesState.devices);
@@ -205,96 +305,172 @@ export const prepareRootReducers = async () => {
 
                 return migratedState;
             },
+            3: (oldState: any /* FIXME */) => {
+                if (!oldState?.devices) return oldState;
+                const migratedDevices = backfillDeviceAuthenticityChecks(oldState.devices);
+
+                return { ...oldState, devices: migratedDevices };
+            },
+            4: (oldState: any /* FIXME */) => {
+                if (!oldState?.devices) return oldState;
+                const migratedDevices = backfillPortfolioTrackerUnavailableCapabilities(
+                    oldState.devices,
+                );
+
+                return { ...oldState, devices: migratedDevices };
+            },
+            5: (oldState: any /* FIXME */) => {
+                if (!oldState?.persistentDeviceData) return oldState;
+                const migratedPersistentDeviceData = backfillManualCheckResult(
+                    oldState.persistentDeviceData,
+                );
+
+                return { ...oldState, persistentDeviceData: migratedPersistentDeviceData };
+            },
         },
+        storage: deps.mmkvStorage,
     });
 
-    const featureFlagsPersistedReducer = await preparePersistReducer({
+    const featureFlagsPersistedReducer = preparePersistReducer({
         reducer: featureFlagsReducer,
         persistedKeys: featureFlagsPersistedKeys,
         key: 'featureFlags',
-        version: 1,
+        version: 2,
+        // migration to v2 for IsDeviceConnectEnabled and IsBluetoothEnabled removed as obsolete
+        storage: deps.mmkvStorage,
     });
 
-    const bannerFlagsPersistedReducer = await preparePersistReducer({
+    const bannerFlagsPersistedReducer = preparePersistReducer({
         reducer: bannerFlagsReducer,
         persistedKeys: bannerFlagsPersistWhitelist,
         key: 'bannerFlags',
         version: 1,
+        storage: deps.mmkvStorage,
     });
 
-    const messageSystemPersistedReducer = await preparePersistReducer({
+    const featureFeedbackPersistedReducer = preparePersistReducer({
+        reducer: featureFeedbackReducer,
+        persistedKeys: ['usageCounts', 'pendingFeedbackFeatures'],
+        key: 'featureFeedback',
+        version: 1,
+        storage: deps.mmkvStorage,
+    });
+
+    const messageSystemPersistedReducer = preparePersistReducer({
         reducer: messageSystemReducer,
         persistedKeys: messageSystemPersistedWhitelist,
         key: 'messageSystem',
         version: 1,
+        storage: deps.mmkvStorage,
     });
 
-    const bluetoothPersistedReducer = await preparePersistReducer({
+    const bluetoothPersistedReducer = preparePersistReducer({
         reducer: bluetoothReducer,
         persistedKeys: ['knownDevices'],
         key: 'bluetooth',
         version: 1,
         transforms: [bluetoothPersistTransform],
+        storage: deps.mmkvStorage,
     });
 
-    const connectPopupPersistedReducer = await preparePersistReducer({
+    const connectPopupPersistedReducer = preparePersistReducer({
         reducer: connectPopupReducer,
         persistedKeys: ['permissions'],
         key: 'connectPopup',
         version: 1,
+        storage: deps.mmkvStorage,
     });
 
-    const firmwarePersistedReducer = await preparePersistReducer({
+    const firmwarePersistedReducer = preparePersistReducer({
         reducer: firmwareReducer,
         key: 'firmware',
         version: 1,
-        persistedKeys: ['firmwareUpdateSource'],
+        persistedKeys: ['firmwareChannel'],
+        storage: deps.mmkvStorage,
     });
 
-    const thpPersistedReducer = await preparePersistReducer({
+    const thpPersistedReducer = preparePersistReducer({
         reducer: thpReducer,
-        persistedKeys: ['credentials', 'staticKey'],
+        persistedKeys: ['credentials'],
         key: 'thp',
         version: 1,
+        storage: deps.mmkvStorage,
     });
 
-    const rootReducer = await preparePersistReducer({
+    const localePersistedReducer = preparePersistReducer({
+        reducer: localeReducer,
+        persistedKeys: localePersistWhitelist,
+        key: 'locale',
+        version: 2,
+        migrations: {
+            2: migrateLocaleTagToAppLocaleCode,
+        },
+        storage: deps.mmkvStorage,
+    });
+
+    const suiteSyncPersistedReducer = preparePersistReducer({
+        reducer: suiteSyncReducer,
+        persistedKeys: ['settings', 'suiteSyncOwners'],
+        key: 'suiteSync',
+        version: 1,
+        storage: deps.mmkvStorage,
+    });
+
+    const quotaManagerPersistedReducer = preparePersistReducer({
+        reducer: suiteSyncQuotaManagerReducer,
+        persistedKeys: ['baseUrl', 'registeredDevices', 'ownersAllowance', 'enforceQuotaManager'],
+        key: 'suiteSyncQuotaManager',
+        version: 1,
+        storage: deps.mmkvStorage,
+    });
+
+    const rootReducer = preparePersistReducer({
         reducer: combineReducers({
-            app: appReducer,
             analytics: analyticsPersistedReducer,
+            app: appReducer,
             appSettings: appSettingsPersistedReducer,
-            wallet: walletPersistedReducer,
-            featureFlags: featureFlagsPersistedReducer,
+            biometrics: biometricsPersistedReducer,
             bannerFlags: bannerFlagsPersistedReducer,
-            graph: graphReducer,
+            bluetooth: bluetoothPersistedReducer,
+            featureFeedback: featureFeedbackPersistedReducer,
+            connectPopup: connectPopupPersistedReducer,
+            discreetMode: discreetModePersistedReducer,
             device: devicePersistedReducer,
             deviceAuthorization: deviceAuthorizationReducer,
+            deviceOnboarding: deviceOnboardingReducer,
+            featureFlags: featureFlagsPersistedReducer,
             firmware: firmwarePersistedReducer,
-            nativeFirmware: nativeFirmwareReducer,
-            logs: logsSlice.reducer,
-            notifications: notificationsReducer,
-            messageSystem: messageSystemPersistedReducer,
-            tokenDefinitions: tokenDefinitionsReducer,
-            connectPopup: connectPopupPersistedReducer,
-            walletConnect: walletConnectReducer,
-            bluetooth: bluetoothPersistedReducer,
             geolocation: geolocationReducer,
+            graph: graphReducer,
+            locale: localePersistedReducer,
+            logs: logsSlice.reducer,
+            messageSystem: messageSystemPersistedReducer,
+            nativeFirmware: nativeFirmwareReducer,
+            notifications: createNotificationsReducer<TxKeyPath>().reducer,
+            pendingCoinVisibility: pendingCoinVisibilitySlice.reducer,
+            suiteSync: suiteSyncPersistedReducer,
+            suiteSyncData: suiteSyncDataReducer,
             thp: thpPersistedReducer,
+            tokenDefinitions: tokenDefinitionsReducer,
+            wallet: walletPersistedReducer,
+            walletConnect: walletConnectReducer,
+            suiteSyncQuotaManager: quotaManagerPersistedReducer,
         } as const),
         // 'wallet' and 'graph' need to be persisted at the top level to ensure device state
         // is accessible for transformation.
-        persistedKeys: ['wallet', 'graph'],
-        transforms: [walletPersistTransform, graphPersistTransform],
+        persistedKeys: ['wallet', 'graph', 'tokenDefinitions'],
+        transforms: [
+            walletPersistTransform,
+            graphPersistTransform,
+            tokenDefinitionsPersistTransform,
+        ],
         mergeLevel: 2,
         key: 'root',
-        version: 3,
+        version: 5,
         migrations: {
-            2: (oldState: {
-                wallet: {
-                    accounts: any;
-                    transactions: { transactions: any; fetchStatusDetail: any };
-                };
-            }) => {
+            2: (oldState: any /* FIXME */) => {
+                if (!oldState?.wallet) return oldState;
+
                 const oldStateWallet = oldState.wallet;
                 const migratedAccounts = migrateAccountBnbToBsc(oldStateWallet.accounts);
 
@@ -316,12 +492,9 @@ export const prepareRootReducers = async () => {
 
                 return migratedState;
             },
-            3: (oldState: {
-                wallet: {
-                    accounts: any;
-                    transactions: { transactions: any; fetchStatusDetail: any };
-                };
-            }) => {
+            3: (oldState: any /* FIXME */) => {
+                if (!oldState?.wallet) return oldState;
+
                 const oldStateWallet = oldState.wallet;
                 const migratedAccounts = migrateAccountsDeprecateNetworks(oldStateWallet.accounts);
                 const migratedTransactions = migrateTransactionsDeprecateNetworks(
@@ -341,7 +514,39 @@ export const prepareRootReducers = async () => {
 
                 return migratedState;
             },
+            4: (oldState: any /* FIXME */) => {
+                if (!oldState?.wallet) return oldState;
+
+                const oldStateWallet = oldState.wallet;
+                const oldStateWalletTransactions = oldStateWallet.transactions;
+                const oldStateWalletTransactionsPhishing = oldStateWalletTransactions?.phishing;
+
+                const migratedState = {
+                    ...oldState,
+                    wallet: {
+                        ...oldStateWallet,
+                        transactions: {
+                            ...(oldStateWalletTransactions ?? {}),
+                            phishing: oldStateWalletTransactionsPhishing ?? {},
+                        },
+                    },
+                };
+
+                return migratedState;
+            },
+            5: (oldState: any /* FIXME */) => {
+                if (!oldState?.wallet?.accounts) return oldState;
+
+                return {
+                    ...oldState,
+                    wallet: {
+                        ...oldState.wallet,
+                        accounts: sortAccountsByCoin(oldState.wallet.accounts),
+                    },
+                };
+            },
         },
+        storage: deps.mmkvStorage,
     });
 
     return rootReducer;

@@ -1,78 +1,44 @@
-import { Meta, StoryObj } from '@storybook/react';
-import styled from 'styled-components';
+import { type Meta, type StoryObj } from '@storybook/react';
+
+import * as generatedIcons from '@trezor/icons';
 
 import { allowedBannerFrameProps } from './Banner';
-import {
-    Banner as BannerComponent,
-    BannerProps,
-    Row,
-    iconVerticalAlignments,
-    variables,
-} from '../../index';
+import { Banner as BannerComponent } from '../../index';
 import { getFramePropsStory } from '../../utils/frameProps';
+import { Row } from '../Flex/Flex';
 
-const Wrapper = styled.div`
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 20px;
-`;
-
-const meta: Meta = {
+const meta: Meta<typeof BannerComponent> = {
     title: 'Banner',
     component: BannerComponent,
-    render: ({ children, ...rest }) => (
-        <Wrapper>
-            <BannerComponent {...rest} variant="primary">
-                {children}
-            </BannerComponent>
-            <BannerComponent {...rest} variant="tertiary">
-                {children}
-            </BannerComponent>
-            <BannerComponent {...rest} variant="warning">
-                {children}
-            </BannerComponent>
-            <BannerComponent {...rest} variant="destructive">
-                {children}
-            </BannerComponent>
-            <BannerComponent {...rest} variant="info">
-                {children}
-            </BannerComponent>
-        </Wrapper>
-    ),
-} as Meta;
+};
 export default meta;
 
-export const Banner: StoryObj<BannerProps> = {
+export const Banner: StoryObj<typeof meta> = {
     args: {
-        children: 'Insert text here.',
-        filled: true,
+        title: 'Lorem ipsum',
+        description:
+            'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
         isLoading: false,
-        variant: 'warning',
-        icon: undefined,
-        iconSize: 20,
-        rightContent: <BannerComponent.Button>Click</BannerComponent.Button>,
+        intent: undefined,
+        icon: true,
+        rightContent: 'button',
         ...getFramePropsStory(allowedBannerFrameProps).args,
     },
     argTypes: {
-        className: {
-            control: false,
+        title: {
+            control: 'text',
+        },
+        description: {
+            control: 'text',
+        },
+        isLoading: {
+            control: 'boolean',
         },
         icon: {
-            options: [undefined, true, ...variables.ICONS],
+            options: [undefined, true, ...Object.keys(generatedIcons)],
+            mapping: generatedIcons,
             control: {
                 type: 'select',
-            },
-        },
-        iconAlignment: {
-            options: [undefined, ...Object.values(iconVerticalAlignments)],
-            control: {
-                type: 'select',
-            },
-        },
-        iconSize: {
-            control: {
-                type: 'number',
             },
         },
         rightContent: {
@@ -81,16 +47,32 @@ export const Banner: StoryObj<BannerProps> = {
                 nothing: undefined,
                 button: <BannerComponent.Button>Button</BannerComponent.Button>,
                 combinedButtons: (
-                    <Row gap={8}>
-                        <BannerComponent.Button>Button 1</BannerComponent.Button>
-                        <BannerComponent.IconButton icon="x" isSubtle />
+                    <Row gap={10}>
+                        <BannerComponent.Button>Button</BannerComponent.Button>
+                        <BannerComponent.IconButton
+                            icon={generatedIcons.XIcon}
+                            priority="secondary"
+                            tooltip={{ content: 'Dismiss' }}
+                        />
                     </Row>
                 ),
-                iconButton: <BannerComponent.IconButton icon="x" />,
+                iconButton: (
+                    <BannerComponent.IconButton
+                        icon={generatedIcons.XIcon}
+                        tooltip={{ content: 'Dismiss' }}
+                    />
+                ),
                 iconButtons: (
-                    <Row gap={8}>
-                        <BannerComponent.IconButton icon="x" />
-                        <BannerComponent.IconButton icon="asterisk" isSubtle />
+                    <Row gap={10}>
+                        <BannerComponent.IconButton
+                            icon={generatedIcons.XIcon}
+                            tooltip={{ content: 'Dismiss' }}
+                        />
+                        <BannerComponent.IconButton
+                            icon={generatedIcons.AsteriskIcon}
+                            priority="secondary"
+                            tooltip={{ content: 'Details' }}
+                        />
                     </Row>
                 ),
             },

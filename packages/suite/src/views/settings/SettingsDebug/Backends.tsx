@@ -1,14 +1,15 @@
 import styled from 'styled-components';
 
-import { NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
+import { Translation } from '@suite/intl';
+import { openModal } from '@suite/modal';
+import { type NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
 import { selectEnabledNetworks, selectNetworkBlockchainInfo } from '@suite-common/wallet-core';
-import { ConnectionStatus } from '@suite-common/wallet-types';
+import { type ConnectionStatus } from '@suite-common/wallet-types';
 import { Button } from '@trezor/components';
-import { CoinLogo } from '@trezor/product-components';
+import { CoinLogo, SectionItem } from '@trezor/product-components';
 import { typography } from '@trezor/theme';
 
-import { openModal } from 'src/actions/suite/modalActions';
-import { SectionItem, StatusLight, Translation } from 'src/components/suite';
+import { StatusLight } from 'src/components/suite';
 import { useBackendReconnection } from 'src/hooks/settings/backends';
 import { useDispatch, useSelector } from 'src/hooks/suite';
 
@@ -55,12 +56,12 @@ const BackendRow = styled.div`
 `;
 
 const Title = styled.div`
-    ${typography.body}
+    ${typography['body-md']}
 `;
 
 const Subtitle = styled.div<{ $error?: boolean }>`
-    ${typography.hint}
-    color: ${({ $error, theme }) => ($error ? theme.textAlertRed : theme.legacy.TYPE_LIGHT_GREY)};
+    ${typography['body-sm']}
+    color: ${({ $error, theme }) => ($error ? theme.contentCritical : theme.contentSecondary)};
 `;
 
 type BackendItemProps = ConnectionStatus & {
@@ -103,8 +104,9 @@ const BackendItem = ({
             <div>
                 {!connected && (
                     <Button
-                        size="tiny"
-                        variant="tertiary"
+                        size="small"
+                        intent="neutral"
+                        priority="secondary"
                         isLoading={isReconnecting}
                         onClick={reconnect}
                     >
@@ -140,7 +142,7 @@ const CoinItem = ({ symbol }: CoinItemProps) => {
                         <CoinLogo symbol={symbol} />
                         <Title>{getNetwork(symbol).name}</Title>
                     </CoinCell>
-                    <Button size="tiny" variant="tertiary" onClick={onSettings}>
+                    <Button size="small" intent="neutral" priority="secondary" onClick={onSettings}>
                         <Translation id="TR_SETTINGS" />
                     </Button>
                 </div>

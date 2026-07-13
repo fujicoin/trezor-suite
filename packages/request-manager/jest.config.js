@@ -1,6 +1,6 @@
-const baseConfig = require('../../jest.config.base.js');
+const baseConfig = require('../../jest.config.base.swc');
 
 module.exports = {
     ...baseConfig,
-    testRetryTimes: 3,
+    testEnvironment: '../../JestCustomEnv.js',
 };

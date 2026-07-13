@@ -1,29 +1,34 @@
-import { Route } from '@suite-common/suite-types';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { type Route, goto } from '@suite/router';
+import { useServices } from '@suite-common/dependency-injection';
+import { getTradingPrefilledFromAccountData, tradingActions } from '@suite-common/trading';
 import { getNetworkDisplaySymbol, getNetworkDisplaySymbolName } from '@suite-common/wallet-config';
 import { useDisplayBaseCurrency } from '@suite-common/wallet-core';
 import { hasNetworkFeatures } from '@suite-common/wallet-utils';
 import { Button, Card, Flex, InfoItem, Row, Text } from '@trezor/components';
 import { hasBitcoinOnlyFirmware } from '@trezor/device-utils';
 import { CoinLogo } from '@trezor/product-components';
-import { EventType, analytics } from '@trezor/suite-analytics';
 import { spacings } from '@trezor/theme';
 import { exhaustive } from '@trezor/type-utils';
 
-import { goto } from 'src/actions/suite/routerActions';
 import { DashboardSection } from 'src/components/dashboard';
-import { PriceTicker, Translation, TrendTicker } from 'src/components/suite';
-import { useDevice, useDispatch, useLayoutSize } from 'src/hooks/suite';
-import { Account } from 'src/types/wallet';
+import { PriceTicker, TrendTicker } from 'src/components/suite';
+import { useDispatch, useLayoutSize } from 'src/hooks/suite';
+import { type Account } from 'src/types/wallet';
 
 type TradeBoxProps = {
     account: Account;
 };
 
+type ActionType = 'buy' | 'sell' | 'exchange' | 'stake';
+
 export const TradeBox = ({ account }: TradeBoxProps) => {
     const { isBelowTablet, isBelowMobile } = useLayoutSize();
     const dispatch = useDispatch();
     const { device } = useDevice();
-
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const { shallDisplayBaseCurrency } = useDisplayBaseCurrency(account.symbol);
 
     const isStakeNetwork = hasNetworkFeatures(account, 'staking');
@@ -33,53 +38,74 @@ export const TradeBox = ({ account }: TradeBoxProps) => {
         children,
         isDisabled = false,
     }: {
-        type: 'stake' | 'buy' | 'exchange' | 'sell';
+        type: ActionType;
         children: React.ReactNode;
         isDisabled?: boolean;
     }) => {
         const gotoRouteName: Route['name'] =
             type === 'stake' ? 'wallet-staking' : `wallet-trading-${type}`;
+        const gotoProps =
+            type === 'stake'
+                ? {
+                      routeName: gotoRouteName,
+                      preserveParams: true,
+                      params: {
+                          symbol: account.symbol,
+                          accountIndex: account.index,
+                          accountType: account.accountType,
+                      },
+                  }
+                : { routeName: gotoRouteName };
         const dataTestId = type === 'stake' ? undefined : `@trading/menu/wallet-trading-${type}`;
+
+        const handleOnClick = () => {
+            dispatch(
+                tradingActions.setTradingFromPrefilledAccount(
+                    getTradingPrefilledFromAccountData(account),
+                ),
+            );
+
+            dispatch(goto(gotoProps));
+
+            switch (type) {
+                case 'buy':
+                case 'sell':
+                case 'exchange': {
+                    analytics.report({
+                        type: events.tradeNavigateEvent.name,
+                        payload: {
+                            action: 'navigate',
+                            type,
+                            from: 'account/tradebox',
+                            networkSymbol: account.symbol,
+                        },
+                    });
+
+                    break;
+                }
+                case 'stake': {
+                    analytics.report({
+                        type: events.stakingNavigateEvent.name,
+                        payload: {
+                            action: 'navigate',
+                            from: 'account/tradebox',
+                            networkSymbol: account.symbol,
+                        },
+                    });
+
+                    break;
+                }
+                default:
+                    exhaustive(type);
+            }
+        };
 
         return (
             <Button
-                variant="tertiary"
+                intent="neutral"
+                priority="secondary"
                 size="small"
-                onClick={() => {
-                    dispatch(goto(gotoRouteName, { preserveParams: true }));
-
-                    switch (type) {
-                        case 'buy':
-                        case 'sell':
-                        case 'exchange': {
-                            analytics.report({
-                                type: EventType.TradingNavigate,
-                                payload: {
-                                    action: 'navigate',
-                                    type,
-                                    from: 'account/tradebox',
-                                    networkSymbol: account.symbol,
-                                },
-                            });
-
-                            break;
-                        }
-                        case 'stake': {
-                            analytics.report({
-                                type: EventType.StakingNavigate,
-                                payload: {
-                                    action: 'navigate',
-                                    from: 'account/tradebox',
-                                    networkSymbol: account.symbol,
-                                },
-                            });
-
-                            break;
-                        }
-                        default:
-                            exhaustive(type);
-                    }
-                }}
+                onClick={handleOnClick}
                 data-testid={dataTestId}
                 isDisabled={isDisabled}
             >
@@ -89,7 +115,7 @@ export const TradeBox = ({ account }: TradeBoxProps) => {
     };
 
     return (
-        <DashboardSection heading={<Translation id="TR_NAV_TRADE" />}>
+        <DashboardSection>
             <Card>
                 <Flex
                     direction={isBelowTablet ? 'column' : 'row'}
@@ -102,15 +128,20 @@ export const TradeBox = ({ account }: TradeBoxProps) => {
                         gap={isBelowMobile ? spacings.md : spacings.xxxl}
                     >
                         <Row gap={spacings.sm}>
-                            <CoinLogo size={36} symbol={account.symbol} type="tokenWithNetwork" />
+                            <CoinLogo size={40} symbol={account.symbol} type="tokenWithNetwork" />
                             <InfoItem
                                 label={getNetworkDisplaySymbolName(account.symbol)}
-                                typographyStyle="highlight"
-                                variant="default"
+                                typographyStyle="body-md-strong"
+                                intent="neutral"
+                                priority="primary"
                                 gap={0}
                                 width="fit-content"
                             >
-                                <Text variant="tertiary" typographyStyle="hint">
+                                <Text
+                                    intent="neutral"
+                                    priority="secondary"
+                                    typographyStyle="body-sm"
+                                >
                                     {getNetworkDisplaySymbol(account.symbol)}
                                 </Text>
                             </InfoItem>

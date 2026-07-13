@@ -1,11 +1,10 @@
 import { nativeTheme } from 'electron';
 
-import { SuiteThemeVariant } from '@trezor/suite-desktop-api';
+import { type SuiteThemeVariant } from '@trezor/suite-desktop-api';
 
 import { Store } from '../libs/store';
 import { ipcMain } from '../typed-electron';
-
-import type { ModuleInit } from './index';
+import type { ModuleInit } from './module';
 
 const setThemeManually = (theme: SuiteThemeVariant, store: Store) => {
     const { logger } = global;
@@ -18,7 +17,7 @@ const setThemeManually = (theme: SuiteThemeVariant, store: Store) => {
 
 export const SERVICE_NAME = 'theme';
 
-export const init: ModuleInit = () => {
+export const init: ModuleInit = ({ mainWindowProxy }) => {
     const { logger } = global;
 
     const store = Store.getStore();
@@ -30,4 +29,12 @@ export const init: ModuleInit = () => {
     }
 
     ipcMain.on('theme/change', (_, newTheme) => setThemeManually(newTheme, store));
+
+    nativeTheme.on('updated', () => {
+        if (store.getThemeSettings() !== 'system') return;
+
+        const newTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+        logger.info(SERVICE_NAME, `OS theme changed to ${newTheme}.`);
+        mainWindowProxy.getInstance()?.webContents.send('theme/system-change', newTheme);
+    });
 };

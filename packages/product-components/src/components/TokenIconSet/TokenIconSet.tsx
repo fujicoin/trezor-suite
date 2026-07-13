@@ -1,67 +1,71 @@
-import styled, { css } from 'styled-components';
+import { useMemo } from 'react';
 
-import { NetworkSymbol, getCoingeckoId } from '@suite-common/wallet-config';
-import { getContractAddressForNetworkSymbol } from '@suite-common/wallet-utils';
-import { type TokenInfo } from '@trezor/blockchain-link-types';
-import { AssetLogo, useElevation } from '@trezor/components';
-import { Elevation, borders, mapElevationToBackground, mapElevationToBorder } from '@trezor/theme';
+import { type NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
 
-export type TokenIconSetProps = {
-    symbol: NetworkSymbol;
-    tokens: TokenInfo[];
+import { AssetLogo } from '../AssetLogo/AssetLogo';
+import { CoinLogo } from '../CoinLogo/CoinLogo';
+import { type CommonIconSetProps, IconSetBase, IconWrapper } from '../IconSet/IconSetBase';
+
+export type TokenIconSetToken = {
+    contract?: string | null;
+    symbol?: string;
 };
 
-const IconContainer = styled.div<{ $length: number }>`
-    width: 24px;
-    justify-content: center;
-    display: flex;
-    align-items: center;
-    ${({ $length }) =>
-        $length > 1 &&
-        css`
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(${$length > 1 ? '1px' : '6px'}, 6px));
-            direction: rtl;
-            justify-items: center;
-        `}
-`;
+export type TokenIconSetProps = CommonIconSetProps & {
+    symbol: NetworkSymbol;
+    tokens: readonly TokenIconSetToken[];
+};
 
-const TokenIconPlaceholder = styled.div<{ $elevation: Elevation }>`
-    width: 20px;
-    height: 20px;
-    border-radius: ${borders.radii.full};
-    border: 1px solid ${mapElevationToBorder};
-    background: ${mapElevationToBackground};
-`;
-
-/**
- * @param tokens - provide already sorted tokens (for example by fiat value).
- */
-export const TokenIconSet = ({ symbol, tokens }: TokenIconSetProps) => {
-    const { elevation } = useElevation();
+export const TokenIconSet = ({
+    symbol,
+    tokens,
+    size,
+    gap,
+    maxVisibleIcons = 3,
+    isCountVisible = false,
+    isCentered = false,
+    isReversed = false,
+}: TokenIconSetProps) => {
     const { length } = tokens;
 
-    if (length === 0) {
-        return null;
-    }
+    const visibleTokensContent = useMemo(() => {
+        const visibleTokens = maxVisibleIcons !== null ? tokens.slice(0, maxVisibleIcons) : tokens;
 
-    const visibleTokens = tokens.slice(0, 3).reverse();
+        return visibleTokens.map(token => {
+            const key = token.contract ?? token.symbol ?? symbol;
+            const nativeCoinSymbol = getNetwork(symbol).settlementLayer ?? symbol;
 
-    const coingeckoId = getCoingeckoId(symbol);
+            return (
+                <IconWrapper key={key} $size={size} $gap={gap} $length={length}>
+                    {token.contract ? (
+                        <AssetLogo
+                            size={size}
+                            symbol={symbol}
+                            contractAddress={token.contract ?? null}
+                            placeholder={token.symbol ?? ''}
+                            placeholderWithTooltip={false}
+                            shouldTryToFetch
+                            isBordered={false}
+                        />
+                    ) : (
+                        <CoinLogo size={size} symbol={nativeCoinSymbol} type="token" />
+                    )}
+                </IconWrapper>
+            );
+        });
+    }, [tokens, maxVisibleIcons, symbol, size, gap, length]);
 
     return (
-        <IconContainer $length={length}>
-            {length > 3 && <TokenIconPlaceholder $elevation={elevation} />}
-            {visibleTokens.map(token => (
-                <AssetLogo
-                    key={token.contract}
-                    size={20}
-                    coingeckoId={coingeckoId ?? ''}
-                    contractAddress={getContractAddressForNetworkSymbol(symbol, token.contract)}
-                    placeholder={token.symbol?.toUpperCase() ?? ''}
-                    placeholderWithTooltip={false}
-                />
-            ))}
-        </IconContainer>
+        <IconSetBase
+            count={length}
+            size={size}
+            gap={gap}
+            maxVisibleIcons={maxVisibleIcons}
+            isCountVisible={isCountVisible}
+            isCentered={isCentered}
+            isReversed={isReversed}
+        >
+            {visibleTokensContent}
+        </IconSetBase>
     );
 };

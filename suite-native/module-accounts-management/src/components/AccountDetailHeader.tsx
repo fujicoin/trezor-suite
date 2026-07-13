@@ -2,34 +2,40 @@ import { useSelector } from 'react-redux';
 
 import { useAtomValue } from 'jotai';
 
-import { TokenDefinitionsRootState } from '@suite-common/token-definitions';
+import type { DeviceRootState } from '@suite-common/device';
+import { type TokenDefinitionsRootState } from '@suite-common/token-definitions';
 import { type NetworkSymbol } from '@suite-common/wallet-config';
 import {
-    AccountsRootState,
-    DeviceRootState,
-    TransactionsRootState,
+    type AccountsRootState,
+    type TransactionsRootState,
     selectAccountByKey,
     selectAccountFormattedBalance,
     useDisplayBaseCurrency,
 } from '@suite-common/wallet-core';
-import { AccountKey, TokenAddress, TokenSymbol } from '@suite-common/wallet-types';
-import { BaseCurrencyAmount, asAmountUnit } from '@suite-common/wallet-utils';
-import { DiscreetTextTrigger, VStack } from '@suite-native/atoms';
-import { CryptoAmountLargeFormatter } from '@suite-native/formatters';
-import { GraphBaseCurrencyBalance } from '@suite-native/graph';
-import { selectIsHistoryEnabledAccountByAccountKey } from '@suite-native/graph/src/selectors';
 import {
-    TokensRootState,
+    type AccountKey,
+    type BaseCurrencyAmount,
+    type TokenAddress,
+    type TokenSymbol,
+} from '@suite-common/wallet-types';
+import { DiscreetTextTrigger, VStack } from '@suite-native/atoms';
+import {
+    GraphBaseCurrencyBalance,
+    selectIsHistoryEnabledAccountByAccountKey,
+} from '@suite-native/graph';
+import {
+    type TokensRootState,
     selectAccountTokenBalance,
     selectAccountTokenSymbol,
 } from '@suite-native/tokens';
-import { BigNumber } from '@trezor/utils';
 
 import { AccountDetailCryptoValue } from './AccountDetailCryptoValue';
 import {
     percentageChangeAtom,
     referencePointAtom,
     selectedPointAtom,
+    selectedPointFiatValueAtom,
+    selectedPointTimestampAtom,
 } from '../accountDetailGraphAtoms';
 
 type AccountBalanceProps = {
@@ -91,34 +97,23 @@ export const AccountDetailHeader = ({
 
     return (
         <VStack spacing="sp4" alignItems="center">
-            {shallDisplayBaseCurrency ? (
+            {shallDisplayBaseCurrency && (
                 <CryptoBalance
                     symbol={account.symbol}
                     tokenSymbol={tokenSymbol}
                     totalCryptoBalance={totalCryptoBalance}
                 />
-            ) : (
-                <DiscreetTextTrigger>
-                    <CryptoAmountLargeFormatter
-                        value={
-                            totalCryptoBalance !== null
-                                ? asAmountUnit(new BigNumber(totalCryptoBalance))
-                                : null
-                        }
-                        symbol={account.symbol}
-                    />
-                </DiscreetTextTrigger>
             )}
-            {shallDisplayBaseCurrency ? (
-                <GraphBaseCurrencyBalance
-                    selectedPointAtom={selectedPointAtom}
-                    referencePointAtom={referencePointAtom}
-                    percentageChangeAtom={percentageChangeAtom}
-                    showChange={isHistoryEnabledAccount && shallDisplayBaseCurrency}
-                    totalBaseCurrencyBalance={totalFiatBalance}
-                    isHistoryEnabledAccount={isHistoryEnabledAccount}
-                />
-            ) : null}
+
+            <GraphBaseCurrencyBalance
+                selectedPointFiatValueAtom={selectedPointFiatValueAtom}
+                selectedPointTimestampAtom={selectedPointTimestampAtom}
+                referencePointAtom={referencePointAtom}
+                percentageChangeAtom={percentageChangeAtom}
+                showChange={isHistoryEnabledAccount}
+                totalBaseCurrencyBalance={totalFiatBalance}
+                isHistoryEnabledAccount={isHistoryEnabledAccount}
+            />
         </VStack>
     );
 };

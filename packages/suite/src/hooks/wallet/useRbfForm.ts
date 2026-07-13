@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
+import { selectCurrentTargetAnonymity } from '@suite/coinjoin';
+import { getNetwork } from '@suite-common/wallet-config';
 import {
     DEFAULT_OPRETURN,
     DEFAULT_PAYMENT,
@@ -9,34 +11,34 @@ import {
 } from '@suite-common/wallet-constants';
 import { DEFAULT_FEE_INFO, selectRawNetworkFeeInfo } from '@suite-common/wallet-core';
 import {
-    ChainedTransactions,
-    FeeInfo,
-    FormOptions,
-    FormState,
-    RbfTransactionParams,
-    RbfTransactionParamsBitcoin,
-    RbfTransactionParamsEthereum,
-    SelectedAccountLoaded,
+    type Account,
+    type ChainedTransactions,
+    type FeeInfo,
+    type FormOptions,
+    type FormState,
+    type RbfTransactionParams,
+    type RbfTransactionParamsBitcoin,
+    type RbfTransactionParamsEthereum,
 } from '@suite-common/wallet-types';
 import {
     calculateChainedTransactionsFeeForRbf,
     getConvertedOrDefaultFeeInfo,
     isEip1559,
 } from '@suite-common/wallet-utils';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { BigNumber, throwError } from '@trezor/utils';
 
 import { useSelector } from 'src/hooks/suite';
 import { useCoinjoinRegisteredUtxos } from 'src/hooks/wallet/form/useCoinjoinRegisteredUtxos';
-import { selectCurrentTargetAnonymity } from 'src/reducers/wallet/coinjoinReducer';
 
 import { useCompose } from './form/useCompose';
 import { useFees } from './form/useFees';
 import { useBitcoinAmountUnit } from './useBitcoinAmountUnit';
 
-const MIN_FEE_RATE = 1; // minimum fee rate in sat/vB, introduced because nodes lowered min relay tx fee, but not incremental fee
+// Conservative minimum fee rate floor in sat/vB. Bitcoin Core has officially lowered both the min relay tx fee and the incremental relay fee, but actual minimums depend on individual node configurations.
+const MIN_FEE_RATE_PER_VB = 0.2;
 
 export type UseRbfProps = {
-    selectedAccount: SelectedAccountLoaded;
+    account: Account;
     rbfParams: RbfTransactionParams;
     chainedTxs?: ChainedTransactions;
 };
@@ -50,17 +52,23 @@ const getBitcoinFeeInfo = (info: FeeInfo, rbfParams: RbfTransactionParamsBitcoin
     });
     const levels = feeInfo.levels.map(level => ({
         ...level,
-        feePerUnit: new BigNumber(level.feePerUnit).plus(feeRate).toString(),
+        feePerUnit: Math.max(
+            new BigNumber(level.feePerUnit).plus(feeRate).toNumber(),
+            new BigNumber(feeRate).plus(MIN_FEE_RATE_PER_VB).toNumber(),
+        ).toString(),
     }));
 
     return {
         ...feeInfo,
         levels,
-        minFee: Math.max(new BigNumber(feeRate).plus(feeInfo.minFee).toNumber(), MIN_FEE_RATE),
+        minFee: Math.max(
+            new BigNumber(feeRate).plus(feeInfo.minFee).toNumber(),
+            new BigNumber(feeRate).plus(MIN_FEE_RATE_PER_VB).toNumber(),
+        ),
     };
 };
 
-const getEthereumFeeInfo = (info: FeeInfo, rbfParams: RbfTransactionParamsEthereum) => {
+const getEthereumFeeInfo = (info: FeeInfo, rbfParams: RbfTransactionParamsEthereum): FeeInfo => {
     // use maxFeePerGas as fallback in case backend does not return eip1559 fees
     const currentGasPrice = new BigNumber(rbfParams.gasPrice || rbfParams.maxFeePerGas);
     const feeInfo = getConvertedOrDefaultFeeInfo({
@@ -74,7 +82,24 @@ const getEthereumFeeInfo = (info: FeeInfo, rbfParams: RbfTransactionParamsEthere
         const currentMaxFee = new BigNumber(rbfParams.maxFeePerGas);
         const currentMaxPriorityFee = new BigNumber(rbfParams.maxPriorityFeePerGas);
 
-        const highLevel = feeInfo.levels.find(level => level.label === 'high') || feeInfo.levels[0];
+        const { levels: feeLevelsForEip1559 } = feeInfo;
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const fallbackLevel: (typeof feeLevelsForEip1559)[number] = feeLevelsForEip1559[0];
+        const highLevel =
+            feeLevelsForEip1559.find(level => level.label === 'high') || fallbackLevel;
+        const highMaxFeePerGas = highLevel.maxFeePerGas;
+        const highMaxPriorityFeePerGas = highLevel.maxPriorityFeePerGas;
+        const newMaxFeePerGas = BigNumber.maximum(currentMaxFee, highMaxFeePerGas ?? 0)
+            .multipliedBy(ETH_SPEED_UP_TX_MULTIPLIER)
+            .decimalPlaces(9, BigNumber.ROUND_UP)
+            .toString();
+        const newMaxPriorityFeePerGas = BigNumber.maximum(
+            currentMaxPriorityFee,
+            highMaxPriorityFeePerGas ?? 0,
+        )
+            .multipliedBy(ETH_SPEED_UP_TX_MULTIPLIER)
+            .decimalPlaces(9, BigNumber.ROUND_UP)
+            .toString();
 
         return {
             ...feeInfo,
@@ -82,21 +107,17 @@ const getEthereumFeeInfo = (info: FeeInfo, rbfParams: RbfTransactionParamsEthere
                 {
                     ...highLevel,
                     label: 'normal' as const,
-                    maxFeePerGas: BigNumber.maximum(currentMaxFee, highLevel.maxFeePerGas ?? 0)
-                        .multipliedBy(ETH_SPEED_UP_TX_MULTIPLIER)
-                        .toString(),
-                    maxPriorityFeePerGas: BigNumber.maximum(
-                        currentMaxPriorityFee,
-                        highLevel.maxPriorityFeePerGas ?? 0,
-                    )
-                        .multipliedBy(ETH_SPEED_UP_TX_MULTIPLIER)
-                        .toString(),
+                    maxFeePerGas: newMaxFeePerGas,
+                    maxPriorityFeePerGas: newMaxPriorityFeePerGas,
                 },
             ],
         };
     }
 
-    const minFeeFromNetwork = new BigNumber(feeInfo.levels[0].feePerUnit);
+    const { levels: feeLevels } = feeInfo;
+    // @ts-expect-error: indexing with noUncheckedIndexedAccess
+    const firstLevel: (typeof feeLevels)[number] = feeLevels[0];
+    const minFeeFromNetwork = new BigNumber(firstLevel.feePerUnit);
     const fee = BigNumber.maximum(minFeeFromNetwork, currentGasPrice.plus(feeInfo.minFee));
 
     // increase FeeLevel only if it's lower than predefined
@@ -119,14 +140,13 @@ const getRbfFeeInfo = (info: FeeInfo, rbfParams: RbfTransactionParams) => {
     return info;
 };
 
-const useRbfState = ({ selectedAccount, rbfParams, chainedTxs }: UseRbfProps) => {
-    const { account, network } = selectedAccount;
-
+const useRbfState = ({ account, rbfParams, chainedTxs }: UseRbfProps) => {
     const networkFees = useSelector(state => selectRawNetworkFeeInfo(state, account.symbol));
     const targetAnonymity = useSelector(selectCurrentTargetAnonymity);
     const coinjoinRegisteredUtxos = useCoinjoinRegisteredUtxos({ account });
 
     const { shouldSendInSats } = useBitcoinAmountUnit(account.symbol);
+    const network = getNetwork(account.symbol);
 
     return useMemo(() => {
         const rbfFeeInfo = networkFees ? getRbfFeeInfo(networkFees, rbfParams) : DEFAULT_FEE_INFO;
@@ -206,7 +226,8 @@ const useRbfState = ({ selectedAccount, rbfParams, chainedTxs }: UseRbfProps) =>
                 selectedFee: undefined,
                 setMaxOutputId,
                 options: ['broadcast'] satisfies FormOptions[],
-                ethereumDataHex: rbfParams.type === 'ethereum' ? rbfParams.ethereumData : undefined,
+                transactionData:
+                    rbfParams.type === 'ethereum' ? rbfParams.transactionData : undefined,
                 rbfParams,
                 baseFee,
             },
@@ -302,6 +323,7 @@ export const useRbf = (props: UseRbfProps) => {
 
     return {
         ...state,
+        methods: useFormMethods,
         isLoading,
         showDecreasedOutputs,
         register,
@@ -326,9 +348,5 @@ RbfContext.displayName = 'RbfContext';
 
 // Used across rbf form components
 // Provide combined context of `react-hook-form` with custom values as RbfContextValues
-export const useRbfContext = () => {
-    const ctx = useContext(RbfContext);
-    if (ctx === null) throw Error('useRbfContext used without Context');
-
-    return ctx;
-};
+export const useRbfContext = () =>
+    useContext(RbfContext) ?? throwError('useRbfContext used without Context');

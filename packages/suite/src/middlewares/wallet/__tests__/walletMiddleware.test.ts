@@ -1,25 +1,21 @@
-import { testMocks } from '@suite-common/test-utils';
+import { type SelectedAccountState, selectedAccountReducer } from '@suite/account';
+import { type RouterState } from '@suite/router';
+import { extraDependenciesCommonMock, testMocks } from '@suite-common/test-utils';
 import {
-    SendState,
+    type SendState,
     prepareBlockchainMiddleware,
     prepareSendFormReducer,
 } from '@suite-common/wallet-core';
-import { Account } from '@suite-common/wallet-types';
+import { mockWalletAccount } from '@suite-common/wallet-types/mocks';
 
 import walletMiddleware from 'src/middlewares/wallet/walletMiddleware';
-import { RouterState } from 'src/reducers/suite/routerReducer';
 import { accountsReducer, blockchainReducer, walletSettingsReducer } from 'src/reducers/wallet';
 import formDraftReducer from 'src/reducers/wallet/formDraftReducer';
-import selectedAccountReducer, {
-    State as SelectedAccountState,
-} from 'src/reducers/wallet/selectedAccountReducer';
 import { extraDependencies } from 'src/support/extraDependencies';
 import { configureStore } from 'src/support/tests/configureStore';
-import { Action } from 'src/types/suite';
+import { type Action } from 'src/types/suite';
 
 import * as fixtures from '../__fixtures__/walletMiddleware';
-
-const { getWalletAccount } = testMocks;
 
 const sendFormReducer = prepareSendFormReducer(extraDependencies);
 
@@ -39,6 +35,9 @@ interface Args {
 const getInitialState = ({ router, accounts, settings, selectedAccount, send }: Args = {}) => ({
     router: {
         app: 'wallet',
+        route: {
+            name: 'wallet-index',
+        },
         ...router,
     },
     suite: {},
@@ -66,7 +65,7 @@ type State = ReturnType<typeof getInitialState>;
 
 const mockStore = configureStore<State, Action>([
     walletMiddleware,
-    prepareBlockchainMiddleware(extraDependencies),
+    prepareBlockchainMiddleware(() => extraDependenciesCommonMock),
 ]);
 
 const initStore = (state: State) => {
@@ -98,7 +97,7 @@ describe('walletMiddleware', () => {
 
     fixtures.blockchainSubscription.forEach(f => {
         it(f.description, () => {
-            const initialAccounts = f.initialAccounts.map((a: any) => getWalletAccount(a));
+            const initialAccounts = f.initialAccounts.map((a: any) => mockWalletAccount(a));
             const store = initStore(
                 getInitialState({
                     accounts: initialAccounts,
@@ -108,8 +107,8 @@ describe('walletMiddleware', () => {
             f.actions.forEach((action: any) => {
                 const payload = Array.isArray(action.payload)
                     ? // @ts-expect-error
-                      action.payload.map(a => getWalletAccount(a))
-                    : getWalletAccount(action.payload);
+                      action.payload.map(a => mockWalletAccount(a))
+                    : mockWalletAccount(action.payload);
                 store.dispatch({ ...action, payload });
             });
 
@@ -117,8 +116,7 @@ describe('walletMiddleware', () => {
             if (subscribe) {
                 expect(TrezorConnect.blockchainSubscribe).toHaveBeenCalledTimes(subscribe.called);
                 if (subscribe.called) {
-                    const accounts =
-                        subscribe.accounts?.map(a => getWalletAccount(a as Partial<Account>)) ?? [];
+                    const accounts = subscribe.accounts?.map(a => mockWalletAccount(a)) ?? [];
                     expect(TrezorConnect.blockchainSubscribe).toHaveBeenLastCalledWith(
                         expect.objectContaining({
                             accounts: accounts.map(a => expect.objectContaining(a)),

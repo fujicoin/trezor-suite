@@ -1,51 +1,66 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 
-import { getDeviceColorVariant, getDeviceInternalModel } from '@suite-common/suite-utils';
+import { AccountLabel } from '@suite/account';
+import { Address, selectAddressLabel } from '@suite/address';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useDevice } from '@suite/device';
+import { Translation, useTranslation } from '@suite/intl';
+import { Labeling } from '@suite/labeling';
+import { selectIsMetadataEnabled } from '@suite/metadata';
+import { MODAL_CONTEXT_USER } from '@suite/modal';
+import { selectDesktopSuiteSyncInteraction } from '@suite/suite-sync';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectSelectedDeviceLabelOrName } from '@suite-common/device';
+import { getDeviceInternalModel } from '@suite-common/suite-utils';
 import { notificationsActions } from '@suite-common/toast-notifications';
 import { getDisplaySymbol } from '@suite-common/wallet-config';
-import { selectSelectedDevice, selectSelectedDeviceLabelOrName } from '@suite-common/wallet-core';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
 import {
     Banner,
     Box,
-    BulletList,
     Button,
     Card,
     Column,
     H3,
+    Icon,
     IconCircle,
-    InfoItem,
     Link,
     Modal,
-    ModalProps,
+    type ModalProps,
     Paragraph,
     Row,
+    StepList,
+    Text,
 } from '@trezor/components';
+import { getDeviceColorVariant } from '@trezor/device-utils';
 import { copyToClipboard } from '@trezor/dom-utils';
-import { CoinLogo, ConfirmOnDevice } from '@trezor/product-components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import {
+    CheckIcon,
+    CopyIcon,
+    InfoIcon,
+    TagFilledIcon,
+    TagIcon,
+    WarningFilledIcon,
+    WarningIcon,
+} from '@trezor/icons';
+import { CoinLogo, ConfirmOnDevicePill } from '@trezor/product-components';
 import { spacings } from '@trezor/theme';
 
-import { MODAL } from 'src/actions/suite/constants';
-import { AccountLabel, Address, Translation } from 'src/components/suite';
 import { QrCode } from 'src/components/suite/QrCode';
 import { useGuideOpenNode } from 'src/hooks/guide';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectLabelingDataForSelectedAccount } from 'src/reducers/suite/metadataReducer';
-import { selectIsActionAbortable } from 'src/selectors/suite/suiteSelectors';
-import { ThunkAction } from 'src/types/suite';
+import { type ThunkAction } from 'src/types/suite';
 import { DESTINATION_TAG_GUIDE_PATH } from 'src/views/wallet/send/Options/MiscNetworkOptions/DestinationTag';
 
 export type ConfirmValueModalProps = Pick<ModalProps, 'onCancel' | 'heading'> & {
     account?: Account;
     'data-testid'?: string;
     isConfirmed?: boolean;
-    areStepsVisible?: boolean;
     isValueChunked?: boolean;
-    isCopyButtonVisible?: boolean;
     label?: ReactNode;
     validateOnDevice: () => ThunkAction;
     value: string;
+    isAddress?: boolean;
 };
 
 export const ConfirmValueModal = ({
@@ -55,30 +70,46 @@ export const ConfirmValueModal = ({
     label,
     isConfirmed,
     isValueChunked,
-    isCopyButtonVisible,
-    areStepsVisible,
     onCancel,
     validateOnDevice,
+    isAddress = false,
     value,
 }: ConfirmValueModalProps) => {
     const [isCopied, setIsCopied] = useState(false);
-    const device = useSelector(selectSelectedDevice);
+    const { device } = useDevice();
     const modalContext = useSelector(state => state.modal.context);
-    const isActionAbortable = useSelector(selectIsActionAbortable);
     const deviceLabel = useSelector(selectSelectedDeviceLabelOrName);
-    const { accountLabel } = useSelector(selectLabelingDataForSelectedAccount);
+    const isMetadataEnabled = useSelector(selectIsMetadataEnabled);
     const dispatch = useDispatch();
     const { openNodeById } = useGuideOpenNode();
+    const { translationString } = useTranslation();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
+
+    const suiteSyncInteraction = useSelector(state =>
+        account
+            ? selectDesktopSuiteSyncInteraction(state, account.deviceState, isMetadataEnabled)
+            : null,
+    );
+
+    const addressLabel = useSelector(state =>
+        account && isAddress
+            ? selectAddressLabel(state, {
+                  address: value,
+                  deviceStaticId: account.deviceState,
+              })
+            : null,
+    );
 
     const canConfirmOnDevice = !!(device?.connected && device?.available);
-    const isCancelable = isActionAbortable || isConfirmed;
+    // Do not show Add address label button if there is device interaction needed and device is not connected.
+    const shouldShowAddressLabelAction = suiteSyncInteraction === null || !!device?.connected;
 
     const copy = () => {
         const result = copyToClipboard(value);
 
         if (account) {
             analytics.report({
-                type: EventType.CreateReceiveAddressCopyAddress,
+                type: events.createReceiveAddressCopyAddressEvent.name,
                 payload: { assetSymbol: account.symbol },
             });
         }
@@ -89,26 +120,22 @@ export const ConfirmValueModal = ({
         }
     };
 
-    const handleOpenGuide = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const handleOpenGuide = (e: React.MouseEvent<HTMLAnchorElement>) => {
         e.stopPropagation();
         openNodeById(DESTINATION_TAG_GUIDE_PATH);
     };
 
     // Device connected while the modal is open -> validate on device.
     useEffect(() => {
-        if (canConfirmOnDevice && modalContext === MODAL.CONTEXT_USER && !isConfirmed) {
+        if (canConfirmOnDevice && modalContext === MODAL_CONTEXT_USER && !isConfirmed) {
             dispatch(validateOnDevice());
         }
     }, [canConfirmOnDevice, dispatch, isConfirmed, modalContext, validateOnDevice]);
 
-    const outputValue = (
-        <Address value={value} data-testid="@modal/output-value" isChunked={isValueChunked} />
-    );
-
     return (
-        <Modal.Backdrop onClick={isCancelable ? onCancel : undefined}>
+        <Modal.Backdrop onClick={onCancel}>
             {canConfirmOnDevice && (
-                <ConfirmOnDevice
+                <ConfirmOnDevicePill
                     title={<Translation id="TR_CONFIRM_ON_TREZOR" />}
                     deviceModelInternal={getDeviceInternalModel(device)}
                     deviceUnitColor={getDeviceColorVariant(device)}
@@ -120,139 +147,172 @@ export const ConfirmValueModal = ({
                 description={
                     account && (
                         <Row gap={spacings.xxs}>
-                            <CoinLogo size={14} symbol={account.symbol} />
+                            <CoinLogo size={16} symbol={account.symbol} />
                             <AccountLabel
-                                account={{
-                                    ...account,
-                                    accountLabel,
-                                }}
+                                account={account}
                                 accountTypeBadgeSize="small"
                                 showAccountTypeBadge
                             />
                         </Row>
                     )
                 }
-                onCancel={isCancelable ? onCancel : undefined}
-                size="small"
+                onCancel={onCancel}
+                width={600}
             >
                 <Column gap={spacings.md}>
                     {!device?.connected && (
-                        <Banner icon="warning" variant="warning">
-                            <Paragraph typographyStyle="hint">
-                                <Translation
-                                    id="TR_DEVICE_LABEL_IS_NOT_CONNECTED"
-                                    values={{ deviceLabel }}
-                                />
-                            </Paragraph>
-                            <Paragraph typographyStyle="label">
-                                <Translation id="TR_PLEASE_CONNECT_YOUR_DEVICE" />
-                            </Paragraph>
-                        </Banner>
+                        <Banner
+                            icon={WarningIcon}
+                            intent="warning"
+                            description={
+                                <>
+                                    <Paragraph typographyStyle="body-sm">
+                                        <Translation
+                                            id="TR_DEVICE_LABEL_IS_NOT_CONNECTED"
+                                            values={{ deviceLabel }}
+                                        />
+                                    </Paragraph>
+                                    <Paragraph typographyStyle="body-xs">
+                                        <Translation id="TR_PLEASE_CONNECT_YOUR_DEVICE" />
+                                    </Paragraph>
+                                </>
+                            }
+                        />
                     )}
                     {(account?.networkType === 'ripple' || account?.networkType === 'stellar') && (
-                        <Banner variant="info" icon="info">
-                            <Translation
-                                id="DESTINATION_TAG_BANNER_RECEIVE"
-                                values={{
-                                    a: chunks => (
-                                        <Link
-                                            variant="nostyle"
-                                            icon="arrowUpRight"
-                                            typographyStyle="hint"
-                                            onClick={handleOpenGuide}
-                                        >
-                                            {chunks}
-                                        </Link>
-                                    ),
-                                    displaySymbol: getDisplaySymbol(account.symbol),
-                                }}
-                            />
-                        </Banner>
+                        <Banner
+                            intent="info"
+                            icon={InfoIcon}
+                            description={
+                                <Translation
+                                    id="DESTINATION_TAG_BANNER_RECEIVE"
+                                    values={{
+                                        a: chunks => (
+                                            <Link onClick={handleOpenGuide}>{chunks}</Link>
+                                        ),
+                                        displaySymbol: getDisplaySymbol(account.symbol),
+                                    }}
+                                />
+                            }
+                        />
                     )}
-                    <Card fillType="flat">
-                        <Row
-                            gap={spacings.xl}
-                            alignItems="stretch"
-                            data-testid="@modal/output-address"
-                        >
-                            <Box aspectRatio="1" flex="1 0 auto" minWidth={120}>
+                    <Card paddingType="large">
+                        <Row gap={32} alignItems="stretch" data-testid="@modal/output-address">
+                            <Box aspectRatio="1" width={170} height={170}>
                                 <QrCode value={value} />
                             </Box>
-                            <Column gap={spacings.lg}>
-                                {label ? (
-                                    <InfoItem label={label}>{outputValue}</InfoItem>
-                                ) : (
-                                    outputValue
-                                )}
-                                {isCopyButtonVisible && (
-                                    <Button
-                                        onClick={copy}
-                                        variant="tertiary"
-                                        data-testid={copyButtonDataTest}
-                                        size="small"
-                                        textWrap={false}
-                                        icon={isCopied ? 'check' : 'copy'}
+                            <Column gap={12} alignItems="flex-start">
+                                {isAddress && !account && label}
+                                {isAddress && !!account && shouldShowAddressLabelAction && (
+                                    <Labeling
+                                        deviceStaticSessionId={account.deviceState}
+                                        displayValue={
+                                            <Text typographyStyle="body-md-strong">
+                                                <Translation id="TR_LABELING_ADD_ADDRESS_LABEL" />
+                                            </Text>
+                                        }
+                                        placeholder={translationString('TR_LABELING_ADDRESS_LABEL')}
+                                        leftAddon={
+                                            <Icon
+                                                as={addressLabel ? TagFilledIcon : TagIcon}
+                                                size={16}
+                                                intent="neutral"
+                                                priority="secondary"
+                                            />
+                                        }
+                                        payload={{
+                                            type: 'addressLabel',
+                                            entityKey: account.key,
+                                            defaultValue: value,
+                                            networkSymbol: account.symbol,
+                                            accountDescriptor: account.descriptor,
+                                        }}
+                                        maxWidth={290}
                                     >
-                                        <Translation
-                                            id={
-                                                isCopied
-                                                    ? 'TR_COPIED_TO_CLIPBOARD'
-                                                    : 'TR_COPY_TO_CLIPBOARD'
-                                            }
-                                        />
-                                    </Button>
+                                        {addressLabel}
+                                    </Labeling>
                                 )}
+                                <Address
+                                    value={value}
+                                    data-testid="@modal/output-value"
+                                    isChunked={isValueChunked}
+                                    isDeviceRendered
+                                />
+                                <Button
+                                    onClick={copy}
+                                    intent="neutral"
+                                    priority="secondary"
+                                    data-testid={copyButtonDataTest}
+                                    size="small"
+                                    iconLeft={isCopied ? CheckIcon : CopyIcon}
+                                    margin={{ top: 'auto' }}
+                                >
+                                    <Translation
+                                        id={
+                                            isCopied
+                                                ? 'TR_COPIED_TO_CLIPBOARD'
+                                                : 'TR_COPY_TO_CLIPBOARD'
+                                        }
+                                    />
+                                </Button>
                             </Column>
                         </Row>
                     </Card>
-                    {areStepsVisible && (
-                        <Card>
-                            <Row gap={spacings.lg}>
-                                <IconCircle
-                                    hasBorder={false}
-                                    variant="info"
-                                    size={32}
-                                    name="warningFilled"
-                                />
+                    {isAddress && (
+                        <Card type="contrast">
+                            <Row gap={20}>
+                                <IconCircle intent="neutral" size={32} icon={WarningFilledIcon} />
                                 <H3>
                                     <Translation id="TR_RECEIVE_ADDRESS_CONFIRMATION_HEADING" />
                                 </H3>
                             </Row>
-                            <BulletList
+                            <StepList
                                 isOrdered
-                                margin={{ top: spacings.xxxl }}
-                                gap={spacings.xl}
-                                titleGap={spacings.zero}
-                                bulletGap={spacings.lg}
+                                margin={{ top: 32 }}
+                                gap={20}
+                                titleGap={0}
+                                bulletGap={20}
                             >
-                                <BulletList.Item
+                                <StepList.Item
                                     title={
                                         <Translation id="TR_RECEIVE_ADDRESS_CONFIRMATION_ITEM_1_HEADING" />
                                     }
                                 >
-                                    <Paragraph variant="tertiary" textWrap="pretty">
+                                    <Paragraph
+                                        intent="neutral"
+                                        priority="secondary"
+                                        textWrap="pretty"
+                                    >
                                         <Translation id="TR_RECEIVE_ADDRESS_CONFIRMATION_ITEM_1_DESCRIPTION" />
                                     </Paragraph>
-                                </BulletList.Item>
-                                <BulletList.Item
+                                </StepList.Item>
+                                <StepList.Item
                                     title={
                                         <Translation id="TR_RECEIVE_ADDRESS_CONFIRMATION_ITEM_2_HEADING" />
                                     }
                                 >
-                                    <Paragraph variant="tertiary" textWrap="pretty">
+                                    <Paragraph
+                                        intent="neutral"
+                                        priority="secondary"
+                                        textWrap="pretty"
+                                    >
                                         <Translation id="TR_RECEIVE_ADDRESS_CONFIRMATION_ITEM_2_DESCRIPTION" />
                                     </Paragraph>
-                                </BulletList.Item>
-                                <BulletList.Item
+                                </StepList.Item>
+                                <StepList.Item
                                     title={
                                         <Translation id="TR_RECEIVE_ADDRESS_CONFIRMATION_ITEM_3_HEADING" />
                                     }
                                 >
-                                    <Paragraph variant="tertiary" textWrap="pretty">
+                                    <Paragraph
+                                        intent="neutral"
+                                        priority="secondary"
+                                        textWrap="pretty"
+                                    >
                                         <Translation id="TR_RECEIVE_ADDRESS_CONFIRMATION_ITEM_3_DESCRIPTION" />
                                     </Paragraph>
-                                </BulletList.Item>
-                            </BulletList>
+                                </StepList.Item>
+                            </StepList>
                         </Card>
                     )}
                 </Column>

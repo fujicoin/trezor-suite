@@ -1,33 +1,32 @@
 import { useSelector } from 'react-redux';
 
-import { G } from '@mobily/ts-belt';
 import { useNavigation } from '@react-navigation/native';
 
 import {
     selectDeviceModel,
     selectFirmwareReleaseConfig,
-    selectHasRunningDiscovery,
     selectIsDeviceBackedUp,
     selectIsFirmwareUpgradable,
     selectSelectedDevice,
-} from '@suite-common/wallet-core';
-import { InlineAlertBoxProps } from '@suite-native/atoms';
-import { useIsFirmwareUpdateFeatureEnabled } from '@suite-native/firmware';
+} from '@suite-common/device';
+import { selectHasRunningDiscovery } from '@suite-common/wallet-core';
+import { type InlineAlertBoxProps } from '@suite-native/atoms';
+import { selectIsFirmwareUpdateFeatureEnabled } from '@suite-native/firmware';
 import { Translation } from '@suite-native/intl';
 import {
-    DeviceSettingsStackParamList,
+    type DeviceSettingsStackParamList,
     DeviceSettingsStackRoutes,
-    FirmwareUpdateStackRoutes,
-    StackNavigationProps,
+    type StackNavigationProps,
 } from '@suite-native/navigation';
 import { useToast } from '@suite-native/toasts';
 import { getFirmwareVersion } from '@trezor/device-utils';
+import { isNotNullOrUndefined } from '@trezor/utils';
 
 import { DeviceSettingsItemCard } from './DeviceSettingsItemCard';
 
-type NavigationProp = StackNavigationProps<
+type NavigationProps = StackNavigationProps<
     DeviceSettingsStackParamList,
-    DeviceSettingsStackRoutes.FirmwareUpdateStack
+    DeviceSettingsStackRoutes.DeviceFirmware
 >;
 
 export const DeviceFirmwareCard = () => {
@@ -39,8 +38,8 @@ export const DeviceFirmwareCard = () => {
     const isFirmwareUpgradable = useSelector(selectIsFirmwareUpgradable);
     const { showToast } = useToast();
 
-    const navigation = useNavigation<NavigationProp>();
-    const isFirmwareUpdateEnabled = useIsFirmwareUpdateFeatureEnabled();
+    const navigation = useNavigation<NavigationProps>();
+    const isFirmwareUpdateEnabled = useSelector(selectIsFirmwareUpdateFeatureEnabled);
 
     if (!device || !deviceModel) {
         return null;
@@ -51,7 +50,7 @@ export const DeviceFirmwareCard = () => {
     const handleOnPress = () => {
         if (!isFirmwareUpdateEnabled) {
             showToast({
-                variant: 'warning',
+                intent: 'warning',
                 message: <Translation id="firmware.updateNotAvailable" />,
                 icon: 'warning',
             });
@@ -59,8 +58,8 @@ export const DeviceFirmwareCard = () => {
             return;
         }
 
-        navigation.navigate(DeviceSettingsStackRoutes.FirmwareUpdateStack, {
-            screen: FirmwareUpdateStackRoutes.ConfirmFirmwareUpdate,
+        navigation.navigate(DeviceSettingsStackRoutes.DeviceFirmware, {
+            closeActionType: 'back',
         });
     };
 
@@ -69,11 +68,11 @@ export const DeviceFirmwareCard = () => {
             return undefined;
         }
 
-        if (G.isNotNullable(deviceReleaseInfo)) {
+        if (isNotNullOrUndefined(deviceReleaseInfo)) {
             if (isFirmwareUpgradable) {
                 return {
                     title: <Translation id="firmware.updateCard.newVersionAvailable" />,
-                    variant: 'info',
+                    intent: 'info',
                     buttonLabel: <Translation id="firmware.firmwareUpdateScreen.updateFirmware" />,
                     onButtonPress: handleOnPress,
                     buttonProps: {

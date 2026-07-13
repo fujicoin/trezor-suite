@@ -1,42 +1,18 @@
-// `expect` keyword is already used by jest.
-import { expect as detoxExpect } from 'detox';
-
-import { conditionalDescribe } from '@suite-common/test-utils';
-
-import { onCoinEnabling } from '../pageObjects/coinEnablingActions';
+import { onHome } from '../pageObjects/homeActions';
 import { onOnboarding } from '../pageObjects/onboardingActions';
-import { disconnectTrezorUserEnv, openApp, prepareTrezorEmulator } from '../utils';
+import { openApp, prepareTrezorEmulator } from '../support/setup';
+import { waitForVisible } from '../support/utils';
 
-conditionalDescribe(
-    device.getPlatform() === 'android',
-    'Go through onboarding and connect Trezor.',
-    () => {
-        beforeAll(async () => {
-            await prepareTrezorEmulator();
+describe('Go through onboarding and connect Trezor. [@androidOnly @T3T1]', () => {
+    beforeEach(async () => {
+        await prepareTrezorEmulator();
+        await openApp({});
+    });
 
-            await openApp({ newInstance: true });
-        });
+    it('Navigate to dashboard', async () => {
+        await onOnboarding.finishOnboarding();
 
-        afterAll(async () => {
-            await disconnectTrezorUserEnv();
-            await device.terminateApp();
-        });
-
-        it('Navigate to dashboard', async () => {
-            await onOnboarding.finishOnboarding();
-
-            await waitFor(element(by.id('@screen/CoinEnablingInit')))
-                .toBeVisible()
-                .withTimeout(10000);
-
-            await onCoinEnabling.waitForInitScreen();
-
-            await onCoinEnabling.toggleNetwork('btc');
-            await onCoinEnabling.toggleNetwork('eth');
-
-            await onCoinEnabling.clickOnConfirmButton();
-
-            await detoxExpect(element(by.id('@home/portfolio/header')));
-        });
-    },
-);
+        await onHome.scrollScreenToBottom();
+        await waitForVisible(by.text('Get started'));
+    });
+});

@@ -1,162 +1,88 @@
-import { ReactNode, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 
-import {
-    Card,
-    Collapsible,
-    Column,
-    ElevationContext,
-    ElevationDown,
-    ElevationUp,
-    Flex,
-    IconName,
-    Row,
-    SelectBar,
-    Text,
-    useMediaQuery,
-    variables,
-} from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { Translation } from '@suite/intl';
+import { Banner, type BannerIntent, Box, Button, Column, Modal } from '@trezor/components';
+import { QuestionIcon } from '@trezor/icons';
 
 import { TroubleshootingTipsFooter } from './TroubleshootingTipsFooter';
+import { type TroubleshootingTipsItem } from './TroubleshootingTipsItem';
 import { TroubleshootingTipsList } from './TroubleshootingTipsList';
-import { TroubleshootingTipsToggle } from './TroubleshootingTipsToggle';
 
-export type TroubleshootingTipsItem = {
-    key: string;
-    heading?: ReactNode;
-    description?: ReactNode;
-    hide?: boolean;
-    noBullet?: boolean;
-    icon?: IconName;
-};
-
-type SectionDefinition = { label: ReactNode; items: TroubleshootingTipsItem[] };
-
-type TroubleshootingTipsWithSectionsProps<K extends string, T extends K> = {
+type TroubleshootingTipsBaseProps = {
     label?: ReactNode;
-    cta?: ReactNode;
     ctaLabel?: ReactNode;
-    initiallyIsOpen?: boolean;
+    cta?: ReactNode;
     'data-testid'?: string;
-    items: Record<K, SectionDefinition>;
-    defaultSection?: T;
     toggleText?: ReactNode;
+    intent?: BannerIntent;
+    items: TroubleshootingTipsItem[];
 };
 
-export const TroubleshootingTipsWithSections = <K extends string, T extends K>({
+export const TroubleshootingTips = ({
     label,
     items,
     cta,
     ctaLabel,
-    initiallyIsOpen,
-    defaultSection,
     toggleText,
+    intent = 'warning',
     'data-testid': dataTest,
-}: TroubleshootingTipsWithSectionsProps<K, T>) => {
-    const firstSectionKey = Object.keys(items)[0] as K;
-    const [selectedSection, setSelectedSection] = useState<K>(defaultSection ?? firstSectionKey);
+}: TroubleshootingTipsBaseProps) => {
+    // todo: this filter is duplicated with TroubleshootingTipsList
+    const visibleTips = items.filter(item => !item.hide);
 
-    const hasMultipleSections = Object.keys(items).length > 1;
+    const hasOtherCta = Boolean(cta);
 
-    const labelRow =
-        label !== undefined || hasMultipleSections ? (
-            <Row
-                justifyContent="space-between"
+    const TroubleshootingButton = () => {
+        const [isTroubleshootingModalVisible, setIsTroubleshootingModalVisible] = useState(false);
+        const onOpen = () => {
+            setIsTroubleshootingModalVisible(true);
+        };
+        const onCancel = () => {
+            setIsTroubleshootingModalVisible(false);
+        };
+
+        return (
+            <Column
                 alignItems="center"
-                margin={{ horizontal: spacings.sm }}
+                data-testid={dataTest || '@onboarding/troubleshooting-tips'}
             >
-                <Text typographyStyle="body">{label}</Text>
+                <Button
+                    onClick={onOpen}
+                    intent="neutral"
+                    size={hasOtherCta ? 'small' : 'large'}
+                    priority={hasOtherCta ? 'secondary' : undefined}
+                    iconLeft={QuestionIcon}
+                    data-testid="@onboarding/troubleshooting-tips/button"
+                >
+                    {toggleText ?? <Translation id="TR_TROUBLE_SHOOTING_TIPS" />}
+                </Button>
 
-                {hasMultipleSections ? (
-                    <Row>
-                        <SelectBar<K>
-                            onChange={setSelectedSection}
-                            options={Object.entries(items).map(([k, v]) => ({
-                                label: (v as SectionDefinition).label,
-                                value: k as K,
-                            }))}
-                            selectedOption={selectedSection}
-                            size="small"
-                        />
-                    </Row>
-                ) : undefined}
-            </Row>
-        ) : null;
-
-    const isMobile = useMediaQuery(`(max-width: ${variables.SCREEN_SIZE.SM})`);
-
-    return (
-        <Column gap={spacings.xxxxl} alignItems="center">
-            {cta && (
-                <Card width="auto">
-                    <Flex
-                        direction={isMobile ? 'column' : 'row'}
-                        gap={spacings.md}
-                        alignItems="center"
+                {isTroubleshootingModalVisible && (
+                    <Modal
+                        heading={toggleText ?? <Translation id="TR_TROUBLE_SHOOTING_TIPS" />}
+                        onCancel={onCancel}
+                        intent="info"
+                        bottomContent={<TroubleshootingTipsFooter />}
+                        data-testid="@onboarding/troubleshooting-tips/modal"
                     >
-                        {ctaLabel ?? label}
-                        {cta}
-                    </Flex>
-                </Card>
-            )}
+                        <TroubleshootingTipsList items={visibleTips} />
+                    </Modal>
+                )}
+            </Column>
+        );
+    };
 
-            <Collapsible
-                defaultIsOpen={initiallyIsOpen === true}
-                data-testid={dataTest || '@onboarding/expand-troubleshooting-tips'}
-            >
-                <Column gap={spacings.md}>
-                    <Collapsible.Toggle>
-                        <Row justifyContent="center" flex="1" margin={{ bottom: spacings.xs }}>
-                            <TroubleshootingTipsToggle>{toggleText}</TroubleshootingTipsToggle>
-                        </Row>
-                    </Collapsible.Toggle>
-                    <Collapsible.Content>
-                        <ElevationContext baseElevation={-1}>
-                            <ElevationDown>
-                                <Card paddingType="tiny" maxWidth="656px">
-                                    <Column
-                                        gap={spacings.sm}
-                                        padding={
-                                            labelRow !== null
-                                                ? { vertical: spacings.sm }
-                                                : { bottom: spacings.sm }
-                                        }
-                                    >
-                                        {labelRow}
-                                        {/* Custom design, where upper card is -1, and this card is 1 */}
-                                        <ElevationUp>
-                                            <Card>
-                                                <TroubleshootingTipsList
-                                                    items={items[selectedSection].items}
-                                                />
-                                            </Card>
-                                        </ElevationUp>
-                                        <TroubleshootingTipsFooter />
-                                    </Column>
-                                </Card>
-                            </ElevationDown>
-                        </ElevationContext>
-                    </Collapsible.Content>
-                </Column>
-            </Collapsible>
+    return cta ? (
+        <Column gap={80} alignItems="center">
+            <Banner
+                rightContent={cta}
+                intent={intent}
+                maxWidth={600}
+                description={ctaLabel ?? label}
+            />
+            {visibleTips.length > 0 && <TroubleshootingButton />}
         </Column>
+    ) : (
+        <Box margin={{ top: 80 }}>{visibleTips.length > 0 && <TroubleshootingButton />}</Box>
     );
 };
-
-type TroubleshootingTipsProps = {
-    label?: ReactNode;
-    ctaLabel?: ReactNode;
-    cta?: ReactNode;
-    initiallyIsOpen?: boolean;
-    'data-testid'?: string;
-    items: TroubleshootingTipsItem[];
-    toggleText?: ReactNode;
-};
-
-export const TroubleshootingTips = ({ items, ...props }: TroubleshootingTipsProps) => (
-    <TroubleshootingTipsWithSections
-        {...props}
-        // key is arbitrary, label won't be displayed with only one section
-        items={{ default: { items, label: '' } }}
-    />
-);

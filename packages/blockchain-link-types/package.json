@@ -1,30 +1,43 @@
 {
     "name": "@trezor/blockchain-link-types",
-    "version": "1.4.2",
+    "version": "10.0.0-alpha.1",
+    "type": "module",
     "license": "See LICENSE.md in repo root",
     "sideEffects": false,
     "main": "src/index.ts",
     "publishConfig": {
-        "main": "lib/index.js"
+        "main": "./lib/index.mjs",
+        "types": "./lib/index.d.mts",
+        "exports": {
+            ".": {
+                "types": "./lib/index.d.mts",
+                "default": "./lib/index.mjs"
+            },
+            "./lib/*": "./lib/*",
+            "./lib/constants": {
+                "types": "./lib/constants/index.d.mts",
+                "default": "./lib/constants/index.mjs"
+            }
+        }
     },
     "files": [
         "lib/",
-        "!**/*.map"
+        "CHANGELOG.md"
     ],
     "scripts": {
         "depcheck": "yarn g:depcheck",
         "type-check": "yarn g:tsc --build",
-        "build:lib": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/replace-imports.sh ./lib",
-        "prepublishOnly": "yarn tsx ../../scripts/prepublishNPM.js",
-        "prepublish": "yarn tsx ../../scripts/prepublish.js"
+        "build:lib": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/publish/replace-imports.sh ./lib",
+        "test:unit": "yarn g:jest --coverage -c jest.config.cjs",
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     },
     "dependencies": {
         "@trezor/utils": "workspace:*",
-        "@trezor/utxo-lib": "workspace:*"
+        "@trezor/utxo-lib": "workspace:*",
+        "socks-proxy-agent": "8.0.5"
     },
     "devDependencies": {
-        "@trezor/type-utils": "workspace:*",
-        "tsx": "^4.20.3"
+        "@trezor/type-utils": "workspace:*"
     },
     "peerDependencies": {
         "tslib": "^2.6.2"

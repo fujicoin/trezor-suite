@@ -1,5 +1,6 @@
+import { selectSelectedDevice } from '@suite-common/device';
 import { notificationsActions } from '@suite-common/toast-notifications';
-import { selectSelectedDevice } from '@suite-common/wallet-core';
+import { selectAddressDisplayType } from '@suite-common/wallet-core';
 import { AddressDisplayOptions } from '@suite-common/wallet-types';
 import {
     getAddressParameters,
@@ -8,10 +9,12 @@ import {
     getProtocolMagic,
     getStakingPath,
 } from '@suite-common/wallet-utils';
-import TrezorConnect, { PROTO, Success, Unsuccessful } from '@trezor/connect';
+import TrezorConnect, { PROTO } from '@trezor/connect';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- TODO: extract pathUtils to a shared location and remove this exception (see #27376 deferred work)
 import { getSerializedPath } from '@trezor/connect/src/utils/pathUtils';
+import { type SerializedError } from '@trezor/connect-common/src/constants/errors';
+import { type Result } from '@trezor/type-utils';
 
-import { selectAddressDisplayType } from 'src/selectors/suite/suiteSelectors';
 import type { Dispatch, GetState, TrezorDevice } from 'src/types/suite';
 import type { Account } from 'src/types/wallet';
 
@@ -25,14 +28,13 @@ type StateParams = {
     device: TrezorDevice;
     account: Account;
     coin: Account['symbol'];
-    useEmptyPassphrase?: boolean;
     chunkify?: boolean;
 };
 
-const throwWhenFailed = <T>(response: Unsuccessful | Success<T>) =>
+const throwWhenFailed = <T>(response: Result<T, SerializedError>) =>
     response.success
         ? Promise.resolve(response.payload)
-        : Promise.reject(new Error(response.payload.error));
+        : Promise.reject(new Error(response.error.message));
 
 const getStateParams = (getState: GetState): Promise<StateParams> => {
     const {
@@ -48,7 +50,6 @@ const getStateParams = (getState: GetState): Promise<StateParams> => {
         : Promise.resolve({
               device,
               account,
-              useEmptyPassphrase: device.useEmptyPassphrase,
               coin: account.symbol,
               chunkify: addressDisplayType === AddressDisplayOptions.CHUNKED,
           });
@@ -56,15 +57,9 @@ const getStateParams = (getState: GetState): Promise<StateParams> => {
 
 const showAddressByNetwork =
     (_: Dispatch, address: string, path: string) =>
-    ({ account, device, coin, useEmptyPassphrase, chunkify }: StateParams) => {
-        const params = {
-            device,
-            address,
-            path,
-            coin,
-            useEmptyPassphrase,
-            chunkify,
-        };
+    ({ account, device, coin, chunkify }: StateParams) => {
+        const params = { device, address, path, coin, chunkify };
+
         switch (account.networkType) {
             case 'bitcoin':
                 return TrezorConnect.getAddress(params);
@@ -83,16 +78,8 @@ const signByNetwork =
         isElectrum: boolean,
         isCose: boolean,
     ) =>
-    ({ account, device, coin, useEmptyPassphrase }: StateParams) => {
-        const params = {
-            device,
-            path,
-            coin,
-            message,
-            useEmptyPassphrase,
-            hex,
-            no_script_type: isElectrum,
-        };
+    ({ account, device, coin }: StateParams) => {
+        const params = { device, path, coin, message, hex, no_script_type: isElectrum };
 
         switch (account.networkType) {
             case 'bitcoin':
@@ -116,7 +103,7 @@ const signByNetwork =
                     payload,
                     addressParameters,
                     protocolMagic: getProtocolMagic(account.symbol),
-                    networkId: getNetworkId(account.symbol),
+                    networkId: getNetworkId(),
                     derivationType: getDerivationType(account.accountType),
                 }).then(response =>
                     response.success
@@ -150,16 +137,9 @@ export const isVerifySupported = (account?: Account) => {
 
 const verifyByNetwork =
     (address: string, message: string, signature: string, hex: boolean) =>
-    ({ account, device, coin, useEmptyPassphrase }: StateParams) => {
-        const params = {
-            device,
-            address,
-            coin,
-            message,
-            signature,
-            useEmptyPassphrase,
-            hex,
-        };
+    ({ account, device, coin }: StateParams) => {
+        const params = { device, address, coin, message, signature, hex };
+
         switch (account.networkType) {
             case 'bitcoin':
                 return TrezorConnect.verifyMessage(params);

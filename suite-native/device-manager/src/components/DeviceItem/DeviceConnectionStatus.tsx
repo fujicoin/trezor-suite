@@ -22,10 +22,10 @@ export const DeviceConnectionStatus = ({
 
     const getTextColor = () => {
         if (isDeviceInBootloaderMode) {
-            return 'textAlertBlue';
+            return 'contentInfo';
         }
 
-        return isConnected ? 'textSecondaryHighlight' : 'textSubdued';
+        return isConnected ? 'contentBrand' : 'contentSecondary';
     };
 
     return (
@@ -34,7 +34,11 @@ export const DeviceConnectionStatus = ({
                 isConnected={isConnected}
                 isDeviceInBootloaderMode={isDeviceInBootloaderMode}
             />
-            <Text variant="hint" color={getTextColor()}>
+            <Text
+                testID="@device-manager/connection-status"
+                variant="body-sm"
+                color={getTextColor()}
+            >
                 <Translation id={getDeviceStatus()} />
             </Text>
         </HStack>

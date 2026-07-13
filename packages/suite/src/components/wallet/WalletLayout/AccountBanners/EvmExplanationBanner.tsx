@@ -1,10 +1,11 @@
+import { Translation } from '@suite/intl';
+import { selectRouteName } from '@suite/router';
 import { networks } from '@suite-common/wallet-config';
 
 import { SUITE } from 'src/actions/suite/constants';
-import { Translation } from 'src/components/suite';
 import { useDispatch } from 'src/hooks/suite/useDispatch';
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { Account } from 'src/types/wallet';
+import { type Account } from 'src/types/wallet';
 
 import { BannerPoints } from './BannerPoints';
 import { CloseableBanner } from './CloseableBanner';
@@ -15,13 +16,17 @@ interface EvmExplanationBannerProps {
 
 export const EvmExplanationBanner = ({ account }: EvmExplanationBannerProps) => {
     const { explanationBannerClosed } = useSelector(state => state.suite.evmSettings);
+    const routeName = useSelector(selectRouteName);
     const dispatch = useDispatch();
+
+    const isReceiveRoute = routeName === 'wallet-receive';
 
     const isVisible =
         account &&
         !explanationBannerClosed[account.symbol] &&
         account.symbol !== 'eth' &&
-        networks[account.symbol].networkType === 'ethereum';
+        networks[account.symbol].networkType === 'ethereum' &&
+        !isReceiveRoute;
 
     if (!isVisible) {
         return null;
@@ -42,7 +47,7 @@ export const EvmExplanationBanner = ({ account }: EvmExplanationBannerProps) => 
     return (
         <CloseableBanner
             onClose={close}
-            variant="info"
+            intent="info"
             title={
                 <Translation
                     id="TR_EVM_EXPLANATION_TITLE"

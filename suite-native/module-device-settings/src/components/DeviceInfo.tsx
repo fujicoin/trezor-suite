@@ -2,18 +2,18 @@ import { useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
-import { selectHasRunningDiscovery, selectIsDeviceInitialized } from '@suite-common/wallet-core';
+import { selectIsDeviceInitialized } from '@suite-common/device';
+import { selectHasRunningDiscovery } from '@suite-common/wallet-core';
 import { HStack, IconButton, Text, VStack } from '@suite-native/atoms';
 import { DeviceImage } from '@suite-native/device';
 import { useIsMultiline } from '@suite-native/helpers';
 import {
-    DeviceNameStackRoutes,
-    DeviceSettingsStackParamList,
+    type DeviceSettingsStackParamList,
     DeviceSettingsStackRoutes,
-    StackNavigationProps,
+    type StackNavigationProps,
 } from '@suite-native/navigation';
-import { DeviceModelInternal } from '@trezor/device-utils';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { type DeviceModelInternal } from '@trezor/device-utils';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 type DeviceInfoProps = {
     deviceModel: DeviceModelInternal;
@@ -38,9 +38,7 @@ export const DeviceInfo = ({ deviceModel, deviceName }: DeviceInfoProps) => {
     const isDeviceInitialized = useSelector(selectIsDeviceInitialized);
 
     const navigateToDeviceNameStack = () => {
-        navigation.navigate(DeviceSettingsStackRoutes.DeviceNameStack, {
-            screen: DeviceNameStackRoutes.DeviceName,
-        });
+        navigation.navigate(DeviceSettingsStackRoutes.DeviceNameStack);
     };
 
     const name = isMultiline ? deviceName.replace(' ', '\n') : deviceName;
@@ -49,7 +47,7 @@ export const DeviceInfo = ({ deviceModel, deviceName }: DeviceInfoProps) => {
         <VStack marginTop="sp24" spacing="sp24" alignItems="center">
             <DeviceImage deviceModel={deviceModel} />
             <HStack alignItems="center" spacing="sp12">
-                <Text style={applyStyle(textStyle)} variant="titleMedium" onLayout={onTextLayout}>
+                <Text style={applyStyle(textStyle)} variant="headline-md" onLayout={onTextLayout}>
                     {name}
                 </Text>
                 {isDeviceInitialized && (
@@ -57,9 +55,9 @@ export const DeviceInfo = ({ deviceModel, deviceName }: DeviceInfoProps) => {
                         onPress={navigateToDeviceNameStack}
                         isLoading={isDiscoveryRunning}
                         testID="@device-name/change-button"
-                        size="extraSmall"
                         iconName="pencilSimpleLine"
-                        colorScheme="tertiaryElevation0"
+                        intent="neutral"
+                        priority="secondary"
                     />
                 )}
             </HStack>

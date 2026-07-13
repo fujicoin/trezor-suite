@@ -1,10 +1,11 @@
-import { ReactNode, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Pressable } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { useNavigation } from '@react-navigation/native';
 
 import {
+    Box,
     Button,
     Card,
     CheckBox,
@@ -18,9 +19,9 @@ import { Translation } from '@suite-native/intl';
 import {
     Screen,
     ScreenHeader,
-    SettingsStackParamList,
+    type SettingsStackParamList,
     SettingsStackRoutes,
-    StackNavigationProps,
+    type StackNavigationProps,
 } from '@suite-native/navigation';
 import { useToast } from '@suite-native/toasts';
 
@@ -30,20 +31,20 @@ const InformativeList = () => (
     <VStack spacing="sp24">
         <IconListItem icon="warning" variant="yellow" iconSize="large" verticalAlign="flex-start">
             <VStack spacing="sp4">
-                <Text variant="highlight">
+                <Text variant="body-md-strong">
                     <Translation id="moduleSettings.advanced.authenticityChecks.turnOff.item1" />
                 </Text>
-                <Text variant="hint" color="textSubdued">
+                <Text variant="body-sm" color="contentSecondary">
                     <Translation id="moduleSettings.advanced.authenticityChecks.turnOff.item1Explanation" />
                 </Text>
             </VStack>
         </IconListItem>
         <IconListItem icon="code" variant="yellow" iconSize="large" verticalAlign="flex-start">
             <VStack spacing="sp4">
-                <Text variant="highlight">
+                <Text variant="body-md-strong">
                     <Translation id="moduleSettings.advanced.authenticityChecks.turnOff.item2" />
                 </Text>
-                <Text variant="hint" color="textSubdued">
+                <Text variant="body-sm" color="contentSecondary">
                     <Translation id="moduleSettings.advanced.authenticityChecks.turnOff.item2Explanation" />
                 </Text>
             </VStack>
@@ -53,7 +54,7 @@ const InformativeList = () => (
 
 type NavigationProp = StackNavigationProps<
     SettingsStackParamList,
-    SettingsStackRoutes.SettingsDeviceChecks
+    SettingsStackRoutes.SettingsAdvanced
 >;
 
 type TurnOffCheckScreenContentProps = {
@@ -73,10 +74,10 @@ export const TurnOffCheckScreenContent = ({ title, onConfirm }: TurnOffCheckScre
         if (navigation.canGoBack()) {
             navigation.goBack();
         } else {
-            navigation.navigate(SettingsStackRoutes.SettingsDeviceChecks);
+            navigation.navigate(SettingsStackRoutes.SettingsAdvanced);
         }
         showToast({
-            variant: 'default',
+            intent: 'neutral',
             message: <Translation id="moduleSettings.advanced.authenticityChecks.toastOff" />,
             icon: 'check',
         });
@@ -86,7 +87,7 @@ export const TurnOffCheckScreenContent = ({ title, onConfirm }: TurnOffCheckScre
         <Screen header={<ScreenHeader closeActionType="close" />}>
             <VStack spacing="sp32" marginTop="sp8" flex={1}>
                 <TitleHeader
-                    titleVariant="titleMedium"
+                    titleVariant="headline-md"
                     title={title}
                     subtitle={
                         <Translation id="moduleSettings.advanced.authenticityChecks.turnOff.content" />
@@ -96,9 +97,9 @@ export const TurnOffCheckScreenContent = ({ title, onConfirm }: TurnOffCheckScre
                 <Pressable onPress={handleCheckboxPress}>
                     <Card
                         alertProps={{
-                            variant: 'warning',
+                            intent: 'warning',
                             title: (
-                                <Text variant="callout">
+                                <Text variant="body-sm-strong">
                                     <Translation id="moduleSettings.advanced.authenticityChecks.turnOff.acknowledgementNote" />
                                 </Text>
                             ),
@@ -106,9 +107,11 @@ export const TurnOffCheckScreenContent = ({ title, onConfirm }: TurnOffCheckScre
                         alertPosition="bottom"
                     >
                         <HStack spacing="sp16" justifyContent="space-between">
-                            <Text>
-                                <Translation id="moduleSettings.advanced.authenticityChecks.turnOff.acknowledgement" />
-                            </Text>
+                            <Box flex={1}>
+                                <Text>
+                                    <Translation id="moduleSettings.advanced.authenticityChecks.turnOff.acknowledgement" />
+                                </Text>
+                            </Box>
                             <CheckBox isChecked={isChecked} onChange={handleCheckboxPress} />
                         </HStack>
                     </Card>
@@ -119,7 +122,7 @@ export const TurnOffCheckScreenContent = ({ title, onConfirm }: TurnOffCheckScre
                     entering={FadeIn.duration(CHECKBOX_ANIMATION_DURATION)}
                     exiting={FadeOut.duration(CHECKBOX_ANIMATION_DURATION)}
                 >
-                    <Button colorScheme="yellowBold" onPress={handleButtonPress}>
+                    <Button intent="warning" priority="primary" onPress={handleButtonPress}>
                         <Translation id="moduleSettings.advanced.authenticityChecks.buttonTurnOff" />
                     </Button>
                 </Animated.View>

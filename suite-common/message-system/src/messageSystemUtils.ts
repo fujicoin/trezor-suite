@@ -1,22 +1,24 @@
 import * as semver from 'semver';
-import { v4 as uuidv4 } from 'uuid';
 
 import type { CountryCode } from '@suite-common/geolocation';
-import { Localization } from '@suite-common/suite-types';
-import type {
-    Action,
-    Category,
-    Condition,
-    Device,
-    Duration,
-    Environment,
-    Message,
-    MessageSystem,
-    Settings,
-    Transport,
-    TrezorDevice,
-    Version,
+import {
+    type Action,
+    type Category,
+    type Condition,
+    type Device,
+    type Duration,
+    type Environment,
+    type Experiments,
+    type Localization,
+    type Message,
+    type MessageSystem,
+    type Settings,
+    type Transport,
+    type TrezorDevice,
+    type TrezorHostProtocolTHPProperties,
+    type Version,
 } from '@suite-common/suite-types';
+import { getBrowserName, getBrowserVersion } from '@suite-common/suite-utils';
 import type { NetworkSymbol } from '@suite-common/wallet-config';
 import type { TransportInfo } from '@trezor/connect';
 import {
@@ -25,9 +27,7 @@ import {
     getFirmwareVersion,
 } from '@trezor/device-utils';
 import {
-    Environment as EnvironmentType,
-    getBrowserName,
-    getBrowserVersion,
+    type Environment as EnvironmentType,
     getCommitHash,
     getEnvironment,
     getOsName,
@@ -36,7 +36,7 @@ import {
 import { exhaustive } from '@trezor/type-utils';
 
 import { getCachedOsVersion } from './cachedEnvData';
-import { ValidMessagesPayload } from './messageSystemActions';
+import { type ValidMessagesPayload } from './messageSystemActions';
 
 export const categorizeMessages = (messages: Message[]): ValidMessagesPayload => {
     const validMessages: ValidMessagesPayload = {
@@ -153,12 +153,56 @@ export const isTransportCompatible = (
         })
         .some(({ type, version }) => isVersionCompatible(transportCondition, type, version));
 
+const isThpPropertiesCompatible = (
+    condition?: TrezorHostProtocolTHPProperties,
+    device?: NonNullable<TrezorDevice['thp']>['properties'],
+) => {
+    if (!condition) return true;
+
+    if (!device) return false;
+
+    if (
+        condition.internalModel &&
+        device.internal_model?.toLowerCase() !== condition.internalModel.toLowerCase()
+    ) {
+        return false;
+    }
+
+    if (condition.modelVariant !== undefined && device.model_variant !== condition.modelVariant) {
+        return false;
+    }
+
+    if (
+        condition.protocolVersionMajor !== undefined &&
+        device.protocol_version_major !== condition.protocolVersionMajor
+    ) {
+        return false;
+    }
+
+    if (
+        condition.protocolVersionMinor !== undefined &&
+        device.protocol_version_minor !== condition.protocolVersionMinor
+    ) {
+        return false;
+    }
+
+    if (condition.pairingMethods?.length) {
+        if (!device.pairing_methods?.length) return false;
+
+        if (!condition.pairingMethods.every(method => device.pairing_methods.includes(method))) {
+            return false;
+        }
+    }
+
+    return true;
+};
+
 export const isDeviceCompatible = (deviceConditions: Device[], device?: TrezorDevice): boolean => {
     // if device conditions are empty, then device should be empty
     if (!deviceConditions.length) {
         return !device;
     }
-    if (!device || !device.features) {
+    if (!device?.features) {
         return false;
     }
 
@@ -167,7 +211,7 @@ export const isDeviceCompatible = (deviceConditions: Device[], device?: TrezorDe
     const deviceFwRevision = getFirmwareRevision(device);
     const deviceFwType = device.firmwareType;
     const deviceInternalModel = device.features.internal_model.toLowerCase();
-    const deviceVendor = device.features.vendor.toLowerCase();
+    const deviceVendor = device.features.vendor?.toLowerCase();
 
     return deviceConditions.some(deviceCondition => {
         const {
@@ -177,6 +221,7 @@ export const isDeviceCompatible = (deviceConditions: Device[], device?: TrezorDe
             firmware: firmwareCondition,
             bootloader: bootloaderCondition,
             variant: variantCondition,
+            thpProperties: thpPropertiesCondition,
         } = deviceCondition;
 
         return (
@@ -188,7 +233,8 @@ export const isDeviceCompatible = (deviceConditions: Device[], device?: TrezorDe
             (semver.satisfies(deviceFwVersion, createVersionRange(firmwareCondition)!) ||
                 firmwareCondition === '*') &&
             (semver.satisfies(deviceBootloaderVersion, createVersionRange(bootloaderCondition)!) ||
-                bootloaderCondition === '*')
+                bootloaderCondition === '*') &&
+            isThpPropertiesCompatible(thpPropertiesCondition, device.thp?.properties)
         );
     });
 };
@@ -329,7 +375,9 @@ export const resolveMessageContent = (localizedMessages: Localization, language:
 
     const fallbackLanguage = language.split('-')[0];
 
-    return localizedMessages[fallbackLanguage] ?? localizedMessages.en;
+    return (
+        (fallbackLanguage ? localizedMessages[fallbackLanguage] : undefined) ?? localizedMessages.en
+    );
 };
 
 export const toMessageSystemOptions = <T extends string>(
@@ -368,7 +416,7 @@ type ExtraByCategory = {
     modal: { modal: { title: Localization; image: string } };
     context: { context: { domain: string } };
     feature: { feature: Array<{ domain: string; flag: boolean }> };
-    banner: {};
+    banner: Record<never, never>;
 };
 
 const EXTRA_BY_CATEGORY = {
@@ -396,7 +444,7 @@ const EXTRA_BY_CATEGORY = {
 
 export const getDefaultActionByCategory = (category: Category): Action => {
     const baseMessage = {
-        id: uuidv4(),
+        id: crypto.randomUUID(),
         priority: 100,
         dismissible: true,
         variant: 'info' as const,
@@ -412,6 +460,23 @@ export const getDefaultActionByCategory = (category: Category): Action => {
         conditions: [{}],
     };
 };
+
+export const getDefaultExperiment = (): Experiments => ({
+    experiment: {
+        id: crypto.randomUUID(),
+        groups: [
+            {
+                variant: 'A',
+                percentage: 50,
+            },
+            {
+                variant: 'B',
+                percentage: 50,
+            },
+        ],
+    },
+    conditions: [{}],
+});
 
 export const getDefaultConditionValue = (key: keyof Condition): Condition[keyof Condition] => {
     switch (key) {
@@ -448,12 +513,19 @@ export const getDefaultConditionValue = (key: keyof Condition): Condition[keyof 
         case 'devices':
             return [
                 {
-                    model: 'T3T1',
+                    model: 'T3W1',
                     firmwareRevision: '*',
                     firmware: '*',
                     bootloader: '*',
                     variant: '*',
                     vendor: '*',
+                    thpProperties: {
+                        internalModel: 'T3W1',
+                        modelVariant: 2,
+                        protocolVersionMajor: 2,
+                        protocolVersionMinor: 0,
+                        pairingMethods: ['CodeEntry'],
+                    },
                 },
             ];
 

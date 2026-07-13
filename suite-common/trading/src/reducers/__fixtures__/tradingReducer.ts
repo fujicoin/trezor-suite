@@ -1,15 +1,19 @@
-import { CryptoId, InfoResponse } from 'invity-api';
+import { type CryptoId, type InfoResponse } from 'invity-api';
 
-import { extraDependenciesMock } from '@suite-common/test-utils';
+import { extraDependenciesCommonMock } from '@suite-common/test-utils';
+import { type AccountKey } from '@suite-common/wallet-types';
 
-import { TradingComposedTransactionInfo, initialState, tradingActions } from '../tradingReducer';
 import { accounts } from './account';
-import { buyThunks, exchangeThunks } from '../../thunks';
+// @ts-expect-error: indexing with noUncheckedIndexedAccess
+const firstAccount: (typeof accounts)[number] = accounts[0];
+import { buyThunks } from '../../thunks/buy';
+import { exchangeThunks } from '../../thunks/exchange';
+import { type TradingTransactionBuy, type TradingTransactionExchange } from '../../types';
 import {
-    TradingPaymentMethodListProps,
-    TradingTransactionBuy,
-    TradingTransactionExchange,
-} from '../../types';
+    type TradingComposedTransactionInfo,
+    initialState,
+    tradingActions,
+} from '../tradingCommonReducer';
 
 const tradeBuy: TradingTransactionBuy = {
     date: 'ddd',
@@ -29,8 +33,8 @@ const tradeBuy: TradingTransactionBuy = {
         maxCrypto: 0.19952,
         paymentMethod: 'creditCard',
     },
-    selectedAccountKey: 'xxx',
-    receiveAccountKey: 'yyy',
+    selectedAccountKey: 'xxx' as AccountKey, // Todo: create properly via `createAccountKey()`
+    receiveAccountKey: 'yyy' as AccountKey, // Todo: create properly via `createAccountKey()`
 };
 
 const tradeExchange: TradingTransactionExchange = {
@@ -46,8 +50,8 @@ const tradeExchange: TradingTransactionExchange = {
         exchange: 'changelly',
         status: 'CONFIRMING',
     },
-    sendAccountKey: 'xxx',
-    receiveAccountKey: 'yyy',
+    sendAccountKey: 'xxx' as AccountKey, // Todo: create properly via `createAccountKey()`
+    receiveAccountKey: 'yyy' as AccountKey, // Todo: create properly via `createAccountKey()`
 };
 
 const symbolsInfo: InfoResponse = {
@@ -70,18 +74,8 @@ const symbolsInfo: InfoResponse = {
             },
         },
     },
+    config: {},
 };
-
-const paymentMethods: TradingPaymentMethodListProps[] = [
-    {
-        value: '',
-        label: '',
-    },
-    {
-        value: 'creditCard',
-        label: 'Credit Card',
-    },
-];
 
 const composedTransactionInfo: TradingComposedTransactionInfo = {
     selectedFee: 'normal',
@@ -114,7 +108,7 @@ export const tradingFixtures = [
         initialState,
         actions: [
             {
-                type: extraDependenciesMock.actionTypes.storageLoad,
+                type: extraDependenciesCommonMock.actionTypes.storageLoad,
                 payload: {
                     tradingTrades: [tradeBuy],
                 },
@@ -133,7 +127,7 @@ export const tradingFixtures = [
         },
         actions: [
             {
-                type: extraDependenciesMock.actionTypes.storageLoad,
+                type: extraDependenciesCommonMock.actionTypes.storageLoad,
                 payload: {
                     tradingTrades: undefined,
                 },
@@ -150,19 +144,19 @@ export const tradingFixtures = [
         actions: [
             {
                 type: tradingActions.setModalAccountKey.type,
-                payload: accounts[0].key,
+                payload: firstAccount.key,
             },
         ],
         result: {
             ...initialState,
-            modalAccountKey: accounts[0].key,
+            modalAccountKey: firstAccount.key,
         },
     },
     {
         description: 'should clear modal account',
         initialState: {
             ...initialState,
-            modalAccountKey: accounts[0].key,
+            modalAccountKey: firstAccount.key,
         },
         actions: [
             {
@@ -234,7 +228,6 @@ export const tradingFixtures = [
             info: {
                 platforms: symbolsInfo.platforms,
                 coins: symbolsInfo.coins,
-                paymentMethods: [],
             },
         },
     },
@@ -281,23 +274,6 @@ export const tradingFixtures = [
         result: {
             ...initialState,
             trades: [tradeBuy, tradeExchange],
-        },
-    },
-    {
-        description: 'should save payment methods',
-        initialState,
-        actions: [
-            {
-                type: tradingActions.savePaymentMethods.type,
-                payload: paymentMethods,
-            },
-        ],
-        result: {
-            ...initialState,
-            info: {
-                ...initialState.info,
-                paymentMethods,
-            },
         },
     },
     {

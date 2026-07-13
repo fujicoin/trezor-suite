@@ -1,22 +1,21 @@
-import { onboardingCompleted } from '../fixtures/onboardingCompleted';
+import { onboardingCompletedState } from '../fixtures/onboardingCompletedState';
 import { xpubs } from '../fixtures/xpubs';
 import { onAccountImport } from '../pageObjects/accountImportActions';
 import { onMyAssets } from '../pageObjects/myAssetsActions';
 import { onTabBar } from '../pageObjects/tabBarActions';
-import { openApp } from '../utils';
+import { openApp, preparePreloadedReduxState } from '../support/setup';
 
-describe('Import Bitcoin network accounts.', () => {
-    beforeAll(async () => {
-        await openApp({ newInstance: true, args: { preloadedState: onboardingCompleted } });
-        await onTabBar.navigateToMyAssets();
-    });
+const preloadedState = preparePreloadedReduxState(onboardingCompletedState);
 
+describe('Import Bitcoin network accounts. [@noDevice]', () => {
     beforeEach(async () => {
+        await openApp({ args: { preloadedState } });
+        await onTabBar.navigateToMyAssets();
         await onMyAssets.addAccount();
     });
 
     it('Import BTC SegWit account', async () => {
-        await onAccountImport.importAccount({
+        await onAccountImport.importAccountAndVerifyVisibility({
             networkSymbol: 'btc',
             xpub: xpubs.btc.segwit,
             accountName: 'BTC SegWit',
@@ -24,7 +23,7 @@ describe('Import Bitcoin network accounts.', () => {
     });
 
     it('Import BTC Legacy SegWit account', async () => {
-        await onAccountImport.importAccount({
+        await onAccountImport.importAccountAndVerifyVisibility({
             networkSymbol: 'btc',
             xpub: xpubs.btc.legacySegwit,
             accountName: 'BTC Legacy SegWit',
@@ -35,7 +34,7 @@ describe('Import Bitcoin network accounts.', () => {
     //  Since the quotation mark is invalid character in terms of taproot xpub, the test always fails on iOS.
     if (device.getPlatform() !== 'ios')
         it('Import BTC Taproot account', async () => {
-            await onAccountImport.importAccount({
+            await onAccountImport.importAccountAndVerifyVisibility({
                 networkSymbol: 'btc',
                 xpub: xpubs.btc.taproot,
                 accountName: 'BTC Taproot',
@@ -43,7 +42,7 @@ describe('Import Bitcoin network accounts.', () => {
         });
 
     it('Import BTC Legacy account', async () => {
-        await onAccountImport.importAccount({
+        await onAccountImport.importAccountAndVerifyVisibility({
             networkSymbol: 'btc',
             xpub: xpubs.btc.legacy,
             accountName: 'BTC Legacy',

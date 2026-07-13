@@ -1,23 +1,28 @@
 import { isRejectedWithValue } from '@reduxjs/toolkit';
 
+import { isApprovalFlowSupported, selectSelectedDevice } from '@suite-common/device';
 import { createThunk } from '@suite-common/redux-utils';
 import { getNetwork } from '@suite-common/wallet-config';
 import { DEFAULT_PAYMENT, DEFAULT_VALUES } from '@suite-common/wallet-constants';
 import {
     composeSendFormTransactionFeeLevelsThunk,
     selectConvertedNetworkFeeInfo,
-    selectSelectedDevice,
 } from '@suite-common/wallet-core';
-import { Account, FormOptions, FormState, FormStateTrading } from '@suite-common/wallet-types';
+import {
+    type Account,
+    type FormOptions,
+    type FormState,
+    type FormStateTrading,
+} from '@suite-common/wallet-types';
 import {
     asAmountSubunit,
-    isApprovalFlowSupported,
     isEvmApprovalTx,
+    isExchangeTradingForm,
     subunitsToUnits,
 } from '@suite-common/wallet-utils';
 import { BigNumber } from '@trezor/utils';
 
-import { tradingThunks } from '../';
+import { createPaymentRequestsThunk } from './createPaymentRequestsThunk';
 import { TRADING_THUNK_PREFIX } from '../../constants';
 import {
     selectTradingComposedTransactionInfo,
@@ -34,7 +39,7 @@ export type RecomposeAndSignTxThunkProps = {
     address: string;
     amount: string;
     destinationTag?: string;
-    ethereumDataHex?: string;
+    transactionData?: string;
     recalculateCustomLimit?: boolean;
     ethereumAdjustGasLimit?: string;
     setMaxOutputId?: number | undefined;
@@ -53,20 +58,10 @@ export type RecomposeAndSignTxThunkProps = {
     }: TradingSignAndPushSendFormTransactionProps) => Promise<TradingFulfillValue>;
 };
 
-const getTradingFormStateAccordingRestriction = (
-    tradingFormState: FormStateTrading,
-    isPaymentRequestsAllowed: boolean,
-): FormStateTrading =>
-    isPaymentRequestsAllowed
-        ? tradingFormState
-        : {
-              activeSection: tradingFormState.activeSection,
-          };
-
 /**
  * This thunk is particularly useful for scenarios where transaction details (e.g., fees, outputs) need to be recalculated
  * dynamically before signing and broadcasting the transaction. (for example for DEX trade is necessary to
- * recompose the transaction based on the ethereumDataHex, which contains the details of the trade)
+ * recompose the transaction based on the transactionData, which contains the details of the trade)
  *
  * 1. Validates inputs and retrieves necessary data.
  * 2. Dynamically recomposes the transaction and recalculates fees.
@@ -87,7 +82,7 @@ export const recomposeAndSignTxThunk = createThunk<
             address,
             amount,
             destinationTag,
-            ethereumDataHex,
+            transactionData,
             recalculateCustomLimit,
             ethereumAdjustGasLimit,
             setMaxOutputId,
@@ -119,15 +114,11 @@ export const recomposeAndSignTxThunk = createThunk<
         }
 
         // Token is being used for approval transactions unless on firmware < 2.9.0.
-        // Otherwise if ethereumDataHex is present, token is not used as details are in the ethereumDataHex.
+        // Otherwise if transactionData is present, token is not used as details are in the transactionData.
         const shouldIncludeToken =
-            !ethereumDataHex ||
-            (isApprovalFlowSupported(device) && isEvmApprovalTx(ethereumDataHex));
+            !transactionData ||
+            (isApprovalFlowSupported(device) && isEvmApprovalTx(transactionData));
 
-        const restrictedTradingFormState = getTradingFormStateAccordingRestriction(
-            tradingFormState,
-            isPaymentRequestsAllowed,
-        );
         // prepare the fee levels, set custom values from composed
         // WORKAROUND: sendFormEthereumActions and sendFormRippleActions use form outputs instead of composed transaction data
         const formState: FormState = {
@@ -137,6 +128,7 @@ export const recomposeAndSignTxThunk = createThunk<
                     ...DEFAULT_PAYMENT,
                     address,
                     amount,
+                    currency: DEFAULT_PAYMENT.currency,
                     token: shouldIncludeToken ? (composed.token?.contract ?? null) : null,
                 },
             ],
@@ -149,17 +141,17 @@ export const recomposeAndSignTxThunk = createThunk<
             maxPriorityFeePerGas: composed.maxPriorityFeePerGas,
             options,
             destinationTag,
-            ethereumDataHex,
+            transactionData,
             ethereumAdjustGasLimit,
             selectedUtxos: [],
-            trading: restrictedTradingFormState,
+            trading: tradingFormState,
         };
 
         // prepare form state for composeAction
         const composeContext = { account, network, feeInfo };
 
         // recalculateCustomLimit is used in case of custom fee level, when we want to keep the feePerUnit defined by the user
-        // but recompute the feeLimit based on a different transaction data (for example from ethereumDataHex)
+        // but recompute the feeLimit based on a different transaction data (for example from transactionData)
         if (recalculateCustomLimit && selectedFee === 'custom') {
             const normalLevels = await dispatch(
                 composeSendFormTransactionFeeLevelsThunk({
@@ -168,12 +160,7 @@ export const recomposeAndSignTxThunk = createThunk<
                 }),
             ).unwrap();
 
-            if (
-                !normalLevels ||
-                !normalLevels.normal ||
-                normalLevels.normal.type !== 'final' ||
-                !normalLevels.normal.feeLimit
-            ) {
+            if (normalLevels?.normal?.type !== 'final' || !normalLevels.normal.feeLimit) {
                 const error: TradingSendRejectedProps['error'] =
                     normalLevels?.normal?.type === 'error' && normalLevels?.normal?.errorMessage
                         ? {
@@ -190,7 +177,10 @@ export const recomposeAndSignTxThunk = createThunk<
                 });
             }
 
-            formState.feeLimit = normalLevels.normal.feeLimit;
+            formState.feeLimit = BigNumber.max(
+                formState.feeLimit || '0',
+                normalLevels.normal.feeLimit,
+            ).toString();
         }
 
         // compose transaction again to recalculate fees based on real account values
@@ -212,7 +202,7 @@ export const recomposeAndSignTxThunk = createThunk<
 
         const precomposedToSign = composedLevels.payload[selectedFee];
 
-        if (!precomposedToSign || precomposedToSign.type !== 'final') {
+        if (precomposedToSign?.type !== 'final') {
             const error: TradingSendRejectedProps['error'] =
                 precomposedToSign?.type === 'error' && precomposedToSign.errorMessage
                     ? {
@@ -229,6 +219,11 @@ export const recomposeAndSignTxThunk = createThunk<
             });
         }
 
+        // Tron fee limit is SUN and recipient-dependent — use the recomposed (real recipient) estimate.
+        if (network.networkType === 'tron') {
+            formState.feeLimit = precomposedToSign.estimatedFeeLimit ?? precomposedToSign.fee ?? '';
+        }
+
         /*
             SLIP-24 to achieve the consistent trade data
             ---
@@ -236,26 +231,32 @@ export const recomposeAndSignTxThunk = createThunk<
             the formState (displayed in the UI) and for the payment requests to
             ensure that the payment requests are created with the correct amount.
         */
-        const isTradedWholeBalance = precomposedToSign.outputs.length === 1; // sending whole balance
+        const { outputs: precomposedOutputs } = precomposedToSign;
+        const isTradedWholeBalance = precomposedOutputs.length === 1; // sending whole balance
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const firstPrecomposedOutput: (typeof precomposedOutputs)[number] = precomposedOutputs[0];
         const sendAmount = isTradedWholeBalance
-            ? precomposedToSign.outputs[0].amount.toString()
+            ? firstPrecomposedOutput.amount.toString()
             : undefined;
         const formattedMaxAmount = sendAmount
             ? subunitsToUnits({
                   value: asAmountSubunit(new BigNumber(sendAmount)),
                   symbol: account.symbol,
+                  ...(composed.token?.decimals
+                      ? { decimals: composed.token?.decimals }
+                      : undefined),
               }).toString()
             : undefined;
 
         const formStateUpdated: FormState = {
             ...formState,
             trading: {
-                ...restrictedTradingFormState,
-                ...('send' in restrictedTradingFormState
+                ...tradingFormState,
+                ...(isPaymentRequestsAllowed && isExchangeTradingForm(tradingFormState)
                     ? {
                           send: {
-                              ...restrictedTradingFormState.send,
-                              amount: formattedMaxAmount ?? restrictedTradingFormState.send.amount,
+                              ...tradingFormState.send,
+                              amount: formattedMaxAmount ?? tradingFormState.send.amount,
                           },
                       }
                     : {}),
@@ -264,11 +265,12 @@ export const recomposeAndSignTxThunk = createThunk<
 
         const paymentRequests = isPaymentRequestsAllowed
             ? await dispatch(
-                  tradingThunks.createPaymentRequestsThunk({
-                      type: restrictedTradingFormState.activeSection,
+                  createPaymentRequestsThunk({
+                      type: tradingFormState.activeSection,
                       account,
                       composedLevels: precomposedToSign,
                       formattedMaxAmount,
+                      destinationTag,
                   }),
               ).unwrap()
             : [];

@@ -4,14 +4,15 @@ import { useNavigation } from '@react-navigation/native';
 
 import { IconButton } from '@suite-native/atoms';
 
-import { CloseActionType } from '../navigators';
+import { type CloseActionType } from '../navigators';
 
 type GoBackIconProps = {
     closeActionType?: CloseActionType;
     closeAction?: () => void;
+    testID?: string;
 };
 
-export const GoBackIcon = ({ closeActionType = 'back', closeAction }: GoBackIconProps) => {
+export const GoBackIcon = ({ closeActionType = 'back', closeAction, testID }: GoBackIconProps) => {
     const navigation = useNavigation();
 
     const handleGoBack = useCallback(() => {
@@ -24,9 +25,11 @@ export const GoBackIcon = ({ closeActionType = 'back', closeAction }: GoBackIcon
 
     return (
         <IconButton
+            testID={testID}
             iconName={closeActionType === 'back' ? 'caretLeft' : 'x'}
+            intent="neutral"
+            priority="secondary"
             size="medium"
-            colorScheme="tertiaryElevation0"
             onPress={handleGoBack}
             accessibilityRole="button"
             accessibilityLabel="Go back"

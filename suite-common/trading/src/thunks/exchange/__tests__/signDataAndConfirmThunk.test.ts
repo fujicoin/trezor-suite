@@ -1,24 +1,28 @@
 import { combineReducers } from '@reduxjs/toolkit';
-import { CryptoId } from 'invity-api';
+import { type CryptoId } from 'invity-api';
 
 import { createThunk } from '@suite-common/redux-utils';
-import { TrezorDevice } from '@suite-common/suite-types';
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
-import { Account } from '@suite-common/wallet-types';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
+import { type Account } from '@suite-common/wallet-types';
 import TrezorConnect from '@trezor/connect';
 
-import { exchangeThunks } from '../../';
 import { MIN_MAX_QUOTES_OK } from '../../../__fixtures__/exchangeUtils';
 import { accountEth } from '../../../__fixtures__/utils';
 import { invityAPI } from '../../../invityAPI';
-import { TradingExchangeState } from '../../../reducers/exchangeReducer';
-import { initialState, prepareTradingReducer } from '../../../reducers/tradingReducer';
+import { type TradingExchangeState } from '../../../reducers/exchangeReducer';
+import { initialState } from '../../../reducers/tradingCommonReducer';
+import { prepareTradingReducer } from '../../../reducers/tradingReducer';
+import type { LogErrorThunkProps } from '../../common/logErrorThunk';
+import { exchangeThunks } from '../index';
 
-const tradingReducer = prepareTradingReducer(extraDependenciesMock);
+const tradingReducer = prepareTradingReducer(extraDependenciesCommonMock);
 
-jest.mock('@trezor/connect-plugin-ethereum', () => ({
-    ...jest.requireActual('@trezor/connect-plugin-ethereum'),
-    transformTypedData: jest.fn().mockReturnValue({ domain_separator_hash: '', message_hash: '' }),
+jest.mock('../../common/logErrorThunk', () => ({
+    logErrorThunk: (props: LogErrorThunkProps) => ({
+        type: 'mockedLogErrorThunk',
+        payload: props,
+    }),
 }));
 
 describe('signDataAndConfirmThunk', () => {
@@ -33,6 +37,7 @@ describe('signDataAndConfirmThunk', () => {
 
     const getMocks = (initialExchangeState?: Partial<TradingExchangeState>) => {
         const quoteNotTyped = MIN_MAX_QUOTES_OK[0];
+        if (!quoteNotTyped) throw new Error('Missing test fixture');
         const quote = {
             ...quoteNotTyped,
             send: quoteNotTyped.send as CryptoId,
@@ -44,12 +49,12 @@ describe('signDataAndConfirmThunk', () => {
             extra: {},
             reducer: combineReducers({
                 wallet: combineReducers({
-                    tradingNew: tradingReducer,
+                    trading: tradingReducer,
                 }),
             }),
             preloadedState: {
                 wallet: {
-                    tradingNew: {
+                    trading: {
                         ...initialState,
                         exchange: {
                             ...initialState.exchange,
@@ -106,11 +111,13 @@ describe('signDataAndConfirmThunk', () => {
 
         const actionToast = store
             .getActions()
-            .find(action => action.type === '@common/in-app-notifications/addToast');
+            .find(action => action.type === 'mockedLogErrorThunk');
 
         expect(store.getActions().length).toEqual(3);
-        expect(actionToast?.payload?.type).toEqual('error');
-        expect(actionToast?.payload?.error).toEqual('Cannot sign, missing data');
+        expect(actionToast?.payload).toEqual({
+            tradingType: 'exchange',
+            errorMessage: 'Cannot sign, missing data',
+        });
     });
 
     it('should return error notification when signData type is not eip712-typed-data', async () => {
@@ -144,11 +151,13 @@ describe('signDataAndConfirmThunk', () => {
 
         const actionToast = store
             .getActions()
-            .find(action => action.type === '@common/in-app-notifications/addToast');
+            .find(action => action.type === 'mockedLogErrorThunk');
 
         expect(store.getActions().length).toEqual(3);
-        expect(actionToast?.payload?.type).toEqual('error');
-        expect(actionToast?.payload?.error).toEqual('Cannot sign data, unsupported network');
+        expect(actionToast?.payload).toEqual({
+            tradingType: 'exchange',
+            errorMessage: 'Cannot sign data, unsupported network',
+        });
     });
 
     it('should return error notification when account networkType is not ethereum', async () => {
@@ -185,11 +194,13 @@ describe('signDataAndConfirmThunk', () => {
 
         const actionToast = store
             .getActions()
-            .find(action => action.type === '@common/in-app-notifications/addToast');
+            .find(action => action.type === 'mockedLogErrorThunk');
 
         expect(store.getActions().length).toEqual(3);
-        expect(actionToast?.payload?.type).toEqual('error');
-        expect(actionToast?.payload?.error).toEqual('Cannot sign data, unsupported network');
+        expect(actionToast?.payload).toEqual({
+            tradingType: 'exchange',
+            errorMessage: 'Cannot sign data, unsupported network',
+        });
     });
 
     it('should return error notification when ethereum signing is not successful', async () => {
@@ -212,8 +223,8 @@ describe('signDataAndConfirmThunk', () => {
 
         TrezorConnect.ethereumSignTypedData = jest.fn().mockResolvedValue({
             success: false,
-            payload: {
-                error: 'Data is not correct',
+            error: {
+                message: 'Data is not correct',
             },
         });
 
@@ -228,15 +239,18 @@ describe('signDataAndConfirmThunk', () => {
             }),
         );
 
-        const { tradingNew } = store.getState().wallet;
+        const { trading } = store.getState().wallet;
         const actionToast = store
             .getActions()
-            .find(action => action.type === '@common/in-app-notifications/addToast');
+            .find(action => action.type === 'mockedLogErrorThunk');
 
         expect(store.getActions().length).toEqual(4);
-        expect(tradingNew.modalAccountKey).toEqual(account.key);
-        expect(actionToast?.payload?.type).toEqual('sign-message-error');
-        expect(actionToast?.payload?.error).toEqual('Data is not correct');
+        expect(trading.modalAccountKey).toEqual(account.key);
+        expect(actionToast?.payload).toEqual({
+            tradingType: 'exchange',
+            errorMessage: 'Data is not correct',
+            toastType: 'sign-message-error',
+        });
     });
 
     it('should not continue to confirmation and saving trade when there is not receive address in selected quote', async () => {
@@ -280,11 +294,11 @@ describe('signDataAndConfirmThunk', () => {
             }),
         );
 
-        const { tradingNew } = store.getState().wallet;
+        const { trading } = store.getState().wallet;
 
         expect(store.getActions().length).toEqual(3);
-        expect(tradingNew.modalAccountKey).toEqual(account.key);
-        expect(tradingNew.trades).toEqual([]);
+        expect(trading.modalAccountKey).toEqual(account.key);
+        expect(trading.trades).toEqual([]);
         expect(exchangeThunks.confirmTradeThunk).not.toHaveBeenCalled();
     });
 
@@ -327,8 +341,8 @@ describe('signDataAndConfirmThunk', () => {
             }),
         );
 
-        const { tradingNew } = store.getState().wallet;
-        const { selectedQuote } = tradingNew.exchange;
+        const { trading } = store.getState().wallet;
+        const { selectedQuote } = trading.exchange;
         const trade = {
             ...selectedQuote,
             signature: 'signature',
@@ -340,8 +354,8 @@ describe('signDataAndConfirmThunk', () => {
             .mockImplementation(createThunk('@trading-exchange/thunk/confirmTrade', () => true));
 
         expect(store.getActions().length).toEqual(6);
-        expect(tradingNew.modalAccountKey).toEqual(account.key);
-        expect(tradingNew.trades[0]).toEqual({
+        expect(trading.modalAccountKey).toEqual(account.key);
+        expect(trading.trades[0]).toEqual({
             tradeType: 'exchange',
             date: dateString,
             data: trade,

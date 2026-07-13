@@ -1,38 +1,44 @@
+import { useMemo } from 'react';
 import { Controller } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
 
+import { useTranslation } from '@suite/intl';
+import { selectLanguage } from '@suite/settings';
 import { formInputsMaxLength } from '@suite-common/validators';
 import { updateFiatRatesThunk } from '@suite-common/wallet-core';
 import {
-    BaseCurrencyOption,
-    FiatRatesResult,
-    Output,
-    Timestamp,
-    TokenAddress,
+    type BaseCurrencyOption,
+    type FiatRatesResult,
+    type Output,
+    type Timestamp,
+    type TokenAddress,
 } from '@suite-common/wallet-types';
 import {
-    buildCurrencyOption,
-    buildCurrencyOptions,
+    buildCurrencyLongOption,
+    buildCurrencyShortOption,
     findToken,
     getDecimalsForBaseCurrency,
-    getInputState,
     isLowAnonymityWarning,
+    parseBaseCurrencyToFormattedCrypto,
     parseCryptoToFormattedBaseCurrency,
 } from '@suite-common/wallet-utils';
-import type { BaseCurrencyCode } from '@trezor/blockchain-link-types';
+import {
+    type BaseCurrencyCode,
+    fiatBaseCurrencies,
+    valuablesBaseCurrencies,
+} from '@trezor/blockchain-link-types';
 import { Select } from '@trezor/components';
 import { NumberInput } from '@trezor/product-components';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { BigNumber, typedObjectKeys } from '@trezor/utils';
 
-import { useTranslation } from 'src/hooks/suite';
 import { useSendFormContext } from 'src/hooks/wallet';
 import { useBitcoinAmountUnit } from 'src/hooks/wallet/useBitcoinAmountUnit';
-import { selectLanguage } from 'src/selectors/suite/suiteSelectors';
 import { validateDecimals } from 'src/utils/suite/validation';
 
 type FiatInputProps = {
     output: Partial<Output>;
     outputId: number;
+    isSendMaxActive?: boolean;
     labelLeft?: React.ReactNode;
     labelHoverRight?: React.ReactNode;
     labelRight?: React.ReactNode;
@@ -41,6 +47,7 @@ type FiatInputProps = {
 export const BaseCurrencyInput = ({
     output,
     outputId,
+    isSendMaxActive,
     labelLeft,
     labelHoverRight,
     labelRight,
@@ -84,24 +91,40 @@ export const BaseCurrencyInput = ({
         isInSats: areSatsDisplayed,
     });
 
-    const recalculateFiat = (rate: number) => {
+    const recalculate = (rate: number) => {
         const cryptoValue = new BigNumber(cryptoAmountValue);
+        const fiatValue = new BigNumber(baseCurrencyValue);
+        const cryptoDecimals = token ? token.decimals : network.decimals;
 
         if (rate && !cryptoValue.isNaN() && baseCurrencyCode !== '') {
-            const formatterAmount = parseCryptoToFormattedBaseCurrency({
-                baseCurrencyCode,
-                baseCurrencyToSats: shouldSendInSats === true,
+            const baseFormatOptions = {
                 areSatsDisplayed,
-                value: cryptoValue,
                 symbol: network.symbol,
                 rate,
-            });
+            };
 
-            if (formatterAmount !== null) {
-                setValue(baseCurrencyInputName, formatterAmount, {
+            if (isSendMaxActive) {
+                const formattedAmount = parseCryptoToFormattedBaseCurrency({
+                    ...baseFormatOptions,
+                    value: cryptoValue,
+                    baseCurrencyCode,
+                    baseCurrencyToSats: shouldSendInSats === true,
+                });
+                setValue(baseCurrencyInputName, formattedAmount || '', {
                     shouldValidate: true,
                 });
-                // call compose to store draft, precomposedTx should be the same
+            } else {
+                const formattedAmount = parseBaseCurrencyToFormattedCrypto({
+                    ...baseFormatOptions,
+                    value: fiatValue,
+                    isCryptoInSats: shouldSendInSats === true,
+                    areSatsDisplayed: false,
+                    cryptoDecimals,
+                });
+                setValue(amountInputName, formattedAmount || '', {
+                    shouldValidate: true,
+                });
+
                 composeTransaction(amountInputName);
             }
         }
@@ -115,7 +138,7 @@ export const BaseCurrencyInput = ({
     const errorToDisplay = !error && baseCurrencyValue && amountError ? amountError : error;
 
     const isLowAnonymity = isLowAnonymityWarning(outputError);
-    const inputState = isLowAnonymity ? 'warning' : getInputState(errorToDisplay);
+    const hasError = !!errorToDisplay;
     const bottomText = isLowAnonymity ? null : errorToDisplay?.message;
 
     const handleChange = (value: string) => handleFiatChange({ outputId, token, value });
@@ -134,18 +157,36 @@ export const BaseCurrencyInput = ({
         };
     }
 
+    const options = useMemo(
+        () => [
+            {
+                label: translationString('TR_BASE_CURRENCY_FIAT'),
+                options: typedObjectKeys(fiatBaseCurrencies).map(currency =>
+                    buildCurrencyLongOption({ currency, areSatsDisplayed }),
+                ),
+            },
+            {
+                label: translationString('TR_BASE_CURRENCY_VALUABLES'),
+                options: typedObjectKeys(valuablesBaseCurrencies).map(currency =>
+                    buildCurrencyLongOption({ currency, areSatsDisplayed }),
+                ),
+            },
+        ],
+        [translationString, areSatsDisplayed],
+    );
+
     const renderCurrencySelect = ({
         field: { onChange, value: selectedOption },
     }: CallbackParams) => (
         <Select
-            options={buildCurrencyOptions({ selected: selectedOption, areSatsDisplayed })}
-            value={buildCurrencyOption({
+            options={options}
+            value={buildCurrencyShortOption({
                 currency: selectedOption.value,
                 areSatsDisplayed,
             })}
             isClearable={false}
             isSearchable
-            minValueWidth="58px"
+            size="small"
             isClean
             data-testid={currencyInputName}
             onChange={async (selected: BaseCurrencyOption) => {
@@ -159,6 +200,7 @@ export const BaseCurrencyInput = ({
                             {
                                 symbol: account.symbol,
                                 tokenAddress: token?.contract as TokenAddress,
+                                protocols: token?.protocols,
                             },
                         ],
                         baseCurrencyCode: selected.value as BaseCurrencyCode,
@@ -168,10 +210,17 @@ export const BaseCurrencyInput = ({
                 );
 
                 if (updateFiatRatesResult.meta.requestStatus === 'fulfilled') {
-                    const fiatRate = updateFiatRatesResult.payload as FiatRatesResult;
+                    // not type-safe and should be addressed in the future
+                    const fiatRates =
+                        updateFiatRatesResult.payload as PromiseSettledResult<FiatRatesResult>[];
 
-                    if (fiatRate?.rate) {
-                        recalculateFiat(fiatRate.rate);
+                    const successfulResult = fiatRates.find(
+                        (result): result is PromiseFulfilledResult<FiatRatesResult> =>
+                            result.status === 'fulfilled',
+                    );
+
+                    if (successfulResult?.value?.rate) {
+                        recalculate(successfulResult.value.rate);
                     }
                 }
             }}
@@ -185,7 +234,7 @@ export const BaseCurrencyInput = ({
             labelLeft={labelLeft}
             locale={locale}
             control={control}
-            inputState={inputState}
+            hasError={hasError}
             onChange={handleChange}
             name={baseCurrencyInputName}
             data-testid={baseCurrencyInputName}
@@ -193,7 +242,7 @@ export const BaseCurrencyInput = ({
             maxLength={formInputsMaxLength.fiat}
             rules={rules}
             bottomText={bottomText || null}
-            innerAddon={
+            rightContent={
                 <Controller
                     control={control}
                     name={currencyInputName}

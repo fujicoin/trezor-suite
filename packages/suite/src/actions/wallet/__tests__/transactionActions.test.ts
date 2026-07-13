@@ -3,10 +3,12 @@ import { configureStore } from '@reduxjs/toolkit';
 import { getTxsPerPage } from '@suite-common/suite-utils';
 import { testMocks } from '@suite-common/test-utils';
 import {
-    TransactionsState,
+    type TransactionsState,
     transactionsActions,
     transactionsInitialState,
 } from '@suite-common/wallet-core';
+import { asAccountDescriptor } from '@suite-common/wallet-types';
+import { mockWalletAccount } from '@suite-common/wallet-types/mocks';
 import { getAccountTransactions } from '@suite-common/wallet-utils';
 
 import { transactionsReducer } from 'src/reducers/wallet';
@@ -27,7 +29,7 @@ const initStore = (transactionsState?: TransactionsState) =>
 describe('Transaction Actions', () => {
     it('Add transaction for first page (used on account create)', () => {
         const store = initStore();
-        const account = testMocks.getWalletAccount();
+        const account = mockWalletAccount({ symbol: 'btc' });
         store.dispatch(
             transactionsActions.addTransaction({
                 transactions: [getWalletTransaction()],
@@ -42,13 +44,20 @@ describe('Transaction Actions', () => {
     });
 
     it('Remove txs for a given account', () => {
-        const account1 = testMocks.getWalletAccount({ descriptor: 'xpub1' });
-        const account2 = testMocks.getWalletAccount({ descriptor: 'xpub2' });
+        const account1 = mockWalletAccount({
+            symbol: 'btc',
+            descriptor: asAccountDescriptor('xpub1'),
+        });
+        const account2 = mockWalletAccount({
+            symbol: 'btc',
+            descriptor: asAccountDescriptor('xpub2'),
+        });
         const store = initStore({
             transactions: {
                 [account1.key]: [getWalletTransaction()],
                 [account2.key]: [getWalletTransaction()],
             },
+            phishing: {},
             fetchStatusDetail: {},
         });
 

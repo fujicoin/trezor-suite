@@ -1,18 +1,18 @@
 import { useMemo } from 'react';
 
-import { LANGUAGES, Locale, LocaleInfo } from '@suite-common/suite-types';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { LearnMoreButton } from '@suite/external-links';
+import { Translation, useTranslation } from '@suite/intl';
+import { Anchor, SettingsAnchor } from '@suite/router';
+import { selectAutodetectLanguage, selectLanguage, suiteSettingsActions } from '@suite/settings';
+import { useServices } from '@suite-common/dependency-injection';
+import { LANGUAGES, type Locale, type LocaleInfo } from '@suite-common/suite-types';
 import { getPlatformLanguages } from '@trezor/env-utils';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { ActionColumn, ActionSelect, SectionItem, TextColumn } from '@trezor/product-components';
 import { CROWDIN_URL } from '@trezor/urls';
 import { typedObjectEntries } from '@trezor/utils';
 
-import { setLanguage } from 'src/actions/settings/languageActions';
-import { setAutodetect } from 'src/actions/suite/suiteActions';
-import { SettingsSectionItem } from 'src/components/settings';
-import { ActionColumn, ActionSelect, TextColumn, Translation } from 'src/components/suite';
-import { SettingsAnchor } from 'src/constants/suite/anchors';
-import { useDispatch, useSelector, useTranslation } from 'src/hooks/suite';
-import { selectLanguage } from 'src/selectors/suite/suiteSelectors';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 import { getOsLocale } from 'src/utils/suite/l10n';
 
 const onlyOfficial = (locale: [string, LocaleInfo]): locale is [Locale, LocaleInfo] =>
@@ -20,6 +20,12 @@ const onlyOfficial = (locale: [string, LocaleInfo]): locale is [Locale, LocaleIn
 
 const onlyCommunity = (locale: [string, LocaleInfo]): locale is [Locale, LocaleInfo] =>
     locale[1].type === 'community';
+
+const getOptions = (filterPolicy: (locale: [string, LocaleInfo]) => boolean) =>
+    typedObjectEntries(LANGUAGES)
+        .filter(filterPolicy)
+        .map(([value, { name }]) => ({ value, label: name }))
+        .sort((a, b) => a.label.localeCompare(b.label));
 
 const useLanguageOptions = () => {
     const { translationString } = useTranslation();
@@ -37,15 +43,11 @@ const useLanguageOptions = () => {
             },
             {
                 label: translationString('TR_OFFICIAL_LANGUAGES'),
-                options: typedObjectEntries(LANGUAGES)
-                    .filter(onlyOfficial)
-                    .map(([value, { name }]) => ({ value, label: name })),
+                options: getOptions(onlyOfficial),
             },
             {
                 label: translationString('TR_COMMUNITY_LANGUAGES'),
-                options: typedObjectEntries(LANGUAGES)
-                    .filter(onlyCommunity)
-                    .map(([value, { name }]) => ({ value, label: name })),
+                options: getOptions(onlyCommunity),
             },
         ],
         [systemOption, translationString],
@@ -58,8 +60,9 @@ const useLanguageOptions = () => {
 };
 
 export const Language = () => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const language = useSelector(selectLanguage);
-    const autodetectLanguage = useSelector(state => state.suite.settings.autodetect.language);
+    const autodetectLanguage = useSelector(selectAutodetectLanguage);
     const dispatch = useDispatch();
 
     const { options, systemOption } = useLanguageOptions();
@@ -74,7 +77,7 @@ export const Language = () => {
 
     const onChange = ({ value }: { value: Locale | 'system' }) => {
         analytics.report({
-            type: EventType.SettingsGeneralChangeLanguage,
+            type: events.settingsGeneralChangeLanguageEvent.name,
             payload: {
                 platformLanguages: getPlatformLanguages().join(','),
                 previousLanguage: language,
@@ -84,30 +87,44 @@ export const Language = () => {
             },
         });
         if ((value === 'system') !== autodetectLanguage) {
-            dispatch(setAutodetect({ language: !autodetectLanguage }));
+            dispatch(suiteSettingsActions.setAutodetect({ language: !autodetectLanguage }));
         }
         if (value !== 'system') {
-            dispatch(setLanguage(value));
+            dispatch(suiteSettingsActions.setLanguage(value));
         }
     };
 
     return (
-        <SettingsSectionItem anchorId={SettingsAnchor.Language}>
-            <TextColumn
-                title={<Translation id="TR_LANGUAGE" />}
-                description={isCommunityLanguage && <Translation id="TR_LANGUAGE_DESCRIPTION" />}
-                buttonTitle={<Translation id="TR_LANGUAGE_CREDITS" />}
-                buttonLink={isCommunityLanguage ? CROWDIN_URL : undefined}
-            />
-            <ActionColumn>
-                <ActionSelect
-                    useKeyPressScroll
-                    value={selectedValue}
-                    options={options}
-                    onChange={onChange}
-                    data-testid="@settings/language-select"
-                />
-            </ActionColumn>
-        </SettingsSectionItem>
+        <Anchor anchorId={SettingsAnchor.Language}>
+            {({ anchorId, anchorRef, shouldHighlight }) => (
+                <SectionItem
+                    data-testid={anchorId}
+                    ref={anchorRef}
+                    shouldHighlight={shouldHighlight}
+                >
+                    <TextColumn
+                        title={<Translation id="TR_LANGUAGE" />}
+                        description={
+                            isCommunityLanguage && <Translation id="TR_LANGUAGE_DESCRIPTION" />
+                        }
+                        bottomContent={
+                            isCommunityLanguage ? (
+                                <LearnMoreButton url={CROWDIN_URL}>
+                                    <Translation id="TR_LANGUAGE_CREDITS" />
+                                </LearnMoreButton>
+                            ) : undefined
+                        }
+                    />
+                    <ActionColumn>
+                        <ActionSelect
+                            value={selectedValue}
+                            options={options}
+                            onChange={onChange}
+                            data-testid="@settings/language-select"
+                        />
+                    </ActionColumn>
+                </SectionItem>
+            )}
+        </Anchor>
     );
 };

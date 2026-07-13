@@ -1,8 +1,11 @@
+import { debugInitialState } from '@suite/debug';
+import { recoveryReducer } from '@suite/recovery';
+import { suiteSettingsInitialState } from '@suite/settings';
+
 import onboardingReducer from 'src/reducers/onboarding/onboardingReducer';
-import recoveryReducer from 'src/reducers/recovery/recoveryReducer';
 import suiteReducer from 'src/reducers/suite/suiteReducer';
 import { configureStore } from 'src/support/tests/configureStore';
-import { Action } from 'src/types/suite';
+import { type Action } from 'src/types/suite';
 
 import fixtures from '../__fixtures__/onboardingActions';
 
@@ -20,6 +23,7 @@ import fixtures from '../__fixtures__/onboardingActions';
 const getInitialState = (custom?: any) => {
     const suite = custom ? custom.suite : undefined;
     const onboarding = custom ? custom.onboarding : undefined;
+    const device = custom ? custom.device : undefined;
 
     return {
         onboarding: {
@@ -34,7 +38,9 @@ const getInitialState = (custom?: any) => {
             ...suiteReducer(undefined, {} as Action),
             ...suite,
         },
-        device: {},
+        suiteSettings: suiteSettingsInitialState,
+        debug: debugInitialState,
+        device: device ?? {},
     };
 };
 

@@ -2,8 +2,7 @@ import { validateIpcMessage } from '@trezor/ipc-proxy';
 
 import * as userData from '../libs/user-data';
 import { ipcMain } from '../typed-electron';
-
-import type { ModuleInit } from './index';
+import type { ModuleInit } from './module';
 
 export const SERVICE_NAME = 'user-data';
 
@@ -11,15 +10,15 @@ export const init: ModuleInit = () => {
     const { logger } = global;
 
     ipcMain.handle('user-data/clear', ipcEvent => {
-        validateIpcMessage(ipcEvent);
+        validateIpcMessage({ ipcEvent });
 
         logger.info(SERVICE_NAME, `Clearing user-data.`);
 
-        return userData.clear();
+        return userData.clearAppData();
     });
 
     ipcMain.handle('user-data/open', (ipcEvent, directory = '') => {
-        validateIpcMessage(ipcEvent);
+        validateIpcMessage({ ipcEvent });
 
         logger.info(SERVICE_NAME, `Opening user-data${directory} folder.`);
 

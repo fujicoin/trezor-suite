@@ -1,16 +1,25 @@
 import { combineReducers } from '@reduxjs/toolkit';
-import { BuyTradeResponse } from 'invity-api';
+import { type BuyTradeResponse } from 'invity-api';
 
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
-import { Account } from '@suite-common/wallet-types';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
+import { type Account, type AccountKey } from '@suite-common/wallet-types';
 
-import { buyThunks } from '../../';
 import { MIN_MAX_QUOTES_OK } from '../../../__fixtures__/buyUtils';
 import { invityAPI } from '../../../invityAPI';
-import { TradingBuyState } from '../../../reducers/buyReducer';
-import { initialState, prepareTradingReducer } from '../../../reducers/tradingReducer';
+import { type TradingBuyState } from '../../../reducers/buyReducer';
+import { initialState } from '../../../reducers/tradingCommonReducer';
+import { prepareTradingReducer } from '../../../reducers/tradingReducer';
+import type { LogErrorThunkProps } from '../../common/logErrorThunk';
+import { buyThunks } from '../index';
 
-const tradingReducer = prepareTradingReducer(extraDependenciesMock);
+const tradingReducer = prepareTradingReducer(extraDependenciesCommonMock);
+
+jest.mock('../../common/logErrorThunk', () => ({
+    logErrorThunk: (props: LogErrorThunkProps) => ({
+        type: 'mockedLogErrorThunk',
+        payload: props,
+    }),
+}));
 
 describe('confirmBuyTradeThunk', () => {
     afterEach(() => {
@@ -27,12 +36,12 @@ describe('confirmBuyTradeThunk', () => {
             extra: {},
             reducer: combineReducers({
                 wallet: combineReducers({
-                    tradingNew: tradingReducer,
+                    trading: tradingReducer,
                 }),
             }),
             preloadedState: {
                 wallet: {
-                    tradingNew: {
+                    trading: {
                         ...initialState,
                         buy: {
                             ...initialState.buy,
@@ -90,7 +99,7 @@ describe('confirmBuyTradeThunk', () => {
         expect(store.getActions().length).toEqual(2);
         expect(mockProcessResponseData).toHaveBeenCalledTimes(0);
         expect(mocktriggerAnalyticsTradeConfirmation).toHaveBeenCalledTimes(0);
-        expect(store.getState().wallet.tradingNew.buy.isLoading).toBeFalsy();
+        expect(store.getState().wallet.trading.buy.isLoading).toBeFalsy();
     });
 
     describe('should show error toast', () => {
@@ -117,13 +126,15 @@ describe('confirmBuyTradeThunk', () => {
 
             const toastAction = store
                 .getActions()
-                .find(action => action.type === '@common/in-app-notifications/addToast');
+                .find(action => action.type === 'mockedLogErrorThunk');
 
             expect(mocktriggerAnalyticsTradeConfirmation).toHaveBeenCalledTimes(1);
-            expect(toastAction?.payload.type).toEqual('error');
-            expect(toastAction?.payload.error).toEqual('No response from the server');
+            expect(toastAction?.payload).toEqual({
+                tradingType: 'buy',
+                errorMessage: 'No response from the server',
+            });
             expect(mockProcessResponseData).toHaveBeenCalledTimes(0);
-            expect(store.getState().wallet.tradingNew.buy.isLoading).toBeFalsy();
+            expect(store.getState().wallet.trading.buy.isLoading).toBeFalsy();
         });
 
         it('if there is no trade in response', async () => {
@@ -149,13 +160,15 @@ describe('confirmBuyTradeThunk', () => {
 
             const toastAction = store
                 .getActions()
-                .find(action => action.type === '@common/in-app-notifications/addToast');
+                .find(action => action.type === 'mockedLogErrorThunk');
 
             expect(mocktriggerAnalyticsTradeConfirmation).toHaveBeenCalledTimes(1);
-            expect(toastAction?.payload.type).toEqual('error');
-            expect(toastAction?.payload.error).toEqual('No response from the server');
+            expect(toastAction?.payload).toEqual({
+                tradingType: 'buy',
+                errorMessage: 'No response from the server',
+            });
             expect(mockProcessResponseData).toHaveBeenCalledTimes(0);
-            expect(store.getState().wallet.tradingNew.buy.isLoading).toBeFalsy();
+            expect(store.getState().wallet.trading.buy.isLoading).toBeFalsy();
         });
 
         it('if there is no response trade payment id', async () => {
@@ -187,13 +200,15 @@ describe('confirmBuyTradeThunk', () => {
 
             const toastAction = store
                 .getActions()
-                .find(action => action.type === '@common/in-app-notifications/addToast');
+                .find(action => action.type === 'mockedLogErrorThunk');
 
             expect(mocktriggerAnalyticsTradeConfirmation).toHaveBeenCalledTimes(1);
-            expect(toastAction?.payload.type).toEqual('error');
-            expect(toastAction?.payload.error).toEqual('No response from the server');
+            expect(toastAction?.payload).toEqual({
+                tradingType: 'buy',
+                errorMessage: 'No response from the server',
+            });
             expect(mockProcessResponseData).toHaveBeenCalledTimes(0);
-            expect(store.getState().wallet.tradingNew.buy.isLoading).toBeFalsy();
+            expect(store.getState().wallet.trading.buy.isLoading).toBeFalsy();
         });
 
         it('if there is trade error', async () => {
@@ -226,12 +241,14 @@ describe('confirmBuyTradeThunk', () => {
 
             const toastAction = store
                 .getActions()
-                .find(action => action.type === '@common/in-app-notifications/addToast');
+                .find(action => action.type === 'mockedLogErrorThunk');
             expect(mocktriggerAnalyticsTradeConfirmation).toHaveBeenCalledTimes(1);
-            expect(toastAction?.payload.type).toEqual('error');
-            expect(toastAction?.payload.error).toEqual(error);
+            expect(toastAction?.payload).toEqual({
+                tradingType: 'buy',
+                errorMessage: error,
+            });
             expect(mockProcessResponseData).toHaveBeenCalledTimes(0);
-            expect(store.getState().wallet.tradingNew.buy.isLoading).toBeFalsy();
+            expect(store.getState().wallet.trading.buy.isLoading).toBeFalsy();
         });
     });
 
@@ -254,25 +271,28 @@ describe('confirmBuyTradeThunk', () => {
                 returnUrl: 'returnUrl',
                 address: 'address',
                 account: {
-                    key: 'yyy',
+                    key: 'yyy' as AccountKey, // Todo: create properly via `createAccountKey()`
                 } as Account,
                 triggerAnalyticsTradeConfirmation: mocktriggerAnalyticsTradeConfirmation,
                 processResponseData: mockProcessResponseData,
             }),
         );
 
-        const { trades } = store.getState().wallet.tradingNew;
+        const { trades } = store.getState().wallet.trading;
 
         expect(mocktriggerAnalyticsTradeConfirmation).toHaveBeenCalledTimes(1);
         expect(mockProcessResponseData).toHaveBeenCalledTimes(1);
         expect(trades.length).toEqual(1);
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const minMaxQuote: (typeof MIN_MAX_QUOTES_OK)[number] = MIN_MAX_QUOTES_OK[1];
         expect(trades[0]).toEqual({
             tradeType: 'buy',
             date: dateString,
-            data: MIN_MAX_QUOTES_OK[1],
-            key: MIN_MAX_QUOTES_OK[1].paymentId,
+            data: minMaxQuote,
+            key: minMaxQuote.paymentId,
+            receiveAccountKey: 'xxx',
             selectedAccountKey: 'yyy',
         });
-        expect(store.getState().wallet.tradingNew.buy.isLoading).toBeFalsy();
+        expect(store.getState().wallet.trading.buy.isLoading).toBeFalsy();
     });
 });

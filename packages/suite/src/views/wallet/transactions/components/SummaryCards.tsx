@@ -1,33 +1,22 @@
 import styled from 'styled-components';
 
+import { Translation } from '@suite/intl';
+import { DISCREET_PLACEHOLDER, useShouldRedactNumbers } from '@suite-common/discreet-mode';
 import { useFormatters } from '@suite-common/formatters';
 import { useDisplayBaseCurrency } from '@suite-common/wallet-core';
-import {
-    DISCREET_PLACEHOLDER,
-    asBaseCurrencyAmount,
-    useShouldRedactNumbers,
-} from '@suite-common/wallet-utils';
-import { BaseCurrencyCode } from '@trezor/blockchain-link-types';
-import { variables } from '@trezor/components';
+import { asBaseCurrencyAmount } from '@suite-common/wallet-types';
+import { type BaseCurrencyCode } from '@trezor/blockchain-link-types';
+import { Grid } from '@trezor/components';
 import { exhaustive } from '@trezor/type-utils';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { BigNumber } from '@trezor/utils';
 
-import { FormattedDate, HiddenPlaceholder, Translation } from 'src/components/suite';
-import { Account } from 'src/types/wallet';
-import { AggregatedAccountHistory, GraphRange } from 'src/types/wallet/graph';
-import { FiatValueMap, sumFiatValueMap } from 'src/utils/wallet/graph';
+import { FormattedDate, HiddenPlaceholder } from 'src/components/suite';
+import { useLayoutSize } from 'src/hooks/suite/useLayoutSize';
+import { type Account } from 'src/types/wallet';
+import { type AggregatedAccountHistory, type GraphRange } from 'src/types/wallet/graph';
+import { type FiatValueMap, sumFiatValueMap } from 'src/utils/wallet/graph';
 
 import { InfoCard } from './InfoCard';
-
-const InfoCardsWrapper = styled.div`
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-gap: 20px;
-
-    @media screen and (max-width: ${variables.SCREEN_SIZE.XL}) {
-        grid-template-columns: 1fr;
-    }
-`;
 
 const getFormattedLabelLong = (rangeLabel: GraphRange['label']) => {
     switch (rangeLabel) {
@@ -48,15 +37,15 @@ const getFormattedLabelLong = (rangeLabel: GraphRange['label']) => {
     }
 };
 
-interface SummaryCardProps {
+type SummaryCardProps = {
     selectedRange: GraphRange;
     data: AggregatedAccountHistory[];
-    dataInterval: [number, number];
+    dataInterval: [number | undefined, number | undefined];
     localCurrency: BaseCurrencyCode;
     account: Account;
     isLoading?: boolean;
-    className?: string;
-}
+    isGraphDataLoaded?: boolean;
+};
 
 const DateWrapper = styled.span`
     white-space: nowrap;
@@ -76,15 +65,26 @@ export const SummaryCards = ({
     localCurrency,
     account,
     isLoading,
-    className,
+    isGraphDataLoaded,
 }: SummaryCardProps) => {
+    const { isBelowDesktop } = useLayoutSize();
     const { BaseCurrencyAmountFormatter } = useFormatters();
     const [fromTimestamp, toTimestamp] = dataInterval;
 
     const { shallDisplayBaseCurrency } = useDisplayBaseCurrency(account.symbol);
 
-    // aggregate values from shown graph data
-    const numOfTransactions = data.reduce((acc, d) => (acc += d.txs), 0) || account.history.total;
+    // Aggregate values from shown graph data.
+    const txsFromData = data.reduce((acc, d) => (acc += d.txs), 0);
+    // only fall back to account.history.total before graph data has loaded.
+    const numOfTransactions = isGraphDataLoaded
+        ? txsFromData
+        : txsFromData || account.history.total;
+
+    // on some networks it is not easy to get total number of txs (e.g. Ripple & Stellar)
+    if (numOfTransactions === -1) {
+        return null;
+    }
+
     const totalSentAmount = asBaseCurrencyAmount(
         data.reduce((acc, d) => acc.plus(d.sent), new BigNumber(0)),
     );
@@ -101,7 +101,7 @@ export const SummaryCards = ({
     );
 
     return (
-        <InfoCardsWrapper className={className}>
+        <Grid columns={isBelowDesktop ? 1 : 3} gap={20}>
             <InfoCard
                 title={getFormattedLabelLong(selectedRange.label)}
                 isLoading={isLoading}
@@ -123,40 +123,36 @@ export const SummaryCards = ({
                     ) : null
                 }
             />
-            {account.networkType !== 'solana' && (
-                <>
-                    <InfoCard
-                        title={<Translation id="TR_INCOMING" />}
-                        value={totalReceivedAmount.toFixed()}
-                        secondaryValue={
-                            shallDisplayBaseCurrency && totalReceivedFiatMap[localCurrency] ? (
-                                <BaseCurrencyAmountFormatter
-                                    currency={localCurrency}
-                                    value={totalReceivedFiatMap[localCurrency]!}
-                                />
-                            ) : undefined
-                        }
-                        symbol={account.symbol}
-                        isLoading={isLoading}
-                        isNumeric
-                    />
-                    <InfoCard
-                        title={<Translation id="TR_OUTGOING" />}
-                        value={totalSentAmount.negated().toFixed()}
-                        secondaryValue={
-                            shallDisplayBaseCurrency && totalSentFiatMap[localCurrency] ? (
-                                <BaseCurrencyAmountFormatter
-                                    currency={localCurrency}
-                                    value={totalSentFiatMap[localCurrency]!}
-                                />
-                            ) : undefined
-                        }
-                        symbol={account.symbol}
-                        isLoading={isLoading}
-                        isNumeric
-                    />
-                </>
-            )}
-        </InfoCardsWrapper>
+            <InfoCard
+                title={<Translation id="TR_INCOMING" />}
+                value={totalReceivedAmount.toFixed()}
+                secondaryValue={
+                    shallDisplayBaseCurrency && totalReceivedFiatMap[localCurrency] ? (
+                        <BaseCurrencyAmountFormatter
+                            currency={localCurrency}
+                            value={totalReceivedFiatMap[localCurrency]}
+                        />
+                    ) : undefined
+                }
+                symbol={account.symbol}
+                isLoading={isLoading}
+                isNumeric
+            />
+            <InfoCard
+                title={<Translation id="TR_OUTGOING" />}
+                value={totalSentAmount.negated().toFixed()}
+                secondaryValue={
+                    shallDisplayBaseCurrency && totalSentFiatMap[localCurrency] ? (
+                        <BaseCurrencyAmountFormatter
+                            currency={localCurrency}
+                            value={totalSentFiatMap[localCurrency]}
+                        />
+                    ) : undefined
+                }
+                symbol={account.symbol}
+                isLoading={isLoading}
+                isNumeric
+            />
+        </Grid>
     );
 };

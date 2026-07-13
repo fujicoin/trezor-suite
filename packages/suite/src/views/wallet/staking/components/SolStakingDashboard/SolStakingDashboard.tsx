@@ -1,49 +1,93 @@
-import { getNetworkDisplaySymbol } from '@suite-common/wallet-config';
-import { SOLANA_EPOCH_DAYS } from '@suite-common/wallet-constants';
+import { useEffect } from 'react';
+
 import {
-    StakeRootState,
+    useSolStakingRewardsWarning,
+    useSolanaRewardsHistory,
+} from '@suite-common/earn-staking-api/src/staking';
+import {
     selectAccountIsStakingActive,
     selectHasRunningDiscovery,
-    selectPoolStatsApyData,
+    selectHasSolExternalStakingAccounts,
+    selectPoolStatsApy,
+    selectSolExternalStakingAccountsTotalStaked,
 } from '@suite-common/wallet-core';
-import { SelectedAccountLoaded } from '@suite-common/wallet-types';
+import { type SelectedAccountLoaded } from '@suite-common/wallet-types';
 import { getStakingDataForNetwork } from '@suite-common/wallet-utils';
+import { SOLANA_EPOCH_DAYS } from '@trezor/coins-solana/constants';
 import { Column, Flex, Grid } from '@trezor/components';
+import { useCurrentRef } from '@trezor/react-utils';
 import { spacings } from '@trezor/theme';
 
 import { DashboardSection } from 'src/components/dashboard';
-import { Translation } from 'src/components/suite';
-import { useDevice, useLayoutSize, useSelector } from 'src/hooks/suite';
-import { ConnectDeviceGenericPromo } from 'src/views/wallet/receive/components/ConnectDevicePromo';
+import { usePagination } from 'src/hooks/general/usePagination';
+import { useLayoutSize, useSelector } from 'src/hooks/suite';
 
 import { StakingDashboard } from '../StakingDashboard/StakingDashboard';
+import { RewardsList } from './Rewards/RewardsList';
+import { StakingRewardsWarning } from './StakingRewardsWarning';
 import { ApyCard } from '../StakingDashboard/components/ApyCard';
 import { ClaimCard } from '../StakingDashboard/components/ClaimCard';
 import { DiscoveryWarning } from '../StakingDashboard/components/DiscoveryWarning';
-import { EmptyStakingCard } from '../StakingDashboard/components/EmptyStakingCard';
-import { PayoutCard } from '../StakingDashboard/components/PayoutCard';
+import { EmptyStakingCard } from '../StakingDashboard/components/EmptyStakingCard/EmptyStakingCard';
+import { ExternalStakingProviderCard } from '../StakingDashboard/components/ExternalStakingProviderCard';
+import { PayoutCardFrequencyRewards } from '../StakingDashboard/components/PayoutCardFrequencyRewards';
 import { StakingCard } from '../StakingDashboard/components/StakingCard';
-import { RewardsList } from './components/Rewards/RewardsList';
-
 interface SolStakingDashboardProps {
     selectedAccount: SelectedAccountLoaded;
 }
 
 export const SolStakingDashboard = ({ selectedAccount }: SolStakingDashboardProps) => {
     const { account } = selectedAccount;
-    const { device } = useDevice();
 
     const { isBelowLaptop } = useLayoutSize();
-    const isDeviceConnected = device?.connected && device?.available;
     const isDiscoveryRunning = useSelector(selectHasRunningDiscovery);
 
     const { canClaim = false } = getStakingDataForNetwork(account) ?? {};
 
-    const apy = useSelector((state: StakeRootState) =>
-        selectPoolStatsApyData(state, account?.symbol),
-    );
+    const apy = useSelector(state => selectPoolStatsApy(state, { account }));
 
     const isStakingActive = useSelector(state => selectAccountIsStakingActive(state, account.key));
+
+    const initialPage = 1;
+    const pagination = usePagination({ pageSize: 10, initialPage });
+    const rewardsQueryResult = useSolanaRewardsHistory(account, {
+        limit: pagination.pageSize,
+        offset: pagination.offset,
+    });
+
+    const { shouldShowWarning } = useSolStakingRewardsWarning(account, {
+        limit: pagination.pageSize,
+    });
+
+    const { setTotalCount } = pagination;
+    const rewardsTotalCount = rewardsQueryResult.data?.totalCount;
+
+    useEffect(() => {
+        if (rewardsTotalCount !== undefined) {
+            setTotalCount(rewardsTotalCount);
+        }
+    }, [rewardsTotalCount, setTotalCount]);
+
+    const pagintionRef = useCurrentRef(pagination);
+
+    useEffect(() => {
+        // reset solana rewards page on account change
+        pagintionRef.current.changePage(initialPage);
+    }, [account.descriptor, account.symbol, initialPage, pagintionRef]);
+
+    const hasExternalStakingAccounts = useSelector(state =>
+        selectHasSolExternalStakingAccounts(state, account.key),
+    );
+    const externalStakingTotalStaked = useSelector(state =>
+        selectSolExternalStakingAccountsTotalStaked(state, account.key),
+    );
+
+    const externalStakingProviderCard = hasExternalStakingAccounts ? (
+        <ExternalStakingProviderCard
+            symbol={account.symbol}
+            totalStaked={externalStakingTotalStaked}
+        />
+    ) : null;
 
     return (
         <StakingDashboard
@@ -51,43 +95,48 @@ export const SolStakingDashboard = ({ selectedAccount }: SolStakingDashboardProp
             dashboard={
                 <Column alignItems="normal" gap={spacings.xxxxl}>
                     {isStakingActive ? (
-                        <DashboardSection
-                            heading={
-                                <Translation
-                                    id="TR_STAKE_NETWORK"
-                                    values={{ symbol: getNetworkDisplaySymbol(account.symbol) }}
-                                />
-                            }
-                        >
-                            <Column alignItems="normal" gap={spacings.sm}>
-                                {!isDeviceConnected && <ConnectDeviceGenericPromo />}
-                                {isDiscoveryRunning && <DiscoveryWarning />}
+                        <>
+                            <DashboardSection>
+                                <Column alignItems="normal" gap={spacings.sm}>
+                                    {externalStakingProviderCard}
+                                    {isDiscoveryRunning && <DiscoveryWarning />}
+                                    {shouldShowWarning && <StakingRewardsWarning />}
 
-                                <Grid
-                                    columns={isBelowLaptop || !canClaim ? 1 : 2}
-                                    gap={spacings.sm}
-                                >
-                                    <ClaimCard />
-                                    <Flex direction={canClaim ? 'column' : 'row'} gap={spacings.sm}>
-                                        <ApyCard apy={apy} />
-                                        <PayoutCard
-                                            nextRewardPayout={SOLANA_EPOCH_DAYS}
-                                            daysToAddToPool={SOLANA_EPOCH_DAYS}
-                                            validatorWithdrawTime={0}
-                                        />
-                                    </Flex>
-                                </Grid>
-                                <StakingCard
-                                    isValidatorsQueueLoading={undefined}
-                                    daysToAddToPool={SOLANA_EPOCH_DAYS}
-                                    daysToUnstake={SOLANA_EPOCH_DAYS}
-                                />
-                            </Column>
-                        </DashboardSection>
+                                    <Grid
+                                        columns={isBelowLaptop || !canClaim ? 1 : 2}
+                                        gap={spacings.sm}
+                                    >
+                                        <ClaimCard />
+                                        <Flex
+                                            direction={canClaim ? 'column' : 'row'}
+                                            gap={spacings.sm}
+                                        >
+                                            <ApyCard apy={apy} />
+                                            <PayoutCardFrequencyRewards
+                                                rewardFrequency={SOLANA_EPOCH_DAYS}
+                                            />
+                                        </Flex>
+                                    </Grid>
+                                    <StakingCard
+                                        account={account}
+                                        isValidatorsQueueLoading={undefined}
+                                        daysToAddToPool={SOLANA_EPOCH_DAYS}
+                                        daysToUnstake={SOLANA_EPOCH_DAYS}
+                                    />
+                                </Column>
+                            </DashboardSection>
+                            <RewardsList
+                                account={account}
+                                rewardsQueryResult={rewardsQueryResult}
+                                pagination={pagination}
+                            />
+                        </>
                     ) : (
-                        <EmptyStakingCard />
+                        <Column alignItems="normal" gap={spacings.sm}>
+                            {externalStakingProviderCard}
+                            <EmptyStakingCard />
+                        </Column>
                     )}
-                    <RewardsList account={account} />
                 </Column>
             }
         />

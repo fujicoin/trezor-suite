@@ -1,56 +1,121 @@
 # Suite Analytics
 
-This is the shared analytics package for Trezor Suite, containing all event types used across the app. It is designed to work in both web and native (mobile) environments.
+Shared analytics package for Trezor Suite. It defines event types and enables tracking of user behaviour on both desktop and mobile.
 
-Depending on your environment, you can choose one of the following packages, each with its own set of events:
+More details: [Data analytics (Notion)](https://www.notion.so/satoshilabs/Data-analytics-938aeb2e289f4ca18f31b1c02ab782cb).
 
-| Package                   | Environment     | Events Defined In                                        |
-| ------------------------- | --------------- | -------------------------------------------------------- |
-| `@suite-common/analytics` | `@suite-common` | [`./src/events/shared`](./src/events/shared/)            |
-| `@trezor/suite-analytics` | `@trezor/suite` | [`./src/events/suite`](./src/events/suite)               |
-| `@suite-native/analytics` | `@suite-native` | [`./src/events/suite-native`](./src/events/suite-native) |
+---
 
-More details can be found in the [company Notion](https://www.notion.so/satoshilabs/Data-analytics-938aeb2e289f4ca18f31b1c02ab782cb) where implemented events with expected attributes and other notes related to analytics can be found.
+## Contents
 
-## Tracking
+1. [Which package to use](#1-which-package-to-use)
+2. [Where data is sent](#2-where-data-is-sent)
+3. [Adding or modifying an event](#3-adding-or-modifying-an-event)
+4. [Reporting events in code](#4-reporting-events-in-code)
+5. [Verifying that events are tracked](#5-verifying-that-events-are-tracked)
 
-Data from **production** builds (codesign branch) should be sent to:
+---
 
-- Desktop build: https://data.trezor.io/suite/log/desktop/stable.log
-- Web build: https://data.trezor.io/suite/log/web/stable.log
-- Mobile build: https://data.trezor.io/suite/log/mobile/stable.log
+## 1. Which package to use
 
-Data from **development** builds should be sent to:
+Events are split by platform. **First choose the package based on where you are writing code:**
 
-- Desktop build: https://data.trezor.io/suite/log/desktop/develop.log
-- Web build: https://data.trezor.io/suite/log/web/develop.log
-- Mobile build: https://data.trezor.io/suite/log/mobile/develop.log
+| Package                   | Platform             | Where events are defined                           |
+| ------------------------- | -------------------- | -------------------------------------------------- |
+| `@suite/analytics`        | **Desktop**          | `suite/analytics/src/events`                       |
+| `@suite-native/analytics` | **Mobile**           | `suite-native/analytics/src/events`                |
+| `@suite-common/analytics` | **Desktop & mobile** | `suite-common/analytics/src/events` (this package) |
 
-## Add/Modify event
+Definitions in these packages are the single source of truth. When reporting in code, import from the package that matches your platform (see section 4).
 
-In case a new event has to be added or an old one has to be modified, please follow the following subsections.
+**When to use `suite-common/analytics`:** Only when reporting an event that is defined in `suite-common/*` (i.e. in this package). For all other cases, use the platform-specific package (`@suite/analytics` or `@suite-native/analytics`). We prefer having separate events for mobile and desktop even when they represent the same user action—flows look and behave differently on phone vs desktop, and reusing the same event can be misleading for analysis.
+
+---
+
+## 2. Where data is sent
+
+| Environment               | Desktop                                                | Web                                                | Mobile                                                |
+| ------------------------- | ------------------------------------------------------ | -------------------------------------------------- | ----------------------------------------------------- |
+| **Production** (codesign) | `https://data.trezor.io/suite/log/desktop/stable.log`  | `https://data.trezor.io/suite/log/web/stable.log`  | `https://data.trezor.io/suite/log/mobile/stable.log`  |
+| **Development**           | `https://data.trezor.io/suite/log/desktop/develop.log` | `https://data.trezor.io/suite/log/web/develop.log` | `https://data.trezor.io/suite/log/mobile/develop.log` |
+
+---
+
+## 3. Adding or modifying an event
 
 ### What to track
 
-Navigation between pages is not required to be tracked as it is tracked automatically by `router/location-change` event. However, a case when it is good to track it is when a user can get to the same location using different methods (e.g. two different buttons on the same page). All other user actions without sensitive info can be tracked. If you are in doubt, please contact our analyst.
+- Page navigation is tracked automatically (`router/location-change`); do not send it manually.
+- Manual tracking makes sense when the same screen can be reached in different ways (e.g. two different buttons on one page).
+- You can track any user actions that do not contain sensitive data.
+- When in doubt ask in `#data_suite` channel on Slack
 
-## Type declaration
+### Where to define an event
 
-All events and their properties should be declared in [src/events/suite/types.ts](./src/events/suite/types.ts) (or in the corresponding directory for other environments).
-Event types should be declared in the `EventType` enum in [src/events/suite/constants.ts](./src/events/suite/constants.ts).
-Supplementary types can be declared in [src/events/suite/definitions.ts](./src/events/suite/definitions.ts).
+- In the appropriate package (see table above), in the **`src/events`** directory.
+- One event per file, with exports in **`src/events/index.ts`**.
 
-## Reporting in code
+### Event type (enum)
 
-To report an event, import `analytics` from the package based on your environment and initialize analytics (as soon as app starts).
+Add a new type to the **`EventType`** enum in the constants file of the relevant package:
 
+- **suite-common:** [`src/constants.ts`](./src/constants.ts)
+- **suite:** `suite/analytics/src/constants.ts`
+- **suite-native:** `suite-native/analytics/src/constants.ts`
+
+### Example event definition
+
+```ts
+import type { AttributeDef, EventDef } from '@suite-common/analytics';
+
+import { EventType } from '../constants';
+
+type Attributes = {
+    action: AttributeDef<'cta' | 'close'>;
+    bannerType?: AttributeDef<string | null>;
+};
+
+export const promoDashboardBannerEvent: EventDef<Attributes, EventType.PromoDashboardBanner> = {
+    name: EventType.PromoDashboardBanner,
+    descriptionTrigger: 'A user clicks the dashboard promo banner',
+    changelog: [{ version: '25.8.0', notes: 'added' }],
+
+    attributes: {
+        action: {
+            changelog: [{ version: '25.8.0', notes: 'added' }],
+        },
+        bannerType: {
+            description: 'only selected strings allowed (e.g. `tex` and `ts7`)',
+            changelog: [{ version: '25.8.0', notes: 'added' }],
+        },
+    },
+};
 ```
-// Desktop/web
-import { analytics } from '@trezor/suite-analytics';
-// Suite Native
-import { analytics } from '@suite-native/analytics';
-// Suite Common
-import { analytics } from '@suite-common/analytics';
+
+### Changelog
+
+Every change to an event or attribute must be recorded in the **`changelog`** array in its definition. Each entry has `version` (Suite version) and `notes` (description of the change).
+
+---
+
+## 4. Reporting events in code
+
+### Step 1: Initialization (at app startup)
+
+Import and initialization depend on the platform:
+
+```ts
+// Desktop
+import { useServices } from '@suite-common/dependency-injection';
+import { type DesktopAnalyticsDep } from '@suite/analytics';
+
+const { analytics } = useServices<DesktopAnalyticsDep>();
+
+// Mobile
+import { useServices } from '@suite-common/dependency-injection';
+import { type NativeAnalyticsDep } from '@suite-native/analytics';
+
+const { analytics } = useServices<NativeAnalyticsDep>();
 
 analytics.init(enabled, {
     instanceId,
@@ -59,41 +124,68 @@ analytics.init(enabled, {
     commitId,
     isDev,
     callbacks: {
-        onEnable: () => ...,
-        onDisable: () => ...,
+        onEnable: () => {
+            /* ... */
+        },
+        onDisable: () => {
+            /* ... */
+        },
     },
 });
 ```
 
-After that, you can use `report` method anywhere in your project scope.
+### Step 2: Calling `report`
 
-```
+Anywhere in the project (after initialization):
+
+```ts
+// Desktop
+import { events } from '@suite/analytics';
+import { useServices } from '@suite-common/dependency-injection';
+import { type DesktopAnalyticsDep } from '@suite/analytics';
+
+const { analytics } = useServices<DesktopAnalyticsDep>();
+
+// Mobile
+import { events } from '@suite-native/analytics';
+import { useServices } from '@suite-common/dependency-injection';
+import { type NativeAnalyticsDep } from '@suite-native/analytics';
+
+const { analytics } = useServices<NativeAnalyticsDep>();
+
 analytics.report({
-    type: 'event',
+    type: events.deviceConnectionHintModalEvent.name,
     payload: {
-        attribute: attributeValue,
+        option: 'notWorking',
     },
 });
 ```
 
-### Versioning
+### In thunks
 
-From Suite version 22.10.1, analytics uses Suite versioning. That means, that analytics version will change even if there are no changes in analytics changelog. However, there can be changes in Suite functionality, which can also change behavior of analytics.
+Analytics is available as `extra.services.analytics`:
 
-## Changelog
+```ts
+export const sessionRequestThunk = createThunk<void, { event: WalletKitTypes.SessionRequest }>(
+    `${WALLETCONNECT_MODULE}/sessionRequestThunk`,
+    async ({ event }, { dispatch, extra }) => {
+        extra.services.analytics.report({
+            type: events.walletConnectSessionRequestEvent.name,
+            payload: {
+                origin: event.verifyContext.verified.origin,
+                chainId: event.params.chainId,
+                method: event.params.request.method,
+            },
+        });
+    },
+);
+```
 
-Add a record of change to [Notion](https://www.notion.so/satoshilabs/Changelog-Suite-1551ab666b1943f080ff56ffc6896d12). Please use a format of previous records.
+---
 
-## Company table
+## 5. Verifying that events are tracked
 
-Add event to the analytics overview in the [Company Notion](https://www.notion.so/satoshilabs/Data-analytics-938aeb2e289f4ca18f31b1c02ab782cb).
-
-## How to check that events are tracked?
-
-1. **Option**: Open DevTools, navigate to **Network tab**, filter traffic by `.log` and check the **Query String Parameters** section
-1. **Option**: Get access to Keboola via access form (link in [company Notion](https://www.notion.so/satoshilabs/Engineering-6d5f34c46db041318ceeecb65f973980))
-1. **Option**: Create a modified build of app with an analytics server URL pointing to your server
-
-Suite Native:
-
-1. **Option**: Set the environment variable `EXPO_PUBLIC_IS_ANALYTICS_LOGGER_ENABLED=true` and run the app. The logs will be printed to the console.
+1. **DevTools** → **Network** tab → filter by `.log` → inspect **Query String Parameters** in the request.
+2. **Keboola** — access via [access form](https://www.notion.so/satoshilabs/Engineering-6d5f34c46db041318ceeecb65f973980) in company Notion.
+3. **Console logs** — Enable console logging in **Debug Settings**/**Dev Utils** → **Console Logging** toggle; events will be printed to the console.
+4. **Custom URL** — in **Debug Settings**/**Dev Utils** → **Custom Analytics URL** point to your own server.

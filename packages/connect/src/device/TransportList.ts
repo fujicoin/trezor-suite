@@ -1,15 +1,15 @@
+import { ERRORS } from '@trezor/connect-common/src/constants';
+import type { ConnectSettingsTransport } from '@trezor/connect-common/src/types/settings';
+// Static node-only imports are masked for browser/react-native by the
+// `.browser` and `.native` redirects in `@trezor/transport`. Switching this
+// resolver to dependency injection removes the need for those redirects.
+import { BridgeTransport, NodeUsbTransport, UdpTransport } from '@trezor/transport';
 import {
-    BridgeTransport,
-    NodeUsbTransport,
-    Transport,
-    UdpTransport,
-    WebUsbTransport,
+    type AbstractTransportParams,
+    type Transport,
     isTransportInstance,
-} from '@trezor/transport';
-import type { AbstractTransportParams } from '@trezor/transport/src/transports/abstract';
-
-import { ERRORS } from '../constants';
-import { ConnectSettingsTransport } from '../types';
+} from '@trezor/transport-common';
+import { WebUsbTransport } from '@trezor/transport-web';
 
 type Params = AbstractTransportParams & { sessionsBackgroundUrl?: string | null };
 
@@ -21,20 +21,13 @@ const getOrCreateTransport = (
     transportType: ConnectSettingsTransport,
     params: Params,
 ) => {
-    if (transportType === 'BridgeTransport') {
-        // Temporary handling of BridgeTransport which translates to two instances listening on ports 21328/21325
-        const existing = transports.filter(t => t.name === transportType);
-
-        return existing.length
-            ? existing
-            : [new BridgeTransport({ ...params, port: 21328 }), new BridgeTransport(params)];
-    }
-
     if (typeof transportType === 'string') {
         const existing = tryGetTransport(transports, transportType);
         if (existing) return existing;
 
         switch (transportType) {
+            case 'BridgeTransport':
+                return new BridgeTransport(params);
             case 'WebUsbTransport':
                 return new WebUsbTransport(params);
             case 'NodeUsbTransport':
@@ -51,11 +44,6 @@ const getOrCreateTransport = (
         const existing = tryGetTransport(transports, transportType.name);
         if (existing) {
             return existing;
-        }
-
-        // custom Transport might be initialized without messages, update them if so
-        if (!transportType.getMessage()) {
-            transportType.updateMessages(params.messages);
         }
 
         return transportType;

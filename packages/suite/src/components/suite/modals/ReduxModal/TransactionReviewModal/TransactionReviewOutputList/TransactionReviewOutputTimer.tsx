@@ -2,11 +2,12 @@ import React from 'react';
 
 import styled from 'styled-components';
 
+import { Translation } from '@suite/intl';
 import { Badge, Banner, Button, Text } from '@trezor/components';
+import { HourglassIcon, RepeatIcon } from '@trezor/icons';
 import { useClickCooldown } from '@trezor/react-utils';
 
 import { CountdownTimer } from 'src/components/suite/CountdownTimer';
-import { Translation } from 'src/components/suite/Translation';
 
 const TimerBox = styled.div`
     font-variant-numeric: tabular-nums;
@@ -31,16 +32,17 @@ export const TransactionReviewOutputTimer = ({
         return (
             <>
                 <Button
-                    icon="repeat"
-                    variant="tertiary"
+                    iconLeft={RepeatIcon}
+                    intent="neutral"
+                    priority="secondary"
                     type="button"
-                    size="tiny"
+                    size="small"
                     isDisabled={isSending || disabled}
                     onClick={() => handleClick(() => onTryAgain(true))}
                 >
                     <Translation id="TR_RETRY" />
                 </Button>
-                <Badge variant="warning">
+                <Badge intent="warning">
                     <TimerBox>
                         {isSending ? (
                             <Translation id="TR_CONFIRMING_TX" />
@@ -60,24 +62,25 @@ export const TransactionReviewOutputTimer = ({
 
     return (
         <Banner
-            icon="hourglass"
+            icon={HourglassIcon}
             rightContent={
                 <Banner.Button isDisabled={isSending} onClick={() => onTryAgain(true)}>
                     <Translation id="TR_RETRY" />
                 </Banner.Button>
             }
-        >
-            <TimerBox>
-                <Text typographyStyle="callout" as="div">
-                    <CountdownTimer
-                        deadline={deadline}
-                        unitDisplay="long"
-                        message="TR_TX_CONFIRMATION_TIMER"
-                        pastDeadlineMessage="TR_TX_SEND_FAILED_TITLE"
-                    />
-                </Text>
-                <Translation id="TR_SOLANA_TX_CONFIRMATION_TIMER_DESCRIPTION" />
-            </TimerBox>
-        </Banner>
+            description={
+                <TimerBox>
+                    <Text typographyStyle="body-sm-strong" as="div">
+                        <CountdownTimer
+                            deadline={deadline}
+                            unitDisplay="long"
+                            message="TR_TX_CONFIRMATION_TIMER"
+                            pastDeadlineMessage="TR_TX_SEND_FAILED_TITLE"
+                        />
+                    </Text>
+                    <Translation id="TR_SOLANA_TX_CONFIRMATION_TIMER_DESCRIPTION" />
+                </TimerBox>
+            }
+        />
     );
 };

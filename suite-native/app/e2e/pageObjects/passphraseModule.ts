@@ -1,9 +1,9 @@
 import { expect as detoxExpect } from 'detox';
 
-import { TrezorUserEnvLink } from '@trezor/trezor-user-env-link';
+import { Model, TrezorUserEnvLink } from '@trezor/trezor-user-env-link';
 
-import { waitForElementByIdToBeVisible, waitForElementByTextToBeVisible } from '../utils';
 import { onDeviceManager } from './deviceManagerActions';
+import { getModelFromEnv, waitForVisible } from '../support/utils';
 
 class PassphraseModule {
     public async openNewPassphraseFlow() {
@@ -17,54 +17,82 @@ class PassphraseModule {
     }
 
     public async expectEnterPassphraseScreen() {
-        await waitForElementByIdToBeVisible('@screen/PassphraseForm');
+        await waitForVisible(by.id('@screen/PassphraseForm'));
     }
 
     public async enterPassphrase(passphrase: string) {
-        const inputTestId = '@passphrase/passphraseInput';
-        await element(by.id(inputTestId)).tap();
-        await element(by.id(inputTestId)).replaceText(passphrase);
+        const passphraseInput = element(by.id('@passphrase/passphraseInput'));
+        await passphraseInput.tap();
+        await passphraseInput.replaceText(passphrase);
         await element(by.id('@passphrase/confirmButton')).tap();
     }
 
-    public async expectEnablePassphraseOnDeviceRequest() {
-        await waitForElementByIdToBeVisible('@screen/PassphraseEnableOnDevice');
-    }
-
     public async allowPassphraseOnEmu() {
+        if (getModelFromEnv() === Model.T3W1) {
+            await TrezorUserEnvLink.pressYes();
+            await TrezorUserEnvLink.pressYes();
+
+            return;
+        }
+
         await TrezorUserEnvLink.swipeEmu('up');
         await TrezorUserEnvLink.swipeEmu('up');
         await TrezorUserEnvLink.pressYes();
     }
 
     public async expectConfirmPassphraseOnDeviceRequest() {
-        await waitForElementByIdToBeVisible('@screen/PassphraseConfirmOnTrezor');
+        await waitForVisible(by.id('@screen/PassphraseConfirmOnTrezor'));
     }
 
     public async confirmPassphraseOnEmu() {
+        if (getModelFromEnv() === Model.T3W1) {
+            await TrezorUserEnvLink.pressYes();
+            await TrezorUserEnvLink.pressYes();
+
+            return;
+        }
+
         await TrezorUserEnvLink.swipeEmu('up');
         await TrezorUserEnvLink.swipeEmu('up');
         await TrezorUserEnvLink.pressYes();
     }
 
     public async expectEmptyPassphraseWalletScreen() {
-        await waitForElementByIdToBeVisible('@screen/PassphraseEmptyWallet');
+        await waitForVisible(by.id('@screen/PassphraseEmptyWallet'));
     }
 
     public async openEmptyPassphraseWalletAndConfirmBestPractices() {
         await element(by.id('@passphrase/emptyPassphraseWallet/confirmButton')).tap();
-        await waitForElementByTextToBeVisible('Passphrase best practices');
+        await waitForVisible(by.text('Passphrase best practices'));
         await element(by.text('Got it')).tap();
     }
 
     public async expectEmptyPassphraseWalletConfirmationScreen() {
-        await waitForElementByIdToBeVisible('@screen/PassphraseVerifyEmptyWallet');
+        await waitForVisible(by.id('@screen/PassphraseVerifyEmptyWallet'));
     }
 
     public async expectSwitcherSubheader(expectedText: string) {
         const subheaderTestID = '@deviceManager/walletDetail/subheader';
-        await waitForElementByIdToBeVisible(subheaderTestID);
+        await waitForVisible(by.id(subheaderTestID));
         await detoxExpect(element(by.id(subheaderTestID))).toHaveText(expectedText);
+    }
+
+    public async openPassphraseWallet(
+        passphrase: string,
+        options?: { dismissDuplicatePassphraseAlert: boolean },
+    ) {
+        await this.openNewPassphraseFlow();
+
+        await this.expectEnterPassphraseScreen();
+        await this.enterPassphrase(passphrase);
+
+        await this.expectConfirmPassphraseOnDeviceRequest();
+        await this.confirmPassphraseOnEmu();
+
+        if (options?.dismissDuplicatePassphraseAlert) {
+            await waitForVisible(by.text('Passphrase duplicate'));
+            await element(by.id('@alert-sheet/primary-button')).tap();
+        }
     }
 }
 

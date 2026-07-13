@@ -1,15 +1,15 @@
 import {
-    BuyTrade,
-    BuyTradeFinalStatus,
-    CryptoId,
-    ExchangeProviderInfo,
-    ExchangeTrade,
-    ExchangeTradeFinalStatus,
-    SellFiatTrade,
-    SellProviderInfo,
-    SellTradeFinalStatus,
+    type BuyProviderInfo,
+    type BuyTrade,
+    type BuyTradeFinalStatus,
+    type CryptoId,
+    type ExchangeProviderInfo,
+    type ExchangeTrade,
+    type ExchangeTradeFinalStatus,
+    type SellFiatTrade,
+    type SellProviderInfo,
+    type SellTradeFinalStatus,
 } from 'invity-api';
-import { v4 as uuidv4 } from 'uuid';
 
 import {
     type Network,
@@ -19,38 +19,116 @@ import {
     getNetworkByCoingeckoId,
     getNetworkByTradeCryptoId,
 } from '@suite-common/wallet-config';
-import type { Account, FormStateTrading } from '@suite-common/wallet-types';
+import type {
+    Account,
+    AccountKey,
+    FormStateTrading,
+    TokenAddress,
+} from '@suite-common/wallet-types';
+import { getContractAddressForNetworkSymbol } from '@suite-common/wallet-utils';
+import { type TokenInfo } from '@trezor/connect';
 import { exhaustive } from '@trezor/type-utils';
-import { BigNumber } from '@trezor/utils';
 
 import { CONTRACT_ADDRESS_FOR_NATIVE_TOKEN, CRYPTO_PLATFORM_SEPARATOR } from './constants';
 import { regional } from './regional';
 import {
-    TradingCountryCode,
-    TradingExchangeType,
-    TradingParsedCryptoIdProps,
-    TradingPaymentMethodListProps,
-    TradingPaymentMethodProps,
-    TradingProviderInfo,
-    TradingSellType,
-    TradingTradeBuySellMapProps,
-    TradingTradeBuySellType,
-    TradingTradeMapProps,
-    TradingTradeStatusType,
-    TradingTradeType,
-    TradingType,
+    type TradingCountryCode,
+    type TradingCountrySubdivisionOption,
+    type TradingExchangeType,
+    type TradingParsedCryptoIdProps,
+    type TradingPaymentMethodProps,
+    type TradingProviderInfo,
+    type TradingSellType,
+    type TradingTradeBuySellMapProps,
+    type TradingTradeBuySellType,
+    type TradingTradeMapProps,
+    type TradingTradeStatusType,
+    type TradingTradeType,
+    type TradingType,
 } from './types';
+import { getCountrySubdivisionByCode } from './utils/countryUtils';
 
 type NetworkAndContractAddress = {
     network: Network | undefined;
-    contractAddress: string | undefined;
+    contractAddress: TokenAddress | undefined;
 };
+
+type TradingGetFormStateSellProps = {
+    activeSection: TradingSellType;
+    trade: SellFiatTrade;
+};
+
+type TradingGetFormStateExchangeProps = {
+    activeSection: TradingExchangeType;
+    trade: ExchangeTrade;
+};
+
+type TradingGetFormStateProps = {
+    providers: Record<string, ExchangeProviderInfo | SellProviderInfo> | undefined;
+    isSlip24Active?: boolean;
+    sendAccountKey: AccountKey | undefined;
+    receiveAccountKey?: AccountKey | undefined;
+} & (TradingGetFormStateSellProps | TradingGetFormStateExchangeProps);
+
+export const tradeFinalStatuses: Record<TradingType, TradingTradeStatusType[]> = {
+    buy: ['SUCCESS', 'ERROR', 'BLOCKED'] satisfies BuyTradeFinalStatus[],
+    sell: ['SUCCESS', 'ERROR', 'BLOCKED', 'CANCELLED', 'REFUNDED'] satisfies SellTradeFinalStatus[],
+    exchange: ['SUCCESS', 'ERROR', 'KYC'] satisfies ExchangeTradeFinalStatus[],
+};
+
+export const isFinalStatus = (
+    tradingType: TradingType,
+    tradeStatus: TradingTradeStatusType | undefined,
+) => (tradeStatus ? tradeFinalStatuses[tradingType].includes(tradeStatus) : false);
+
+export const isBuyTrade = (quote: TradingTradeType): quote is BuyTrade =>
+    'fiatStringAmount' in quote && 'receiveStringAmount' in quote;
+
+export const isSellFiatTrade = (quote: TradingTradeType): quote is SellFiatTrade =>
+    'cryptoStringAmount' in quote && 'fiatStringAmount' in quote;
+
+export const isExchangeTrade = (quote: TradingTradeType): quote is ExchangeTrade =>
+    'sendStringAmount' in quote && 'receiveStringAmount' in quote;
+
+export const isExchangeProvider = (provider: TradingProviderInfo) =>
+    provider && 'kycPolicyType' in provider;
 
 export const parseCryptoId = (cryptoId: CryptoId): TradingParsedCryptoIdProps => {
     const parts = cryptoId.split(CRYPTO_PLATFORM_SEPARATOR);
 
-    return { networkId: parts[0] as CryptoId, contractAddress: parts[1] };
+    return {
+        // TODO: This casting doesn't make any sense. Return new type called `NetworkId` instead of `CryptoId`
+        networkId: parts[0] as CryptoId,
+        contractAddress: parts[1] as TokenAddress | undefined,
+    };
 };
+
+export function composeCryptoId(coingeckoId: string, contractAddress?: string | null): CryptoId {
+    return (
+        contractAddress
+            ? `${coingeckoId}${CRYPTO_PLATFORM_SEPARATOR}${contractAddress}`
+            : coingeckoId
+    ) as CryptoId;
+}
+
+/**
+ * Get the crypto id for an account or token of non-testnet network
+ */
+export function getCryptoId(
+    networkSymbol: NetworkSymbol,
+    tokenContract?: TokenInfo['contract'],
+): CryptoId {
+    const network = getNetwork(networkSymbol);
+
+    if (tokenContract) {
+        return composeCryptoId(
+            network.coingeckoId!,
+            getContractAddressForNetworkSymbol(networkSymbol, tokenContract),
+        );
+    }
+
+    return network.tradeCryptoId as CryptoId;
+}
 
 export const isCryptoIdForNativeToken = (cryptoId: CryptoId) => {
     const { contractAddress } = parseCryptoId(cryptoId);
@@ -73,15 +151,15 @@ export const cryptoIdToNetworkAndContractAddress = (
     return { network, contractAddress };
 };
 
-export const cryptoIdToNetwork = (cryptoId: CryptoId): Network | undefined =>
+export const cryptoIdToNetwork = (cryptoId: CryptoId | undefined): Network | undefined =>
     cryptoIdToNetworkAndContractAddress(cryptoId)?.network;
 
-export const cryptoIdToSymbol = (cryptoId: CryptoId): NetworkSymbol | undefined =>
+export const cryptoIdToSymbol = (cryptoId: CryptoId | undefined): NetworkSymbol | undefined =>
     cryptoIdToNetwork(cryptoId)?.symbol;
 
-export const cryptoIdToNetworkSymbolAndContractAddress = (cryptoId: CryptoId) => {
+export const cryptoIdToNetworkSymbolAndContractAddress = (cryptoId: CryptoId | undefined) => {
     const { network, contractAddress } = cryptoIdToNetworkAndContractAddress(cryptoId);
-    if (!network) {
+    if (!network || !cryptoId) {
         return { symbol: undefined, contractAddress: undefined };
     }
     const { symbol } = network;
@@ -118,6 +196,7 @@ export const getUnusedAddressFromAccount = (account: Account) => {
         case 'ripple':
         case 'ethereum':
         case 'solana':
+        case 'tron':
         case 'stellar': {
             return {
                 address: account.descriptor,
@@ -130,56 +209,38 @@ export const getUnusedAddressFromAccount = (account: Account) => {
 
 export const mapTestnetSymbol = (
     symbol: NetworkSymbol,
-): Exclude<NetworkSymbol, 'test' | 'tsep' | 'thol' | 'txrp' | 'txlm' | 'tada'> => {
+): Exclude<NetworkSymbol, 'test' | 'tsep' | 'thod' | 'txrp' | 'txlm'> => {
     if (symbol === 'test') return 'btc';
     if (symbol === 'tsep') return 'eth';
-    if (symbol === 'thol') return 'eth';
+    if (symbol === 'thod') return 'eth';
     if (symbol === 'txrp') return 'xrp';
     if (symbol === 'txlm') return 'xlm';
-    if (symbol === 'tada') return 'ada';
 
     return symbol;
-};
-
-export const getTagAndInfoNote = (quote: { infoNote?: string }) => {
-    let tag = '';
-    let infoNote = (quote?.infoNote || '').trim();
-    if (infoNote.startsWith('#')) {
-        const splitNote = infoNote?.split('#') || [];
-        if (splitNote.length === 3) {
-            // infoNote contains "#badge_text#info_note_text"
-            [, tag, infoNote] = splitNote;
-        } else if (splitNote.length === 2) {
-            // infoNote contains "#badge_text"
-            infoNote = '';
-            tag = splitNote.pop() || '';
-        }
-    }
-
-    return { tag, infoNote };
 };
 
 export const tradingGetSuccessQuotes = <T extends TradingType>(quotes: TradingTradeMapProps[T][]) =>
     quotes.filter(quote => quote.error === undefined);
 
-export const getDefaultCountry = (country: TradingCountryCode = regional.UNKNOWN_COUNTRY) => {
-    const label = regional.countriesMap.get(country);
+export const getDefaultCountry = (country: TradingCountryCode = regional.UNKNOWN_COUNTRY) =>
+    regional.getCountryOptionWithWorldwideFallback(country);
 
-    if (!label)
-        return {
-            label: regional.countriesMap.get(regional.UNKNOWN_COUNTRY)!,
-            value: regional.UNKNOWN_COUNTRY,
-        };
+export const getDefaultCountrySubdivision = (
+    subdivision: string | undefined,
+    countryCode?: string,
+): TradingCountrySubdivisionOption | undefined => {
+    if (!subdivision) return undefined;
 
-    return {
-        label,
-        value: country,
-    };
+    const found = getCountrySubdivisionByCode(subdivision, countryCode);
+
+    if (!found) return undefined;
+
+    return { value: found.code, label: found.name, name: found.name };
 };
 
 export const filterQuotesAccordingTags = <T extends TradingTradeBuySellType>(
     quotes: TradingTradeBuySellMapProps[T][],
-) => quotes.filter(q => !q.tags || !q.tags.includes('alternativeCurrency'));
+) => quotes.filter(q => !q.tags?.includes('alternativeCurrency'));
 
 // fill orderId for all, paymentId for sell and buy, quoteId for exchange
 export const addIdsToQuotes = <T extends TradingType>(
@@ -194,59 +255,23 @@ export const addIdsToQuotes = <T extends TradingType>(
             : null;
 
         if (sellBuyQuote && !sellBuyQuote.paymentId) {
-            sellBuyQuote.paymentId = uuidv4();
+            sellBuyQuote.paymentId = crypto.randomUUID();
         }
 
         if (type === 'exchange' && !quote.quoteId) {
-            (quote as ExchangeTrade).quoteId = uuidv4();
+            (quote as ExchangeTrade).quoteId = crypto.randomUUID();
         }
 
-        quote.orderId = uuidv4();
+        quote.orderId = crypto.randomUUID();
     });
 
     return quotes;
 };
 
-interface TradingGetDecimalsProps {
-    sendCryptoSelect?: { value: CryptoId; decimals: number };
-    network?: Network | null;
-}
-
-export const getTradingNetworkDecimals = ({
-    sendCryptoSelect,
-    network,
-}: TradingGetDecimalsProps) => {
-    const defaultDecimals = getNetwork('btc').decimals;
-
-    if (sendCryptoSelect) {
-        return sendCryptoSelect.decimals;
-    }
-
-    return network?.decimals ?? defaultDecimals;
-};
-
-export const getTradingPaymentMethods = <T extends TradingTradeBuySellType>(
-    quotes: TradingTradeMapProps[T][],
-) => {
-    const newPaymentMethods: TradingPaymentMethodListProps[] = [];
-
-    quotes.forEach(quote => {
-        const { paymentMethod, paymentMethodName } = quote;
-
-        const shouldAddToPaymentMethods =
-            paymentMethod !== undefined &&
-            newPaymentMethods.every(item => item.value !== paymentMethod);
-
-        if (shouldAddToPaymentMethods) {
-            newPaymentMethods.push({
-                value: paymentMethod,
-                label: paymentMethodName ?? paymentMethod,
-            });
-        }
-    });
-
-    return newPaymentMethods;
-};
+export const getNetworkDecimalsWithFallback = (
+    symbol: NetworkSymbol | undefined,
+    fallback = getNetwork('btc').decimals,
+): number => (symbol ? (getNetwork(symbol).decimals ?? fallback) : fallback);
 
 export const getTradingQuotesByPaymentMethod = <T extends TradingTradeBuySellType>(
     quotes: TradingTradeMapProps[T][],
@@ -256,75 +281,13 @@ export const getTradingQuotesByPaymentMethod = <T extends TradingTradeBuySellTyp
         quote => quote.paymentMethod === currentPaymentMethod && quote.error === undefined,
     );
 
-export const getBestRatedQuote = <T extends TradingType>(
-    quotes: TradingTradeMapProps[T][] | undefined,
-    type: T,
-): TradingTradeMapProps[T] | undefined => {
-    const quotesFiltered = quotes?.filter(item => item.rate && item.rate !== 0);
-
-    if (!quotesFiltered || quotesFiltered.length === 0) {
-        return undefined;
-    }
-
-    const bestRatedQuotes = quotesFiltered.sort((a, b) => {
-        const aRate = new BigNumber(a.rate ?? 0);
-        const bRate = new BigNumber(b.rate ?? 0);
-
-        // ascending to rate for buy - lower rate more crypto client receives
-        if (type === 'buy') {
-            return aRate.minus(bRate).toNumber();
-        }
-
-        // descending to rate for sell/exchange - higher rate more crypto/fiat client receives
-        return bRate.minus(aRate).toNumber();
-    });
-
-    return bestRatedQuotes[0];
-};
-
-export const tradeFinalStatuses: Record<TradingType, TradingTradeStatusType[]> = {
-    buy: ['SUCCESS', 'ERROR', 'BLOCKED'] satisfies BuyTradeFinalStatus[],
-    sell: ['SUCCESS', 'ERROR', 'BLOCKED', 'CANCELLED', 'REFUNDED'] satisfies SellTradeFinalStatus[],
-    exchange: ['SUCCESS', 'ERROR', 'KYC'] satisfies ExchangeTradeFinalStatus[],
-};
-
-export const isFinalStatus = (
-    tradingType: TradingType,
-    tradeStatus: TradingTradeStatusType | undefined,
-) => (tradeStatus ? tradeFinalStatuses[tradingType].includes(tradeStatus) : false);
-
-export const isBuyTrade = (quote: TradingTradeType): quote is BuyTrade =>
-    'fiatStringAmount' in quote && 'receiveStringAmount' in quote;
-
-export const isSellFiatTrade = (quote: TradingTradeType): quote is SellFiatTrade =>
-    'cryptoStringAmount' in quote && 'fiatStringAmount' in quote;
-
-export const isExchangeTrade = (quote: TradingTradeType): quote is ExchangeTrade =>
-    'sendStringAmount' in quote && 'receiveStringAmount' in quote;
-
-export const isExchangeProvider = (provider: TradingProviderInfo) =>
-    provider && 'kycPolicyType' in provider;
-
-type TradingGetFormStateSellProps = {
-    activeSection: TradingSellType;
-    trade: SellFiatTrade;
-};
-
-type TradingGetFormStateExchangeProps = {
-    activeSection: TradingExchangeType;
-    trade: ExchangeTrade;
-};
-
-type TradingGetFormStateProps = {
-    providers: Record<string, ExchangeProviderInfo | SellProviderInfo> | undefined;
-    isSlip24Active?: boolean;
-} & (TradingGetFormStateSellProps | TradingGetFormStateExchangeProps);
-
 export const getTradingFormState = ({
     activeSection,
     trade,
     providers,
-    isSlip24Active,
+    isSlip24Active = false,
+    sendAccountKey,
+    receiveAccountKey,
 }: TradingGetFormStateProps): FormStateTrading => {
     const provider = trade?.exchange ? providers?.[trade.exchange] : undefined;
 
@@ -333,6 +296,7 @@ export const getTradingFormState = ({
         case 'sell': {
             const defaultState = {
                 activeSection,
+                isSlip24Active,
             };
 
             if (
@@ -348,14 +312,17 @@ export const getTradingFormState = ({
 
             const networkData = cryptoIdToNetworkAndContractAddress(trade.cryptoCurrency);
 
-            if (!networkData || !networkData.network) {
+            if (!networkData?.network) {
                 return defaultState;
             }
 
             return {
                 activeSection,
                 recipientName: provider.companyName,
+                isSlip24Active: isSlip24Active && !!receiveAccountKey,
                 send: {
+                    cryptoId: trade.cryptoCurrency,
+                    accountKey: sendAccountKey,
                     symbol: networkData.network.symbol,
                     contractAddress: networkData.contractAddress,
                     amount: trade.cryptoStringAmount,
@@ -369,6 +336,7 @@ export const getTradingFormState = ({
         case 'exchange': {
             const defaultState = {
                 activeSection,
+                isSlip24Active,
             };
 
             if (
@@ -376,8 +344,7 @@ export const getTradingFormState = ({
                 !trade.receiveStringAmount ||
                 !trade.send ||
                 !trade.sendStringAmount ||
-                !provider?.companyName ||
-                !isSlip24Active
+                !provider?.companyName
             ) {
                 return defaultState;
             }
@@ -392,12 +359,18 @@ export const getTradingFormState = ({
             return {
                 activeSection,
                 recipientName: provider.companyName,
+                isSlip24Active: isSlip24Active && !!receiveAccountKey,
+                receiveAddress: trade.receiveAddress,
                 send: {
+                    cryptoId: trade.send,
+                    accountKey: sendAccountKey,
                     symbol: sendNetworkData.network.symbol,
                     contractAddress: sendNetworkData.contractAddress,
                     amount: trade.sendStringAmount,
                 },
                 receive: {
+                    cryptoId: trade.receive,
+                    accountKey: receiveAccountKey,
                     symbol: receiveNetworkData.network.symbol,
                     contractAddress: receiveNetworkData.contractAddress,
                     amount: trade.receiveStringAmount,
@@ -408,4 +381,29 @@ export const getTradingFormState = ({
         default:
             return exhaustive(activeSection);
     }
+};
+
+export const getTradingPrefilledFromAccountData = (
+    { symbol, key }: Account,
+    cryptoId?: CryptoId | undefined,
+) => {
+    const defaultCryptoId = getNetwork(symbol).tradeCryptoId as CryptoId;
+
+    return {
+        cryptoId: cryptoId ?? defaultCryptoId,
+        key,
+    };
+};
+
+export const isBuyProviderInfo = (provider: TradingProviderInfo): provider is BuyProviderInfo =>
+    'brandName' in provider;
+
+export const getStatusUrl = (provider?: TradingProviderInfo, trade?: TradingTradeType) => {
+    const tradeStatusUrl = trade?.statusUrl;
+
+    if (tradeStatusUrl === null) {
+        return undefined;
+    }
+
+    return tradeStatusUrl || provider?.statusUrl;
 };

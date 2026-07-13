@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import { TSchema } from '@sinclair/typebox';
+import { type TSchema } from '@sinclair/typebox';
 import CodeMirror from '@uiw/react-codemirror';
 import { json5Schema } from 'codemirror-json-schema/json5';
 import { useTheme } from 'styled-components';
@@ -15,6 +15,7 @@ export const CodeEditor = ({ code, codeChange, schema }: CodeEditorProps) => {
 
     const [codeKey, setCodeKey] = useState(0);
     const extensions = useMemo(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-render
         setCodeKey(prev => prev + 1);
 
         const patchedSchema = schema ? { ...schema } : { properties: {} };
@@ -39,7 +40,7 @@ export const CodeEditor = ({ code, codeChange, schema }: CodeEditorProps) => {
             key={codeKey}
             value={code}
             extensions={extensions}
-            theme={theme.legacy.THEME}
+            theme={theme.mode}
             onChange={codeChange}
         />
     );

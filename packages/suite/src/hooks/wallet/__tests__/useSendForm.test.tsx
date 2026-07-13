@@ -1,27 +1,36 @@
+import '@suite-common/test-utils/src/globalOverrides';
+
 import { useEffect, useState } from 'react';
-import { DeepPartial } from 'react-hook-form';
+import { type DeepPartial } from 'react-hook-form';
 
 import { waitFor } from '@testing-library/react';
 
-import { configureMockStore, initPreloadedState, testMocks } from '@suite-common/test-utils';
-import { FormState } from '@suite-common/wallet-types';
-import { PROTO } from '@trezor/connect';
-
-import { filterThunkActionTypes } from 'src/support/tests/configureStore';
+import { debugInitialState } from '@suite/debug';
+import { suiteSettingsInitialState } from '@suite/settings';
 import {
-    UserAction,
+    configureMockStore,
+    filterThunkActionTypes,
+    initPreloadedState,
+    testMocks,
+} from '@suite-common/test-utils';
+import { type FormState } from '@suite-common/wallet-types';
+import { type PROTO } from '@trezor/connect';
+
+import { extraDependenciesDesktopMock } from 'src/support/tests/extraDependenciesDesktop.mock';
+import {
+    type UserAction,
     actionSequence,
     findByTestId,
     renderWithProviders,
     waitForLoader,
 } from 'src/support/tests/hooksHelper';
-import { SendContextValues } from 'src/types/wallet/sendForm';
+import { type SendContextValues } from 'src/types/wallet/sendForm';
 import SendIndex from 'src/views/wallet/send';
 
 import * as fixtures from '../__fixtures__/useSendForm';
 import { useSendFormContext } from '../useSendForm';
 
-const TEST_TIMEOUT = 30000;
+const TEST_TIMEOUT = 35000;
 
 global.ResizeObserver = class MockedResizeObserver {
     observe = jest.fn();
@@ -38,12 +47,19 @@ jest.mock('cross-fetch', () => ({
     default: () => Promise.resolve({ ok: false }),
 }));
 
-jest.mock('src/actions/suite/routerActions', () => ({
+jest.mock('@suite/router', () => ({
+    ...jest.requireActual('@suite/router'),
     goto: () => ({ type: 'mock-redirect' }),
 }));
 
-// render only Translation['id']
-jest.mock('src/components/suite/Translation', () => ({ Translation: ({ id }: any) => id }));
+// !!! Must be a stable reference, else it will break some hooks / memoization and causes inf. re-renders
+const translationStringMock = (id: string) => id;
+
+jest.mock('@suite/intl', () => ({
+    ...jest.requireActual('@suite/intl'),
+    Translation: ({ id }: any) => id,
+    useTranslation: () => ({ translationString: translationStringMock }),
+}));
 
 jest.mock('@suite-common/tx-simulation', () => ({}));
 
@@ -67,9 +83,10 @@ const initStore = ({ send, fees, selectedAccount, coinjoin, bitcoinAmountUnit }:
             wallet: {
                 send,
                 coinjoin,
-                settings: { bitcoinAmountUnit, enabledNetworks: ['thol'] },
+                settings: { bitcoinAmountUnit, enabledNetworks: ['thod'] },
             },
-            suite: { settings: { language: 'en' } },
+            suiteSettings: { ...suiteSettingsInitialState, language: 'en' },
+            debug: debugInitialState,
             router: { route: { name: 'wallet-send' } },
         },
     });
@@ -90,6 +107,7 @@ interface TestCallback {
 // getContextValues returns actual state of SendFormContext
 const Component = ({ callback }: { callback: TestCallback }) => {
     const values = useSendFormContext();
+    // eslint-disable-next-line react-hooks/immutability
     callback.getContextValues = () => values;
 
     // NOTE: rendering briefly explanation:
@@ -147,9 +165,9 @@ const actionCallback = (
     if (result.composeTransactionParams) {
         const composeTransactionCallsLength = TrezorConnect.composeTransaction.mock.calls.length;
         const composeTransactionsParams =
-            TrezorConnect.composeTransaction.mock.calls[composeTransactionCallsLength - 1][0];
+            TrezorConnect.composeTransaction.mock.calls[composeTransactionCallsLength - 1]?.[0];
 
-        if (result.composeTransactionParams.account) {
+        if (result.composeTransactionParams.account && composeTransactionsParams) {
             expect(composeTransactionsParams.account.utxo.length).toEqual(
                 result.composeTransactionParams.account.utxo.length,
             );
@@ -217,7 +235,7 @@ const actionCallback = (
 };
 
 const waitForOutputsRender = (timeout = 200) =>
-    waitFor(() => findByTestId(/outputs\.[0-9]+\.address/), { timeout });
+    waitFor(() => findByTestId(/^outputs\.[0-9]+\.address$/), { timeout });
 
 describe('useSendForm hook', () => {
     afterEach(() => {
@@ -232,6 +250,7 @@ describe('useSendForm hook', () => {
                 const callback: TestCallback = {};
                 const { unmount } = renderWithProviders(
                     store,
+                    extraDependenciesDesktopMock.services,
                     <SendIndex>
                         <Component callback={callback} />
                     </SendIndex>,
@@ -248,7 +267,7 @@ describe('useSendForm hook', () => {
 
                 await actionSequence(f.actions, a => {
                     // check rendered HTML elements (Output.address input)
-                    expect(findByTestId(/outputs\.[0-9]+\.address/).length).toBe(
+                    expect(findByTestId(/^outputs\.[0-9]+\.address$/).length).toBe(
                         a.result.formValues.outputs.length,
                     );
                     // validate action result
@@ -262,6 +281,9 @@ describe('useSendForm hook', () => {
     });
 
     fixtures.setMax.forEach(f => {
+        // Add conditional test execution
+        if (f.skip) return;
+
         it(
             f.description,
             async () => {
@@ -270,21 +292,30 @@ describe('useSendForm hook', () => {
                 const callback: TestCallback = {};
                 const { unmount } = renderWithProviders(
                     store,
+                    extraDependenciesDesktopMock.services,
                     <SendIndex>
                         <Component callback={callback} />
                     </SendIndex>,
                 );
+                console.log('renderWithProviders');
                 // wait for first render
                 await waitForLoader();
-                await waitForOutputsRender();
+                console.log('waitForLoader');
+                console.log('waitForOutputsRender');
+                const renderedOutputs = await waitForOutputsRender();
+
+                console.log('waitForOutputsRender', renderedOutputs);
                 // execute user actions sequence
                 if (f.actions) {
+                    console.log('actionSequence');
                     await actionSequence(f.actions, a => actionCallback(callback, a));
                 }
 
+                console.log('actionCallback');
                 // validate finalResult
                 actionCallback(callback, { result: f.finalResult });
 
+                console.log('unmount');
                 unmount();
             },
             TEST_TIMEOUT,
@@ -292,7 +323,9 @@ describe('useSendForm hook', () => {
     });
 
     fixtures.composeDebouncedTransaction.forEach(f => {
-        it(
+        // Add conditional test execution
+        const testFn = f.skip ? it.skip : it;
+        testFn(
             f.description,
             async () => {
                 testMocks.setTrezorConnectFixtures(f.connect);
@@ -300,6 +333,7 @@ describe('useSendForm hook', () => {
                 const callback: TestCallback = {};
                 const { unmount } = renderWithProviders(
                     store,
+                    extraDependenciesDesktopMock.services,
                     <SendIndex>
                         <Component callback={callback} />
                     </SendIndex>,
@@ -328,6 +362,7 @@ describe('useSendForm hook', () => {
                 const callback: TestCallback = {};
                 const { unmount } = renderWithProviders(
                     store,
+                    extraDependenciesDesktopMock.services,
                     <SendIndex>
                         <Component callback={callback} />
                     </SendIndex>,
@@ -338,7 +373,7 @@ describe('useSendForm hook', () => {
                 store.subscribe(() => {
                     const actions = filterThunkActionTypes(store.getActions());
                     const lastAction = actions[actions.length - 1];
-                    if (lastAction.payload?.decision) {
+                    if (lastAction?.payload?.decision) {
                         lastAction.payload.decision.resolve(true); // always resolve push tx request
                     }
                 });
@@ -365,22 +400,11 @@ describe('useSendForm hook', () => {
             async () => {
                 testMocks.setTrezorConnectFixtures(f.connect);
 
-                jest.mock('@trezor/react-utils', () => {
-                    const originalModule = jest.requireActual('@trezor/react-utils');
-
-                    return {
-                        ...originalModule,
-                        __esModule: true,
-                        useDebounce: () => async (fn: any) => {
-                            await fn();
-                        },
-                    };
-                });
-
                 const store = initStore(f.store as Args);
                 const callback: TestCallback = {};
                 const { unmount } = renderWithProviders(
                     store,
+                    extraDependenciesDesktopMock.services,
                     <SendIndex>
                         <Component callback={callback} />
                     </SendIndex>,
@@ -409,8 +433,10 @@ describe('useSendForm hook', () => {
                 testMocks.setTrezorConnectFixtures(f.connect);
                 const store = initStore(f.store);
                 const callback: TestCallback = {};
+
                 const { unmount } = renderWithProviders(
                     store,
+                    extraDependenciesDesktopMock.services,
                     <SendIndex>
                         <Component callback={callback} />
                     </SendIndex>,

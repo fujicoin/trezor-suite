@@ -1,23 +1,19 @@
 import { firmwareActions, firmwareUpdate } from '@suite-common/firmware';
-import { testMocks } from '@suite-common/test-utils';
-import { FirmwareType, UI } from '@trezor/connect';
+import { mockGetFirmwareReleaseConfigInfo, mockSuiteDevice } from '@suite-common/suite-types/mocks';
+import { FirmwareType, UI_REQUEST } from '@trezor/connect';
 import { DeviceModelInternal } from '@trezor/device-utils';
 
-const { getSuiteDevice, getFirmwareReleaseConfigInfo } = testMocks;
-
-const bootloaderDevice = getSuiteDevice({ mode: 'bootloader', connected: true });
+const bootloaderDevice = mockSuiteDevice({ mode: 'bootloader', connected: true });
 const bootloaderDeviceNeedsIntermediary = {
-    ...getSuiteDevice(
+    ...mockSuiteDevice(
         {
             mode: 'bootloader',
             connected: true,
             firmwareReleaseConfigInfo: {
-                ...getFirmwareReleaseConfigInfo(),
+                ...mockGetFirmwareReleaseConfigInfo(),
                 intermediary: {
                     min_firmware_version: [1, 6, 2],
                     min_bootloader_version: [1, 6, 2],
-                    firmware_revision: '592590cf66a9b62dfeee7e4d2afb6e01005e5b2c',
-                    url: '/some/path.bin',
                     version: 1,
                 },
             },
@@ -26,12 +22,12 @@ const bootloaderDeviceNeedsIntermediary = {
     ),
 };
 const bootloaderDeviceNoIntermediaryT1 = {
-    ...getSuiteDevice(
+    ...mockSuiteDevice(
         {
             mode: 'bootloader',
             connected: true,
             firmwareReleaseConfigInfo: {
-                ...getFirmwareReleaseConfigInfo(),
+                ...mockGetFirmwareReleaseConfigInfo(),
                 intermediary: undefined,
             },
         },
@@ -155,7 +151,7 @@ export const actions = [
         },
     },
     {
-        description: 'Fails for missing device',
+        description: 'Errors for missing device',
         action: () => firmwareUpdate({ firmwareType: FirmwareType.Universal }),
         initialState: {
             device: {
@@ -168,7 +164,7 @@ export const actions = [
         },
     },
     {
-        description: 'FirmwareUpdate call to connect fails',
+        description: 'FirmwareUpdate call to connect errors',
         action: () => firmwareUpdate({ firmwareType: FirmwareType.Universal }),
         initialState: {
             device: {
@@ -180,8 +176,8 @@ export const actions = [
         mocks: {
             connect: {
                 success: false,
-                payload: {
-                    error: 'foo',
+                error: {
+                    message: 'foo',
                 },
             },
         },
@@ -205,7 +201,7 @@ export const actions = [
         },
     },
     {
-        description: 'FirmwareUpdate call to connect fails due to cancelling on device',
+        description: 'FirmwareUpdate call to connect errors due to cancelling on device',
         action: () => firmwareUpdate({ firmwareType: FirmwareType.Universal }),
         initialState: {
             device: {
@@ -217,8 +213,8 @@ export const actions = [
         mocks: {
             connect: {
                 success: false,
-                payload: {
-                    error: 'Firmware install failed',
+                error: {
+                    message: 'Firmware install failed',
                 },
             },
         },
@@ -256,10 +252,10 @@ export const actions = [
 // various cases to test reducer through actions
 export const reducerActions = [
     {
-        description: 'UI.FIRMWARE_PROGRESS',
+        description: 'UI_REQUEST.FIRMWARE_PROGRESS',
         initialState: {},
         action: {
-            type: UI.FIRMWARE_PROGRESS,
+            type: UI_REQUEST.FIRMWARE_PROGRESS,
             payload: {
                 operation: 'flashing',
                 progress: 50,

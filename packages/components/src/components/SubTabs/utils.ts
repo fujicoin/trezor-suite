@@ -1,12 +1,12 @@
-import { TypographyStyle } from '@trezor/theme';
+import { type TypographyStyle } from '@trezor/theme';
 
-import { SubTabsSize } from './types';
+import { type SubTabsSize } from './types';
 
 export const mapSizeToTypography = (size: SubTabsSize): TypographyStyle => {
     const typographyStyleMap: Record<SubTabsSize, TypographyStyle> = {
-        large: 'body',
-        medium: 'hint',
-        small: 'label',
+        large: 'body-md',
+        medium: 'body-sm',
+        small: 'body-xs',
     };
 
     return typographyStyleMap[size];

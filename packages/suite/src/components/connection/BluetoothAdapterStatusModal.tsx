@@ -1,14 +1,14 @@
 import { useState } from 'react';
 
-import { TranslationKey } from '@suite-common/intl-types';
-import { Button, Flex, Modal, Text } from '@trezor/components';
-import { desktopApi } from '@trezor/suite-desktop-api';
-import { spacings } from '@trezor/theme';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { selectAdapterStatus } from '@suite-common/bluetooth';
+import { type BluetoothAdapterStatus } from '@suite-common/bluetooth/src/types';
+import { Banner, Modal, Paragraph } from '@trezor/components';
 
-import { Translation } from 'src/components/suite/Translation';
+import { openSystemSettingsThunk } from 'src/actions/bluetooth/openSystemSettingsThunk';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 
 type BluetoothAdapterStatusModalProps = {
-    bluetoothAdapterStatus: 'disabled' | 'permission-denied' | 'not-compatible';
     onCancel: () => void;
 };
 
@@ -20,15 +20,16 @@ type AdapterIssueSolution = {
     deeplinkFailed?: TranslationKey;
 };
 
-export const BluetoothAdapterStatusModal = ({
-    bluetoothAdapterStatus,
-    onCancel,
-}: BluetoothAdapterStatusModalProps) => {
+export const BluetoothAdapterStatusModal = ({ onCancel }: BluetoothAdapterStatusModalProps) => {
+    const bluetoothAdapterStatus = useSelector(selectAdapterStatus);
+
     const [hasDeeplinkFailed, setHasDeeplinkFailed] = useState(false);
+    const dispatch = useDispatch();
 
     const openBluetoothSettings = async (settingsPage: 'bluetooth' | 'bluetooth-permissions') => {
-        const opened = await desktopApi.openSystemSettings(settingsPage);
-        if (!opened.success) {
+        const result = await dispatch(openSystemSettingsThunk({ type: settingsPage })).unwrap();
+
+        if (!result.success) {
             setHasDeeplinkFailed(true);
         }
     };
@@ -39,7 +40,7 @@ export const BluetoothAdapterStatusModal = ({
         openBluetoothSettings('bluetooth-permissions');
     };
 
-    const statuses: Record<string, AdapterIssueSolution> = {
+    const statuses: Partial<Record<BluetoothAdapterStatus, AdapterIssueSolution>> = {
         disabled: {
             title: 'TR_BLUETOOTH_TURNED_OFF',
             description: 'TR_BLUETOOTH_TURNED_OFF_TEXT',
@@ -62,34 +63,37 @@ export const BluetoothAdapterStatusModal = ({
 
     const status = statuses[bluetoothAdapterStatus];
 
+    if (!status) return null;
+
     return (
         <Modal
             heading={<Translation id={status.title} />}
+            width={600}
             onCancel={onCancel}
             bottomContent={
                 <>
                     {status.ctaText && (
-                        <Button isDisabled={hasDeeplinkFailed} onClick={status.onCtaClick}>
+                        <Modal.Button isDisabled={hasDeeplinkFailed} onClick={status.onCtaClick}>
                             <Translation id={status.ctaText} />
-                        </Button>
+                        </Modal.Button>
                     )}
-                    <Button onClick={onCancel} variant="tertiary">
+                    <Modal.Button onClick={onCancel} intent="neutral" priority="secondary">
                         <Translation id="TR_CANCEL" />
-                    </Button>
+                    </Modal.Button>
                 </>
             }
         >
-            <Flex gap={spacings.md} direction="column">
-                <Text variant="tertiary">
+            {hasDeeplinkFailed && status.deeplinkFailed ? (
+                <Banner
+                    intent="warning"
+                    icon
+                    description={<Translation id={status.deeplinkFailed} />}
+                />
+            ) : (
+                <Paragraph>
                     <Translation id={status.description}></Translation>
-                </Text>
-
-                {hasDeeplinkFailed && status.deeplinkFailed && (
-                    <Text variant="warning">
-                        <Translation id={status.deeplinkFailed} />
-                    </Text>
-                )}
-            </Flex>
+                </Paragraph>
+            )}
         </Modal>
     );
 };

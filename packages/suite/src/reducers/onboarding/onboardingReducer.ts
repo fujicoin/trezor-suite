@@ -1,28 +1,28 @@
 import { produce } from 'immer';
 
-import { BackupType } from '@suite-common/suite-types';
+import { type OnboardingAnalytics } from '@suite/analytics';
+import { type BackupType } from '@suite-common/suite-types';
 import { DEVICE } from '@trezor/connect';
-import { OnboardingAnalytics } from '@trezor/suite-analytics';
 
 import { ONBOARDING } from 'src/actions/onboarding/constants';
 import * as STEP from 'src/constants/onboarding/steps';
 import type { AnyPath, AnyStepId } from 'src/types/onboarding';
-import { Action } from 'src/types/suite';
+import { type Action } from 'src/types/suite';
 
 export interface OnboardingRootState {
     onboarding: OnboardingState;
 }
 
-export type DeviceTutorialStatus = 'active' | 'completed' | 'cancelled' | null;
+export type BackupMedium = 'nfc' | 'wordlist';
 
 export interface OnboardingState {
     backupType: BackupType;
+    backupMedium: BackupMedium | null;
     isActive: boolean;
     prevDeviceId: string | null;
     activeStepId: AnyStepId;
     path: AnyPath[];
     onboardingAnalytics: Partial<OnboardingAnalytics>;
-    tutorialStatus: DeviceTutorialStatus;
 }
 
 const initialState: OnboardingState = {
@@ -36,8 +36,8 @@ const initialState: OnboardingState = {
     activeStepId: STEP.ID_FIRMWARE_STEP,
     path: [],
     onboardingAnalytics: {},
-    tutorialStatus: null,
     backupType: 'shamir-single',
+    backupMedium: null,
 };
 
 const addPath = (path: AnyPath, state: OnboardingState) => {
@@ -82,12 +82,11 @@ const onboarding = (state: OnboardingState = initialState, action: Action) => {
             case ONBOARDING.ANALYTICS:
                 draft.onboardingAnalytics = { ...state.onboardingAnalytics, ...action.payload };
                 break;
-            case ONBOARDING.SET_TUTORIAL_STATUS:
-                draft.tutorialStatus = action.payload;
-                break;
-
             case ONBOARDING.SELECT_BACKUP_TYPE:
                 draft.backupType = action.payload;
+                break;
+            case ONBOARDING.SELECT_BACKUP_MEDIUM:
+                draft.backupMedium = action.payload;
                 break;
 
             case ONBOARDING.RESET_ONBOARDING:
@@ -97,9 +96,9 @@ const onboarding = (state: OnboardingState = initialState, action: Action) => {
     });
 };
 
-export const selectOnboardingTutorialStatus = (state: OnboardingRootState) =>
-    state.onboarding.tutorialStatus;
-
 export const selectIsOnboardingActive = (state: OnboardingRootState) => state.onboarding.isActive;
+
+export const selectOnboardingAnalytics = (state: OnboardingRootState) =>
+    state.onboarding.onboardingAnalytics;
 
 export default onboarding;

@@ -1,26 +1,17 @@
 import { useRef, useState } from 'react';
 
-import styled, { css } from 'styled-components';
-
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useServices } from '@suite-common/dependency-injection';
 import { notificationsActions } from '@suite-common/toast-notifications';
-import { Box, Menu, Popover, PopoverRef } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { Box, Menu, Popover, type PopoverRef } from '@trezor/components';
 
-import { Notifications } from 'src/components/suite/notifications';
+import { Notifications } from 'src/components/suite/notifications/Notifications/Notifications';
 import { useDispatch, useLayoutSize } from 'src/hooks/suite';
 
-import { NavigationItem, NavigationItemProps } from './NavigationItem';
-
-const StyledNavigationItem = styled(NavigationItem)`
-    ${({ theme, isActive }) =>
-        isActive &&
-        css`
-            background: ${theme.backgroundTertiaryPressedOnElevation0};
-            box-shadow: ${theme.boxShadowBase};
-        `}
-`;
+import { NavigationItem, type NavigationItemProps } from './NavigationItem';
 
 export const NotificationDropdown = (props: NavigationItemProps) => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const [isOpen, setIsOpen] = useState(false);
     const { isBelowLaptop } = useLayoutSize();
     const popoverRef = useRef<PopoverRef>(null);
@@ -33,7 +24,7 @@ export const NotificationDropdown = (props: NavigationItemProps) => {
         }
 
         analytics.report({
-            type: EventType.MenuNotificationsToggle,
+            type: events.menuNotificationsToggleEvent.name,
             payload: {
                 value: !isOpen,
             },
@@ -58,7 +49,7 @@ export const NotificationDropdown = (props: NavigationItemProps) => {
             isOpen={isOpen}
             onOpenChange={handleToggleChange}
         >
-            <StyledNavigationItem
+            <NavigationItem
                 {...props}
                 isActive={isOpen}
                 onClick={() => popoverRef.current?.[isOpen ? 'close' : 'open']()}

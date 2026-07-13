@@ -1,14 +1,15 @@
 import type { Octokit } from '@octokit/rest';
 
-import { scheduleAction } from '@trezor/utils';
+import { getWeakRandomInt, resolveAfter, scheduleAction, unique } from '@trezor/utils';
 
-import { TestReportProviderBase } from './annotationBase';
+import { type TestReportProviderBase } from './annotationBase';
 import { GitHubProject } from './gitHubProject';
 import { IssueRequests } from './issueRequests';
-import { LoggingFunctions, ProjectField } from './types';
+import { type LoggingFunctions, type ProjectField } from './types';
 import {
     TestOsEmoticons,
-    TestOsMatrix,
+    type TestOsMatrix,
+    TestStatus,
     osMatrixAnnotation,
     statusAnnotation,
 } from '../enums/testAnnotations';
@@ -93,7 +94,7 @@ abstract class GitHubReporterBase implements LoggingFunctions {
 
     protected logInstructionsForRerun(): void {
         const failedCount = this.failedTestFilenames.length;
-        const uniqueFailedFilenames = [...new Set(this.failedTestFilenames)];
+        const uniqueFailedFilenames = unique(this.failedTestFilenames);
 
         this.logError(LOG_VISUAL_SEPARATOR);
         this.logError(`GITHUB REPORTER SUMMARY: ~${failedCount} test(s) failed to report`);
@@ -129,6 +130,8 @@ abstract class GitHubReporterBase implements LoggingFunctions {
     }
 
     protected async initiateOctokitESM(): Promise<void> {
+        this.log('GitHub reporter started. Initializing Octokit (ESM)...');
+        this.initState = InitializationState.IN_PROGRESS;
         try {
             const OctokitModule = await import('@octokit/rest');
             this._octokit = new OctokitModule.Octokit({ auth: process.env.GITHUB_TOKEN });
@@ -140,6 +143,8 @@ abstract class GitHubReporterBase implements LoggingFunctions {
     }
 
     protected async initiateOctokitCommonJS(): Promise<void> {
+        this.log('GitHub reporter started. Initializing Octokit (CommonJS)...');
+        this.initState = InitializationState.IN_PROGRESS;
         try {
             const importDynamic = new Function('specifier', 'return import(specifier)');
             const octokitModule = await importDynamic('@octokit/rest');
@@ -147,13 +152,12 @@ abstract class GitHubReporterBase implements LoggingFunctions {
         } catch (error) {
             this.initState = InitializationState.FAILED;
             this.logError('Failed to initialize Octokit.');
-            throw error;
+            throw error; // Critical error, rethrow to stop execution
         }
     }
 
     protected init() {
         this.log('GitHub reporter started. Initializing GitHub client...');
-        this.initState = InitializationState.IN_PROGRESS;
         const initPromise = (async () => {
             try {
                 this._issueRequests = new IssueRequests(this.octokit);
@@ -186,9 +190,18 @@ abstract class GitHubReporterBase implements LoggingFunctions {
             (async () => {
                 try {
                     await this.waitForOnBeginInit();
+
                     if (report.isRetryAttempt && this.createdIssuesMap.has(report.id)) {
+                        // Retry attempts update the existing issue instead of creating a new one
                         await this.updateIssue(report);
+                    } else if (!report.isManual && report.status === TestStatus.AutoPass) {
+                        this.log(
+                            `Skipping reporting because test is automated and passed: "${report.testTitle}"`,
+                        );
+
+                        return;
                     } else {
+                        // Otherwise, create a new issue(s)
                         await this.createIssuePerOs(report);
                     }
                 } catch (error) {
@@ -221,6 +234,12 @@ abstract class GitHubReporterBase implements LoggingFunctions {
             this.log('No pending operations to wait for');
         }
 
+        if (this.initState !== 'COMPLETED') {
+            this.logError(
+                `Conclude(): Initialization not completed successfully. State: ${this.initState}`,
+            );
+            throw new Error('GitHub reporter finished with failure (not initialized)');
+        }
         if (this.failedTestFilenames.length > 0) {
             this.logInstructionsForRerun();
             throw new Error('GitHub reporter finished with failure');
@@ -359,10 +378,10 @@ abstract class GitHubReporterBase implements LoggingFunctions {
 
         for (const operationSystem of report.osMatrix) {
             const issueNodeId = await scheduleAction(async () => {
-                // Random delay between 1-5 seconds to distribute load on GitHub API
+                // Random delay between 1000–4999ms to distribute load on GitHub API
                 // Without it we often hit "Your attempt to move this item created a temporary conflict. Please try again"
-                const randomDelay = Math.floor(Math.random() * 4000) + 1000; // 1000-5000ms
-                await new Promise(resolve => setTimeout(resolve, randomDelay));
+                const randomDelay = getWeakRandomInt(1000, 5000); // 1000-4999ms
+                await resolveAfter(randomDelay);
                 this.log(
                     `Creating GitHub draft issue for test "(OS ${operationSystem}) ${report.testTitle}"...`,
                 );

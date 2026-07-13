@@ -1,21 +1,22 @@
 import styled from 'styled-components';
 
-import { spacingsPx, typography } from '@trezor/theme';
-
-import { CountdownTimer } from 'src/components/suite';
-import { Translation } from 'src/components/suite/Translation';
-import { SESSION_PHASE_MESSAGES } from 'src/constants/suite/coinjoin';
-import { useCoinjoinSessionPhase } from 'src/hooks/coinjoin';
-import { useSelector } from 'src/hooks/suite/useSelector';
 import {
     selectCurrentCoinjoinWheelStates,
     selectCurrentSessionDeadlineInfo,
-} from 'src/reducers/wallet/coinjoinReducer';
+} from '@suite/coinjoin';
+import { Translation } from '@suite/intl';
+import { type AccountKey } from '@suite-common/wallet-types';
+import { spacingsPx, typography } from '@trezor/theme';
+
+import { CountdownTimer } from 'src/components/suite';
+import { SESSION_PHASE_MESSAGES } from 'src/constants/suite/coinjoin';
+import { useCoinjoinSessionPhase } from 'src/hooks/coinjoin';
+import { useSelector } from 'src/hooks/suite/useSelector';
 
 const Cointainer = styled.div`
     height: 40px;
     margin-top: ${spacingsPx.xxs};
-    ${typography.label}
+    ${typography['body-xs']}
 `;
 
 const CountdownWrapper = styled.p`
@@ -23,7 +24,7 @@ const CountdownWrapper = styled.p`
 `;
 
 interface CoinjoinStatusMessageProps {
-    accountKey: string;
+    accountKey: AccountKey;
 }
 
 export const CoinjoinStatusMessage = ({ accountKey }: CoinjoinStatusMessageProps) => {

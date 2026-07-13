@@ -1,15 +1,12 @@
-import { MouseEvent, ReactNode } from 'react';
+import { type HTMLProps, type MouseEvent, type ReactNode } from 'react';
 
-import styled, { css } from 'styled-components';
+import styled from 'styled-components';
 
-import { spacingsPx, typographyStylesBase } from '@trezor/theme';
-
-import { TransientProps } from '../../../utils/transientProps';
-import { Icon, IconName } from '../../Icon/Icon';
+import { type TransientProps } from '../../../utils/transientProps';
 import { allowedTextTextProps } from '../Text/Text';
 import {
-    TextProps as TextPropsCommon,
-    TextPropsKeys,
+    type TextProps as TextPropsCommon,
+    type TextPropsKeys,
     pickAndPrepareTextProps,
     withTextProps,
 } from '../utils';
@@ -17,100 +14,57 @@ import {
 export const allowedLinkTextProps = [
     'typographyStyle',
     'textWrap',
+    'wordBreak',
+    'overflowWrap',
 ] as const satisfies TextPropsKeys[];
 type AllowedLinkTextProps = Pick<TextPropsCommon, (typeof allowedLinkTextProps)[number]>;
 
-type AProps = TransientProps<AllowedLinkTextProps> & {
-    $variant?: 'default' | 'nostyle' | 'underline';
-    $color?: string;
-};
+type AProps = TransientProps<AllowedLinkTextProps>;
 
 const A = styled.a<AProps>`
-    text-decoration: none;
-    cursor: pointer;
-    color: ${({ $color, theme }) => $color || theme.textDefault};
-    font-weight: 500;
-    display: inline-flex;
-    align-items: center;
+    background-color: unset;
+    border: unset;
+    text-decoration: underline;
+    color: inherit;
 
-    gap: ${spacingsPx.xxs};
-
-    ${withTextProps}
     &:hover {
-        text-decoration: underline;
+        text-decoration: none;
     }
 
-    ${({ $variant }) =>
-        $variant === 'underline' &&
-        css`
-            text-decoration: underline;
-        `}
-
-    ${({ $variant }) =>
-        $variant === 'nostyle' &&
-        css`
-            color: inherit;
-            font-weight: inherit;
-
-            &:visited,
-            &:active,
-            &:hover {
-                text-decoration: none;
-                color: inherit;
-            }
-        `}
+    ${withTextProps}
 `;
 
-type LinkProps = AllowedLinkTextProps & {
-    href?: string;
-    target?: string;
-    onClick?: (event: MouseEvent<any>) => void;
-    children?: ReactNode;
-    className?: string;
-    variant?: 'default' | 'nostyle' | 'underline'; // Todo: refactor, variant has different meaning in our design system
-    icon?: IconName;
-    color?: string;
-    'data-testid'?: string;
-};
+export type LinkProps = Pick<HTMLProps<HTMLAnchorElement>, 'href' | 'target' | 'onClick'> &
+    AllowedLinkTextProps & {
+        children?: ReactNode;
+        'data-testid'?: string;
+    };
 
-const Link = ({
+export const Link = ({
     href,
     target,
-    icon,
     onClick,
     'data-testid': dataTest,
     children,
-    color,
-    className,
-    variant,
-    typographyStyle = 'inherit',
     ...rest
 }: LinkProps) => {
-    const textProps = pickAndPrepareTextProps({ ...rest, typographyStyle }, allowedTextTextProps);
-    const iconSize =
-        typographyStylesBase[typographyStyle !== 'inherit' ? typographyStyle : 'body'].fontSize;
+    const textProps = pickAndPrepareTextProps(rest, allowedTextTextProps);
 
     return (
         <A
             href={href}
-            target={target || '_blank'}
+            target={target ?? '_blank'}
             rel="noreferrer noopener"
             data-testid={dataTest}
-            onClick={(e: MouseEvent<any>) => {
+            onClick={(e: MouseEvent<HTMLAnchorElement>) => {
                 if (onClick !== undefined) {
                     e.stopPropagation();
                     onClick(e);
                 }
             }}
-            $variant={variant}
-            className={className}
             {...textProps}
-            $color={color}
         >
             {children}
-            {icon && <Icon size={iconSize} name={icon} />}
         </A>
     );
 };
-export type { LinkProps };
-export { Link };

@@ -7,11 +7,11 @@ module.exports = function (api) {
                 plugins: [['transform-remove-console', { exclude: ['error'] }]],
             },
         },
-        presets: ['babel-preset-expo'],
+        presets: [['babel-preset-expo', { transformImportMeta: true }]],
         plugins: [
             ['@babel/plugin-transform-class-static-block'],
             // react-native-reanimated plugin has to be listed last
-            ['react-native-reanimated/plugin', { globals: ['__scanCodes'] }],
+            ['react-native-worklets/plugin', { globals: ['__scanCodes'] }],
         ],
     };
 };

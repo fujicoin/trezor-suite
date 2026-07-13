@@ -2,13 +2,13 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import { A } from '@mobily/ts-belt';
 
-import { TrezorDevice } from '@suite-common/suite-types';
 import {
     selectDeviceInstances,
     selectIsPortfolioTrackerDevice,
     selectSelectedDevice,
-    startDiscoveryThunk,
-} from '@suite-common/wallet-core';
+} from '@suite-common/device';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { startDiscoveryThunk } from '@suite-common/wallet-core';
 import { VStack } from '@suite-native/atoms';
 import { selectHasNoDeviceWithEmptyPassphrase } from '@suite-native/device';
 
@@ -67,7 +67,7 @@ export const WalletList = ({ onSelectDevice }: WalletListProps) => {
                 return (
                     <WalletItem
                         key={`${device.path}-${device.state.staticSessionId}`}
-                        deviceState={device.state}
+                        device={device}
                         isSelectable={isSelectable}
                         onPress={() => onSelectDevice(device)}
                     />

@@ -1,62 +1,77 @@
 import { useCallback } from 'react';
 import { useIntl } from 'react-intl';
 
-import { selectDeviceModel, selectSelectedDevice } from '@suite-common/wallet-core';
+import { Translation, messages } from '@suite/intl';
+import { MODAL_CONTEXT_DEVICE, selectModalRequestId } from '@suite/modal';
+import {
+    selectDeviceModel,
+    selectHasDevicePassphraseEntryCapability,
+    selectSelectedDevice,
+} from '@suite-common/device';
 import { Column, H3, Paragraph } from '@trezor/components';
-import TrezorConnect, { UI } from '@trezor/connect';
-import { spacings } from '@trezor/theme';
+import TrezorConnect, { UI_REQUEST, UI_RESPONSE } from '@trezor/connect';
 
 import { useSelector } from 'src/hooks/suite';
-import messages from 'src/support/messages';
+import { CardWithDevice } from 'src/views/suite/SwitchDevice/CardWithDevice';
+import { SwitchDeviceModal } from 'src/views/suite/SwitchDevice/SwitchDeviceModal';
 
 import { PassphraseInputCard } from './PassphraseInputCard';
-import { CardWithDevice } from '../../../../../views/suite/SwitchDevice/CardWithDevice';
-import { SwitchDeviceModal } from '../../../../../views/suite/SwitchDevice/SwitchDeviceModal';
-import { Translation } from '../../../Translation';
 
 export const ConfirmPassphraseBeforeAction = () => {
     const device = useSelector(selectSelectedDevice);
     const deviceModel = useSelector(selectDeviceModel);
+    const requestId = useSelector(selectModalRequestId);
+    const modal = useSelector(state => state.modal);
+
+    // Global passphrase modal: the device is ready once Connect raises REQUEST_PASSPHRASE.
+    const isDeviceLoading = !(
+        modal.context === MODAL_CONTEXT_DEVICE && modal.windowType === UI_REQUEST.REQUEST_PASSPHRASE
+    );
 
     const intl = useIntl();
 
     const onEnterPassphraseDialogCancel = () =>
-        TrezorConnect.cancel(intl.formatMessage(messages.TR_CANCELLED));
+        TrezorConnect.cancel({ reason: intl.formatMessage(messages.TR_CANCELLED) });
 
-    const onSubmit = useCallback((value: string, passphraseOnDevice?: boolean) => {
-        TrezorConnect.uiResponse({
-            type: UI.RECEIVE_PASSPHRASE,
-            payload: {
-                value,
-                save: true,
-                passphraseOnDevice: !!passphraseOnDevice,
-            },
-        });
-    }, []);
+    const onSubmit = useCallback(
+        (value: string, passphraseOnDevice?: boolean) => {
+            TrezorConnect.uiResponse({
+                type: UI_RESPONSE.RECEIVE_PASSPHRASE,
+                payload: {
+                    value,
+                    save: true,
+                    passphraseOnDevice: !!passphraseOnDevice,
+                },
+                requestId,
+            });
+        },
+        [requestId],
+    );
+
+    const offerPassphraseOnDevice = useSelector(selectHasDevicePassphraseEntryCapability);
 
     if (!device) {
         return null;
     }
 
-    const onDeviceOffer = !!device?.features?.capabilities?.includes('Capability_PassphraseEntry');
-
     return (
         <SwitchDeviceModal onCancel={onEnterPassphraseDialogCancel}>
             <CardWithDevice onCancel={onEnterPassphraseDialogCancel} device={device}>
-                <Column gap={spacings.sm}>
+                <Column gap={8} padding={{ horizontal: 8 }} margin={{ bottom: 16 }}>
                     <H3>
                         <Translation id="TR_CONFIRM_PASSPHRASE" />
                     </H3>
                     <Paragraph>
                         <Translation id="TR_CONFIRM_PASSPHRASE_WITHOUT_ADVICE_DESCRIPTION" />
                     </Paragraph>
-                    <PassphraseInputCard
-                        deviceModel={deviceModel ?? undefined}
-                        onSubmit={onSubmit}
-                        offerPassphraseOnDevice={onDeviceOffer}
-                        allowNonAsciiCharacters
-                    />
                 </Column>
+                <PassphraseInputCard
+                    isDeviceLoading={isDeviceLoading}
+                    deviceModel={deviceModel ?? undefined}
+                    onSubmit={onSubmit}
+                    offerPassphraseOnDevice={offerPassphraseOnDevice}
+                    allowNonAsciiCharacters
+                />
             </CardWithDevice>
         </SwitchDeviceModal>
     );

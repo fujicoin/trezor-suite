@@ -1,9 +1,8 @@
 import { bluetoothActions } from '@suite-common/bluetooth';
 import { notificationsActions } from '@suite-common/toast-notifications';
-import { Button } from '@trezor/components';
-import { desktopApi } from '@trezor/suite-desktop-api';
+import { ActionButton, ActionColumn, SectionItem, TextColumn } from '@trezor/product-components';
 
-import { ActionColumn, SectionItem, TextColumn } from 'src/components/suite';
+import { openSystemSettingsThunk } from 'src/actions/bluetooth/openSystemSettingsThunk';
 import { useDispatch } from 'src/hooks/suite';
 
 export const ForgetAllDevicesButton = () => {
@@ -13,7 +12,9 @@ export const ForgetAllDevicesButton = () => {
         dispatch(bluetoothActions.knownDevicesUpdateAction({ knownDevices: [] }));
         dispatch(notificationsActions.addToast({ type: 'clear-storage' }));
     };
-    const handleOpenSettingsButtonClick = () => desktopApi.openSystemSettings('bluetooth');
+    const handleOpenSettingsButtonClick = () => {
+        dispatch(openSystemSettingsThunk({ type: 'bluetooth' }));
+    };
 
     return (
         <SectionItem>
@@ -22,12 +23,17 @@ export const ForgetAllDevicesButton = () => {
                 description="Forgets devices persisted in Suite. In order to fully remove, go to system settings and manually remove the device there."
             />
             <ActionColumn>
-                <Button onClick={handleForgetButtonClick} size="small" variant="destructive">
+                <ActionButton onClick={handleForgetButtonClick} size="small" intent="critical">
                     Forget in Suite
-                </Button>
-                <Button onClick={handleOpenSettingsButtonClick} size="small" variant="tertiary">
+                </ActionButton>
+                <ActionButton
+                    onClick={handleOpenSettingsButtonClick}
+                    size="small"
+                    intent="neutral"
+                    priority="secondary"
+                >
                     Open system settings
-                </Button>
+                </ActionButton>
             </ActionColumn>
         </SectionItem>
     );

@@ -1,16 +1,15 @@
-import { ChangeEvent, Dispatch, KeyboardEvent, SetStateAction, useCallback, useRef } from 'react';
+import {
+    type ChangeEvent,
+    type Dispatch,
+    type KeyboardEvent,
+    type SetStateAction,
+    useCallback,
+    useRef,
+} from 'react';
 
-import styled, { useTheme } from 'styled-components';
-
+import { useTranslation } from '@suite/intl';
 import { Icon, Input, KEYBOARD_CODE } from '@trezor/components';
-
-import { useTranslation } from 'src/hooks/suite/useTranslation';
-
-const Container = styled.div`
-    display: flex;
-    align-items: center;
-    width: 100%;
-`;
+import { MagnifyingGlassIcon } from '@trezor/icons';
 
 export type UtxoSearchProps = {
     searchQuery: string;
@@ -19,7 +18,6 @@ export type UtxoSearchProps = {
 };
 
 export const UtxoSearch = ({ searchQuery, setSearch, setSelectedPage }: UtxoSearchProps) => {
-    const theme = useTheme();
     const inputRef = useRef<HTMLInputElement | null>(null);
     const { translationString } = useTranslation();
 
@@ -43,21 +41,20 @@ export const UtxoSearch = ({ searchQuery, setSearch, setSelectedPage }: UtxoSear
     );
 
     return (
-        <Container>
-            <Input
-                data-testid="@wallet/send/search-icon"
-                innerRef={inputRef}
-                innerAddon={<Icon name="magnifyingGlass" size={16} color={theme.iconSubdued} />}
-                placeholder={translationString('TR_SEARCH_UTXOS')}
-                onChange={onSearch}
-                onKeyDown={onKeyDown}
-                value={searchQuery}
-                innerAddonAlign="start"
-                maxLength={512}
-                showClearButton="always"
-                size="small"
-                onClear={() => setSearch('')}
-            />
-        </Container>
+        <Input
+            data-testid="@wallet/send/search-icon"
+            innerRef={inputRef}
+            leftContent={
+                <Icon as={MagnifyingGlassIcon} size={16} intent="neutral" priority="secondary" />
+            }
+            placeholder={translationString('TR_SEARCH_UTXOS')}
+            onChange={onSearch}
+            onKeyDown={onKeyDown}
+            value={searchQuery}
+            maxLength={512}
+            showClearButton={true}
+            size="small"
+            onClear={() => setSearch('')}
+        />
     );
 };

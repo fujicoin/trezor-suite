@@ -1,17 +1,19 @@
-import { useFirmwareInstallation } from '@suite-common/firmware';
+import { DebugOnlyBadge, selectIsDebugModeActive } from '@suite/debug';
+import { getSuiteFirmwareTypeString, useFirmwareDesktopUpdate } from '@suite/firmware-upgrade';
+import { Translation, useTranslation } from '@suite/intl';
 import {
     getChangelogUrl,
     getFwUpdateVersion,
     parseFirmwareChangelog,
 } from '@suite-common/suite-utils';
-import { Column, H4, Icon, Row, Text, Tooltip } from '@trezor/components';
-import { FirmwareType } from '@trezor/connect';
+import { Column, H4, Icon, Row, Text, TextButton, Tooltip } from '@trezor/components';
+import { type FirmwareType } from '@trezor/connect';
 import { getFirmwareVersion } from '@trezor/device-utils';
+import { ArrowRightIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { MarkdownWithComponents, Translation, TrezorLink } from 'src/components/suite';
-import { useSelector, useTranslation } from 'src/hooks/suite';
-import { getSuiteFirmwareTypeString } from 'src/utils/firmware';
+import { MarkdownWithComponents } from 'src/components/suite';
+import { useSelector } from 'src/hooks/suite';
 
 type FirmwareOfferProps = {
     isCustomFirmware?: boolean;
@@ -20,7 +22,8 @@ type FirmwareOfferProps = {
 
 export const FirmwareOffer = ({ isCustomFirmware, targetFirmwareType }: FirmwareOfferProps) => {
     const useDevkit = useSelector(state => state.firmware.useDevkit);
-    const { originalDevice } = useFirmwareInstallation();
+    const isDebugModeActive = useSelector(selectIsDebugModeActive);
+    const { originalDevice } = useFirmwareDesktopUpdate();
     const { translationString } = useTranslation();
 
     if (!originalDevice?.firmwareReleaseConfigInfo) {
@@ -32,13 +35,27 @@ export const FirmwareOffer = ({ isCustomFirmware, targetFirmwareType }: Firmware
         ? translationString('TR_CUSTOM_FIRMWARE_VERSION')
         : getFwUpdateVersion(originalDevice);
 
-    const parsedChangelog = isCustomFirmware
-        ? null
-        : parseFirmwareChangelog({ release: originalDevice.firmwareReleaseConfigInfo.release });
+    const { release } = originalDevice.firmwareReleaseConfigInfo;
+
+    const parsedChangelog = isCustomFirmware ? null : parseFirmwareChangelog({ release });
     const changelogUrl = getChangelogUrl(originalDevice);
 
     const currentFirmwareType = getSuiteFirmwareTypeString(originalDevice.firmwareType);
     const futureFirmwareType = getSuiteFirmwareTypeString(targetFirmwareType);
+
+    const CurrentVersion = () => (
+        <>
+            <Column alignItems="center" gap={spacings.xxs}>
+                <Text typographyStyle="body-xs" intent="neutral" priority="secondary">
+                    <Translation id="TR_ONBOARDING_CURRENT_VERSION" />
+                </Text>
+                <Text typographyStyle="body-sm">
+                    {currentFirmwareType ? translationString(currentFirmwareType) : ''}
+                    {currentVersion ? ` ${currentVersion}` : ''}
+                </Text>
+            </Column>
+        </>
+    );
 
     return (
         <Row
@@ -47,58 +64,69 @@ export const FirmwareOffer = ({ isCustomFirmware, targetFirmwareType }: Firmware
             width="100%"
             margin={{ vertical: spacings.md, horizontal: 'auto' }}
         >
-            {currentVersion && (
-                <>
-                    <Column alignItems="center" gap={spacings.xxs}>
-                        <Text typographyStyle="label" variant="tertiary">
-                            <Translation id="TR_ONBOARDING_CURRENT_VERSION" />
-                        </Text>
-                        <Text typographyStyle="hint">
-                            {currentFirmwareType ? translationString(currentFirmwareType) : ''}
-                            {currentVersion ? ` ${currentVersion}` : ''}
-                        </Text>
-                    </Column>
-                    <Icon name="arrowRight" size={16} />
-                </>
-            )}
+            {currentVersion &&
+                (isDebugModeActive ? (
+                    <Tooltip
+                        content={
+                            <DebugOnlyBadge>
+                                <Text>{originalDevice.features.revision}</Text>
+                            </DebugOnlyBadge>
+                        }
+                    >
+                        <CurrentVersion />
+                    </Tooltip>
+                ) : (
+                    <CurrentVersion />
+                ))}
+            {currentVersion && <Icon as={ArrowRightIcon} size={16} />}
             <Column alignItems="center" gap={spacings.xxs}>
-                <Text typographyStyle="label" variant="tertiary">
+                <Text typographyStyle="body-xs" intent="neutral" priority="secondary">
                     <Translation id="TR_ONBOARDING_NEW_VERSION" />
                 </Text>
                 <Tooltip
                     hasIcon
                     title={
                         parsedChangelog ? (
-                            <Row justifyContent="space-between" width="100%">
-                                <H4>
-                                    <Translation
-                                        id="TR_VERSION"
-                                        values={{ version: parsedChangelog.versionString }}
-                                    />
-                                </H4>
-                                <TrezorLink
-                                    typographyStyle="hint"
-                                    icon="arrowUpRight"
-                                    href={changelogUrl}
-                                >
-                                    <Translation id="TR_VIEW_ALL" />
-                                </TrezorLink>
-                            </Row>
+                            <H4>
+                                <Translation
+                                    id="TR_VERSION"
+                                    values={{ version: parsedChangelog.versionString }}
+                                />
+                            </H4>
+                        ) : undefined
+                    }
+                    addon={
+                        parsedChangelog ? (
+                            <TextButton
+                                size="small"
+                                intent="neutral"
+                                priority="secondary"
+                                href={changelogUrl}
+                            >
+                                <Translation id="TR_VIEW_ALL" />
+                            </TextButton>
                         ) : undefined
                     }
                     content={
-                        parsedChangelog ? (
-                            <MarkdownWithComponents>
-                                {parsedChangelog.changelog}
-                            </MarkdownWithComponents>
-                        ) : undefined
+                        <Column>
+                            {parsedChangelog ? (
+                                <MarkdownWithComponents>
+                                    {parsedChangelog.changelog}
+                                </MarkdownWithComponents>
+                            ) : undefined}
+                            {isDebugModeActive && (
+                                <DebugOnlyBadge>
+                                    <Text>{release.firmware_revision}</Text>
+                                </DebugOnlyBadge>
+                            )}
+                        </Column>
                     }
                     isActive={!!parsedChangelog}
                 >
                     <Text
-                        typographyStyle="hint"
+                        typographyStyle="body-sm"
                         data-testid="@firmware/offer-version/new"
-                        variant="primary"
+                        intent="brand"
                     >
                         {futureFirmwareType ? translationString(futureFirmwareType) : ''}
                         {nextVersion ? ` ${nextVersion}` : ''}

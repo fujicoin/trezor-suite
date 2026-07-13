@@ -4,22 +4,17 @@ import cn from 'clsx';
 import { useTheme } from 'next-themes';
 import { useMounted } from 'nextra/hooks';
 import { MoonIcon, SunIcon } from 'nextra/icons';
-import { z } from 'zod';
+import { type z } from 'zod';
 
 import { Select } from '@trezor/components';
 
-import { useConfig } from '../contexts';
+import { useConfig } from '../contexts/useConfig';
+import { type themeOptionsSchema } from '../schema';
 
 type ThemeSwitchProps = {
     lite?: boolean;
     className?: string;
 };
-
-export const themeOptionsSchema = z.strictObject({
-    light: z.string(),
-    dark: z.string(),
-    system: z.string(),
-});
 
 type ThemeOptions = z.infer<typeof themeOptionsSchema>;
 
@@ -35,7 +30,6 @@ export function ThemeSwitch({ lite }: ThemeSwitchProps): ReactElement {
     return (
         <Select
             size="small"
-            isClean
             options={[
                 { value: 'light', label: options.light },
                 { value: 'dark', label: options.dark },
@@ -52,14 +46,9 @@ export function ThemeSwitch({ lite }: ThemeSwitchProps): ReactElement {
                       }
                     : undefined
             }
-            menuPosition="absolute"
             menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
             menuShouldScrollIntoView={false}
             menuPlacement="top"
-            components={{
-                DropdownIndicator: () => null,
-                IndicatorSeparator: () => null,
-            }}
             formatOptionLabel={(option, meta) => {
                 if (meta.context === 'value') {
                     return (

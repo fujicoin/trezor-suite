@@ -1,38 +1,31 @@
-import { ReactNode, useState } from 'react';
-import { useIntl } from 'react-intl';
+import { type ReactNode, useState } from 'react';
 
-import { useFirmwareInstallation } from '@suite-common/firmware';
-import { getDeviceColorVariant, getDeviceInternalModel } from '@suite-common/suite-utils';
-import { selectThpStep } from '@suite-common/thp';
-import { acquireDevice, selectSelectedDevice } from '@suite-common/wallet-core';
+import {
+    useFirmwareDesktopUpdate,
+    useFirmwareInstallationProgressCheck,
+} from '@suite/firmware-upgrade';
+import { closeModal } from '@suite/modal';
+import { closeModalApp } from '@suite/router';
+import { ThpPairingStep } from '@suite/thp';
+import { selectSelectedDevice } from '@suite-common/device';
+import { acquireDevice } from '@suite-common/wallet-core';
 import { Modal } from '@trezor/components';
-import TrezorConnect from '@trezor/connect';
-import { ConfirmOnDevice } from '@trezor/product-components';
 import { exhaustive } from '@trezor/type-utils';
 
-import { closeModalApp } from 'src/actions/suite/routerActions';
-import { Translation } from 'src/components/suite';
-import { useDispatch, useFirmwareInstallationProgressCheck, useSelector } from 'src/hooks/suite';
-import messages from 'src/support/messages';
+import { FirmwareInstallationProgressCheck } from 'src/components/firmware/ProgressCheck/FirmwareInstallationProgressCheck';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 
 import { StepCheckSeed } from './Steps/StepCheckSeed';
 import { StepDone } from './Steps/StepDone';
 import { StepError } from './Steps/StepError';
 import { StepInitial } from './Steps/StepInitial';
 import { StepStarted } from './Steps/StepStarted';
-import { StepThpFailed } from './Steps/StepThpFailed';
-import { StepThpPairing } from './Steps/StepThpPairing';
-import { StepThpPairingRequest } from './Steps/StepThpPairingRequest';
-import { StepThpStart } from './Steps/StepThpStart';
-import * as modalActions from '../../actions/suite/modalActions';
-import { FirmwareInstallationProgressCheck } from '../../components/firmware';
 
 type FirmwareModalProps = {
     children: ReactNode;
     heading: ReactNode;
     install: () => void;
     isCustomFirmwareUploaded?: boolean;
-    shouldSwitchFirmwareType?: boolean;
 };
 
 export const FirmwareModal = ({
@@ -40,26 +33,13 @@ export const FirmwareModal = ({
     heading,
     install,
     isCustomFirmwareUploaded,
-    shouldSwitchFirmwareType,
 }: FirmwareModalProps) => {
-    const {
-        resetReducer,
-        status,
-        setStatus,
-        deviceWillBeWiped,
-        error,
-        buttonEvent,
-        confirmOnDevice,
-        showConfirmationPill,
-    } = useFirmwareInstallation({ shouldSwitchFirmwareType });
+    const { resetReducer, status, setStatus, deviceWillBeWiped, error } =
+        useFirmwareDesktopUpdate();
     const device = useSelector(selectSelectedDevice);
 
-    const thpStep = useSelector(selectThpStep);
-
     const dispatch = useDispatch();
-    const intl = useIntl();
     const [isChecked, setIsChecked] = useState(false);
-    const uiEventDevice = buttonEvent?.device;
     const { isProgressCheckDisplayed, handleDismissProgressCheck } =
         useFirmwareInstallationProgressCheck();
 
@@ -67,47 +47,16 @@ export const FirmwareModal = ({
     // It can be canceled only via `trezorCancel`
     const isCancelable = ['initial', 'check-seed', 'done', 'error'].includes(status);
 
-    const isAwaitingPinEntry = buttonEvent?.code === 'ButtonRequest_PinEntry';
-
     const handleClose = () => {
         if (device?.status !== 'available') {
             dispatch(acquireDevice({ requestedDevice: device }));
         }
-        dispatch(modalActions.onCancel());
+        dispatch(closeModal());
         dispatch(closeModalApp());
         resetReducer();
     };
 
-    const trezorCancel = () => TrezorConnect.cancel(intl.formatMessage(messages.TR_CANCELLED));
-
     const getContent = () => {
-        if (thpStep !== null) {
-            switch (thpStep) {
-                case 'BeforeConnectionInfo':
-                    return <StepThpStart modalHeading={heading} />;
-                case 'ConfirmConnectionBeforePairing':
-                case 'ConfirmOnlyConnection':
-                    return device !== undefined ? (
-                        <StepThpPairingRequest modalHeading={heading} />
-                    ) : null;
-                case 'CodeEntry':
-                    return device !== undefined ? <StepThpPairing modalHeading={heading} /> : null;
-
-                // Auto-connect not relevant for Firmware Installation.
-                // We don't want to ask the user for autoconnect during FW installation, instead we
-                // postpone it for the next connection.
-                case 'AutoconnectInfo':
-                case 'Autoconnect':
-                    return null;
-
-                case 'CodeInvalid':
-                    return <StepThpFailed modalHeading={heading} />;
-
-                default:
-                    exhaustive(thpStep);
-            }
-        }
-
         switch (status) {
             case 'error':
                 return <StepError error={error} onClose={handleClose} />;
@@ -138,7 +87,7 @@ export const FirmwareModal = ({
             case 'started':
                 if (isProgressCheckDisplayed) {
                     return (
-                        <Modal size="large">
+                        <Modal width={760}>
                             <FirmwareInstallationProgressCheck
                                 handleDismiss={handleDismissProgressCheck}
                             />
@@ -154,6 +103,9 @@ export const FirmwareModal = ({
                         isCustomFirmwareUploaded={isCustomFirmwareUploaded}
                     />
                 );
+            case 'thp-pairing':
+                return <ThpPairingStep heading={heading} />;
+
             case 'done':
                 return (
                     <StepDone
@@ -170,23 +122,6 @@ export const FirmwareModal = ({
 
     return (
         <Modal.Backdrop onClick={isCancelable ? handleClose : undefined}>
-            {showConfirmationPill && (
-                <ConfirmOnDevice
-                    title={<Translation id="TR_CONFIRM_ON_TREZOR" />}
-                    deviceModelInternal={
-                        uiEventDevice !== undefined
-                            ? getDeviceInternalModel(uiEventDevice)
-                            : undefined
-                    }
-                    deviceUnitColor={
-                        uiEventDevice !== undefined
-                            ? getDeviceColorVariant(uiEventDevice)
-                            : undefined
-                    }
-                    isConfirmed={!confirmOnDevice}
-                    onCancel={isAwaitingPinEntry ? trezorCancel : undefined}
-                />
-            )}
             {getContent()}
         </Modal.Backdrop>
     );

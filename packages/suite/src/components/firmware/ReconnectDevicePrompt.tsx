@@ -1,19 +1,24 @@
 import * as semver from 'semver';
 
-import { useFirmwareInstallation } from '@suite-common/firmware';
-import { TranslationKey } from '@suite-common/intl-types';
-import { TrezorDevice } from '@suite-common/suite-types';
-import { selectSelectedDeviceLabelOrName } from '@suite-common/wallet-core';
-import { BulletList, Column, H2, Modal, Paragraph } from '@trezor/components';
-import { Device } from '@trezor/connect';
+import { useDevice } from '@suite/device';
+import { useFirmwareDesktopUpdate } from '@suite/firmware-upgrade';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { selectSelectedDeviceLabelOrName } from '@suite-common/device';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { Column, H2, Modal, Paragraph, Row, StepList } from '@trezor/components';
+import { type Device } from '@trezor/connect';
 import { DeviceModelInternal, getFirmwareVersion } from '@trezor/device-utils';
-import { ConfirmOnDevice, DeviceAnimation } from '@trezor/product-components';
+import {
+    ConfirmOnDevicePill,
+    DeviceAnimation,
+    type DeviceAnimationProps,
+} from '@trezor/product-components';
 import { usePreviousDefined } from '@trezor/react-utils';
 import { spacings } from '@trezor/theme';
 
-import { Translation, WebUsbButton } from 'src/components/suite';
+import { WebUsbButton } from 'src/components/suite';
 import { DeviceConfirmImage } from 'src/components/suite/DeviceConfirmImage';
-import { useDevice, useSelector } from 'src/hooks/suite';
+import { useSelector } from 'src/hooks/suite';
 import { selectHasTransportOfType } from 'src/selectors/suite/suiteSelectors';
 
 const RebootDeviceGraphics = ({
@@ -29,10 +34,21 @@ const RebootDeviceGraphics = ({
 
     const deviceModelInternal = device?.features?.internal_model;
 
+    const getModelForBootloader = () => {
+        switch (deviceModelInternal) {
+            case DeviceModelInternal.T1B1:
+                return DeviceModelInternal.T1B1;
+            case DeviceModelInternal.T2T1:
+                return DeviceModelInternal.T2T1;
+            default:
+                return DeviceModelInternal.T3B1;
+        }
+    };
+
     const getRebootType = () => {
         // Used during intermediary update on T1B1.
         if (device?.mode === 'bootloader') {
-            return 'NORMAL';
+            return { type: 'RECONNECT', deviceModelInternal: DeviceModelInternal.T1B1 };
         }
         // T1B1 bootloader before firmware version 1.8.0 can only be invoked by holding both buttons.
         const deviceFwVersion = device?.features ? getFirmwareVersion(device) : '';
@@ -41,19 +57,23 @@ const RebootDeviceGraphics = ({
             semver.valid(deviceFwVersion) &&
             semver.satisfies(deviceFwVersion, '<1.8.0')
         ) {
-            return 'BOOTLOADER_TWO_BUTTONS';
+            return {
+                type: 'BOOTLOADER_TWO_BUTTONS',
+                deviceModelInternal: DeviceModelInternal.T1B1,
+            };
         }
 
-        return 'BOOTLOADER';
+        return { type: 'BOOTLOADER', deviceModelInternal: getModelForBootloader() };
     };
+
+    const deviceAnimationProps = getRebootType();
 
     return (
         <DeviceAnimation
-            type={getRebootType()}
-            height="220px"
-            width="220px"
+            {...(deviceAnimationProps as DeviceAnimationProps)}
+            height={220}
+            width={220}
             shape="ROUNDED"
-            deviceModelInternal={deviceModelInternal}
             loop
         />
     );
@@ -67,8 +87,14 @@ interface ReconnectDevicePromptProps {
 export const ReconnectDevicePrompt = ({ onClose, onSuccess }: ReconnectDevicePromptProps) => {
     const deviceLabel = useSelector(selectSelectedDeviceLabelOrName);
     const isWebUsbTransport = useSelector(selectHasTransportOfType('WebUsbTransport'));
-    const { showManualReconnectPrompt, status, reconnectEvent, buttonEvent } =
-        useFirmwareInstallation();
+    const {
+        showManualReconnectPrompt,
+        status,
+        reconnectEvent,
+        buttonEvent,
+        deviceIsWaitingForConfirmationToInitiateConnection,
+        pinRequested,
+    } = useFirmwareDesktopUpdate();
     const { device } = useDevice();
 
     const eventDevice = usePreviousDefined(buttonEvent?.device || device);
@@ -93,12 +119,14 @@ export const ReconnectDevicePrompt = ({ onClose, onSuccess }: ReconnectDevicePro
 
     const rebootPhase = getRebootPhase();
     const isRebootDone = rebootPhase === 'done';
-    const deviceModelInternal = device?.features?.internal_model;
     const isAbortable =
         onClose !== undefined && isManualRebootRequired && rebootPhase == 'waiting-for-reboot';
     const showWebUsbButton = rebootPhase === 'disconnected' && isWebUsbTransport;
-
     const toNormal = reconnectEvent?.target === 'normal' && reconnectEvent.method === 'manual';
+    const showConfirmOnDevice =
+        (!isManualRebootRequired && !isRebootDone) ||
+        deviceIsWaitingForConfirmationToInitiateConnection ||
+        pinRequested;
 
     const getHeading = () => {
         if (isRebootDone) {
@@ -141,18 +169,22 @@ export const ReconnectDevicePrompt = ({ onClose, onSuccess }: ReconnectDevicePro
 
     return (
         <Modal.Backdrop onClick={isAbortable ? onClose : undefined}>
-            {!isManualRebootRequired && !isRebootDone && (
-                <ConfirmOnDevice
+            {showConfirmOnDevice && (
+                <ConfirmOnDevicePill
                     title={<Translation id="TR_CONFIRM_ON_TREZOR" />}
-                    deviceModelInternal={deviceModelInternal}
-                    deviceUnitColor={device?.features?.unit_color}
-                    isConfirmed={!buttonEvent}
+                    deviceModelInternal={eventDevice?.features?.internal_model}
+                    deviceUnitColor={eventDevice?.features?.unit_color}
+                    isConfirmed={
+                        !buttonEvent &&
+                        !deviceIsWaitingForConfirmationToInitiateConnection &&
+                        !pinRequested
+                    }
                 />
             )}
             <Modal.ModalBase
                 onCancel={isAbortable ? onClose : undefined}
                 data-testid="@firmware/reconnect-device"
-                size="tiny"
+                width={400}
                 bottomContent={
                     isRebootDone && (
                         <Modal.Button onClick={onSuccess} data-testid="@firmware/install-button">
@@ -175,7 +207,7 @@ export const ReconnectDevicePrompt = ({ onClose, onSuccess }: ReconnectDevicePro
                 {!isRebootDone && (
                     <Column gap={spacings.lg}>
                         {isManualRebootRequired ? (
-                            <BulletList
+                            <StepList
                                 isOrdered
                                 margin={{ top: spacings.md }}
                                 gap={spacings.xl}
@@ -183,23 +215,24 @@ export const ReconnectDevicePrompt = ({ onClose, onSuccess }: ReconnectDevicePro
                                 bulletGap={spacings.md}
                             >
                                 {/* First step asks for disconnecting a device */}
-                                <BulletList.Item
+                                <StepList.Item
                                     title={<Translation id="TR_DISCONNECT_YOUR_DEVICE" />}
                                     data-testid="@firmware/disconnect-message"
                                     state={rebootPhase === 'disconnected' ? 'done' : 'default'}
                                 />
 
                                 {/* Second step reconnect in bootloader */}
-                                <BulletList.Item
+                                <StepList.Item
                                     title={<Translation id={getSecondStep()} />}
                                     data-testid="@firmware/connect-in-bootloader-message"
                                     state={rebootPhase === 'disconnected' ? 'default' : 'pending'}
                                 />
-                            </BulletList>
+                            </StepList>
                         ) : (
                             <Paragraph
-                                typographyStyle="hint"
-                                variant="tertiary"
+                                typographyStyle="body-sm"
+                                intent="neutral"
+                                priority="secondary"
                                 align="center"
                                 margin={{ top: spacings.xs }}
                             >
@@ -209,7 +242,7 @@ export const ReconnectDevicePrompt = ({ onClose, onSuccess }: ReconnectDevicePro
                                 />
                             </Paragraph>
                         )}
-                        {showWebUsbButton && <WebUsbButton />}
+                        <Row justifyContent="center">{showWebUsbButton && <WebUsbButton />}</Row>
                     </Column>
                 )}
             </Modal.ModalBase>

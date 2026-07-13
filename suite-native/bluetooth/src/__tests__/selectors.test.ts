@@ -1,22 +1,28 @@
 import { prepareInitialState } from '@suite-common/bluetooth';
+import { asBluetoothDeviceId } from '@trezor/connect';
 import { DeviceModelInternal } from '@trezor/device-utils';
 
-import { NativeBluetoothState } from '../bluetoothSlice';
+import { type NativeBluetoothState } from '../bluetoothSlice';
 import {
     selectHasKnownBluetoothDevices,
     selectKnownConnectableBluetoothDevices,
     selectNearbyBluetoothDevices,
     selectNearbyPairableBluetoothDevices,
 } from '../selectors';
-import { BluetoothDevice } from '../types';
+import { type BluetoothDevice } from '../types';
 
 const initialState: NativeBluetoothState = {
     ...prepareInitialState<BluetoothDevice>(),
+    autoConnectPolicy: {
+        [asBluetoothDeviceId('1ec77690-be29-43c6-8859-dfeca15c7c0f')]: {
+            type: 'autoconnect-disabled',
+        },
+    },
     permissionStatus: 'granted',
 };
 
 const unknownDevice: BluetoothDevice = {
-    id: '4de11222-cef9-43fa-aee2-ffa77c697a29',
+    id: asBluetoothDeviceId('4de11222-cef9-43fa-aee2-ffa77c697a29'),
     name: 'Disconnected TS7',
     connectionStatus: { type: 'disconnected' },
     lastUpdatedTimestamp: Date.now(),
@@ -27,7 +33,7 @@ const unknownDevice: BluetoothDevice = {
 };
 
 const knownDevice: BluetoothDevice = {
-    id: '7a39820f-6387-4251-b066-46ed70d37d3f',
+    id: asBluetoothDeviceId('7a39820f-6387-4251-b066-46ed70d37d3f'),
     name: 'Disconnected TS7',
     connectionStatus: { type: 'disconnected' },
     lastUpdatedTimestamp: Date.now(),
@@ -38,27 +44,48 @@ const knownDevice: BluetoothDevice = {
             pairing: false,
             connected: false,
             bond_memory_full: false,
+            user_disconnected: false,
         },
     },
 };
+const knownAutoConnectDisabledDevice: BluetoothDevice = {
+    ...knownDevice,
+    id: asBluetoothDeviceId('1ec77690-be29-43c6-8859-dfeca15c7c0f'),
+};
 const knownConnectingDevice: BluetoothDevice = {
     ...knownDevice,
+    id: asBluetoothDeviceId('2d000bf2-b8b7-4920-b907-540507c4562e'),
     connectionStatus: { type: 'connecting' },
 };
 const knownPairableDevice: BluetoothDevice = {
     ...knownDevice,
+    id: asBluetoothDeviceId('32ca56ec-9835-4ffd-a191-c11c43199abe'),
     manufacturerData: {
         ...knownDevice.manufacturerData,
         filterPolicy: {
             pairing: true,
             connected: false,
             bond_memory_full: false,
+            user_disconnected: false,
+        },
+    },
+};
+const knownUserDisconnectedDevice: BluetoothDevice = {
+    ...knownDevice,
+    id: asBluetoothDeviceId('703c0b54-6b17-423a-9221-04353ceec796'),
+    manufacturerData: {
+        ...knownDevice.manufacturerData,
+        filterPolicy: {
+            pairing: false,
+            connected: false,
+            bond_memory_full: false,
+            user_disconnected: true,
         },
     },
 };
 
 const pairableDevice: BluetoothDevice = {
-    id: '653ab4bc-d0b5-47d7-ab5d-ad834e4956f5',
+    id: asBluetoothDeviceId('653ab4bc-d0b5-47d7-ab5d-ad834e4956f5'),
     name: 'Pairable TS7',
     connectionStatus: { type: 'disconnected' },
     lastUpdatedTimestamp: Date.now(),
@@ -69,6 +96,7 @@ const pairableDevice: BluetoothDevice = {
             pairing: true,
             connected: false,
             bond_memory_full: false,
+            user_disconnected: false,
         },
     },
 };
@@ -129,6 +157,17 @@ describe('selectNearbyPairableBluetoothDevices', () => {
                 },
             }),
         ).toStrictEqual(expectedDevices);
+        expect(
+            selectNearbyPairableBluetoothDevices(
+                {
+                    bluetooth: {
+                        ...initialState,
+                        nearbyDevices,
+                    },
+                },
+                knownDevices,
+            ),
+        ).toStrictEqual(expectedDevices);
     });
 });
 
@@ -138,10 +177,23 @@ describe('selectKnownConnectableBluetoothDevices', () => {
         ['empty nearby devices', [], [knownDevice], []],
         ['no known devices', [knownDevice], [], []],
         [
-            'one known device',
-            [pairableDevice, knownDevice, knownConnectingDevice, knownPairableDevice],
-            [knownDevice],
-            [knownDevice],
+            'some known devices',
+            [
+                pairableDevice,
+                knownDevice,
+                knownAutoConnectDisabledDevice,
+                knownConnectingDevice,
+                knownPairableDevice,
+                knownUserDisconnectedDevice,
+            ],
+            [
+                knownDevice,
+                knownAutoConnectDisabledDevice,
+                knownConnectingDevice,
+                knownPairableDevice,
+                knownUserDisconnectedDevice,
+            ],
+            [knownDevice, knownUserDisconnectedDevice],
         ],
     ])('returns correct value for %s', (_, nearbyDevices, knownDevices, expectedDevices) => {
         expect(

@@ -2,38 +2,31 @@
  * Bridge runner
  */
 import { validateIpcMessage } from '@trezor/ipc-proxy';
-import { InvokeResult } from '@trezor/suite-desktop-api';
-import { TrezordNode } from '@trezor/transport-bridge';
+import { type InvokeResult } from '@trezor/suite-desktop-api';
+import { type TrezordNode } from '@trezor/transport-bridge';
 import { scheduleAction } from '@trezor/utils';
 
 import { hasSwitch } from '../libs/process-switches';
-import { BridgeProcess } from '../libs/processes/BridgeProcess';
 import { ThreadProxy } from '../libs/thread-proxy';
 import { b2t } from '../libs/utils';
 import { ipcMain } from '../typed-electron';
+import type { Dependencies } from './module';
 
-import type { Dependencies } from './index';
-
-const bridgeLegacy = hasSwitch('bridge-legacy');
 // bridge node is intended for internal testing
 const bridgeTest = hasSwitch('bridge-test');
-const bridgeDev = hasSwitch('bridge-dev');
 
 export const SERVICE_NAME = 'bridge';
 
-type BridgeInterface = Pick<BridgeProcess, 'start' | 'startDev' | 'startTest' | 'stop' | 'status'>;
-
-/** Wrapper around TrezordNode ThreadProxy which unifies its api with legacy BridgeProcess */
-class TrezordNodeProcess implements BridgeInterface {
+class TrezordNodeProcess {
     private readonly proxy;
 
     constructor() {
         this.proxy = new ThreadProxy<TrezordNode>({ name: 'bridge', keepAlive: true });
     }
 
-    private async startProxy(mode: 'start' | 'startDev' | 'startTest') {
+    private async startProxy(mode: 'start' | 'startTest') {
         if (this.proxy.running) return;
-        await this.proxy.run({ api: bridgeDev || bridgeTest ? 'udp' : 'usb' });
+        await this.proxy.run({ api: bridgeTest ? 'udp' : 'usb' });
         // Call `start` again in case of respawning due to keepAlive
         this.proxy.watch('started', () => this.proxy.request(mode, []));
         await this.proxy.request(mode, []);
@@ -41,10 +34,6 @@ class TrezordNodeProcess implements BridgeInterface {
 
     start() {
         return this.startProxy('start');
-    }
-
-    startDev() {
-        return this.startProxy('startDev');
     }
 
     startTest() {
@@ -57,58 +46,69 @@ class TrezordNodeProcess implements BridgeInterface {
         this.proxy.dispose();
     }
 
-    status() {
-        if (!this.proxy.running) {
-            return Promise.resolve({ service: false, process: false });
+    async status() {
+        try {
+            const resp = await fetch(`http://127.0.0.1:21328/`, {
+                method: 'POST',
+                headers: {
+                    Origin: 'https://electron.trezor.io',
+                },
+            });
+            if (resp.status === 200) {
+                const data = await resp.json();
+                if (data?.version) {
+                    return {
+                        service: true,
+                        process: Boolean(this.proxy.running),
+                    };
+                }
+            }
+        } catch {
+            // empty
         }
 
-        return this.proxy
-            .request('status', [])
-            .catch(() => ({ service: false, process: this.proxy.running }));
+        return {
+            service: false,
+            process: Boolean(this.proxy.running),
+        };
     }
 }
 
-const start = async (bridge: BridgeInterface) => {
-    if (bridgeLegacy) {
-        await bridge.start();
-    } else if (bridgeDev) {
-        await bridge.startDev();
-    } else if (bridgeTest) {
+const start = async (bridge: TrezordNodeProcess) => {
+    if (bridgeTest) {
         await bridge.startTest();
     } else {
         await bridge.start();
     }
 };
 
-const shouldUseLegacyBridge = (store: Dependencies['store']) => {
-    const legacyRequestedBySettings = store.getBridgeSettings().legacy;
+let bridge: TrezordNodeProcess;
 
-    // Legacy bridge explicitly requested
-    if (bridgeLegacy || legacyRequestedBySettings) return true;
+const handleBridgeStatus = async ({
+    mainThreadEmitter,
+    mainWindowProxy,
+}: Pick<Dependencies, 'mainThreadEmitter' | 'mainWindowProxy'>) => {
+    const { logger } = global;
 
-    return false;
+    logger.info('bridge', `Getting status`);
+    const status = await bridge.status();
+    logger.info('bridge', `Toggling bridge. Status: ${JSON.stringify(status)}`);
+
+    mainWindowProxy.getInstance()?.webContents.send('bridge/status', status);
+    mainThreadEmitter.emit('module/bridge/status', status);
+
+    return status;
 };
 
-let bridge: BridgeInterface;
-let legacyBridge: BridgeInterface;
-let nodeBridge: BridgeInterface;
-
-const loadBridge = async (store: Dependencies['store']) => {
+const loadBridge = async ({ store }: Pick<Dependencies, 'store'>) => {
     const { logger } = global;
-    legacyBridge = new BridgeProcess();
-    nodeBridge = new TrezordNodeProcess();
-
-    bridge = shouldUseLegacyBridge(store) ? legacyBridge : nodeBridge;
 
     if (store.getBridgeSettings().doNotStartOnStartup) {
         return;
     }
 
     try {
-        logger.info(
-            SERVICE_NAME,
-            `Starting (Legacy: ${b2t(shouldUseLegacyBridge(store))}, Test: ${b2t(bridgeTest)}, Dev: ${b2t(bridgeDev)})`,
-        );
+        logger.info(SERVICE_NAME, `Starting (Test: ${b2t(bridgeTest)})`);
         await start(bridge);
     } catch (err) {
         bridge.stop();
@@ -116,12 +116,18 @@ const loadBridge = async (store: Dependencies['store']) => {
     }
 };
 
-export const initBackground = ({ store }: Pick<Dependencies, 'store'>) => {
+let watchInterval: NodeJS.Timeout | undefined;
+
+export const initBackground = ({
+    store,
+    mainThreadEmitter,
+    mainWindowProxy,
+}: Pick<Dependencies, 'store' | 'mainThreadEmitter' | 'mainWindowProxy'>) => {
     let loaded = false;
 
-    let watchInterval: NodeJS.Timeout | undefined;
+    bridge = new TrezordNodeProcess();
 
-    const onLoad = () => {
+    const onLoad = async () => {
         if (loaded) return;
         loaded = true;
 
@@ -137,15 +143,29 @@ export const initBackground = ({ store }: Pick<Dependencies, 'store'>) => {
             if (!isBridgeRunning.service && !isStartingLocalBridge) {
                 isStartingLocalBridge = true;
                 logger.info(SERVICE_NAME, 'Detected that no bridge is running, starting it');
-                await loadBridge(store)
+                await loadBridge({
+                    store,
+                })
                     .catch(() => {})
                     .finally(() => {
                         isStartingLocalBridge = false;
+                        handleBridgeStatus({
+                            mainThreadEmitter,
+                            mainWindowProxy,
+                        });
                     });
             }
         }, 30_000);
 
-        return scheduleAction(() => loadBridge(store), { timeout: 3000 }).catch(err => {
+        const status = await bridge.status();
+
+        if (status.service) {
+            return;
+        }
+
+        return scheduleAction(() => loadBridge({ store }), {
+            timeout: 3000,
+        }).catch(err => {
             // Error ignored, user will see transport error afterwards
             logger.error(SERVICE_NAME, `Failed to load: ${err.message}`);
         });
@@ -162,10 +182,8 @@ export const initBackground = ({ store }: Pick<Dependencies, 'store'>) => {
 export const init = ({ store, mainWindowProxy, mainThreadEmitter }: Dependencies) => {
     ipcMain.handle(
         'bridge/change-settings',
-        async (ipcEvent, payload: { doNotStartOnStartup: boolean; legacy?: boolean }) => {
-            validateIpcMessage(ipcEvent);
-
-            const oldSettings = store.getBridgeSettings();
+        (ipcEvent, payload: { doNotStartOnStartup: boolean }) => {
+            validateIpcMessage({ ipcEvent });
 
             try {
                 store.setBridgeSettings(payload);
@@ -175,25 +193,13 @@ export const init = ({ store, mainWindowProxy, mainThreadEmitter }: Dependencies
                 return { success: false, error };
             } finally {
                 const newSettings = store.getBridgeSettings();
-
-                if (oldSettings.legacy !== payload.legacy) {
-                    const wasBridgeRunning = await bridge.status();
-                    if (wasBridgeRunning.service) {
-                        await bridge.stop();
-                    }
-                    bridge = shouldUseLegacyBridge(store) ? legacyBridge : nodeBridge;
-                    if (wasBridgeRunning.service) {
-                        await start(bridge);
-                    }
-                }
-
                 mainWindowProxy?.getInstance()?.webContents.send('bridge/settings', newSettings);
             }
         },
     );
 
     ipcMain.handle('bridge/get-settings', ipcEvent => {
-        validateIpcMessage(ipcEvent);
+        validateIpcMessage({ ipcEvent });
 
         try {
             return { success: true, payload: store.getBridgeSettings() };
@@ -202,21 +208,8 @@ export const init = ({ store, mainWindowProxy, mainThreadEmitter }: Dependencies
         }
     });
 
-    const handleBridgeStatus = async () => {
-        const { logger } = global;
-
-        logger.info('bridge', `Getting status`);
-        const status = await bridge.status();
-        logger.info('bridge', `Toggling bridge. Status: ${JSON.stringify(status)}`);
-
-        mainWindowProxy.getInstance()?.webContents.send('bridge/status', status);
-        mainThreadEmitter.emit('module/bridge/status', status);
-
-        return status;
-    };
-
     const toggleBridge = async (): Promise<InvokeResult> => {
-        const status = await handleBridgeStatus();
+        const status = await handleBridgeStatus({ mainThreadEmitter, mainWindowProxy });
         try {
             if (status.service) {
                 await bridge.stop();
@@ -228,17 +221,23 @@ export const init = ({ store, mainWindowProxy, mainThreadEmitter }: Dependencies
         } catch (error) {
             return { success: false, error };
         } finally {
-            handleBridgeStatus();
+            handleBridgeStatus({ mainThreadEmitter, mainWindowProxy });
         }
     };
+
     ipcMain.handle('bridge/toggle', async ipcEvent => {
-        validateIpcMessage(ipcEvent);
+        validateIpcMessage({ ipcEvent });
+
+        // turning bridge on and off disables watchdog. this watchdog handles quite an edge-case anyway so trying to reconcile both functionalities
+        if (watchInterval) {
+            clearInterval(watchInterval);
+        }
 
         return await toggleBridge();
     });
 
     ipcMain.handle('bridge/get-status', async ipcEvent => {
-        validateIpcMessage(ipcEvent);
+        validateIpcMessage({ ipcEvent });
 
         try {
             const status = await bridge.status();

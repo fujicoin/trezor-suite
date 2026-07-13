@@ -1,11 +1,9 @@
-import { ReactNode, useState } from 'react';
-
-import styled from 'styled-components';
+import { type ReactNode } from 'react';
 
 import { isTokenDefinitionKnown, selectCoinDefinitions } from '@suite-common/token-definitions';
 import type { NetworkSymbol } from '@suite-common/wallet-config';
 import { selectHistoricFiatRates } from '@suite-common/wallet-core';
-import { Timestamp, TokenAddress } from '@suite-common/wallet-types';
+import { type Timestamp, type TokenAddress } from '@suite-common/wallet-types';
 import {
     getFiatRateKey,
     isNftTokenTransfer,
@@ -14,26 +12,14 @@ import {
     sumTransactionsFiat,
 } from '@suite-common/wallet-utils';
 import type { BaseCurrencyCode } from '@trezor/blockchain-link-types';
+import { Column } from '@trezor/components';
 
 import { useSelector } from 'src/hooks/suite';
-import { WalletAccountTransaction } from 'src/types/wallet';
+import { type WalletAccountTransaction } from 'src/types/wallet';
 
 import { DayHeader } from './DayHeader';
 
-const TransactionsGroupWrapper = styled.div`
-    display: flex;
-    flex-direction: column;
-
-    & + & {
-        margin-top: 36px;
-    }
-
-    > * + * {
-        margin-top: 8px;
-    }
-`;
-
-interface TransactionsGroupProps {
+type TransactionsGroupProps = {
     dateKey: string;
     transactions: WalletAccountTransaction[];
     children?: ReactNode;
@@ -41,7 +27,7 @@ interface TransactionsGroupProps {
     baseCurrencyCode: BaseCurrencyCode;
     index: number;
     isPending: boolean;
-}
+};
 
 export const TransactionsGroup = ({
     dateKey,
@@ -51,9 +37,7 @@ export const TransactionsGroup = ({
     isPending,
     children,
     index,
-    ...rest
 }: TransactionsGroupProps) => {
-    const [isHovered, setIsHovered] = useState(false);
     const historicFiatRates = useSelector(selectHistoricFiatRates);
     const tokenDefinitions = useSelector(state => selectCoinDefinitions(state, symbol));
     const totalAmountPerDay = sumTransactions(transactions);
@@ -92,23 +76,20 @@ export const TransactionsGroup = ({
     });
 
     return (
-        <TransactionsGroupWrapper
+        <Column
+            gap={10}
             key={dateKey}
-            onMouseEnter={() => setIsHovered(true)}
             data-testid={`@wallet/accounts/transaction-list/${isPending ? 'pending' : 'confirmed'}/group/${index}`}
-            onMouseLeave={() => setIsHovered(false)}
-            {...rest}
         >
             <DayHeader
                 dateKey={dateKey}
                 symbol={symbol}
-                isHovered={isHovered}
                 totalAmount={totalAmountPerDay}
                 totalFiatAmountPerDay={totalFiatAmountPerDay}
                 localCurrency={baseCurrencyCode}
                 isMissingFiatRates={isMissingFiatRates}
             />
-            {children}
-        </TransactionsGroupWrapper>
+            <Column gap={16}>{children}</Column>
+        </Column>
     );
 };

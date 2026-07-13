@@ -1,8 +1,8 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 import { Modal } from '@trezor/components';
 
-import { FirmwareInstallationStandalone } from '../../../components/firmware';
+import { FirmwareInstallation } from 'src/components/firmware/FirmwareInstallation';
 
 type StepStartedProps = {
     onPromptClose: () => void;
@@ -25,7 +25,7 @@ export const StepStarted = ({
             data-testid="@firmware-modal"
             heading={modalHeading}
         >
-            <FirmwareInstallationStandalone
+            <FirmwareInstallation
                 install={install}
                 onPromptClose={onPromptClose}
                 isCustomFirmware={isCustomFirmware}

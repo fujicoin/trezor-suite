@@ -1,236 +1,36 @@
-import EventEmitter from 'events';
+import type { UpdateConnectSettings } from '@trezor/connect-common';
+import { factory } from '@trezor/connect-common';
 
-import { createDeferredManager } from '@trezor/utils';
+import { updateProxy } from './backend/BlockchainLink';
+import { CoreInModule } from './impl/core-in-module';
 
-import { ERRORS } from './constants';
-import { initCoreState } from './core';
-import { parseConnectSettings } from './data/connectSettings';
-import {
-    BLOCKCHAIN_EVENT,
-    CORE_EVENT,
-    CallMethod,
-    CoreEventMessage,
-    DEVICE_EVENT,
-    IFRAME,
-    POPUP,
-    RESPONSE_EVENT,
-    TRANSPORT,
-    TRANSPORT_EVENT,
-    UI,
-    UI_EVENT,
-    UiResponseEvent,
-    createErrorMessage,
-} from './events';
-import { factory } from './factory';
-import type { ConnectSettings, Manifest } from './types';
-import { initLog } from './utils/debug';
-
-export const eventEmitter = new EventEmitter();
-const _log = initLog('@trezor/connect');
-
-let _settings = parseConnectSettings();
-
-const coreManager = initCoreState();
-const messagePromises = createDeferredManager({ initialId: 1 });
-
-const manifest = (data: Manifest) => {
-    _settings = parseConnectSettings({
-        ..._settings,
-        manifest: data,
-    });
-};
-
-const dispose = () => {
-    eventEmitter.removeAllListeners();
-    _settings = parseConnectSettings();
-    coreManager.dispose();
-};
-
-// handle message received from Core
-const onCoreEvent = (message: CoreEventMessage) => {
-    const { event, type, payload } = message;
-
-    if (type === UI.REQUEST_UI_WINDOW) {
-        coreManager.get()?.handleMessage({ type: POPUP.HANDSHAKE });
-
-        return;
+class CoreInModuleNode extends CoreInModule {
+    protected get defaultTransports() {
+        return ['BridgeTransport' as const];
     }
 
-    if (type === POPUP.CANCEL_POPUP_REQUEST) return;
-
-    _log.debug('handleMessage', message.type);
-
-    switch (event) {
-        case RESPONSE_EVENT: {
-            const { id = 0, success, device } = message;
-            const resolved = messagePromises.resolve(id, { id, success, payload, device });
-            if (!resolved) _log.warn(`Unknown message id ${id}`);
-            break;
-        }
-        case DEVICE_EVENT:
-            // pass DEVICE event up to html
-            eventEmitter.emit(event, message);
-            eventEmitter.emit(type, payload); // DEVICE_EVENT also emit single events (connect/disconnect...)
-            break;
-
-        case TRANSPORT_EVENT:
-            eventEmitter.emit(event, message);
-            eventEmitter.emit(type, payload);
-            break;
-
-        case BLOCKCHAIN_EVENT:
-            eventEmitter.emit(event, message);
-            eventEmitter.emit(type, payload);
-            break;
-
-        case UI_EVENT:
-            // pass UI event up
-            eventEmitter.emit(event, message);
-            eventEmitter.emit(type, payload);
-            break;
-
-        default:
-            _log.warn('Undefined message', event, message);
+    protected async updateProxy(proxy: UpdateConnectSettings['proxy']) {
+        await updateProxy(proxy);
     }
-};
+}
 
-const initSettings = (settings: Partial<ConnectSettings> = {}) => {
-    _settings = parseConnectSettings({ ..._settings, ...settings, popup: false });
-
-    if (!_settings.manifest) {
-        throw ERRORS.TypedError('Init_ManifestMissing');
-    }
-
-    if (!_settings.transports?.length) {
-        // default fallback for node
-        _settings.transports = ['BridgeTransport'];
-    }
-};
-
-const init = async (settings: Partial<ConnectSettings> = {}) => {
-    if (coreManager.get() || coreManager.getPending()) {
-        throw ERRORS.TypedError('Init_AlreadyInitialized');
-    }
-
-    initSettings(settings);
-
-    if (!_settings.lazyLoad) {
-        await coreManager.getOrInit(_settings, onCoreEvent);
-    }
-};
-
-const initCore = () => {
-    initSettings({ lazyLoad: false });
-
-    return coreManager.getOrInit(_settings, onCoreEvent);
-};
-
-const call: CallMethod = async params => {
-    let core;
-    try {
-        core = coreManager.get() ?? (await coreManager.getPending()) ?? (await initCore());
-    } catch (error) {
-        return createErrorMessage(error);
-    }
-
-    try {
-        const { promiseId, promise } = messagePromises.create();
-        core.handleMessage({
-            type: IFRAME.CALL,
-            payload: params,
-            id: promiseId,
-        });
-        const response = await promise;
-
-        return response ?? createErrorMessage(ERRORS.TypedError('Method_NoResponse'));
-    } catch (error) {
-        _log.error('call', error);
-
-        return createErrorMessage(error);
-    }
-};
-
-const setTransports = (payload: Pick<ConnectSettings, 'transports'>) => {
-    const core = coreManager.get();
-    if (!core) {
-        throw ERRORS.TypedError('Init_NotInitialized');
-    }
-    core.handleMessage({ type: TRANSPORT.SET_TRANSPORTS, payload });
-};
-
-const uiResponse = (response: UiResponseEvent) => {
-    const core = coreManager.get();
-    if (!core) {
-        throw ERRORS.TypedError('Init_NotInitialized');
-    }
-    core.handleMessage(response);
-};
-
-const requestLogin = async (params: any) => {
-    if (typeof params.callback === 'function') {
-        const { callback } = params;
-        const core = coreManager.get();
-
-        // TODO: set message listener only if _core is loaded correctly
-        const loginChallengeListener = async (event: MessageEvent<CoreEventMessage>) => {
-            const { data } = event;
-            if (data && data.type === UI.LOGIN_CHALLENGE_REQUEST) {
-                try {
-                    const payload = await callback();
-                    core?.handleMessage({
-                        type: UI.LOGIN_CHALLENGE_RESPONSE,
-                        payload,
-                    });
-                } catch (error) {
-                    core?.handleMessage({
-                        type: UI.LOGIN_CHALLENGE_RESPONSE,
-                        payload: error.message,
-                    });
-                }
-            }
-        };
-
-        core?.on(CORE_EVENT, loginChallengeListener);
-        const response = await call({
-            method: 'requestLogin',
-            ...params,
-            asyncChallenge: true,
-            callback: null,
-        });
-        core?.removeListener(CORE_EVENT, loginChallengeListener);
-
-        return response;
-    }
-
-    return call({ method: 'requestLogin', ...params });
-};
-
-const cancel = (error?: string) => {
-    const core = coreManager.get();
-    if (!core) {
-        throw ERRORS.TypedError('Runtime', 'postMessage: _core not found');
-    }
-
-    core.handleMessage({
-        type: POPUP.CLOSED,
-        payload: error ? { error } : null,
-    });
-};
+const impl = new CoreInModuleNode();
 
 const TrezorConnect = factory(
     {
-        eventEmitter,
-        manifest,
-        init,
-        call,
-        setTransports,
-        requestLogin,
-        uiResponse,
-        cancel,
-        dispose,
+        eventEmitter: impl.eventEmitter,
+        init: impl.init.bind(impl),
+        call: impl.call.bind(impl),
+        updateConnectSettings: impl.updateConnectSettings.bind(impl),
+        uiResponse: impl.uiResponse.bind(impl),
+        cancel: impl.cancel.bind(impl),
+        dispose: impl.dispose.bind(impl),
     },
     {},
 );
 
 export default TrezorConnect;
+
+// allowed only here
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
 export * from './exports';

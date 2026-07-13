@@ -1,23 +1,14 @@
-import { SkPath, SkPoint, Skia } from '@shopify/react-native-skia';
+import { type SkPath, type SkPoint, Skia } from '@shopify/react-native-skia';
 
-import type { GraphPoint, GraphRange } from './LineGraphProps';
+import type {
+    GraphPathRange,
+    GraphPoint,
+    GraphRange,
+    GraphXRange,
+    GraphYRange,
+} from './LineGraphProps';
 
 const PIXEL_RATIO = 2;
-
-export interface GraphXRange {
-    min: Date;
-    max: Date;
-}
-
-export interface GraphYRange {
-    min: number;
-    max: number;
-}
-
-export interface GraphPathRange {
-    x: GraphXRange;
-    y: GraphYRange;
-}
 
 type GraphPathConfig = {
     /**
@@ -130,7 +121,7 @@ function createGraphPathBase({
 
     const points: SkPoint[] = [];
 
-    const startX = getXInRange(drawingWidth, graphData[0]!.date, range.x) + horizontalPadding;
+    const startX = getXInRange(drawingWidth, graphData[0].date, range.x) + horizontalPadding;
     const endX =
         getXInRange(drawingWidth, graphData[graphData.length - 1]!.date, range.x) +
         horizontalPadding;

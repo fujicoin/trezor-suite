@@ -1,3 +1,8 @@
+import { typedObjectKeys } from '@trezor/utils';
+
+/**
+ * @deprecated Use numbers directly instead
+ */
 export const spacings = {
     zero: 0,
     xxxs: 2,
@@ -11,9 +16,12 @@ export const spacings = {
     xxxl: 40,
     xxxxl: 48,
     xxxxxl: 60,
+    xxxxxxl: 80,
 } as const;
 
-// TypeScript is lame and doesn't allow us to use `as const` with `Object.keys` so we have to cast it to `Spacing` manually
+/**
+ * @deprecated Use numbers directly instead
+ */
 export const negativeSpacings = {
     zero: 0,
     xxxs: -2,
@@ -27,9 +35,12 @@ export const negativeSpacings = {
     xxxl: -40,
     xxxxl: -48,
     xxxxxl: -60,
+    xxxxxxl: -80,
 } as const;
 
-export type SpacingValuesNew = 0 | 2 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 20 | 24 | 32 | 40 | 48 | 60;
+export const spacingsNew = [0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 32, 40, 48, 60, 80] as const;
+
+export type SpacingValuesNew = (typeof spacingsNew)[number];
 export type SpacingValuesPxNew = `${SpacingValuesNew}px`;
 
 export type Spacings = typeof spacings;
@@ -40,7 +51,7 @@ export type SpacingPx = { [K in Spacing]: `${Spacings[K]}px` };
 export type NegativeSpacingPx = { [K in Spacing]: `-${Spacings[K]}px` };
 export type SpacingPxValues = SpacingPx[Spacing] | NegativeSpacingPx[Spacing];
 
-export const spacingsPx = (Object.keys(spacings) as Array<Spacing>).reduce((result, key) => {
+export const spacingsPx = typedObjectKeys(spacings).reduce((result, key) => {
     (result as Record<Spacing, string>)[key] = `${spacings[key]}px`;
 
     return result;
@@ -61,6 +72,8 @@ type NativeSpacingValue =
     | 32
     | 36
     | 40
+    | 48
+    | 44
     | 52
     | 56
     | 64;
@@ -80,6 +93,8 @@ export const nativeSpacings = {
     sp32: 32,
     sp36: 36,
     sp40: 40,
+    sp48: 48,
+    sp44: 44,
     sp52: 52,
     sp56: 56,
     sp64: 64,

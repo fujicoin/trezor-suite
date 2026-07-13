@@ -1,15 +1,9 @@
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { useServices } from '@suite-common/dependency-injection';
 import TrezorConnect from '@trezor/connect';
-import { EventType, analytics } from '@trezor/suite-analytics';
-
-import {
-    ActionButton,
-    ActionColumn,
-    SectionItem,
-    TextColumn,
-    Translation,
-} from 'src/components/suite';
-
-import { useDevice } from '../../../hooks/suite';
+import { ActionButton, ActionColumn, SectionItem, TextColumn } from '@trezor/product-components';
 
 interface DeviceLabelProps {
     isDeviceLocked: boolean;
@@ -17,7 +11,7 @@ interface DeviceLabelProps {
 
 export const Brightness = ({ isDeviceLocked }: DeviceLabelProps) => {
     const { device } = useDevice();
-
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const isSupportedDevice = device?.features?.capabilities?.includes('Capability_Brightness');
 
     if (!isSupportedDevice) {
@@ -28,7 +22,7 @@ export const Brightness = ({ isDeviceLocked }: DeviceLabelProps) => {
         const result = await TrezorConnect.setBrightness({});
         if (result.success) {
             analytics.report({
-                type: EventType.SettingsDeviceChangeBrightness,
+                type: events.settingsDeviceChangeBrightnessEvent.name,
                 payload: {},
             });
         }
@@ -44,7 +38,7 @@ export const Brightness = ({ isDeviceLocked }: DeviceLabelProps) => {
                 <ActionButton
                     onClick={handleClick}
                     isDisabled={isDeviceLocked}
-                    variant="primary"
+                    intent="brand"
                     data-testid="@settings/device/brightness-switch"
                     isTooltipActive={isDeviceLocked}
                     tooltipContent={<Translation id="TR_SETTINGS_DEVICE_BANNER_TITLE_REMEMBERED" />}

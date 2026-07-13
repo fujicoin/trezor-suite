@@ -1,31 +1,35 @@
-import { FC, PropsWithChildren, useEffect } from 'react';
+import { type FC, type PropsWithChildren, useEffect } from 'react';
 
-import { selectIsAnalyticsConfirmed } from '@suite-common/analytics';
+import { selectDesktopUpdateAllowPrerelease } from '@suite/desktop-update';
+import { useDevice } from '@suite/device';
+import { KillswitchMessageScreen } from '@suite/message-system';
+import { selectIsAnalyticsConfirmed } from '@suite-common/analytics-redux';
 import { useReportDeviceCompromised } from '@suite-common/firmware-authenticity';
+import { selectActiveKillswitchMessage } from '@suite-common/message-system';
+import { Card } from '@trezor/components';
 
 import * as analyticsActions from 'src/actions/suite/analyticsActions';
 import { init } from 'src/actions/suite/initAction';
-import { useGuideKeyboard } from 'src/hooks/guide';
-import { useDispatch, useSelector } from 'src/hooks/suite';
+import { useGuideDesktopMenu, useGuideKeyboard } from 'src/hooks/guide';
+import { useAppShortcuts, useDispatch, useSelector } from 'src/hooks/suite';
 import { useWindowVisibility } from 'src/hooks/suite/useWindowVisibility';
 import {
-    selectIsLoggedOut,
     selectIsTransportInitialized,
     selectPrerequisite,
 } from 'src/selectors/suite/suiteSelectors';
 import type { AppState } from 'src/types/suite';
 import { Onboarding } from 'src/views/onboarding';
+import { AnalyticsConsentScreen } from 'src/views/start/AnalyticsConsentScreen';
 import { SuiteStart } from 'src/views/start/SuiteStart';
 import { ErrorPage } from 'src/views/suite/ErrorPage';
 
+import { DatabaseCorruptedModal } from './DatabaseCorruptedModal';
 import { DatabaseUpgradeModal } from './DatabaseUpgradeModal';
 import { InitialLoading } from './InitialLoading';
-import { selectShouldDisplayDeviceCompromised } from './selectShouldDisplayDeviceCompromised';
-import { AnalyticsConsentScreen } from '../../../views/start/AnalyticsConsentScreen';
+import { selectShouldDisplayDeviceCompromisedOnRoute } from './selectShouldDisplayDeviceCompromisedOnRoute';
 import { PrerequisitesGuide } from '../PrerequisitesGuide/PrerequisitesGuide';
 import { DeviceCompromised } from '../SecurityCheck/DeviceCompromised';
 import { useDeviceCompromisedNotification } from '../SecurityCheck/useDeviceCompromisedNotification';
-import { LoggedOutLayout } from '../layouts/LoggedOutLayout';
 import { SuiteLayout } from '../layouts/SuiteLayout/SuiteLayout';
 import { WelcomeLayout } from '../layouts/WelcomeLayout/WelcomeLayout';
 
@@ -47,11 +51,18 @@ export const Preloader = ({ children }: PropsWithChildren) => {
     const isTransportInitialized = useSelector(selectIsTransportInitialized);
     const router = useSelector(state => state.router);
     const prerequisite = useSelector(selectPrerequisite);
-    const isLoggedOut = useSelector(selectIsLoggedOut);
-    const shouldDisplayDeviceCompromised = useSelector(selectShouldDisplayDeviceCompromised);
+    const shouldDisplayDeviceCompromisedOnRoute = useSelector(
+        selectShouldDisplayDeviceCompromisedOnRoute,
+    );
+    const killswitch = useSelector(selectActiveKillswitchMessage);
+
     const isAnalyticsConsentConfirmed = useSelector(selectIsAnalyticsConfirmed);
 
-    useReportDeviceCompromised();
+    const { device } = useDevice();
+    useReportDeviceCompromised({
+        device,
+        selectAllowPrerelease: selectDesktopUpdateAllowPrerelease,
+    });
     useDeviceCompromisedNotification();
 
     const dispatch = useDispatch();
@@ -71,6 +82,12 @@ export const Preloader = ({ children }: PropsWithChildren) => {
 
     // Register keyboard handlers for opening/closing Guide using keyboard
     useGuideKeyboard();
+    // Open the Guide from the desktop application menu (Help)
+    useGuideDesktopMenu();
+    // App-wide keyboard shortcuts; mounted here so they work regardless of the active
+    // layout (e.g. also on the device-prerequisite screen). Each shortcut self-guards
+    // on whether a device/account is required.
+    useAppShortcuts();
     useWindowVisibility();
 
     if (!isAnalyticsConsentConfirmed) {
@@ -83,6 +100,13 @@ export const Preloader = ({ children }: PropsWithChildren) => {
     if (lifecycle.status === 'db-error') {
         return <DatabaseUpgradeModal variant={lifecycle.error} />;
     }
+    if (lifecycle.status === 'db-corrupted') {
+        return <DatabaseCorruptedModal />;
+    }
+
+    if (killswitch) {
+        return <KillswitchMessageScreen />;
+    }
 
     // @trezor/connect was initialized, but didn't emit "TRANSPORT" event yet (it could take a while)
     // display Loader as full page view
@@ -91,7 +115,7 @@ export const Preloader = ({ children }: PropsWithChildren) => {
         return <InitialLoading timeout={90 * 5} />;
     }
 
-    if (shouldDisplayDeviceCompromised) {
+    if (shouldDisplayDeviceCompromisedOnRoute) {
         return <DeviceCompromised />;
     }
 
@@ -109,10 +133,12 @@ export const Preloader = ({ children }: PropsWithChildren) => {
 
     // display prerequisite for regular application as page view
     // Fullscreen Apps should handle prerequisites by themselves!!!
-    if (prerequisite) {
+    if (prerequisite !== null) {
         return (
-            <WelcomeLayout>
-                <PrerequisitesGuide allowSwitchDevice />
+            <WelcomeLayout showAccounts={false}>
+                <Card paddingType="large">
+                    <PrerequisitesGuide />
+                </Card>
             </WelcomeLayout>
         );
     }
@@ -121,11 +147,6 @@ export const Preloader = ({ children }: PropsWithChildren) => {
     // because if it is handled by Router it is wrapped in SuiteLayout
     if (!router.route) {
         return <ErrorPage />;
-    }
-
-    // if a device is not connected or initialized
-    if (isLoggedOut) {
-        return <LoggedOutLayout>{children}</LoggedOutLayout>;
     }
 
     // everything is set.

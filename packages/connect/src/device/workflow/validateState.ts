@@ -1,35 +1,58 @@
-import { ERRORS } from '../../constants';
-import { DataManager } from '../../data/DataManager';
-import { DEVICE, UI, createDeviceMessage, createUiMessage } from '../../events';
-import { StaticSessionId } from '../../types';
-import { WorkflowContext } from '../../types/workflow';
-import { toHardened } from '../../utils/pathUtils';
+import { UI_REQUEST, createUiMessage } from '@trezor/connect-common';
+import type { StaticSessionId } from '@trezor/connect-common';
+import { ERRORS } from '@trezor/connect-common/src/constants';
+import { toHardenedPathPart } from '@trezor/crypto-utils';
+import { createStaticSessionId, parseStaticSessionId } from '@trezor/device-utils';
+
+import type { WorkflowContext } from '../../types/workflow';
 import { createThpSession } from '../thp';
 
 const getStaticSessionId = (device: WorkflowContext['device']) =>
     device
         .getCurrentSession()
         .typedCall('GetAddress', 'Address', {
-            address_n: [toHardened(44), toHardened(1), toHardened(0), 0, 0],
+            address_n: [toHardenedPathPart(44), toHardenedPathPart(1), toHardenedPathPart(0), 0, 0],
             coin_name: 'Testnet',
             script_type: 'SPENDADDRESS',
         })
-        .then(
-            ({ message }) =>
-                `${message.address}@${device.features.device_id}:${device.getInstance()}` as StaticSessionId,
+        .then(({ message }) =>
+            createStaticSessionId({
+                walletDescriptor: message.address,
+                deviceId: device.features.device_id!,
+                instance: device.getInstance(),
+            }),
         );
 
-const getState = async ({ device, method }: WorkflowContext) => {
-    if (!device.features) return;
-
+const preauthorizeState = ({ device, method }: WorkflowContext) => {
     if (!device.features.unlocked && method.preauthorized) {
         // NOTE: auto locked device accepts preauthorized methods (authorizeConjoin, getOwnershipProof, signTransaction) without pin request.
         // in that case it's enough to check if session_id is preauthorized...
         // add-abort-signal
-        if (await device.getCommands().preauthorize(false)) {
-            return;
-        }
+        return device.getCommands().preauthorize(false);
         // ...and if it's not then unlock device and proceed to regular GetAddress flow
+    }
+};
+
+// Treat two states as "unexpected" if they describe different (walletDescriptor, deviceId)
+// pairs. Instance is intentionally ignored — the same wallet can be referenced through
+// different host-side instance numbers across reconnects.
+const isUnexpectedState = (expected?: StaticSessionId, current?: StaticSessionId) => {
+    if (!expected || !current) return false;
+    const parsedExpected = parseStaticSessionId(expected);
+    const parsedCurrent = parseStaticSessionId(current);
+
+    return (
+        parsedExpected.walletDescriptor !== parsedCurrent.walletDescriptor ||
+        parsedExpected.deviceId !== parsedCurrent.deviceId
+    );
+};
+
+const validate = async (context: WorkflowContext) => {
+    const { device } = context;
+    if (!device.features) return;
+
+    if (await preauthorizeState(context)) {
+        return;
     }
 
     const expectedState = device.getState()?.staticSessionId;
@@ -40,9 +63,9 @@ const getState = async ({ device, method }: WorkflowContext) => {
     if (device.features.session_id) {
         device.setState({ sessionId: device.features.session_id });
     }
-    // Ignore instance ID, it doesn't necessarily need to match the current instance
-    if (expectedState && expectedState.split(':')[0] !== uniqueState.split(':')[0]) {
-        return uniqueState;
+
+    if (isUnexpectedState(expectedState, uniqueState)) {
+        throw ERRORS.TypedError('Device_InvalidState');
     }
     if (!expectedState || expectedState !== uniqueState) {
         device.setState({ staticSessionId: uniqueState });
@@ -52,16 +75,16 @@ const getState = async ({ device, method }: WorkflowContext) => {
 const MAX_PIN_TRIES = 3;
 
 /** Including up to 3 pin tries **/
-const getInvalidDeviceState = async (
-    context: WorkflowContext,
-): Promise<StaticSessionId | undefined> => {
+const validateDeviceState = async (context: WorkflowContext) => {
     for (let i = 0; i < MAX_PIN_TRIES - 1; ++i) {
         try {
-            return await getState(context);
+            return await validate(context);
         } catch (error) {
             if (error.message.includes('PIN invalid')) {
-                context.method.postMessage(
-                    createUiMessage(UI.INVALID_PIN, { device: context.device.toMessageObject() }),
+                context.sendCoreMessage(
+                    createUiMessage(UI_REQUEST.INVALID_PIN, {
+                        device: context.device.toMessageObject(),
+                    }),
                 );
             } else {
                 throw error;
@@ -69,11 +92,10 @@ const getInvalidDeviceState = async (
         }
     }
 
-    // eslint-disable-next-line no-restricted-syntax
-    return getState(context).catch(error => {
+    return validate(context).catch(error => {
         if (error.message.includes('PIN invalid')) {
-            context.method.postMessage(
-                createUiMessage(UI.INVALID_PIN_ATTEMPTS_DEPLETED, {
+            context.sendCoreMessage(
+                createUiMessage(UI_REQUEST.INVALID_PIN_ATTEMPTS_DEPLETED, {
                     device: context.device.toMessageObject(),
                 }),
             );
@@ -82,30 +104,45 @@ const getInvalidDeviceState = async (
     });
 };
 
-const getInvalidThpDeviceState = async (context: WorkflowContext) => {
+const validateThpDeviceState = async (context: WorkflowContext) => {
     const { device, method } = context;
     const currentState = device.getState();
     const expectedState = currentState?.staticSessionId;
     const expectedSessionId = currentState?.sessionId
         ? Buffer.from(currentState.sessionId, 'hex')
         : undefined;
+
+    if (await preauthorizeState(context)) {
+        return;
+    }
+
     let uniqueState;
     const thpState = device.getThpState()!;
     if (expectedSessionId) {
         // validate that expected ThpSession still exists
         thpState.setSessionId(expectedSessionId);
         uniqueState = await getStaticSessionId(device).catch(e => {
-            if (e.code === 'Failure_InvalidSession') {
-                // requested sessionId is not valid, reset setSessionId
-                device.setState({
-                    sessionId: undefined,
-                    deriveCardano: undefined,
-                });
-                thpState?.setSessionId(Buffer.alloc(1));
-
-                return undefined;
+            switch (e.code) {
+                case 'Failure_PinCancelled':
+                    // user cancelled pin on device
+                    throw e;
+                case 'Failure_InvalidSession':
+                default:
+                    // TODO why not to throw?
+                    return undefined;
             }
         });
+
+        if (isUnexpectedState(expectedState, uniqueState)) {
+            // there is unexpected passphrase on given sessionId, ignore returned state
+            uniqueState = undefined;
+        }
+
+        if (!uniqueState) {
+            // requested sessionId is unknown or there was another passphrase, reset sessionId
+            device.setState({ sessionId: undefined, deriveCardano: undefined });
+            thpState?.setSessionId(Buffer.alloc(1));
+        }
     }
 
     if (!uniqueState || (!currentState?.deriveCardano && method.useCardanoDerivation)) {
@@ -119,8 +156,8 @@ const getInvalidThpDeviceState = async (context: WorkflowContext) => {
         });
     }
 
-    if (expectedState && expectedState !== uniqueState) {
-        return uniqueState;
+    if (isUnexpectedState(expectedState, uniqueState)) {
+        throw ERRORS.TypedError('Device_InvalidState');
     }
 
     if (!expectedState) {
@@ -129,45 +166,16 @@ const getInvalidThpDeviceState = async (context: WorkflowContext) => {
 };
 
 export const validateState = async (context: WorkflowContext) => {
-    const { device, method } = context;
-    if (!method.useDeviceState) {
-        return;
-    }
-
-    const validate =
-        device.protocol.name === 'v2' ? getInvalidThpDeviceState : getInvalidDeviceState;
+    const { device } = context;
 
     // Make sure that device will display pin/passphrase
     const isDeviceUnlocked = device.features.unlocked;
-    const isUsingPopup = DataManager.getSettings('popup');
+
     try {
-        let invalidDeviceState = await validate(context);
-        if (isUsingPopup) {
-            while (invalidDeviceState) {
-                const uiPromise = method.createUiPromise(UI.INVALID_PASSPHRASE_ACTION, device);
-                // request action view
-                method.postMessage(
-                    createUiMessage(UI.INVALID_PASSPHRASE, {
-                        device: device.toMessageObject(),
-                    }),
-                );
-
-                // wait for user response
-                const uiResp = await uiPromise.promise;
-                if (uiResp.payload) {
-                    // reset sessionId and try again
-                    device.setState({ sessionId: undefined });
-                    await device.initialize(method.useCardanoDerivation);
-
-                    invalidDeviceState = await validate(context);
-                } else {
-                    // set new state as requested
-                    device.setState({ staticSessionId: invalidDeviceState });
-                    break;
-                }
-            }
-        } else if (invalidDeviceState) {
-            throw ERRORS.TypedError('Device_InvalidState');
+        if (device.protocol.name === 'v2') {
+            await validateThpDeviceState(context);
+        } else {
+            await validateDeviceState(context);
         }
     } catch (error) {
         // other error
@@ -183,6 +191,6 @@ export const validateState = async (context: WorkflowContext) => {
     // emit additional CHANGE event if device becomes unlocked after authorization
     // features were automatically updated after PinMatrixAck in DeviceCommands
     if (!isDeviceUnlocked && device.features.unlocked) {
-        method.postMessage(createDeviceMessage(DEVICE.CHANGED, device.toMessageObject()));
+        device.emitDeviceChanged();
     }
 };

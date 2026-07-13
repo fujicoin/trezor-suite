@@ -1,21 +1,21 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 
 import {
     RadioCard as RadioCardComponent,
-    RadioCardProps,
+    type RadioCardProps,
     allowedRadioCardFrameProps,
 } from './RadioCard';
 import { getFramePropsStory } from '../../utils/frameProps';
 
-const meta: Meta = {
+const meta: Meta<typeof RadioCardComponent> = {
     title: 'RadioCard',
     component: RadioCardComponent,
-} as Meta;
+};
 export default meta;
 
 export const RadioCard: StoryObj<RadioCardProps> = {
     args: {
-        isActive: true,
+        isSelected: true,
         isDisabled: false,
         children: 'Content',
         ...getFramePropsStory(allowedRadioCardFrameProps).args,
@@ -26,7 +26,7 @@ export const RadioCard: StoryObj<RadioCardProps> = {
                 type: 'boolean',
             },
         },
-        isActive: {
+        isSelected: {
             control: {
                 type: 'boolean',
             },

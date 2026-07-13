@@ -1,34 +1,20 @@
-import EventEmitter from 'events';
-
-// NOTE: @trezor/connect part is intentionally not imported from the index
+import { ERRORS, WEBEXTENSION } from '@trezor/connect-common/src/constants';
+import { CORE_CALL, type CallMethod, POPUP } from '@trezor/connect-common/src/events';
+import { createErrorMessage } from '@trezor/connect-common/src/events';
+import { factory } from '@trezor/connect-common/src/factory';
+import { WindowServiceWorkerChannel } from '@trezor/connect-common/src/messageChannel/window-serviceworker';
+import type {
+    ConnectDynamicSettings,
+    UpdateConnectSettings,
+} from '@trezor/connect-common/src/types';
+import { ConnectEmitter } from '@trezor/connect-common/src/types/emitter';
 import {
-    CallMethod,
-    ConnectSettings,
-    ERRORS,
-    IFRAME,
-    Manifest,
-    POPUP,
-    WEBEXTENSION,
-    createErrorMessage,
-} from '@trezor/connect/src/exports';
-import { factory } from '@trezor/connect/src/factory';
-import { WindowServiceWorkerChannel } from '@trezor/connect-web/src/channels/window-serviceworker';
+    type CancelParams,
+    createCoreCallCancelMessage,
+} from '@trezor/connect-common/src/utils/cancelParams';
 
-const eventEmitter = new EventEmitter();
+const eventEmitter = new ConnectEmitter();
 let _channel: any;
-
-const manifest = (data: Manifest) => {
-    if (_channel) {
-        _channel.postMessage({
-            type: POPUP.INIT,
-            payload: {
-                settings: { manifest: data },
-            },
-        });
-    }
-
-    return Promise.resolve(undefined);
-};
 
 const dispose = () => {
     eventEmitter.removeAllListeners();
@@ -36,13 +22,15 @@ const dispose = () => {
     return Promise.resolve(undefined);
 };
 
-const cancel = () => {
+const cancel = (params?: CancelParams) => {
     if (_channel) {
-        _channel.clear();
+        _channel.postMessage(createCoreCallCancelMessage(params), { usePromise: false });
+
+        return Promise.resolve(_channel.clear());
     }
 };
 
-const init = (settings: Partial<ConnectSettings> = {}): Promise<void> => {
+const init = (settings: ConnectDynamicSettings): Promise<void> => {
     if (!_channel) {
         _channel = new WindowServiceWorkerChannel({
             name: 'trezor-connect-proxy',
@@ -53,8 +41,9 @@ const init = (settings: Partial<ConnectSettings> = {}): Promise<void> => {
         });
     }
 
-    _channel.port.onMessage.addListener((message: any) => {
+    _channel.port.onMessage.addListener((message: { type: string }) => {
         if (message.type === WEBEXTENSION.CHANNEL_HANDSHAKE_CONFIRM) {
+            // @ts-expect-error
             eventEmitter.emit(WEBEXTENSION.CHANNEL_HANDSHAKE_CONFIRM, message);
         }
     });
@@ -80,15 +69,19 @@ const init = (settings: Partial<ConnectSettings> = {}): Promise<void> => {
     );
 };
 
-const setTransports = () => {
-    // TODO: implement
-    throw new Error('Unsupported right now');
-};
-
+const updateConnectSettings = (_params: UpdateConnectSettings) =>
+    Promise.resolve(
+        createErrorMessage(
+            ERRORS.TypedError(
+                'Method_InvalidPackage',
+                'updateConnectSettings is not supported in this implementation',
+            ),
+        ),
+    );
 const call: CallMethod = async (params: any) => {
     try {
         const response = await _channel.postMessage({
-            type: IFRAME.CALL,
+            type: CORE_CALL,
             payload: params,
         });
         if (response) {
@@ -108,23 +101,18 @@ const uiResponse = () => {
     throw ERRORS.TypedError('Method_InvalidPackage');
 };
 
-const requestLogin = () => {
-    // Not needed here - Not used here.
-    throw ERRORS.TypedError('Method_InvalidPackage');
-};
-
 const TrezorConnect = factory({
     eventEmitter,
-    manifest,
     init,
     call,
-    setTransports,
-    requestLogin,
     uiResponse,
+    updateConnectSettings,
     cancel,
     dispose,
 });
 
 // eslint-disable-next-line import/no-default-export
 export default TrezorConnect;
-export * from '@trezor/connect/src/exports';
+export * from '@trezor/connect-common/src/constants';
+export * from '@trezor/connect-common/src/events';
+export * from '@trezor/connect-common/src/types';

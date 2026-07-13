@@ -1,17 +1,17 @@
+import { Translation } from '@suite/intl';
+import { closeModal } from '@suite/modal';
+import { goto, selectRouterParams } from '@suite/router';
 import { selectAccountByKey } from '@suite-common/wallet-core';
-import { WalletParams } from '@suite-common/wallet-types';
+import { type AccountKey, type WalletParams } from '@suite-common/wallet-types';
 import { Column, H3, Modal, Paragraph } from '@trezor/components';
+import { ArrowsInIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { onCancel as closeModal } from 'src/actions/suite/modalActions';
-import { goto } from 'src/actions/suite/routerActions';
-import { Translation } from 'src/components/suite';
 import { useDispatch } from 'src/hooks/suite';
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { selectRouterParams } from 'src/reducers/suite/routerReducer';
 
 type CoinjoinSuccessModalProps = {
-    relatedAccountKey: string;
+    relatedAccountKey: AccountKey;
 };
 
 export const CoinjoinSuccessModal = ({ relatedAccountKey }: CoinjoinSuccessModalProps) => {
@@ -30,7 +30,8 @@ export const CoinjoinSuccessModal = ({ relatedAccountKey }: CoinjoinSuccessModal
     const navigateToRelatedAccount = () => {
         dispatch(closeModal());
         dispatch(
-            goto('wallet-index', {
+            goto({
+                routeName: 'wallet-index',
                 params: {
                     symbol,
                     accountIndex: index,
@@ -59,19 +60,19 @@ export const CoinjoinSuccessModal = ({ relatedAccountKey }: CoinjoinSuccessModal
                             <Translation id="TR_VIEW_ACCOUNT" />
                         </Modal.Button>
                     )}
-                    <Modal.Button variant="tertiary" onClick={close}>
+                    <Modal.Button intent="neutral" priority="secondary" onClick={close}>
                         <Translation id="TR_CLOSE" />
                     </Modal.Button>
                 </>
             }
-            size="small"
-            iconName="arrowsIn"
+            width={600}
+            icon={ArrowsInIcon}
         >
             <Column gap={spacings.xxs}>
                 <H3>
                     <Translation id="TR_COINJOIN_COMPLETED" />
                 </H3>
-                <Paragraph variant="tertiary">
+                <Paragraph intent="neutral" priority="secondary">
                     <Translation id="TR_COINJOIN_COMPLETED_DESCRIPTION" />
                 </Paragraph>
             </Column>

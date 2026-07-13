@@ -1,87 +1,88 @@
-import { CryptoId } from 'invity-api';
-
-import { UI } from '@trezor/connect';
+import { MetadataProviderModal } from '@suite/metadata';
+import { type MODAL_CONTEXT_USER, closeModal as closeModalAction } from '@suite/modal';
+import { type AccountKey } from '@suite-common/wallet-types';
+import { UI_REQUEST } from '@trezor/connect';
 import { exhaustive } from '@trezor/type-utils';
 
-import { MODAL } from 'src/actions/suite/constants';
-import { onCancel as onCancelAction } from 'src/actions/suite/modalActions';
 import {
-    AddAccountModal,
-    AddTokenModal,
-    AdvancedCoinSettingsModal,
-    ApplicationLogModal,
-    AuthenticateDeviceFailModal,
-    AuthenticateDeviceModal,
-    BackgroundGalleryModal,
-    CancelCoinjoinModal,
-    ClaimModal,
-    CoinjoinSuccessModal,
-    ConfirmAddressModal,
-    ConfirmUnverifiedAddressModal,
-    ConfirmUnverifiedProceedModal,
-    ConfirmUnverifiedXpubModal,
-    ConfirmXpubModal,
-    ConnectPermissionsModal,
-    CopyAddressModal,
-    CriticalCoinjoinPhaseModal,
-    DeviceAuthenticityOptOutModal,
-    DisableTorModal,
-    DisableTorStopCoinjoinModal,
-    ImportTransactionModal,
-    MetadataProviderModal,
-    MoreRoundsNeededModal,
-    PinInvalidModal,
-    PinMismatchModal,
-    QrScannerModal,
-    RequestEnableTorModal,
-    SafetyChecksModal,
-    StakeInANutshellModal,
+    EarnClaimModal,
+    EarnInANutshellModal,
+    EarnProviderConsentModal,
     StakeModal,
-    TorLoadingModal,
-    TradingTermsModal,
-    TransactionReviewModal,
-    TxDetailModal,
-    UnecoCoinjoinModal,
-    UnhideTokenModal,
+    TronStakeInANutshellModal,
+    TronVoteConsentModal,
     UnstakeModal,
-} from 'src/components/suite/modals';
+} from 'src/components/earn';
+import { ConnectPopupTxSimulationModal } from 'src/components/tx-simulation/connect-popup';
+import { EarnYieldTxSimulationModal } from 'src/components/tx-simulation/earn-stablecoin';
 import { useDispatch } from 'src/hooks/suite';
-import type { AcquiredDevice } from 'src/types/suite';
 
-import { CardanoWithdrawModal } from '../CardanoWithdrawModal';
-import type { ReduxModalProps } from '../ReduxModal';
+import { ConfirmAddressModal } from '../ConfirmAddressModal';
+import { ConfirmXpubModal } from '../ConfirmXpubModal';
+import { CopyAddressModal } from '../CopyAddressModal';
+import { ActivateAssetsModal } from './ActivateAssetsModal';
+import { AddAccountModal } from './AddAccountModal/AddAccountModal';
+import { AddTokenModal } from './AddTokenModal';
+import type { ReduxModalProps } from '../ReduxModalProps';
+import { AdvancedCoinSettingsModal } from './AdvancedCoinSettingsModal/AdvancedCoinSettingsModal';
+import { ApplicationLogModal } from './ApplicationLogModal';
+import { BackgroundGalleryModal } from './BackgroundGalleryModal';
+import { PinInvalidModal } from '../DeviceContextModal/PinInvalidModal';
+import { TransactionReviewModal } from '../TransactionReviewModal/TransactionReviewModal';
+import { UnhideTokenModal } from '../UnhideTokenModal';
 import { AutoStartBeforeQuitModal } from './AutoStartBeforeQuitModal';
+import { CancelCoinjoinModal } from './CancelCoinjoinModal';
+import { CoinjoinSuccessModal } from './CoinjoinSuccessModal';
+import { ConfirmUnverifiedAddressModal } from './ConfirmUnverifiedAddressModal';
+import { ConfirmUnverifiedProceedModal } from './ConfirmUnverifiedProceedModal';
+import { ConfirmUnverifiedXpubModal } from './ConfirmUnverifiedXpubModal';
 import { ConnectAddressConfirmation } from './ConnectAddressConfirmation';
 import { ConnectErrorModal } from './ConnectErrorModal';
 import { ConnectLoadingModal } from './ConnectLoadingModal';
+import { ConnectPermissionsModal } from './ConnectPermissionsModal';
+import { ConnectSelectAccount } from './ConnectSelectAccount/ConnectSelectAccount';
+import { CriticalCoinjoinPhaseModal } from './CriticalCoinjoinPhaseModal/CriticalCoinjoinPhaseModal';
+import { DeviceAuthenticityOptOutModal } from './DeviceAuthenticityOptOutModal';
+import { DisableTorModal } from './DisableTorModal';
+import { DisableTorStopCoinjoinModal } from './DisableTorStopCoinjoinModal';
 import { FirmwareRevisionOptOutModal } from './FirmwareRevisionOptOutModal';
-import { TradingDCAModal } from './TradingDCAModal';
-import { TxSimulationModal } from './TxSimulationModal';
-import { EverstakeModal } from './UnstakeModal/EverstakeModal';
+import { ImportTransactionModal } from './ImportTransactionModal/ImportTransactionModal';
+import { MoreRoundsNeededModal } from './MoreRoundsNeededModal';
+import { PinMismatchModal } from './PinMismatchModal';
+import { QrScannerModal } from './QrScannerModal/QrScannerModal';
+import { RequestEnableTorModal } from './RequestEnableTorModal';
+import { SafetyChecksModal } from './SafetyChecksModal';
+import { StakeChangeDelegateModal } from './StakeChangeDelegateModal/StakeChangeDelegateModal';
+import { TorLoadingModal } from './TorLoadingModal';
+import { TxDetailModal } from './TxDetailModal/TxDetailModal';
+import { UnecoCoinjoinModal } from './UnecoCoinjoinModal';
 import { WalletConnectProposalModal } from './WalletConnectProposalModal';
 import { WalletConnectSwitchAccountModal } from './WalletConnectSwitchAccountModal';
+import { WipeDeviceSuccessModal } from './WipeDeviceSuccessModal';
 
 /** Modals opened as a result of user action */
-export const UserContextModal = ({ payload }: ReduxModalProps<typeof MODAL.CONTEXT_USER>) => {
+export const UserContextModal = ({ payload }: ReduxModalProps<typeof MODAL_CONTEXT_USER>) => {
     const dispatch = useDispatch();
 
-    const onCancel = () => dispatch(onCancelAction());
+    const onCancel = () => dispatch(closeModalAction());
 
     switch (payload.type) {
         case 'add-account':
             return (
                 <AddAccountModal
-                    device={payload.device as AcquiredDevice}
+                    device={payload.device}
                     symbol={payload.symbol}
                     noRedirect={payload.noRedirect}
                     isCoinjoinDisabled={payload.isCoinjoinDisabled}
                     isBackClickDisabled={payload.isBackClickDisabled}
                     onCancel={payload.onCancel ?? onCancel}
+                    onConfirm={payload.onConfirm}
                 />
             );
         case 'unverified-address':
             return (
                 <ConfirmUnverifiedAddressModal
+                    accountKey={payload.accountKey}
                     addressPath={payload.addressPath}
                     value={payload.value}
                 />
@@ -108,57 +109,11 @@ export const UserContextModal = ({ payload }: ReduxModalProps<typeof MODAL.CONTE
             return <TransactionReviewModal {...payload} />;
         case 'review-transaction-rbf-previous-transaction-mined-error':
             return <TransactionReviewModal {...payload} />;
-        case 'cardano-withdraw-modal':
-            return <CardanoWithdrawModal onCancel={onCancel} />;
-        case 'trading-buy-terms': {
-            return (
-                <TradingTermsModal
-                    onCancel={onCancel}
-                    type="BUY"
-                    decision={payload.decision}
-                    provider={payload.provider}
-                    cryptoCurrency={payload.cryptoCurrency as CryptoId}
-                />
-            );
-        }
-        case 'trading-sell-terms':
-            return (
-                <TradingTermsModal
-                    onCancel={onCancel}
-                    type="SELL"
-                    decision={payload.decision}
-                    provider={payload.provider}
-                    cryptoCurrency={payload.cryptoCurrency as CryptoId}
-                />
-            );
-
-        case 'trading-exchange-terms':
-            return (
-                <TradingTermsModal
-                    onCancel={onCancel}
-                    type="TRADING_SWAP"
-                    decision={payload.decision}
-                    provider={payload.provider}
-                    toCryptoCurrency={payload.toCryptoCurrency as CryptoId}
-                    fromCryptoCurrency={payload.fromCryptoCurrency as CryptoId}
-                />
-            );
-        case 'trading-exchange-dex-terms':
-            return (
-                <TradingTermsModal
-                    onCancel={onCancel}
-                    type="TRADING_SWAP_DEX"
-                    decision={payload.decision}
-                    provider={payload.provider}
-                    toCryptoCurrency={payload.toCryptoCurrency as CryptoId}
-                    fromCryptoCurrency={payload.fromCryptoCurrency as CryptoId}
-                />
-            );
         case 'import-transaction':
             return <ImportTransactionModal {...payload} onCancel={onCancel} />;
         case 'pin-mismatch':
             return <PinMismatchModal />;
-        case UI.INVALID_PIN_ATTEMPTS_DEPLETED:
+        case UI_REQUEST.INVALID_PIN_ATTEMPTS_DEPLETED:
             return <PinInvalidModal onCancel={onCancel} />;
         case 'application-log':
             return <ApplicationLogModal onCancel={onCancel} />;
@@ -166,6 +121,8 @@ export const UserContextModal = ({ payload }: ReduxModalProps<typeof MODAL.CONTE
             return <MetadataProviderModal onCancel={onCancel} decision={payload.decision} />;
         case 'advanced-coin-settings':
             return <AdvancedCoinSettingsModal {...payload} onCancel={onCancel} />;
+        case 'activate-assets':
+            return <ActivateAssetsModal onCancel={onCancel} />;
         case 'add-token':
             return <AddTokenModal {...payload} onCancel={onCancel} />;
         case 'safety-checks':
@@ -181,27 +138,35 @@ export const UserContextModal = ({ payload }: ReduxModalProps<typeof MODAL.CONTE
         case 'cancel-coinjoin':
             return <CancelCoinjoinModal onClose={onCancel} />;
         case 'critical-coinjoin-phase':
-            return <CriticalCoinjoinPhaseModal relatedAccountKey={payload.relatedAccountKey} />;
+            return (
+                <CriticalCoinjoinPhaseModal
+                    relatedAccountKey={payload.relatedAccountKey as AccountKey}
+                />
+            );
         case 'coinjoin-success':
-            return <CoinjoinSuccessModal relatedAccountKey={payload.relatedAccountKey} />;
+            return (
+                <CoinjoinSuccessModal relatedAccountKey={payload.relatedAccountKey as AccountKey} />
+            );
         case 'more-rounds-needed':
             return <MoreRoundsNeededModal />;
         case 'uneco-coinjoin-warning':
             return <UnecoCoinjoinModal />;
-        case 'authenticate-device':
-            return <AuthenticateDeviceModal />;
-        case 'authenticate-device-fail':
-            return <AuthenticateDeviceFailModal />;
-        case 'stake-in-a-nutshell':
-            return <StakeInANutshellModal onCancel={onCancel} />;
+        case 'earn-in-a-nutshell':
+            return <EarnInANutshellModal {...payload} onCancel={onCancel} />;
+        case 'tron-stake-in-a-nutshell':
+            return <TronStakeInANutshellModal {...payload} onCancel={onCancel} />;
+        case 'tron-vote-consent':
+            return <TronVoteConsentModal {...payload} onCancel={onCancel} />;
+        case 'earn-provider-consent':
+            return <EarnProviderConsentModal {...payload} onCancel={onCancel} />;
         case 'stake':
-            return <StakeModal onCancel={onCancel} />;
+            return <StakeModal {...payload} onCancel={onCancel} />;
         case 'unstake':
-            return <UnstakeModal onCancel={onCancel} />;
+            return <UnstakeModal onCancel={onCancel} account={payload.account} />;
         case 'claim':
-            return <ClaimModal onCancel={onCancel} />;
-        case 'everstake':
-            return <EverstakeModal onCancel={onCancel} />;
+            return <EarnClaimModal onCancel={onCancel} account={payload.account} />;
+        case 'change-delegate':
+            return <StakeChangeDelegateModal onCancel={onCancel} />;
         case 'copy-address':
             return (
                 <CopyAddressModal
@@ -218,18 +183,28 @@ export const UserContextModal = ({ payload }: ReduxModalProps<typeof MODAL.CONTE
             return <WalletConnectProposalModal eventId={payload.eventId} />;
         case 'walletconnect-switch-account':
             return <WalletConnectSwitchAccountModal sessionTopic={payload.sessionTopic} />;
-        case 'trading-dca':
-            return <TradingDCAModal device={payload.device} onCancel={onCancel} />;
         case 'connect-address-confirmation':
             return <ConnectAddressConfirmation />;
+        case 'connect-select-account':
+            return <ConnectSelectAccount />;
         case 'connect-error':
             return <ConnectErrorModal />;
         case 'connect-loading':
             return <ConnectLoadingModal />;
         case 'auto-start-before-quit':
             return <AutoStartBeforeQuitModal />;
-        case 'tx-simulation':
-            return <TxSimulationModal />;
+        case 'connect-popup-tx-simulation':
+            return <ConnectPopupTxSimulationModal />;
+        case 'earn-yield-tx-simulation':
+            return (
+                <EarnYieldTxSimulationModal
+                    decision={payload.decision}
+                    data={payload.data}
+                    closeModal={onCancel}
+                />
+            );
+        case 'wipe-device-success':
+            return <WipeDeviceSuccessModal />;
         default:
             return exhaustive(payload);
     }

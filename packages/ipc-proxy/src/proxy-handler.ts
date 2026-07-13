@@ -1,5 +1,6 @@
-import { EventEmitter } from 'events';
+import { type EventEmitter } from 'events';
 
+import { type ElectronIpcMainInvokeEvent } from './types';
 import { validateIpcMessage } from './validateIpcMessage';
 
 interface EventEmitterApi {
@@ -38,17 +39,8 @@ interface IpcMainEvents<Api> {
     '/request': [string, ...Parameters<ApiUnion<Api>>]; // responseEvent, methodName, ...params
 }
 
-interface IpcMainHandlers<Api> {
+interface IpcMainHandlers {
     '/create': [string, ...any[]]; // channelName, ...params of interface constructor
-    '/invoke': Parameters<ApiUnion<Api>>; // methodName, ...params
-}
-
-// Electron.IpcMainInvokeEvent narowed down only to properties we actually need
-export interface ElectronIpcMainInvokeEvent {
-    senderFrame: {
-        url: string;
-        isDestroyed: () => boolean;
-    } | null;
 }
 
 export interface ElectronIpcMainEvent {
@@ -63,9 +55,9 @@ interface ElectronIpcMain<Api> {
         listener: (event: ElectronIpcMainEvent, args: IpcMainEvents<Api>[K]) => void,
     ): any;
     on(channel: string, listener: (event: ElectronIpcMainInvokeEvent, ...args: any[]) => void): any; // just to type compatibility with original Electron.IpcMain
-    handle<K extends keyof IpcMainHandlers<Api>, Key extends string>(
+    handle<K extends keyof IpcMainHandlers, Key extends string>(
         channel: `${Key}${K}`,
-        listener: (event: ElectronIpcMainInvokeEvent, args: IpcMainHandlers<Api>[K]) => void,
+        listener: (event: ElectronIpcMainInvokeEvent, args: IpcMainHandlers[K]) => void,
     ): any;
     handle(
         channel: string,
@@ -90,7 +82,7 @@ export const createIpcProxyHandler = <Api extends EventEmitterApi>(
     debug?.info(SERVICE_NAME, `Init ipc interface ${channel}`);
     // Handle creation event from proxy-generator and creates actual interface instance
     ipcMain.handle(`${channel}/create`, async (ipcEvent, [instancePrefix, constructorParams]) => {
-        validateIpcMessage(ipcEvent);
+        validateIpcMessage({ ipcEvent });
 
         debug?.info(SERVICE_NAME, `Create ipc chanel ${instancePrefix}`);
         const { onRequest, onAddListener, onRemoveListener } = await onCreateInstance(
@@ -107,7 +99,8 @@ export const createIpcProxyHandler = <Api extends EventEmitterApi>(
                         // prevents 'Render frame was disposed before WebFrameMain could be accessed', occurring when renderer process is closed during responding
                         // https://github.com/electron/electron/blob/3536d49/docs/api/structures/ipc-main-event.md
                         // https://github.com/electron/electron/blob/3536d49/docs/breaking-changes.md#behavior-changed-frame-properties-may-retrieve-detached-webframemain-instances-or-none-at-all
-                        if (ipcEvent.senderFrame === null) return;
+                        if (ipcEvent.senderFrame === null || ipcEvent.senderFrame.isDestroyed())
+                            return;
 
                         reply(ipcEventName, payload);
                     });
@@ -143,28 +136,16 @@ export const createIpcProxyHandler = <Api extends EventEmitterApi>(
                 });
             }
         });
-
-        ipcMain.handle(`${instancePrefix}/invoke`, async (ipcEventInvoke, params) => {
-            validateIpcMessage(ipcEventInvoke);
-
-            const payload = await onRequest(...params);
-
-            return payload;
-        });
     });
 
     return () => {
         // TODO: walk thru all instances, disable, remove listeners, remove references
-        const unregistered = [];
         ipcMain.eventNames().forEach(name => {
             if (typeof name === 'string' && name.startsWith(`${channel}/`)) {
                 ipcMain.removeAllListeners(name);
-                unregistered.push(name);
             }
         });
 
         ipcMain.removeHandler(`${channel}/create`);
-        // ipcMain.removeHandler(`${instancePrefix}/invoke`); // TODO: filter unregistered to get instancePrefix
-        // TODO remove all invoke handlers
     };
 };

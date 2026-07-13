@@ -1,6 +1,5 @@
-import { PinFormVariant, PinOnKeypad } from '@suite-native/module-authorize-device';
-
-import { DeviceInteractionScreenWrapper } from '../components/DeviceInteractionScreenWrapper';
+import { DeviceInteractionScreenWrapper } from '@suite-native/device';
+import { type PinFormVariant, PinOnKeypad } from '@suite-native/device-authorization';
 
 type EnterPinScreenProps = {
     variant: PinFormVariant;

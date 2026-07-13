@@ -1,17 +1,17 @@
 import { useSelector } from 'react-redux';
 
-import { useNavigation } from '@react-navigation/core';
+import { useNavigation } from '@react-navigation/native';
 import { useAtomValue } from 'jotai';
 
+import { selectIsSuiteSyncFeatureAvailable } from '@suite-common/suite-sync';
 import { selectHasRunningDiscovery } from '@suite-common/wallet-core';
 import { TitledSection } from '@suite-native/atoms';
-import { FeatureFlag, useFeatureFlag } from '@suite-native/feature-flags';
 import { Translation } from '@suite-native/intl';
 import {
-    RootStackParamList,
+    type RootStackParamList,
     RootStackRoutes,
     SettingsStackRoutes,
-    StackNavigationProps,
+    type StackNavigationProps,
 } from '@suite-native/navigation';
 
 import { AppSettingsCardWithIconLayout } from './AppSettingsCardWithIconLayout';
@@ -20,8 +20,8 @@ import { useSettingsNavigateTo } from '../navigation/useSettingsNavigateTo';
 
 export const FeaturesSettings = () => {
     const isDevButtonVisible = useAtomValue(isDevButtonVisibleAtom);
-    const isUsbDeviceConnectFeatureEnabled = useFeatureFlag(FeatureFlag.IsDeviceConnectEnabled);
     const hasDiscovery = useSelector(selectHasRunningDiscovery);
+    const isSuiteSyncFeatureAvailable = useSelector(selectIsSuiteSyncFeatureAvailable);
 
     const navigation = useNavigation<StackNavigationProps<RootStackParamList, RootStackRoutes>>();
     const navigateTo = useSettingsNavigateTo();
@@ -33,45 +33,55 @@ export const FeaturesSettings = () => {
                     icon="circleDashed"
                     title={<Translation id="moduleSettings.items.features.devUtils.title" />}
                     subtitle={<Translation id="moduleSettings.items.features.devUtils.subtitle" />}
-                    onPress={() => navigation.navigate(RootStackRoutes.DevUtilsStack)}
+                    onPress={() => navigation.navigate(RootStackRoutes.DevUtils)}
                     testID="@settings/dev-utils"
                 />
             )}
-            {isUsbDeviceConnectFeatureEnabled && (
-                <>
-                    <AppSettingsCardWithIconLayout
-                        icon="bookmarkSimple"
-                        title={
-                            <Translation id="moduleSettings.items.features.ejectWallets.title" />
-                        }
-                        subtitle={
-                            <Translation id="moduleSettings.items.features.ejectWallets.subtitle" />
-                        }
-                        onPress={() => navigateTo(SettingsStackRoutes.SettingsViewOnly)}
-                        testID="@settings/eject-wallets"
-                    />
-                    <AppSettingsCardWithIconLayout
-                        icon="coins"
-                        title={
-                            <Translation id="moduleSettings.items.features.coinEnabling.title" />
-                        }
-                        subtitle={
-                            <Translation id="moduleSettings.items.features.coinEnabling.subtitle" />
-                        }
-                        onPress={() => navigateTo(SettingsStackRoutes.SettingsCoinEnabling)}
-                        isDisabled={hasDiscovery}
-                        testID="@settings/coin-enabling"
-                    />
-                    <AppSettingsCardWithIconLayout
-                        icon="shieldWarning"
-                        title={<Translation id="moduleSettings.items.features.advanced.title" />}
-                        subtitle={
-                            <Translation id="moduleSettings.items.features.advanced.subtitle" />
-                        }
-                        onPress={() => navigateTo(SettingsStackRoutes.SettingsDeviceChecks)}
-                    />
-                </>
+            <AppSettingsCardWithIconLayout
+                icon="eject"
+                title={<Translation id="moduleSettings.items.features.ejectWallets.title" />}
+                subtitle={<Translation id="moduleSettings.items.features.ejectWallets.subtitle" />}
+                onPress={() => navigateTo(SettingsStackRoutes.SettingsViewOnly)}
+                testID="@settings/eject-wallets"
+            />
+            <AppSettingsCardWithIconLayout
+                icon="coins"
+                title={<Translation id="moduleSettings.items.features.networks.title" />}
+                subtitle={<Translation id="moduleSettings.items.features.networks.subtitle" />}
+                onPress={() => navigateTo(SettingsStackRoutes.SettingsNetworks)}
+                isDisabled={hasDiscovery}
+                testID="@settings/coin-enabling"
+            />
+            {isSuiteSyncFeatureAvailable && (
+                <AppSettingsCardWithIconLayout
+                    icon="arrowsClockwise"
+                    title={<Translation id="moduleSettings.items.features.suiteSync.title" />}
+                    subtitle={<Translation id="moduleSettings.items.features.suiteSync.subtitle" />}
+                    onPress={() => navigateTo(SettingsStackRoutes.SettingsSuiteSync)}
+                    testID="@settings/suite-sync"
+                />
             )}
+            <AppSettingsCardWithIconLayout
+                icon="shield"
+                title={<Translation id="moduleSettings.items.features.security.title" />}
+                subtitle={<Translation id="moduleSettings.items.features.security.subtitle" />}
+                onPress={() => navigateTo(SettingsStackRoutes.SettingsSecurity)}
+                testID="@settings/security"
+            />
+            <AppSettingsCardWithIconLayout
+                icon="shieldWarning"
+                title={<Translation id="moduleSettings.items.features.advanced.title" />}
+                subtitle={<Translation id="moduleSettings.items.features.advanced.subtitle" />}
+                onPress={() => navigateTo(SettingsStackRoutes.SettingsAdvanced)}
+                testID="@settings/advanced"
+            />
+            <AppSettingsCardWithIconLayout
+                icon="atom"
+                title={<Translation id="moduleSettings.items.features.experimental.title" />}
+                subtitle={<Translation id="moduleSettings.items.features.experimental.subtitle" />}
+                onPress={() => navigateTo(SettingsStackRoutes.SettingsExperimental)}
+                testID="@settings/experimental"
+            />
         </TitledSection>
     );
 };

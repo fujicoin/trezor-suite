@@ -9,21 +9,22 @@ import {
 } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 
+import { goto } from '@suite/router';
 import { getNetworkSymbolForProtocol } from '@suite-common/suite-utils';
+import { useExcludedUtxos } from '@suite-common/transaction-search';
 import { selectCurrentFiatRates } from '@suite-common/wallet-core';
-import { FormState } from '@suite-common/wallet-types';
+import { type FormState } from '@suite-common/wallet-types';
 import {
     convertAmountSubunitsToUnits,
     convertAmountUnitsToSubunits,
     getConvertedOrDefaultFeeInfo,
     getDefaultValues,
-    useExcludedUtxos,
 } from '@suite-common/wallet-utils';
 import type { BaseCurrencyCode } from '@trezor/blockchain-link-types';
 import { useDidUpdate } from '@trezor/react-utils';
+import { throwError } from '@trezor/utils';
 
-import { fillSendForm } from 'src/actions/suite/protocolActions';
-import { goto } from 'src/actions/suite/routerActions';
+import { fillSendForm, resetProtocol } from 'src/actions/suite/protocolActions';
 import {
     getSendFormDraftThunk,
     removeSendFormDraftThunk,
@@ -31,8 +32,8 @@ import {
     signAndPushSendFormTransactionThunk,
 } from 'src/actions/wallet/send/sendFormThunks';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { AppState } from 'src/types/suite';
-import { SendContextValues, UseSendFormState } from 'src/types/wallet/sendForm';
+import { type AppState } from 'src/types/suite';
+import { type SendContextValues, type UseSendFormState } from 'src/types/wallet/sendForm';
 
 import { useFees } from './form/useFees';
 import { useUtxoSelection } from './form/useUtxoSelection';
@@ -100,6 +101,9 @@ export const useSendForm = (props: UseSendFormProps): SendContextValues => {
     const [state, setState] = useState<UseSendFormState>(
         getStateFromProps({ selectedAccount, localCurrency, online, metadataEnabled }),
     );
+
+    const [showReserveBanner, setShowReserveBanner] = useState<boolean>(false);
+
     // private variables, used inside sendForm hook
     const draft = useRef<FormState | undefined>(undefined);
 
@@ -118,9 +122,10 @@ export const useSendForm = (props: UseSendFormProps): SendContextValues => {
         [networkType, rawFeeInfo],
     );
 
-    // register `react-hook-form`, defaultValues are set later in "loadDraft" useEffect block
     const useFormMethods = useForm<FormState>({
         mode: 'onChange',
+        // !!! defaultValues are set later in "loadDraftValues" useEffect block
+        defaultValues: {},
     });
 
     const { control, reset, register, getValues, formState, setValue, trigger } = useFormMethods;
@@ -136,10 +141,10 @@ export const useSendForm = (props: UseSendFormProps): SendContextValues => {
     // used in "loadDraft" useEffect and "importTransaction" callback
     const getLoadedValues = useCallback(
         (loadedState?: Partial<FormState>) => ({
-            ...getDefaultValues(localCurrencyOption),
+            ...getDefaultValues(localCurrencyOption, networkType),
             ...loadedState,
         }),
-        [localCurrencyOption],
+        [localCurrencyOption, networkType],
     );
 
     // update custom values
@@ -184,6 +189,7 @@ export const useSendForm = (props: UseSendFormProps): SendContextValues => {
         updateContext,
         setLoading,
         setAmount: sendFormUtils.setAmount,
+        setShowReserveBanner,
     });
 
     const changeHandlers = useSendFormChangeHandlers({
@@ -279,7 +285,7 @@ export const useSendForm = (props: UseSendFormProps): SendContextValues => {
             setLoading(false);
             if (result?.success) {
                 resetContext();
-                dispatch(goto('wallet-index', { preserveParams: true }));
+                dispatch(goto({ routeName: 'wallet-index', preserveParams: true }));
             }
         }
     }, [getValues, composedLevels, dispatch, resetContext, selectedAccount.account]);
@@ -293,37 +299,66 @@ export const useSendForm = (props: UseSendFormProps): SendContextValues => {
             protocol.sendForm.scheme &&
             selectedAccount.network.symbol === getNetworkSymbolForProtocol(protocol.sendForm.scheme)
         ) {
+            reset(getLoadedValues());
             // for now we always fill only first output
             const outputIndex = 0;
 
+            if (protocol.sendForm.token) {
+                setValue(`outputs.${outputIndex}.token`, protocol.sendForm.token, {
+                    shouldDirty: true,
+                });
+            }
+
             if (protocol.sendForm.amount) {
-                const protocolAmount = protocol.sendForm.amount.toString();
+                const protocolAmount = protocol.sendForm.amount;
 
                 const formattedAmount = shouldSendInSats
                     ? convertAmountUnitsToSubunits(protocolAmount, state.network.decimals)
                     : protocolAmount;
 
                 sendFormUtils.setAmount(outputIndex, formattedAmount);
+            } else if (protocol.sendForm.tokenAmount && protocol.sendForm.token) {
+                // ERC-681 token transfer: convert raw uint256 amount using token decimals
+                const token = selectedAccount.account.tokens?.find(
+                    t => t.contract.toLowerCase() === protocol.sendForm.token?.toLowerCase(),
+                );
+                if (token) {
+                    const humanAmount = convertAmountSubunitsToUnits(
+                        protocol.sendForm.tokenAmount,
+                        token.decimals,
+                    );
+                    sendFormUtils.setAmount(outputIndex, humanAmount);
+                }
             }
 
             if (protocol.sendForm.address) {
                 setValue(`outputs.${outputIndex}.address`, protocol.sendForm.address, {
-                    shouldValidate: true,
+                    shouldDirty: true,
                 });
+
+                // Defer validation until after Address component renders and registers validators
+                setTimeout(() => {
+                    trigger(`outputs.${outputIndex}.address`);
+                }, 0);
             }
 
             dispatch(fillSendForm(false));
+            dispatch(resetProtocol());
             composeRequest();
         }
     }, [
         dispatch,
         setValue,
         selectedAccount.network,
+        selectedAccount.account.tokens,
         protocol,
         sendFormUtils,
         composeRequest,
         shouldSendInSats,
         state.network.decimals,
+        reset,
+        getLoadedValues,
+        trigger,
     ]);
 
     // load draft from reducer and reset current form values, this should be only called once on mount
@@ -332,7 +367,6 @@ export const useSendForm = (props: UseSendFormProps): SendContextValues => {
             const storedState = await dispatch(getSendFormDraftThunk()).unwrap();
             const values = getLoadedValues(storedState);
 
-            // keepDefaultValues will set `isDirty` flag to true
             reset(values, { keepDefaultValues: !!storedState });
 
             if (storedState) {
@@ -340,7 +374,17 @@ export const useSendForm = (props: UseSendFormProps): SendContextValues => {
                 composeDraft(storedState);
             }
         };
-        loadDraftValues();
+        const shouldFillFromProtocol =
+            protocol.sendForm.shouldFill &&
+            protocol.sendForm.scheme &&
+            protocol.sendForm.address &&
+            selectedAccount.network.symbol ===
+                getNetworkSymbolForProtocol(protocol.sendForm.scheme);
+
+        if (!shouldFillFromProtocol) {
+            loadDraftValues();
+        }
+
         // composeDraft is excluded because its reference changes with each feeInfo update.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dispatch, getLoadedValues, reset]);
@@ -397,6 +441,7 @@ export const useSendForm = (props: UseSendFormProps): SendContextValues => {
     return {
         ...state,
         ...useFormMethods,
+        methods: useFormMethods,
         feeInfo,
         isLoading,
         register,
@@ -414,14 +459,12 @@ export const useSendForm = (props: UseSendFormProps): SendContextValues => {
         ...sendFormUtils,
         ...sendFormOutputs,
         ...changeHandlers,
+        showReserveBanner,
+        setShowReserveBanner,
     };
 };
 
 // Used across send form components
 // Provide combined context of `react-hook-form` with custom values as SendContextValues
-export const useSendFormContext = () => {
-    const ctx = useContext(SendContext);
-    if (ctx === null) throw Error('useSendFormContext used without Context');
-
-    return ctx;
-};
+export const useSendFormContext = () =>
+    useContext(SendContext) ?? throwError('useSendFormContext used without Context');

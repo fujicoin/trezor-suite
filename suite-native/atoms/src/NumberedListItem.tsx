@@ -1,12 +1,12 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import { Color, NativeTypographyStyle } from '@trezor/theme';
+import { type Color, type NativeTypographyStyle } from '@trezor/theme';
 
 import { Box } from './Box';
 import { HStack } from './Stack';
 import { Text } from './Text';
 
-type NumberedListItemProps = {
+export type NumberedListItemProps = {
     children: ReactNode;
     variant?: NativeTypographyStyle;
     color?: Color;

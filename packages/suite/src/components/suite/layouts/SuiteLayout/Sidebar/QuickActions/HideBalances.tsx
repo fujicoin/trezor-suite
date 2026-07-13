@@ -1,29 +1,39 @@
-import { selectIsDiscreteModeActive, setDiscreetMode } from '@suite-common/wallet-core';
-import { Icon, iconSizes } from '@trezor/components';
-
-import { QuickActionButton } from './QuickActionButton';
-import { useDispatch, useSelector, useTranslation } from '../../../../../../hooks/suite';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useTranslation } from '@suite/intl';
+import { useServices } from '@suite-common/dependency-injection';
+import { useDiscreetMode } from '@suite-common/discreet-mode';
+import { Row, ShortcutBadge } from '@trezor/components';
+import { EyeIcon, EyeSlashIcon } from '@trezor/icons';
+import { QuickActionButton } from '@trezor/product-components';
 
 export const HideBalances = () => {
-    const dispatch = useDispatch();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const { translationString } = useTranslation();
+    const { isDiscreetMode, setIsDiscreetMode } = useDiscreetMode();
+    const translationLabel = isDiscreetMode ? 'TR_SHOW_BALANCES' : 'TR_HIDE_BALANCES';
 
-    const isDiscreetModeActive = useSelector(selectIsDiscreteModeActive);
-    const translationLabel = isDiscreetModeActive ? 'TR_SHOW_BALANCES' : 'TR_HIDE_BALANCES';
-
-    const handleDiscreetModeClick = () => dispatch(setDiscreetMode(!isDiscreetModeActive));
+    const handleDiscreetModeClick = () => {
+        const newValue = !isDiscreetMode;
+        setIsDiscreetMode(newValue);
+        analytics.report({
+            type: events.menuToggleDiscreetEvent.name,
+            payload: { value: newValue },
+        });
+    };
 
     return (
         <QuickActionButton
-            tooltip={{ content: translationString(translationLabel) }}
+            tooltip={{
+                content: (
+                    <Row gap={8}>
+                        {translationString(translationLabel)}
+                        <ShortcutBadge shortcut={['ALT', 'KEY_H']} />
+                    </Row>
+                ),
+            }}
             onClick={handleDiscreetModeClick}
             data-testid="@quickActions/hideBalances"
-        >
-            <Icon
-                name={isDiscreetModeActive ? 'eyeSlash' : 'eye'}
-                variant="tertiary"
-                size={iconSizes.medium}
-            />
-        </QuickActionButton>
+            icon={isDiscreetMode ? EyeSlashIcon : EyeIcon}
+        />
     );
 };

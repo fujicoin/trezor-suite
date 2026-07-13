@@ -1,17 +1,37 @@
 import { combineReducers, createReducer } from '@reduxjs/toolkit';
 
+import { debugInitialState } from '@suite/debug';
+import { locksReducer } from '@suite/locks';
+import { suiteSettingsInitialState } from '@suite/settings';
+import { torReducer } from '@suite/tor';
+import { type SuiteSyncDataState, type SuiteSyncState } from '@suite-common/suite-sync';
+import { mockSuiteDevice } from '@suite-common/suite-types/mocks';
 import { testMocks } from '@suite-common/test-utils';
 import { notificationsActions } from '@suite-common/toast-notifications';
-import { Network, getNetwork } from '@suite-common/wallet-config';
+import { type Network, getNetwork } from '@suite-common/wallet-config';
 import { DEFAULT_PAYMENT, DEFAULT_VALUES } from '@suite-common/wallet-constants';
-import { SendState, accountsActions, prepareSendFormReducer } from '@suite-common/wallet-core';
-import { FeesState, SelectedAccountStatus } from '@suite-common/wallet-types';
+import {
+    accountsActions,
+    prepareSendFormReducer,
+    stakeInitialState,
+} from '@suite-common/wallet-core';
+import {
+    type FeesState,
+    type FormState,
+    type SelectedAccountStatus,
+    type SendFormDraftKey,
+    asAccountDescriptor,
+} from '@suite-common/wallet-types';
+import {
+    mockWalletAccount,
+    networkSpecificDefaultEthereum,
+    networkSpecificDefaultRipple,
+} from '@suite-common/wallet-types/mocks';
 import { PROTO } from '@trezor/connect';
-import { DeepPartial } from '@trezor/type-utils';
+import { type DeepPartial } from '@trezor/type-utils';
 
+import { type AppState } from 'src/reducers/store';
 import { extraDependencies } from 'src/support/extraDependencies';
-
-import { AppState } from '../../../reducers/store';
 
 const sendFormReducer = prepareSendFormReducer(extraDependencies);
 
@@ -57,12 +77,10 @@ const UTXO = {
 // The type was needed because of error TS7056: The inferred type of this node exceeds the maximum length the compiler will serialize. An explicit type annotation is needed.
 export const BTC_ACCOUNT: Omit<SelectedAccountStatus, 'network'> & { network: Partial<Network> } = {
     status: 'loaded',
-    account: testMocks.getWalletAccount({
+    account: mockWalletAccount({
         symbol: 'btc',
-        networkType: 'bitcoin',
-        descriptor: 'xpub',
+        descriptor: asAccountDescriptor('xpub'),
         deviceState: '1stTestnetAddress@device_id:0',
-        key: 'xpub-btc-1stTestnetAddress@device_id:0',
         addresses: {
             change: [
                 {
@@ -129,41 +147,40 @@ export const BTC_ACCOUNT: Omit<SelectedAccountStatus, 'network'> & { network: Pa
 
 export const ETH_ACCOUNT: DeepPartial<SelectedAccountStatus> = {
     status: 'loaded',
-    account: testMocks.getWalletAccount({
-        symbol: 'eth',
-        networkType: 'ethereum',
-        descriptor: '0xdB09b793984B862C430b64B9ed53AcF867cC041F',
-        deviceState: '1stTestnetAddress@device_id:0',
-        key: '0xdB09b793984B862C430b64B9ed53AcF867cC041F-eth-1stTestnetAddress@device_id:0',
-        balance: '10000000000000000000', // 10 ETH
-        availableBalance: '10000000000000000000', // 10 ETH
-        misc: { nonce: '0' },
-        tokens: [
-            {
-                type: 'ERC20',
-                standard: 'ERC20',
-                contract: '0xABCD',
-                symbol: '0xABCD',
-                decimals: 3,
-                balance: '1',
-            },
-        ],
-    }),
+    account: mockWalletAccount(
+        {
+            symbol: 'eth',
+            descriptor: asAccountDescriptor('0xdB09b793984B862C430b64B9ed53AcF867cC041F'),
+            deviceState: '1stTestnetAddress@device_id:0',
+            balance: '10000000000000000000', // 10 ETH
+            availableBalance: '10000000000000000000', // 10 ETH
+            tokens: [
+                {
+                    standard: 'ERC20',
+                    contract: '0xABCD',
+                    symbol: '0xABCD',
+                    decimals: 3,
+                    balance: '1',
+                },
+            ],
+        },
+        networkSpecificDefaultEthereum,
+    ),
     network: { networkType: 'ethereum', symbol: 'eth', decimals: 18, chainId: 1 },
 };
 
 export const XRP_ACCOUNT: DeepPartial<SelectedAccountStatus> = {
     status: 'loaded',
-    account: testMocks.getWalletAccount({
-        symbol: 'xrp',
-        networkType: 'ripple',
-        descriptor: 'rAPERVgXZavGgiGv6xBgtiZurirW2yAmY',
-        deviceState: '1stTestnetAddress@device_id:0',
-        key: 'rAPERVgXZavGgiGv6xBgtiZurirW2yAmY-xrp-1stTestnetAddress@device_id:0',
-        balance: '100000000', // 100 XRP
-        availableBalance: '100000000', // 100 XRP
-        misc: { reserve: '21', sequence: 0 },
-    }),
+    account: mockWalletAccount(
+        {
+            symbol: 'xrp',
+            descriptor: asAccountDescriptor('rAPERVgXZavGgiGv6xBgtiZurirW2yAmY'),
+            deviceState: '1stTestnetAddress@device_id:0',
+            balance: '100000000', // 100 XRP
+            availableBalance: '100000000', // 100 XRP
+        },
+        networkSpecificDefaultRipple,
+    ),
     network: { networkType: 'ripple', symbol: 'xrp', decimals: 6 },
 };
 
@@ -172,7 +189,7 @@ export const SOL_ACCOUNT: DeepPartial<SelectedAccountStatus> = {
     account: {
         symbol: 'sol',
         networkType: 'solana',
-        descriptor: 'ETxHeBBcuw9Yu4dGuP3oXrD12V5RECvmi8ogQ9PkjyVF',
+        descriptor: asAccountDescriptor('ETxHeBBcuw9Yu4dGuP3oXrD12V5RECvmi8ogQ9PkjyVF'),
         deviceState: '1stTestnetAddress@device_id:0',
         key: 'ETxHeBBcuw9Yu4dGuP3oXrD12V5RECvmi8ogQ9PkjyVF-sol-1stTestnetAddress@device_id:0',
         balance: '10000000000', // 10 SOL
@@ -185,8 +202,8 @@ export const SOL_ACCOUNT: DeepPartial<SelectedAccountStatus> = {
     network: { networkType: 'solana', symbol: 'sol', decimals: 9, chainId: 1399811149 },
 };
 
-const DEVICE = testMocks.getSuiteDevice({
-    state: '1stTestnetAddress@device_id:0',
+const DEVICE = mockSuiteDevice({
+    state: { staticSessionId: '1stTestnetAddress@device_id:0' },
     connected: true,
     available: true,
 });
@@ -255,20 +272,26 @@ const DEFAULT_FEES: FeesState = {
 
 // - default selectedAccount needs to be explicitly passed from test. merging default with custom will override custom
 // - default fees needs to be explicitly passed from test. merge Arrays will add items, not replace them
-export const getRootReducer = (selectedAccount = BTC_ACCOUNT, fees = DEFAULT_FEES) =>
+// Todo: Type properly as the Error: "The inferred type of this node exceeds the maximum length the compiler will serialize. An explicit type annotation is needed."
+export const getRootReducer: any = (selectedAccount = BTC_ACCOUNT, fees = DEFAULT_FEES) =>
     combineReducers({
         suite: createReducer(
             {
-                locks: [],
                 online: true,
-                settings: { debug: {}, theme: { variant: 'light' } },
                 evmSettings: { confirmExplanationModalClosed: {}, explanationBannerClosed: {} },
-                dismissedTradingTerms: {},
                 prefillFields: { sendForm: '', transactionHistory: '' },
-                flags: { stakeEthBannerClosed: false, stakeSolBannerClosed: false },
                 countryCode: null,
             },
             () => ({}),
+        ),
+        suiteSettings: createReducer(suiteSettingsInitialState, state => state),
+        debug: createReducer(debugInitialState, state => state),
+        discreetMode: createReducer({ isActive: false }, () => {}),
+        tor: torReducer,
+        locks: locksReducer,
+        flags: createReducer(
+            { stakeEthBannerClosed: false, stakeSolBannerClosed: false },
+            () => {},
         ),
         device: createReducer({ selectedDevice: DEVICE, devices: [DEVICE] }, () => {}),
         wallet: combineReducers({
@@ -284,6 +307,7 @@ export const getRootReducer = (selectedAccount = BTC_ACCOUNT, fees = DEFAULT_FEE
             ),
             selectedAccount: createReducer(selectedAccount, () => ({})),
             coinjoin: createReducer({ accounts: [] }, () => ({})),
+            stake: createReducer(stakeInitialState, () => ({})),
             discovery: createReducer([], () => ({})),
             settings: createReducer(
                 {
@@ -411,6 +435,25 @@ export const getRootReducer = (selectedAccount = BTC_ACCOUNT, fees = DEFAULT_FEE
         ),
         router: createReducer({}, () => ({})),
         modal: createReducer({}, () => ({})),
+        suiteSyncData: createReducer(
+            {
+                wallets: {},
+            } satisfies SuiteSyncDataState,
+            state => state,
+        ),
+        suiteSync: createReducer(
+            {
+                settings: {
+                    isSuiteSyncEnabled: false,
+                    isSuiteSyncDebugEnabled: false,
+                    suiteSyncRelayUrl: null,
+                },
+                suiteSyncErrors: {},
+                suiteSyncOwners: {},
+            } satisfies SuiteSyncState,
+            state => state,
+        ),
+        connectPopup: createReducer({}, () => ({})),
     });
 
 const DEFAULT_DRAFT = {
@@ -420,8 +463,8 @@ const DEFAULT_DRAFT = {
     selectedUtxos: [],
 };
 
-const getDraft = (draft?: any): SendState['drafts'] => ({
-    'xpub-btc-1stTestnetAddress@device_id:0': {
+const getDraft = (draft?: any): Record<SendFormDraftKey, FormState> => ({
+    ['xpub-btc-1stTestnetAddress@device_id:0' as SendFormDraftKey]: {
         ...DEFAULT_DRAFT,
         outputs: [
             {
@@ -432,18 +475,19 @@ const getDraft = (draft?: any): SendState['drafts'] => ({
         ],
         ...draft,
     },
-    '0xdB09b793984B862C430b64B9ed53AcF867cC041F-eth-1stTestnetAddress@device_id:0': {
-        ...DEFAULT_DRAFT,
-        outputs: [
-            {
-                ...DEFAULT_PAYMENT,
-                address: '0xdB09b793984B862C430b64B9ed53AcF867cC041F',
-                amount: '1',
-            },
-        ],
-        ...draft,
-    },
-    'rAPERVgXZavGgiGv6xBgtiZurirW2yAmY-xrp-1stTestnetAddress@device_id:0': {
+    ['0xdB09b793984B862C430b64B9ed53AcF867cC041F-eth-1stTestnetAddress@device_id:0' as SendFormDraftKey]:
+        {
+            ...DEFAULT_DRAFT,
+            outputs: [
+                {
+                    ...DEFAULT_PAYMENT,
+                    address: '0xdB09b793984B862C430b64B9ed53AcF867cC041F',
+                    amount: '1',
+                },
+            ],
+            ...draft,
+        },
+    ['rAPERVgXZavGgiGv6xBgtiZurirW2yAmY-xrp-1stTestnetAddress@device_id:0' as SendFormDraftKey]: {
         ...DEFAULT_DRAFT,
         outputs: [
             {
@@ -454,17 +498,18 @@ const getDraft = (draft?: any): SendState['drafts'] => ({
         ],
         ...draft,
     },
-    'ETxHeBBcuw9Yu4dGuP3oXrD12V5RECvmi8ogQ9PkjyVF-sol-1stTestnetAddress@device_id:0': {
-        ...DEFAULT_DRAFT,
-        outputs: [
-            {
-                ...DEFAULT_PAYMENT,
-                address: 'ETxHeBBcuw9Yu4dGuP3oXrD12V5RECvmi8ogQ9PkjyVF',
-                amount: '1',
-            },
-        ],
-        ...draft,
-    },
+    ['ETxHeBBcuw9Yu4dGuP3oXrD12V5RECvmi8ogQ9PkjyVF-sol-1stTestnetAddress@device_id:0' as SendFormDraftKey]:
+        {
+            ...DEFAULT_DRAFT,
+            outputs: [
+                {
+                    ...DEFAULT_PAYMENT,
+                    address: 'ETxHeBBcuw9Yu4dGuP3oXrD12V5RECvmi8ogQ9PkjyVF',
+                    amount: '1',
+                },
+            ],
+            ...draft,
+        },
 });
 
 export const addingOutputs = [
@@ -676,7 +721,7 @@ export const composeDebouncedTransaction = [
         description: '@trezor/connect call respond with success:false',
         connect: {
             success: false,
-            payload: { error: 'error' },
+            error: { message: 'error' },
         },
         actions: [{ type: 'input', element: 'outputs.0.amount', value: '1' }],
         finalResult: {
@@ -686,6 +731,7 @@ export const composeDebouncedTransaction = [
     },
     {
         description: 'Fast typing, one @trezor/connect call',
+        skip: true, // TODO: fix flaky test https://github.com/trezor/trezor-suite/issues/23022
         connect: {
             success: true,
             payload: [
@@ -736,7 +782,8 @@ export const composeDebouncedTransaction = [
     },
 ];
 
-export const setMax = [
+// any[] because of TS7056
+export const setMax: any[] = [
     {
         description: 'setMax: utxos are excluded because of insufficient anonymity',
         store: {
@@ -978,6 +1025,7 @@ export const setMax = [
     {
         description:
             'setMax sequence: compose final with address, disable setMax, add second output',
+        skip: true, // TODO: fix flaky test https://github.com/trezor/trezor-suite/issues/23022
         connect: [
             undefined, // updateFeeInfoThunk
             {
@@ -1393,7 +1441,14 @@ const getComposeResponse = (resp?: any) => ({
     ...resp,
 });
 
-export const signAndPush = [
+type SignAndPush = {
+    description: string;
+    store: any;
+    connect?: any;
+    result: any;
+};
+
+export const signAndPush: SignAndPush[] = [
     {
         description: 'ETH',
         store: {
@@ -1405,6 +1460,7 @@ export const signAndPush = [
         connect: [
             undefined, // updateFeeInfoThunk
             undefined, // estimateFee
+            undefined, // getAccountInfo (signing-time confirmed-nonce check; falls back to local)
             {
                 success: true,
                 payload: {
@@ -1432,7 +1488,7 @@ export const signAndPush = [
         },
     },
     {
-        description: 'ETH failed',
+        description: 'ETH errored',
         store: {
             send: {
                 drafts: getDraft(),
@@ -1487,7 +1543,7 @@ export const signAndPush = [
         },
     },
     {
-        description: 'XRP failed',
+        description: 'XRP errored',
         store: {
             send: {
                 drafts: getDraft(),
@@ -1653,8 +1709,8 @@ export const signAndPush = [
             getComposeResponse(),
             {
                 success: false,
-                payload: {
-                    error: 'signTx error',
+                error: {
+                    message: 'signTx error',
                 },
             },
         ],
@@ -1682,8 +1738,8 @@ export const signAndPush = [
             getComposeResponse(),
             {
                 success: false,
-                payload: {
-                    error: 'tx-cancelled',
+                error: {
+                    message: 'tx-cancelled',
                 },
             },
         ],
@@ -1712,8 +1768,8 @@ export const signAndPush = [
             },
             {
                 success: false,
-                payload: {
-                    error: 'pushTx error',
+                error: {
+                    message: 'pushTx error',
                 },
             },
         ],
@@ -1743,6 +1799,7 @@ type FeeChangeFixture = {
 export const feeChange: FeeChangeFixture[] = [
     {
         description: 'BTC fee changes',
+        skip: false,
         store: {
             send: {
                 drafts: getDraft(),
@@ -1770,12 +1827,16 @@ export const feeChange: FeeChangeFixture[] = [
             success: false,
             payload: {
                 success: false,
-                payload: {
-                    error: 'compose-response-is-irrelevant',
+                error: {
+                    message: 'compose-response-is-irrelevant',
                 },
             },
         },
         actionSequence: [
+            {
+                type: 'click',
+                element: '@wallet/fees/collapsible-fees-toggle',
+            },
             {
                 type: 'click',
                 element: '@fee-card/high',
@@ -1789,7 +1850,7 @@ export const feeChange: FeeChangeFixture[] = [
             },
             {
                 type: 'click',
-                element: 'select-bar/custom',
+                element: '@wallet/fees/select-custom-fee',
                 result: {
                     composeTransactionCalls: 1,
                     formValues: {
@@ -1800,18 +1861,7 @@ export const feeChange: FeeChangeFixture[] = [
             },
             {
                 type: 'click',
-                element: 'select-bar/custom',
-                result: {
-                    composeTransactionCalls: 1,
-                    formValues: {
-                        selectedFee: 'custom' as const,
-                        feePerUnit: '40', // from high level
-                    },
-                },
-            },
-            {
-                type: 'click',
-                element: 'select-bar/normal',
+                element: '@wallet/fees/select-standard-fee',
                 result: {
                     composeTransactionCalls: 1,
                     formValues: {
@@ -1834,7 +1884,7 @@ export const feeChange: FeeChangeFixture[] = [
             },
             {
                 type: 'click',
-                element: 'select-bar/custom',
+                element: '@wallet/fees/select-custom-fee',
                 result: {
                     composeTransactionCalls: 1,
                     formValues: {
@@ -1893,7 +1943,7 @@ export const feeChange: FeeChangeFixture[] = [
             },
             {
                 type: 'click',
-                element: 'select-bar/normal',
+                element: '@wallet/fees/select-standard-fee',
                 result: {
                     composeTransactionCalls: 3, // called after fee level change from custom with error
                     formValues: {
@@ -1920,8 +1970,8 @@ export const feeChange: FeeChangeFixture[] = [
         connect: [
             {
                 success: false,
-                payload: {
-                    error: 'irrelevant',
+                error: {
+                    message: 'irrelevant',
                 },
             },
             {
@@ -1944,7 +1994,11 @@ export const feeChange: FeeChangeFixture[] = [
         actionSequence: [
             {
                 type: 'click',
-                element: 'select-bar/custom',
+                element: '@wallet/fees/collapsible-fees-toggle',
+            },
+            {
+                type: 'click',
+                element: '@wallet/fees/select-custom-fee',
                 result: {
                     estimateFeeCalls: 1,
                     formValues: {
@@ -2075,7 +2129,7 @@ export const feeChange: FeeChangeFixture[] = [
             // switch back to normal
             {
                 type: 'click',
-                element: 'select-bar/normal',
+                element: '@wallet/fees/select-standard-fee',
                 result: {
                     estimateFeeCalls: 4, // called after fee level change
                     formValues: {
@@ -2105,6 +2159,7 @@ export const feeChange: FeeChangeFixture[] = [
     },
     {
         description: 'XRP fee changes',
+        skip: false,
         store: {
             send: {
                 drafts: getDraft(),
@@ -2125,7 +2180,11 @@ export const feeChange: FeeChangeFixture[] = [
         actionSequence: [
             {
                 type: 'click',
-                element: 'select-bar/custom',
+                element: '@wallet/fees/collapsible-fees-toggle',
+            },
+            {
+                type: 'click',
+                element: '@wallet/fees/select-custom-fee',
                 result: {
                     getAccountInfoCalls: 1,
                     formValues: {

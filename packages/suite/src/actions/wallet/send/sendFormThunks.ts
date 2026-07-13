@@ -1,43 +1,44 @@
 import { G } from '@mobily/ts-belt';
 import { isRejected } from '@reduxjs/toolkit';
 
-import { MetadataAddPayload } from '@suite-common/metadata-types';
+import { selectIsSelectedAccountLoaded, selectSelectedAccountKey } from '@suite/account';
+import { asTypedDesktopAnalytics, events } from '@suite/analytics';
+import { processLegacyMetadataIntoSuiteSyncThunk } from '@suite/labeling';
+import { metadataLabelingActions, selectMetadata } from '@suite/metadata';
+import { closeModal, openDeferredModal, preserveModal } from '@suite/modal';
+import { selectSelectedDevice } from '@suite-common/device';
+import { type MetadataAddPayload } from '@suite-common/metadata-types';
+import { selectIsMevProtectionFeatureEnabled } from '@suite-common/mev';
 import { createThunk } from '@suite-common/redux-utils';
+import { selectIsSuiteSyncEnabled } from '@suite-common/suite-sync';
 import {
     cancelSignSendFormTransactionThunk,
     enhancePrecomposedTransactionThunk,
     pushSendFormTransactionThunk,
     replaceTransactionThunk,
+    selectIsMevProtectionEnabled,
     selectPrecomposedSendForm,
-    selectSelectedDevice,
     selectSendFormDrafts,
     sendFormActions,
     signTransactionThunk,
 } from '@suite-common/wallet-core';
 import {
-    Account,
-    FormState,
-    GeneralPrecomposedTransactionFinal,
-    PrecomposedTransactionFinalBumpFeeRbf,
+    type Account,
+    type FormState,
+    type GeneralPrecomposedTransactionFinal,
+    type PrecomposedTransactionFinalBumpFeeRbf,
 } from '@suite-common/wallet-types';
 import { isCardanoTx, isRbfBumpFeeTransaction } from '@suite-common/wallet-utils';
-import { PROTO, Unsuccessful } from '@trezor/connect';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { type PROTO, type StaticSessionId } from '@trezor/connect';
 import { getSynchronize } from '@trezor/utils';
-
-import * as metadataLabelingActions from 'src/actions/suite/metadataLabelingActions';
-import * as modalActions from 'src/actions/suite/modalActions';
-import { selectMetadata } from 'src/reducers/suite/metadataReducer';
-import {
-    selectIsSelectedAccountLoaded,
-    selectSelectedAccountKey,
-} from 'src/reducers/wallet/selectedAccountReducer';
-import { RbfLabelsToBeUpdated } from 'src/types/wallet/sendForm';
 
 import { RBF_ERROR_ALREADY_MINED } from './replaceByFeeErrorThunk';
 import { MODULE_PREFIX } from './sendThunksConsts';
-import { findLabelsToBeMovedOrDeletedThunk } from '../moveLabelsForRbf/findLabelsToBeMovedOrDeletedThunk';
-import { moveLabelsForRbfThunk } from '../moveLabelsForRbf/moveLabelsForRbfThunk';
+import {
+    type StateBeforePush,
+    asStateBeforePush,
+    moveLabelsForRbfThunk,
+} from '../../labels/moveLabelsForRbfThunk';
 
 export const saveSendFormDraftThunk = createThunk(
     `${MODULE_PREFIX}/saveSendFormDraftThunk`,
@@ -81,18 +82,25 @@ export const removeSendFormDraftThunk = createThunk(
 );
 
 type UpdateRbfLabelsThunkParams = {
-    labelsToBeEdited: RbfLabelsToBeUpdated;
     precomposedTransaction: PrecomposedTransactionFinalBumpFeeRbf;
     txid: string;
+    prevTxid: string;
+    deviceStaticSessionId: StaticSessionId;
+    stateBeforePush: StateBeforePush;
 };
 
 const updateRbfLabelsThunk = createThunk<void, UpdateRbfLabelsThunkParams, void>(
     `${MODULE_PREFIX}/updateReplacedTransactionThunk`,
-    ({ labelsToBeEdited, precomposedTransaction, txid }, { dispatch }) => {
+    (
+        { deviceStaticSessionId, precomposedTransaction, txid, stateBeforePush, prevTxid },
+        { dispatch },
+    ) => {
         dispatch(
             moveLabelsForRbfThunk({
-                toBeMovedOrDeletedList: labelsToBeEdited,
-                newTxid: txid,
+                deviceStaticSessionId,
+                newTxId: txid,
+                stateBeforePush,
+                prevTxId: prevTxid,
             }),
         );
 
@@ -108,23 +116,25 @@ const updateRbfLabelsThunk = createThunk<void, UpdateRbfLabelsThunkParams, void>
     },
 );
 
-const applySendFormMetadataLabelsThunk = createThunk(
-    `${MODULE_PREFIX}/applyMetadataLabelsThunk`,
-    (
-        {
-            selectedAccount,
-            precomposedTransaction,
-            txid,
-        }: {
-            selectedAccount: Account;
-            precomposedTransaction: GeneralPrecomposedTransactionFinal;
-            txid: string;
-        },
-        { dispatch, getState },
-    ) => {
-        const metadata = selectMetadata(getState());
+type ApplySendFormMetadataLabelsThunkParams = {
+    selectedAccount: Account;
+    precomposedTransaction: GeneralPrecomposedTransactionFinal;
+    txid: string;
+};
 
-        if (!metadata.enabled) return;
+const applySendFormMetadataLabelsThunk = createThunk<
+    void,
+    ApplySendFormMetadataLabelsThunkParams,
+    void
+>(
+    `${MODULE_PREFIX}/applyMetadataLabelsThunk`,
+    ({ selectedAccount, precomposedTransaction, txid }, { dispatch, getState }) => {
+        const metadata = selectMetadata(getState());
+        const isSuiteSyncEnabled = selectIsSuiteSyncEnabled(getState());
+
+        if (!metadata.enabled && !isSuiteSyncEnabled) {
+            return;
+        }
 
         const precomposedForm = selectPrecomposedSendForm(getState());
         const outputsPermutation = isCardanoTx(selectedAccount, precomposedTransaction)
@@ -145,9 +155,11 @@ const applySendFormMetadataLabelsThunk = createThunk(
                     type: 'outputLabel',
                     entityKey: selectedAccount.key,
                     txid,
-                    outputIndex,
+                    outputIndex: `${outputIndex}`,
                     value: label,
                     defaultValue: '',
+                    networkSymbol: selectedAccount.symbol,
+                    accountDescriptor: selectedAccount.descriptor,
                 };
 
                 return outputMetadata;
@@ -158,14 +170,24 @@ const applySendFormMetadataLabelsThunk = createThunk(
             .forEach((output, index, arr) => {
                 const isLast = index === arr.length - 1;
 
-                synchronize(() =>
-                    dispatch(
-                        metadataLabelingActions.addAccountMetadata({
-                            ...output,
-                            skipSave: !isLast,
-                        }),
-                    ),
-                );
+                synchronize(() => {
+                    if (isSuiteSyncEnabled) {
+                        return dispatch(
+                            processLegacyMetadataIntoSuiteSyncThunk({
+                                payload: output,
+                                deviceStaticSessionId: selectedAccount.deviceState,
+                                value: output.value,
+                            }),
+                        );
+                    } else {
+                        return dispatch(
+                            metadataLabelingActions.addAccountMetadata({
+                                ...output,
+                                skipSave: !isLast,
+                            }),
+                        );
+                    }
+                });
             });
     },
 );
@@ -186,7 +208,7 @@ export const signAndPushSendFormTransactionThunk = createThunk(
             selectedAccount,
             paymentRequests,
         }: SignAndPushSendFormTransactionThunkParams,
-        { dispatch, getState },
+        { dispatch, getState, extra },
     ) => {
         const device = selectSelectedDevice(getState());
         if (!device || !selectedAccount) return;
@@ -201,11 +223,11 @@ export const signAndPushSendFormTransactionThunk = createThunk(
 
         // TransactionReviewModal has 2 steps: signing and pushing
         // TrezorConnect emits UI.CLOSE_UI.WINDOW after the signing process
-        // this action is blocked by modalActions.preserve()
-        dispatch(modalActions.preserve());
+        // this action is blocked by preserveModal()
+        dispatch(preserveModal());
 
-        analytics.report({
-            type: EventType.SendInitialised,
+        asTypedDesktopAnalytics(extra.services.analytics).report({
+            type: events.sendInitialisedEvent.name,
             payload: {
                 assetSymbol: selectedAccount.symbol,
             },
@@ -220,8 +242,8 @@ export const signAndPushSendFormTransactionThunk = createThunk(
             }),
         );
 
-        analytics.report({
-            type: EventType.SendConfirmerOnDevice,
+        asTypedDesktopAnalytics(extra.services.analytics).report({
+            type: events.sendConfirmedOnDeviceEvent.name,
             payload: {
                 assetSymbol: selectedAccount.symbol,
             },
@@ -235,20 +257,19 @@ export const signAndPushSendFormTransactionThunk = createThunk(
 
             // Do not close the modal if the transaction signing timed out
             if (signResponse.payload?.error === 'sign-transaction-timeout') {
-                return { type: signResponse.payload.error } as unknown as Unsuccessful;
+                // TODO: this is some kinda bizarre hack
+                return { type: signResponse.error.message } as any;
             }
 
             // Close the modal manually since UI.CLOSE_UI.WINDOW was
-            // blocked by `modalActions.preserve` above.
-            dispatch(modalActions.onCancel());
+            // blocked by preserveModal() above.
+            dispatch(closeModal());
 
             return;
         }
 
         // Open a deferred modal and get the decision
-        const isPushConfirmed = await dispatch(
-            modalActions.openDeferredModal({ type: 'review-transaction' }),
-        );
+        const isPushConfirmed = await dispatch(openDeferredModal({ type: 'review-transaction' }));
 
         if (!isPushConfirmed) {
             return;
@@ -256,35 +277,35 @@ export const signAndPushSendFormTransactionThunk = createThunk(
 
         const isBumpFeeRbf = isRbfBumpFeeTransaction(enhancedPrecomposedTransaction);
 
-        // This has to be executed prior to pushing the transaction!
-        const rbfLabelsToBeEdited = isBumpFeeRbf
-            ? dispatch(
-                  findLabelsToBeMovedOrDeletedThunk({
-                      prevTxid: enhancedPrecomposedTransaction.prevTxid,
-                  }),
-              )
-            : null;
+        const isMevProtectionEnabled =
+            selectIsMevProtectionEnabled(getState()) &&
+            selectIsMevProtectionFeatureEnabled(getState());
+
+        // NOTE: due to need of the gathering state of the transaction before push, we need to cache the state here and pass it on
+        const stateBeforePush = asStateBeforePush(getState());
 
         // push tx to the network
         const pushResponse = await dispatch(
-            pushSendFormTransactionThunk({
-                selectedAccount,
-            }),
+            pushSendFormTransactionThunk({ selectedAccount, isMevProtectionEnabled }),
         );
 
         if (isRejected(pushResponse)) {
+            dispatch(sendFormActions.clearSignedTransactionData());
+
             return pushResponse.payload?.metadata;
         }
 
         const result = pushResponse.payload;
         const { txid } = result.payload;
 
-        if (isBumpFeeRbf && rbfLabelsToBeEdited !== null) {
+        if (isBumpFeeRbf && device.state?.staticSessionId) {
             dispatch(
                 updateRbfLabelsThunk({
-                    labelsToBeEdited: rbfLabelsToBeEdited,
+                    deviceStaticSessionId: device.state.staticSessionId,
                     precomposedTransaction: enhancedPrecomposedTransaction,
                     txid,
+                    stateBeforePush,
+                    prevTxid: enhancedPrecomposedTransaction.prevTxid,
                 }),
             );
         }

@@ -1,43 +1,146 @@
-import type tls from 'tls';
+import type { SocksProxyAgentOptions } from 'socks-proxy-agent';
 
-import type { BaseCurrencyCode } from '@trezor/blockchain-link-types';
+import type { BaseCurrencyCode } from './baseCurrency';
+import type { TokenProtocols, TronAccountExtraData, TronChainExtraData } from './blockbook-api';
 
-import type { Transaction as BlockbookTransaction, VinVout } from './blockbook';
-import type {
-    AddressAlias,
-    TokenTransfer as BlockbookTokenTransfer,
-    ContractInfo,
-    MultiTokenValue,
-    StakingPool,
-} from './blockbook-api';
-import type { SolanaStakingAccount } from './solana';
+/* Shared types — canonical definitions used by both common and backend-specific modules */
 
-/* Common types used in both params and responses */
-
-type AgentOptions = {
-    timeout?: number | undefined;
-};
-
-interface BaseSocksProxyAgentOptions {
-    host?: string | null;
-    port?: string | number | null;
-    username?: string | null;
-    tls?: tls.ConnectionOptions | null;
-    ipaddress?: string;
-    type: 4 | 5;
-    userId?: string;
-    password?: string;
+export interface SolanaStakingAccount {
+    status: string;
+    stake?: string;
+    rentExemptReserve: string;
+    voterPubkey?: string;
 }
 
-// todo: connect10 here we are using the old `SocksProxyAgentOptions` from older version of socks-proxy-agent
-// but we keep the old API so we do not introduce breaking changes.
-interface SocksProxyAgentOptions extends AgentOptions, BaseSocksProxyAgentOptions {}
+export type TokenStandard =
+    | 'TRC10'
+    | 'ERC20'
+    | 'TRC20'
+    | 'BEP20'
+    | 'ERC721'
+    | 'TRC721'
+    | 'BEP721'
+    | 'ERC1155'
+    | 'TRC1155'
+    | 'BEP1155'
+    | 'SPL'
+    | 'SPL-2022'
+    | 'BLOCKFROST'
+    | 'STELLAR-CLASSIC';
+
+export type FiatRatesBySymbol = {
+    [K in BaseCurrencyCode]?: number | undefined;
+};
+
+export interface VinVout {
+    txid?: string;
+    vout?: number;
+    sequence?: number;
+    n: number;
+    addresses?: string[];
+    isAddress: boolean;
+    isOwn?: boolean;
+    value?: string;
+    hex?: string;
+    asm?: string;
+    coinbase?: string;
+    spent?: boolean;
+    spentTxId?: string;
+    spentIndex?: number;
+    spentHeight?: number;
+    type?: string;
+}
+
+export interface AccountBalanceHistory {
+    time: number;
+    txs: number;
+    received: string;
+    sent: string;
+    sentToSelf?: string;
+    rates: FiatRatesBySymbol;
+}
+
+export interface MultiTokenValue {
+    id?: string;
+    value?: string;
+}
+
+export interface AddressAlias {
+    Type: string;
+    Alias: string;
+}
+
+export interface EthereumInternalTransfer {
+    type: number;
+    from: string;
+    to: string;
+    value: string;
+}
+
+export interface EthereumParsedInputParam {
+    type: string;
+    values?: string[];
+}
+
+export interface EthereumParsedInputData {
+    methodId: string;
+    name: string;
+    function?: string;
+    params?: EthereumParsedInputParam[];
+}
+
+export interface EthereumSpecific {
+    type?: number;
+    createdContract?: string;
+    status: number;
+    error?: string;
+    nonce: number;
+    gasLimit: number;
+    gasUsed?: number;
+    gasPrice?: string;
+    maxPriorityFeePerGas?: string;
+    maxFeePerGas?: string;
+    baseFeePerGas?: string;
+    l1Fee?: number;
+    l1FeeScalar?: string;
+    l1GasPrice?: string;
+    l1GasUsed?: number;
+    data?: string;
+    parsedData?: EthereumParsedInputData;
+    internalTransfers?: EthereumInternalTransfer[];
+}
+
+export interface StakingPool {
+    contract: string;
+    name: string;
+    pendingBalance: string;
+    pendingDepositedBalance: string;
+    depositedBalance: string;
+    withdrawTotalAmount: string;
+    claimableAmount: string;
+    restakedReward: string;
+    autocompoundBalance: string;
+}
+
+export interface ContractInfo {
+    /** @deprecated: Use standard instead. */
+    type: '' | 'XPUBAddress' | 'ERC20' | 'ERC721' | 'ERC1155' | 'BEP20' | 'BEP721' | 'BEP1155';
+    standard: '' | 'XPUBAddress' | 'ERC20' | 'ERC721' | 'ERC1155' | 'BEP20' | 'BEP721' | 'BEP1155';
+    contract: string;
+    name: string;
+    symbol: string;
+    decimals: number;
+    createdInBlock?: number;
+    destructedInBlock?: number;
+}
+
+/* Common types used in both params and responses */
 
 export interface BlockchainSettings {
     name: string;
     worker: string | (() => any);
     server: string[];
-    proxy?: string | SocksProxyAgentOptions;
+    proxy?: { uri: string | URL; opts?: SocksProxyAgentOptions };
     debug?: boolean;
     timeout?: number;
     pingTimeout?: number;
@@ -69,26 +172,21 @@ export interface ServerInfo {
     network: string;
 }
 
-export type TokenStandard =
-    | 'ERC20'
-    | 'BEP20'
-    | 'BEP721'
-    | 'ERC721'
-    | 'ERC1155'
-    | 'BEP1155'
-    | 'SPL'
-    | 'SPL-2022'
-    | 'BLOCKFROST'
-    | 'STELLAR-CLASSIC';
-
 export type TransferType = 'sent' | 'recv' | 'self' | 'unknown';
 
 /* Transaction */
-export type TokenTransfer = Omit<BlockbookTokenTransfer, 'value' | 'type' | 'standard'> & {
+export interface TokenTransfer {
     type: TransferType;
     standard?: TokenStandard;
     amount: string;
-};
+    from: string;
+    to: string;
+    contract: string;
+    name?: string;
+    symbol?: string;
+    decimals: number;
+    multiTokenValues?: MultiTokenValue[];
+}
 
 export interface InternalTransfer {
     // we filter out addresses where from/to is not user's address except Everstake instant txs which are marked 'external'
@@ -119,19 +217,6 @@ export type TransactionDetail = {
     totalOutput: string;
 };
 
-export type FiatRatesBySymbol = {
-    [K in BaseCurrencyCode]?: number | undefined;
-};
-
-export interface AccountBalanceHistory {
-    time: number;
-    txs: number;
-    received: string;
-    sent: string;
-    sentToSelf?: string; // should always be there for blockbook >= 0.3.3
-    rates: FiatRatesBySymbol;
-}
-
 export interface Transaction {
     type: 'sent' | 'recv' | 'self' | 'joint' | 'contract' | 'failed' | 'unknown';
     txid: string;
@@ -147,16 +232,22 @@ export interface Transaction {
     targets: Target[];
     tokens: TokenTransfer[];
     rbf?: boolean;
-    ethereumSpecific?: BlockbookTransaction['ethereumSpecific'];
+    ethereumSpecific?: EthereumSpecific;
     internalTransfers: InternalTransfer[];
     cardanoSpecific?: {
-        subtype?: 'withdrawal' | 'stake_delegation' | 'stake_registration' | 'stake_deregistration';
+        subtype?:
+            | 'withdrawal'
+            | 'stake_delegation'
+            | 'stake_registration'
+            | 'stake_deregistration'
+            | 'governance_delegation';
         withdrawal?: string;
         deposit?: string;
     };
     solanaSpecific?: {
         status: 'confirmed';
         stakeOperation?: { type: StakeType; amount: string };
+        memo?: string;
     };
     details: TransactionDetail;
     vsize?: number;
@@ -167,7 +258,13 @@ export interface Transaction {
     stellarSpecific?: {
         memo?: string;
         feeSource: string; // who paid the fee for the transaction
+        operationType?: 'changeTrust';
+        changeTrust?: {
+            assetCode: string;
+            isRemoval: boolean;
+        };
     };
+    tronSpecific?: TronChainExtraData;
 }
 
 /* Account */
@@ -196,12 +293,12 @@ export interface AccountAddresses {
 export interface Utxo {
     txid: string;
     vout: number;
-    amount: string;
-    blockHeight: number;
+    confirmations: number;
     address: string;
     path: string;
-    confirmations: number;
     coinbase?: boolean;
+    amount: string;
+    blockHeight: number;
     cardanoSpecific?: {
         unit: string;
     };
@@ -213,24 +310,26 @@ export interface TokenAccount {
 }
 
 export interface TokenInfo {
-    /** @deprecated: Use type instead. */
-    type: string; // token type: ERC20...
-    standard: string; // token standard: ERC20...
-    contract: string; // token address, token unit for ADA
-    balance?: string; // token balance
-    name?: string; // token name
-    symbol?: string; // token symbol
-    decimals: number; // token decimals or 0
-    accounts?: TokenAccount[]; // token accounts for solana
-    policyId?: string; // Cardano policy id
-    fingerprint?: string; // Cardano starting with "asset"
-    multiTokenValues?: MultiTokenValue[];
+    standard: TokenStandard;
+    name?: string;
+    contract: string;
+    symbol?: string;
+    decimals: number;
+    balance?: string;
     ids?: string[];
+    multiTokenValues?: MultiTokenValue[];
     totalReceived?: string;
     totalSent?: string;
-    // transfers: number, // total transactions?
+    accounts?: TokenAccount[];
+    policyId?: string;
+    fingerprint?: string;
+    protocols?: TokenProtocols;
 }
 
+/**
+ * This is Backend data for the account. Data can change over time as transactions happen.
+ * Suite is subscribed to this and updates Account regularly.
+ */
 export interface AccountInfo {
     descriptor: string;
     balance: string;
@@ -250,6 +349,7 @@ export interface AccountInfo {
     misc?: {
         // EVM
         nonce?: string;
+        confirmedNonce?: string;
         contractInfo?: ContractInfo;
         stakingPools?: StakingPool[];
         addressAliases?: { [key: string]: AddressAlias };
@@ -257,6 +357,7 @@ export interface AccountInfo {
         sequence?: number;
         // Stellar
         stellarSequence?: string;
+        baseReserve?: string;
         reserve?: string;
         // blockfrost
         rewards?: string;
@@ -278,8 +379,10 @@ export interface AccountInfo {
         // SOL
         owner?: string; // The Solana program owning the account
         rent?: number; // The rent required for the account to opened
-        solStakingAccounts?: SolanaStakingAccount[]; // Solana staking accounts
+        solStakingAccounts?: SolanaStakingAccount[]; // Solana staking accounts (Everstake)
+        solExternalStakingAccounts?: SolanaStakingAccount[]; // Solana staking accounts (non-Everstake)
         solEpoch?: number; // Solana current epoch
+        tronResources?: TronAccountExtraData;
     };
     page?: {
         // blockbook and blockfrost
@@ -304,6 +407,13 @@ export interface SubscriptionAccountInfo {
 
 export type ChannelMessage<T> = T & { id: number };
 
-export type StakeType = 'stake' | 'unstake' | 'claim';
+export type StakeType = 'stake' | 'unstake' | 'claim' | 'change-delegate';
 
-export type TokenDetailByMint = { [mint: string]: { name: string; symbol: string } };
+export type TokenDetailByMint = {
+    [mint: string]: {
+        name: string;
+        symbol: string;
+        home_domain?: string;
+        rating?: number;
+    };
+};

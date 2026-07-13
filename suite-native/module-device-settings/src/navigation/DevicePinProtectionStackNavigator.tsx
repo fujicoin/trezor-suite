@@ -1,21 +1,24 @@
 import { useSelector } from 'react-redux';
 
 import { A } from '@mobily/ts-belt';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { type RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { selectDeviceButtonRequestsCodes } from '@suite-common/wallet-core';
-import { usePinAction } from '@suite-native/device';
+import { selectDeviceButtonRequestsCodes } from '@suite-common/device';
 import {
-    DevicePinProtectionStackParamList,
+    DeviceConnectionGuardScreen,
+    useDeviceConnectionGuard,
+    usePinAction,
+} from '@suite-native/device-authorization';
+import {
+    type DevicePinProtectionStackParamList,
     DevicePinProtectionStackRoutes,
-    DeviceSettingsStackParamList,
-    DeviceSettingsStackRoutes,
-    StackNavigationProps,
+    type DeviceSettingsStackParamList,
+    type DeviceSettingsStackRoutes,
+    type StackNavigationProps,
     stackNavigationOptionsConfig,
 } from '@suite-native/navigation';
 
-import { useDeviceConnectionGuard } from '../hooks/useDeviceConnectionGuard';
 import { ContinueOnTrezorScreen } from '../screens/ContinueOnTrezorScreen';
 import {
     ConfirmNewPinScreen,
@@ -43,7 +46,8 @@ export const DevicePinProtectionStackNavigator = () => {
 
     const { type } = route.params;
     usePinAction({ type, onSuccess: navigation.goBack });
-    const { isDeviceConnected } = useDeviceConnectionGuard();
+
+    const { isDeviceConnectionGuardVisible } = useDeviceConnectionGuard();
 
     const buttonRequestCodes = useSelector(selectDeviceButtonRequestsCodes);
     const lastButtonRequestCode = A.last(buttonRequestCodes);
@@ -53,15 +57,16 @@ export const DevicePinProtectionStackNavigator = () => {
     const isConfirmNewPin = lastButtonRequestCode === 'PinMatrixRequestType_NewSecond';
     const isContinueOnTrezor = !isEnterCurrentPin && !isEnterNewPin && !isConfirmNewPin;
 
-    if (!isDeviceConnected) return;
-
     // To indicate progress to the user we need separate screens for individual steps of the flow.
     // At the same time we need just one available so that navigation.goBack() works as expected.
     return (
-        <DevicePinProtectionStack.Navigator
-            initialRouteName={DevicePinProtectionStackRoutes.ContinueOnTrezor}
-            screenOptions={stackNavigationOptionsConfig}
-        >
+        <DevicePinProtectionStack.Navigator screenOptions={stackNavigationOptionsConfig}>
+            {isDeviceConnectionGuardVisible && (
+                <DevicePinProtectionStack.Screen
+                    name={DevicePinProtectionStackRoutes.DeviceConnectionGuard}
+                    component={DeviceConnectionGuardScreen}
+                />
+            )}
             {isContinueOnTrezor && (
                 <DevicePinProtectionStack.Screen
                     name={DevicePinProtectionStackRoutes.ContinueOnTrezor}

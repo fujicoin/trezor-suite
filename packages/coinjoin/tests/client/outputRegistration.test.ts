@@ -1,4 +1,4 @@
-import * as decomposition from '../../src/client/round/outputDecomposition';
+import { outputDecomposition } from '../../src/client/round/outputDecomposition';
 import { outputRegistration } from '../../src/client/round/outputRegistration';
 import { createInput } from '../fixtures/input.fixture';
 import { createCoinjoinRound } from '../fixtures/round.fixture';
@@ -14,6 +14,13 @@ jest.mock('@trezor/utils', () => {
         getWeakRandomNumberInRange: () => 0,
     };
 });
+
+jest.mock('../../src/client/round/outputDecomposition', () => ({
+    ...jest.requireActual('../../src/client/round/outputDecomposition'),
+    outputDecomposition: jest.fn(
+        jest.requireActual('../../src/client/round/outputDecomposition').outputDecomposition,
+    ),
+}));
 
 describe('outputRegistration', () => {
     let server: Awaited<ReturnType<typeof createServer>>;
@@ -31,7 +38,7 @@ describe('outputRegistration', () => {
         server?.close();
     });
 
-    it('fails on joining credentials (missing data in input)', async () => {
+    it('errors on joining credentials (missing data in input)', async () => {
         const response = await outputRegistration(
             createCoinjoinRound([createInput('account-A', 'A1')], {
                 ...server?.requestOptions,
@@ -42,10 +49,13 @@ describe('outputRegistration', () => {
             [],
             server?.requestOptions,
         );
-        expect(response.inputs[0].error?.message).toMatch(/Missing confirmed credentials/);
+        const { inputs } = response;
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const firstInput: (typeof inputs)[number] = inputs[0];
+        expect(firstInput.error?.message).toMatch(/Missing confirmed credentials/);
     });
 
-    it('fails on insufficient amount of available change addresses', async () => {
+    it('errors on insufficient amount of available change addresses', async () => {
         server?.addListener('test-request', ({ url, resolve, reject }) => {
             if (url.endsWith('/output-registration')) {
                 // do not accept **any** output
@@ -55,7 +65,7 @@ describe('outputRegistration', () => {
         });
 
         // Mock outputDecomposition module responses
-        jest.spyOn(decomposition, 'outputDecomposition').mockImplementation(() =>
+        (outputDecomposition as jest.Mock).mockImplementation(() =>
             Promise.resolve([
                 {
                     accountKey: 'account-A',
@@ -108,6 +118,9 @@ describe('outputRegistration', () => {
             server?.requestOptions,
         );
 
-        expect(response.inputs[0].error?.message).toMatch(/No change address available/);
+        const { inputs } = response;
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const firstInput2: (typeof inputs)[number] = inputs[0];
+        expect(firstInput2.error?.message).toMatch(/No change address available/);
     });
 });

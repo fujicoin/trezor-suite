@@ -1,7 +1,7 @@
 import { useSelector } from 'react-redux';
 
-import { TradingRootState, selectTradingCoinInfoByCryptoId } from '@suite-common/trading';
-import { Account } from '@suite-common/wallet-types';
+import { type TradingRootState, selectTradingCoinInfoByCryptoId } from '@suite-common/trading';
+import { type Account } from '@suite-common/wallet-types';
 import { Text, VStack } from '@suite-native/atoms';
 import {
     BaseCurrencyAmountFormatter,
@@ -10,18 +10,16 @@ import {
 } from '@suite-native/formatters';
 import { Translation } from '@suite-native/intl';
 import { useToast } from '@suite-native/toasts';
+import { coinInfoToTradeableAsset } from '@suite-native/trading-atoms';
+import { type MyAsset, type TradeableAsset } from '@suite-native/trading-types';
 
-import { MyAsset, TradeableAsset } from '../../../types/general';
-import { coinInfoToTradeableAsset } from '../../../utils/general/tradeableAssetUtils';
-import { ASSET_ITEM_HEIGHT, AssetListItem } from '../AssetListItem';
+import { AssetListItem } from '../AssetListItem';
 
 export type MyAssetListItemProps = {
     account: Account;
     asset: MyAsset;
     onPress: (asset: TradeableAsset, account: Account) => void;
 };
-
-export { ASSET_ITEM_HEIGHT };
 
 export const MyAssetListItem = ({ account, asset, onPress }: MyAssetListItemProps) => {
     const { showToast } = useToast();
@@ -40,7 +38,7 @@ export const MyAssetListItem = ({ account, asset, onPress }: MyAssetListItemProp
             onPress(tradeableAsset, account);
         } else {
             showToast({
-                variant: 'default',
+                intent: 'neutral',
                 message: <Translation id="moduleTrading.myAssetSheet.noPair.toast" />,
             });
         }
@@ -54,8 +52,8 @@ export const MyAssetListItem = ({ account, asset, onPress }: MyAssetListItemProp
                     tokenSymbol={tokenSymbol}
                     numberOfLines={1}
                     ellipsizeMode="tail"
-                    color="textDefault"
-                    variant="body"
+                    color="contentPrimary"
+                    variant="body-md"
                 />
             ) : (
                 <CryptoAmountFormatter
@@ -63,8 +61,8 @@ export const MyAssetListItem = ({ account, asset, onPress }: MyAssetListItemProp
                     symbol={symbol}
                     numberOfLines={1}
                     adjustsFontSizeToFit
-                    color="textDefault"
-                    variant="body"
+                    color="contentPrimary"
+                    variant="body-md"
                 />
             )}
 
@@ -73,11 +71,11 @@ export const MyAssetListItem = ({ account, asset, onPress }: MyAssetListItemProp
                     <BaseCurrencyAmountFormatter
                         symbol={symbol}
                         value={fiatBalance}
-                        variant="hint"
-                        color="textSubdued"
+                        variant="body-sm"
+                        color="contentSecondary"
                     />
                 ) : (
-                    <Text variant="label" color="textSubdued">
+                    <Text variant="body-xs" color="contentSecondary">
                         <Translation id="moduleTrading.myAssetSheet.noPair.note" />
                     </Text>
                 ))}

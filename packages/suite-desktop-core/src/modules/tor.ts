@@ -5,24 +5,26 @@ import { captureException } from '@sentry/electron/main';
 import { session } from 'electron';
 import path from 'path';
 
+import { TorStatus } from '@suite/tor';
 import TrezorConnect from '@trezor/connect';
 import { validateIpcMessage } from '@trezor/ipc-proxy';
 import { getFreePort } from '@trezor/node-utils';
-import { BootstrapEvent } from '@trezor/request-manager';
-import { BootstrapTorEvent, HandshakeTorModule, TorStatus } from '@trezor/suite-desktop-api';
+import { type BootstrapEvent } from '@trezor/request-manager';
+import { type BootstrapTorEvent, type HandshakeTorModule } from '@trezor/suite-desktop-api';
 
 import { hasSwitch } from '../libs/process-switches';
 import { TorExternalProcess } from '../libs/processes/TorExternalProcess';
-import { TorProcess, TorProcessStatus } from '../libs/processes/TorProcess';
+import { TorProcess, type TorProcessStatus } from '../libs/processes/TorProcess';
 import { app, ipcMain } from '../typed-electron';
-
-import type { Dependencies } from './index';
+import type { Dependencies } from './module';
 
 const load = async ({ mainWindowProxy, store, mainThreadEmitter }: Dependencies) => {
     const { logger } = global;
     const initialSettings = store.getTorSettings();
 
-    const [torPort, controlPort] = await getFreePort(2);
+    const freePorts = await getFreePort(2);
+    const torPort = freePorts[0] ?? 0;
+    const controlPort = freePorts[1] ?? 0;
     store.setTorSettings({
         ...initialSettings,
         port: torPort,
@@ -73,9 +75,9 @@ const load = async ({ mainWindowProxy, store, mainThreadEmitter }: Dependencies)
 
         return shouldEnableTor
             ? {
-                  proxy: `socks://${host}:${useExternalTor ? externalPort : port}`,
+                  uri: `socks://${host}:${useExternalTor ? externalPort : port}`,
               }
-            : { proxy: '' };
+            : { uri: '' };
     };
     const handleTorProcessStatus = (status: TorProcessStatus, shouldEnableTor: boolean) => {
         const { useExternalTor } = store.getTorSettings();
@@ -217,7 +219,7 @@ const load = async ({ mainWindowProxy, store, mainThreadEmitter }: Dependencies)
             ipcEvent,
             { useExternalTor, externalPort }: { useExternalTor: boolean; externalPort: number },
         ) => {
-            validateIpcMessage(ipcEvent);
+            validateIpcMessage({ ipcEvent });
 
             try {
                 store.setTorSettings({
@@ -238,7 +240,7 @@ const load = async ({ mainWindowProxy, store, mainThreadEmitter }: Dependencies)
     );
 
     ipcMain.handle('tor/get-settings', ipcEvent => {
-        validateIpcMessage(ipcEvent);
+        validateIpcMessage({ ipcEvent });
 
         try {
             return { success: true, payload: store.getTorSettings() };
@@ -248,7 +250,7 @@ const load = async ({ mainWindowProxy, store, mainThreadEmitter }: Dependencies)
     });
 
     ipcMain.handle('tor/toggle', async (ipcEvent, shouldEnableTor: boolean) => {
-        validateIpcMessage(ipcEvent);
+        validateIpcMessage({ ipcEvent });
 
         logger.info('tor', `Toggling ${shouldEnableTor ? 'ON' : 'OFF'}`);
 
@@ -263,11 +265,11 @@ const load = async ({ mainWindowProxy, store, mainThreadEmitter }: Dependencies)
             const proxySettings = getProxySettings(shouldEnableTor);
 
             // Proxy is also set in packages/suite-desktop-core/src/modules/trezor-connect.ts
-            await TrezorConnect.setProxy(proxySettings);
+            await TrezorConnect.updateConnectSettings({ proxy: proxySettings });
 
             logger.info(
                 'tor',
-                `${shouldEnableTor ? 'Enabled' : 'Disabled'} proxy ${proxySettings.proxy}`,
+                `${shouldEnableTor ? 'Enabled' : 'Disabled'} proxy ${proxySettings.uri}`,
             );
         } catch (error) {
             // When `setupTor` fails to initialize we do not want to dissable it

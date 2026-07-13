@@ -1,16 +1,14 @@
-import { NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
-import { TokenAddress } from '@suite-common/wallet-types';
+import { Translation } from '@suite/intl';
+import { getNetworkDecimalsWithFallback } from '@suite-common/trading';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { type TokenAddress } from '@suite-common/wallet-types';
 import { convertAmountUnitsToSubunits } from '@suite-common/wallet-utils';
 import { Text } from '@trezor/components';
 
-import { BaseCurrencyValue, HiddenPlaceholder, Translation } from 'src/components/suite';
+import { BaseCurrencyValue, HiddenPlaceholder } from 'src/components/suite';
 import { useFiatFromCryptoValue } from 'src/hooks/suite/useFiatFromCryptoValue';
 import { useBitcoinAmountUnit } from 'src/hooks/wallet/useBitcoinAmountUnit';
-import { TradingAccountOptionsGroupOptionProps } from 'src/types/trading/trading';
-import {
-    getTradingNetworkDecimals,
-    tradingGetAccountLabel,
-} from 'src/utils/wallet/trading/tradingUtils';
+import { tradingGetAccountLabel } from 'src/utils/wallet/trading/tradingUtils';
 
 interface TradingBalanceProps {
     balance: string | undefined;
@@ -19,7 +17,7 @@ interface TradingBalanceProps {
     tokenAddress?: TokenAddress | undefined;
     showOnlyAmount?: boolean;
     amountInCrypto?: boolean;
-    sendCryptoSelect?: TradingAccountOptionsGroupOptionProps;
+    decimals?: number;
 }
 
 export const TradingBalance = ({
@@ -29,14 +27,10 @@ export const TradingBalance = ({
     tokenAddress,
     showOnlyAmount,
     amountInCrypto,
-    sendCryptoSelect,
+    decimals: networkDecimals = getNetworkDecimalsWithFallback(symbol),
 }: TradingBalanceProps) => {
-    const { shouldSendInSats } = useBitcoinAmountUnit(symbol);
+    const { isBtcSatsAmountUnit: shouldSendInSats } = useBitcoinAmountUnit(symbol);
     const balanceCurrency = tradingGetAccountLabel(displaySymbol ?? '', shouldSendInSats);
-    const networkDecimals = getTradingNetworkDecimals({
-        sendCryptoSelect,
-        network: getNetwork(symbol),
-    });
     const stringBalance = !isNaN(Number(balance)) ? balance : '0';
     const formattedBalance =
         stringBalance && shouldSendInSats
@@ -54,7 +48,12 @@ export const TradingBalance = ({
         if (Number(balance) === 0 || isNaN(Number(balance))) return null;
 
         return (
-            <Text variant="tertiary" typographyStyle="label">
+            <Text
+                intent="neutral"
+                priority="secondary"
+                typographyStyle="body-xs"
+                overflowWrap="anywhere"
+            >
                 {!amountInCrypto ? (
                     <HiddenPlaceholder>
                         &asymp; {formattedBalance} {balanceCurrency}
@@ -77,7 +76,7 @@ export const TradingBalance = ({
     }
 
     return (
-        <Text variant="tertiary" typographyStyle="label">
+        <Text intent="neutral" priority="secondary" typographyStyle="body-xs">
             <Translation id="TR_BALANCE" />
             {': '}
             <HiddenPlaceholder>

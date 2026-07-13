@@ -1,11 +1,14 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
+import { selectBackup, selectBackupStatus } from '@suite/backup';
+import { TrezorLink } from '@suite/external-links';
+import { Translation } from '@suite/intl';
+import { selectSelectedDevice } from '@suite-common/device';
 import { isDeviceAcquired } from '@suite-common/suite-utils';
-import { selectSelectedDevice } from '@suite-common/wallet-core';
 import { Column, Image, Modal, Text } from '@trezor/components';
+import { CheckIcon, WarningIcon } from '@trezor/icons';
 import { HELP_CENTER_RECOVERY_ISSUES_URL } from '@trezor/urls';
 
-import { Translation, TrezorLink } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
 import type { ForegroundAppProps } from 'src/types/suite';
 
@@ -13,9 +16,8 @@ import { BackupStep1Initial } from './BackupStep1Initial';
 import { BackupStep2InProgress } from './BackupStep2InProgress';
 import { BackupStep3Finished } from './BackupStep3Finished';
 import { BackupStepError } from './BackupStepError';
-import { selectBackup, selectBackupStatus } from '../../reducers/backup/backupReducer';
 
-const getEdgeCaseModalHeading = (unfinishedBackup: boolean) => {
+const getEdgeCaseModalHeading = (unfinishedBackup?: boolean) => {
     if (unfinishedBackup) {
         return <Translation id="BACKUP_BACKUP_ALREADY_FAILED_HEADING" />;
     }
@@ -61,8 +63,8 @@ export const Backup = ({
             <Modal
                 onCancel={onCancel}
                 heading={getEdgeCaseModalHeading(device.features.unfinished_backup)}
-                iconName={device.features.unfinished_backup ? 'warning' : 'check'}
-                variant={device.features.unfinished_backup ? 'warning' : 'primary'}
+                icon={device.features.unfinished_backup ? WarningIcon : CheckIcon}
+                intent={device.features.unfinished_backup ? 'warning' : 'brand'}
                 bottomContent={
                     <Modal.Button onClick={() => onCancel()} data-testid="@backup/close-button">
                         <Translation id="TR_CLOSE" />
@@ -70,14 +72,22 @@ export const Backup = ({
                 }
             >
                 {device.features.unfinished_backup ? (
-                    <Text variant="tertiary" data-testid="@backup/already-failed-message">
+                    <Text
+                        intent="neutral"
+                        priority="secondary"
+                        data-testid="@backup/already-failed-message"
+                    >
                         <Translation id="BACKUP_BACKUP_ALREADY_FAILED_DESCRIPTION" />
-                        <TrezorLink icon="arrowUpRight" href={HELP_CENTER_RECOVERY_ISSUES_URL}>
+                        <TrezorLink href={HELP_CENTER_RECOVERY_ISSUES_URL}>
                             <Translation id="TR_LEARN_MORE" />
                         </TrezorLink>
                     </Text>
                 ) : (
-                    <Text variant="tertiary" data-testid="@backup/already-finished-message">
+                    <Text
+                        intent="neutral"
+                        priority="secondary"
+                        data-testid="@backup/already-finished-message"
+                    >
                         <Translation id="BACKUP_BACKUP_ALREADY_FINISHED_DESCRIPTION" />
                     </Text>
                 )}
@@ -93,6 +103,6 @@ export const Backup = ({
         case 'finished':
             return <BackupStep3Finished onCancel={onCancel} backup={backup} />;
         case 'error':
-            return <BackupStepError onCancel={onCancel} backup={backup} />;
+            return <BackupStepError onCancel={onCancel} />;
     }
 };

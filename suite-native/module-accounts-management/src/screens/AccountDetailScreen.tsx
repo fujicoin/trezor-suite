@@ -1,14 +1,15 @@
 import { memo } from 'react';
 import { useSelector } from 'react-redux';
 
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { type RouteProp, useRoute } from '@react-navigation/native';
 
+import type { DeviceRootState } from '@suite-common/device';
 import {
-    AccountsRootState,
-    DeviceRootState,
+    type AccountsRootState,
+    selectAccountByKey,
     selectDeviceAccountKeyForNetworkSymbolAndAccountTypeWithIndex,
 } from '@suite-common/wallet-core';
-import { RootStackParamList, RootStackRoutes } from '@suite-native/navigation';
+import { type RootStackParamList, type RootStackRoutes } from '@suite-native/navigation';
 
 import { AccountDetailContentScreen } from './AccountDetailContentScreen';
 import { AccountDetailLoadingScreen } from './AccountDetailLoadingScreen';
@@ -34,8 +35,12 @@ export const AccountDetailScreen = memo(() => {
 
     const accountKey = routeAccountKey ?? foundAccountKey;
 
-    return accountKey ? (
-        <AccountDetailContentScreen accountKey={accountKey} tokenContract={tokenContract} />
+    const account = useSelector((state: AccountsRootState) =>
+        selectAccountByKey(state, accountKey),
+    );
+
+    return account ? (
+        <AccountDetailContentScreen account={account} tokenContract={tokenContract} />
     ) : (
         <AccountDetailLoadingScreen />
     );

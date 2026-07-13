@@ -1,15 +1,14 @@
-import React, { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 import {
     Button,
-    ButtonProps,
+    type ButtonProps,
     Card,
     Column,
-    Divider,
     H2,
     IconCircle,
-    IconCircleVariant,
-    IconName,
+    type IconCircleIntent,
+    type IconComponent,
     Paragraph,
     Row,
 } from '@trezor/components';
@@ -18,32 +17,43 @@ import { spacings } from '@trezor/theme';
 interface AccountExceptionLayoutProps {
     title: ReactNode;
     description?: ReactNode;
-    iconName?: IconName;
-    iconVariant?: IconCircleVariant;
+    icon?: IconComponent;
+    iconVariant?: IconCircleIntent;
     actions?: ({ key: string } & ButtonProps)[];
+    'data-testid'?: string;
 }
 
 export const AccountExceptionLayout = (props: AccountExceptionLayoutProps) => (
-    <Card>
-        <Column alignItems="center">
-            {props.iconName && props.iconVariant && (
+    <Card data-testid={props['data-testid']}>
+        <Column gap={4} alignItems="center" margin={{ bottom: 24 }}>
+            {props.icon && props.iconVariant && (
                 <IconCircle
-                    name={props.iconName}
-                    variant={props.iconVariant}
-                    size={90}
+                    icon={props.icon}
+                    intent={props.iconVariant}
+                    size={96}
                     margin={{ top: spacings.xxl, bottom: spacings.xl }}
                 />
             )}
-            <H2>{props.title}</H2>
-            <Paragraph variant="tertiary" typographyStyle="hint" margin={{ top: spacings.xs }}>
+            <H2 align="center">{props.title}</H2>
+            <Paragraph
+                intent="neutral"
+                priority="secondary"
+                typographyStyle="body-md"
+                margin={{ top: spacings.xs }}
+                align="center"
+            >
                 {props.description}
             </Paragraph>
             {props.actions && (
                 <>
-                    <Divider margin={{ top: spacings.xxl, bottom: spacings.xxl }} />
-                    <Row justifyContent="center" gap={spacings.md} margin={{ bottom: spacings.md }}>
+                    <Row justifyContent="center" gap={spacings.md} margin={{ top: 16 }}>
                         {props.actions?.map(action => (
-                            <Button minWidth={160} {...action} key={action.key} />
+                            <Button
+                                size="large"
+                                {...action}
+                                key={action.key}
+                                data-testid={action['data-testid']}
+                            />
                         ))}
                     </Row>
                 </>

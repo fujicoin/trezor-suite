@@ -1,13 +1,15 @@
 import { useExchangeBuyTradeableAssetsFilteredData } from '../../../hooks/exchange/useExchangeBuyTradeableAssetsFilteredData';
 import {
     TradeableAssetSheet,
-    TradeableAssetsSheetProps,
+    type TradeableAssetsSheetProps,
 } from '../../general/TradeableAssetSheet/TradeableAssetSheet';
 
 export type ExchangeTradeableAssetsSheetProps = Omit<
     TradeableAssetsSheetProps,
     'assets' | 'onFilterChange' | 'onSelectedNetworkFilter' | 'flashListKey'
 >;
+
+const SHEET_TEST_ID = '@trading/exchange/receive-asset-sheet';
 
 export const ExchangeTradeableAssetsSheet = (props: ExchangeTradeableAssetsSheetProps) => {
     const { filteredData, filterValue, setFilterValue, setFilterSymbol } =
@@ -23,6 +25,7 @@ export const ExchangeTradeableAssetsSheet = (props: ExchangeTradeableAssetsSheet
             {...props}
             onSelectedNetworkFilter={setFilterSymbol}
             flashListKey={flashListKey}
+            testID={SHEET_TEST_ID}
         />
     );
 };

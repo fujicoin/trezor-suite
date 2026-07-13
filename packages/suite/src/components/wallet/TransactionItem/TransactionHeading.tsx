@@ -1,194 +1,80 @@
-import { useState } from 'react';
-
-import styled, { useTheme } from 'styled-components';
-
-import {
-    formatNetworkAmount,
-    getTargetAmount,
-    getTxHeaderSymbol,
-    getTxOperation,
-    isSupportedEthStakingNetworkSymbol,
-} from '@suite-common/wallet-utils';
-import { Icon, Row, variables } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { Translation } from '@suite/intl';
+import { type PhishingDetectorId } from '@suite-common/token-definitions';
+import { getTxHeaderSymbol, isSupportedEthStakingNetworkSymbol } from '@suite-common/wallet-utils';
+import { Row, TextButton, Tooltip } from '@trezor/components';
 import { HELP_CENTER_ZERO_VALUE_ATTACKS } from '@trezor/urls';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
 
-import {
-    FormattedCryptoAmount,
-    TooltipSymbol,
-    Translation,
-    TrezorLink,
-} from 'src/components/suite';
-import { WalletAccountTransaction } from 'src/types/wallet';
+import { type WalletAccountTransaction } from 'src/types/wallet';
 
 import { InstantStakeBadge } from './InstantStakeBadge';
 import { TransactionHeader } from './TransactionHeader';
 import { BlurWrapper } from './TransactionItemBlurWrapper';
 
-const Wrapper = styled.span`
-    display: flex;
-    flex: 1 1 auto;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    align-items: center;
-    cursor: pointer;
-`;
-
-const HeadingWrapper = styled.div`
-    display: flex;
-    align-items: center;
-    text-overflow: ellipsis;
-    overflow: hidden;
-`;
-
-const ChevronIconWrapper = styled.div<{ $show: boolean; $animate: boolean }>`
-    display: flex;
-    margin-left: ${({ $animate }) => ($animate ? '5px' : '3px')};
-    opacity: ${({ $show }) => ($show ? 1 : 0)};
-    transition:
-        visibility 0s,
-        opacity 0.15s linear,
-        margin-left 0.15s ease-in-out;
-
-    /* select non-direct SVG children (the icon) and set animation property */
-    > * svg {
-        transition: all 0.2ms ease-in-out;
+const getPhishingTooltipTranslationId = (detectorId?: PhishingDetectorId) => {
+    switch (detectorId) {
+        case 'FAKE_TOKEN':
+            return 'TR_PHISHING_TOOLTIP_FAKE_TOKEN';
+        case 'UNKNOWN_TX':
+            return 'TR_PHISHING_TOOLTIP_UNKNOWN_TX';
+        case 'DUST_AMOUNT':
+            return 'TR_PHISHING_TOOLTIP_DUST_AMOUNT';
+        case 'ZERO_AMOUNT':
+            return 'TR_PHISHING_TOOLTIP_ZERO_AMOUNT';
+        case 'TRC10_TRANSFER':
+            return 'TR_PHISHING_TOOLTIP_TRC10_TRANSFER';
+        default:
+            return 'TR_ZERO_PHISHING_TOOLTIP';
     }
-`;
+};
 
-const StyledCryptoAmount = styled(FormattedCryptoAmount)<{ $isPhishingTransaction: boolean }>`
-    color: ${({ theme, $isPhishingTransaction }) =>
-        $isPhishingTransaction ? theme.legacy.TYPE_LIGHT_GREY : theme.legacy.TYPE_DARK_GREY};
-    font-size: ${variables.FONT_SIZE.NORMAL};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-    white-space: nowrap;
-    flex: 0;
-`;
-
-const HelpLink = styled(TrezorLink)`
-    color: ${({ theme }) => theme.legacy.TYPE_ORANGE};
-
-    path {
-        fill: ${({ theme }) => theme.legacy.TYPE_ORANGE};
-    }
-`;
-
-interface TransactionHeadingProps {
+type TransactionHeadingProps = {
     transaction: WalletAccountTransaction;
     isPending: boolean;
-    useSingleRowLayout: boolean;
-    txItemIsHovered: boolean;
-    nestedItemIsHovered: boolean;
-    onClick: () => void;
     isPhishingTransaction: boolean;
+    phishingDetectorId?: PhishingDetectorId;
     dataTestBase: string;
-}
+};
 
 export const TransactionHeading = ({
     transaction,
     isPending,
-    useSingleRowLayout,
-    txItemIsHovered,
-    nestedItemIsHovered,
-    onClick,
     isPhishingTransaction,
+    phishingDetectorId,
     dataTestBase,
 }: TransactionHeadingProps) => {
-    const [headingIsHovered, setHeadingIsHovered] = useState(false);
-
-    const theme = useTheme();
-
     const symbol = getTxHeaderSymbol(transaction);
-    const target = transaction.targets[0];
-    const targetSymbol = transaction.type === 'self' ? transaction.symbol : symbol;
-    let amount = null;
-
-    if (useSingleRowLayout) {
-        // In case of sent-to-self transaction we rely on getTargetAmount returning transaction.amount which will be equal to a fee
-        const targetAmount = getTargetAmount(target, transaction);
-        const operation = getTxOperation(transaction.type);
-
-        amount = targetAmount && (
-            <StyledCryptoAmount
-                value={targetAmount}
-                symbol={targetSymbol}
-                signValue={operation}
-                $isPhishingTransaction={isPhishingTransaction}
-            />
-        );
-    }
-
-    if (transaction.type === 'joint') {
-        const transactionAmount = new BigNumber(transaction.amount);
-        const abs = transactionAmount.abs().toString();
-
-        amount = (
-            <StyledCryptoAmount
-                value={formatNetworkAmount(abs, transaction.symbol)}
-                symbol={transaction.symbol}
-                signValue={transactionAmount}
-                $isPhishingTransaction={isPhishingTransaction}
-            />
-        );
-    }
-    // hide amount for solana unstake transactions
-    if (transaction?.solanaSpecific?.stakeOperation?.type === 'unstake') {
-        amount = null;
-    }
 
     return (
-        <>
-            <Wrapper
-                onMouseEnter={() => setHeadingIsHovered(true)}
-                onMouseLeave={() => setHeadingIsHovered(false)}
-                onClick={onClick}
-            >
-                <HeadingWrapper data-testid={`${dataTestBase}/heading`}>
-                    {isPhishingTransaction && (
-                        <TooltipSymbol
-                            content={
-                                <Translation
-                                    id="TR_ZERO_PHISHING_TOOLTIP"
-                                    values={{
-                                        a: chunks => (
-                                            <HelpLink
-                                                href={HELP_CENTER_ZERO_VALUE_ATTACKS}
-                                                icon="arrowUpRight"
-                                                typographyStyle="hint"
-                                            >
-                                                {chunks}
-                                            </HelpLink>
-                                        ),
-                                    }}
-                                />
-                            }
-                            icon="warning"
-                        />
+        <Tooltip
+            content={
+                <Translation
+                    id={getPhishingTooltipTranslationId(phishingDetectorId)}
+                    values={{
+                        a: chunks => (
+                            <TextButton
+                                intent="neutral"
+                                priority="secondary"
+                                size="small"
+                                href={HELP_CENTER_ZERO_VALUE_ATTACKS}
+                            >
+                                {chunks}
+                            </TextButton>
+                        ),
+                    }}
+                />
+            }
+            tooltipMaxWidth={320}
+            isActive={isPhishingTransaction}
+            hasIcon
+        >
+            <BlurWrapper $isBlurred={isPhishingTransaction}>
+                <Row gap={4} data-testid={`${dataTestBase}/heading`}>
+                    <TransactionHeader transaction={transaction} isPending={isPending} />
+                    {isSupportedEthStakingNetworkSymbol(transaction.symbol) && (
+                        <InstantStakeBadge transaction={transaction} symbol={symbol} />
                     )}
-                    <BlurWrapper $isBlurred={isPhishingTransaction}>
-                        <Row gap={spacings.xxs} flexWrap="wrap">
-                            <TransactionHeader transaction={transaction} isPending={isPending} />
-                            {isSupportedEthStakingNetworkSymbol(transaction.symbol) && (
-                                <InstantStakeBadge transaction={transaction} symbol={symbol} />
-                            )}
-                        </Row>
-                    </BlurWrapper>
-                </HeadingWrapper>
-
-                <ChevronIconWrapper
-                    $show={txItemIsHovered}
-                    $animate={nestedItemIsHovered || headingIsHovered}
-                >
-                    <Icon
-                        size={nestedItemIsHovered || headingIsHovered ? 18 : 16}
-                        color={theme.legacy.TYPE_DARK_GREY}
-                        name="caretRight"
-                    />
-                </ChevronIconWrapper>
-            </Wrapper>
-
-            {transaction.type !== 'failed' && amount}
-        </>
+                </Row>
+            </BlurWrapper>
+        </Tooltip>
     );
 };

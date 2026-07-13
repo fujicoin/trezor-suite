@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { InfoResponse } from 'invity-api';
+import { type InfoResponse } from 'invity-api';
 
 import coins from '../__fixtures__/coins.json';
 import { invityAPIFixtures } from '../__fixtures__/invityAPI';
@@ -27,7 +27,7 @@ describe('InvityAPI', () => {
     });
 
     afterEach(() => {
-        jest.resetAllMocks();
+        jest.clearAllMocks();
     });
 
     it('should create an API key', () => {
@@ -42,6 +42,22 @@ describe('InvityAPI', () => {
         const descriptor = invityAPI.getCurrentAccountDescriptor();
 
         expect(descriptor).toEqual('test-account');
+    });
+
+    describe('resetCurrentAccount', () => {
+        it('should clear the account descriptor', () => {
+            invityAPI.resetCurrentAccount();
+
+            expect(invityAPI.getCurrentAccountDescriptor()).toBeUndefined();
+        });
+
+        it('should recreate the descriptor and api key after createInvityAPIKey is called', () => {
+            invityAPI.resetCurrentAccount();
+            invityAPI.createInvityAPIKey(accountDescriptor);
+
+            expect(invityAPI.getCurrentAccountDescriptor()).toEqual(accountDescriptor);
+            expect(typeof invityAPI.getCurrentApiKey()).toBe('string');
+        });
     });
 
     describe('getInvityAPIKey', () => {
@@ -84,7 +100,7 @@ describe('InvityAPI', () => {
 
         const info = await invityAPI.getInfo();
         expect(consoleSpy).toHaveBeenCalled();
-        expect(info).toEqual({ platforms: {}, coins: {} });
+        expect(info).toEqual({ platforms: {}, coins: {}, config: {} });
     });
 
     describe('getInfo', () => {
@@ -92,6 +108,7 @@ describe('InvityAPI', () => {
             const mockInfo: InfoResponse = {
                 coins,
                 platforms,
+                config: {},
             };
             (global.fetch as jest.Mock).mockResolvedValueOnce({
                 ok: true,
@@ -109,7 +126,7 @@ describe('InvityAPI', () => {
             });
 
             const info = await invityAPI.getInfo();
-            expect(info).toEqual({ platforms: {}, coins: {} });
+            expect(info).toEqual({ platforms: {}, coins: {}, config: {} });
         });
 
         it('should handle fetch info when there is error', async () => {
@@ -117,7 +134,7 @@ describe('InvityAPI', () => {
 
             const info = await invityAPI.getInfo();
             expect(consoleSpy).toHaveBeenCalledWith('[getInfo]', error);
-            expect(info).toEqual({ platforms: {}, coins: {} });
+            expect(info).toEqual({ platforms: {}, coins: {}, config: {} });
         });
     });
 
@@ -449,5 +466,20 @@ describe('InvityAPI', () => {
         const url = invityAPI.getApiServerUrl();
 
         expect(url).toEqual('https://exchange.trezor.io');
+    });
+
+    describe('headers', () => {
+        it('should provide X-Suite-Platform header', () => {
+            invityAPI.getInfo();
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.any(String),
+                expect.objectContaining({
+                    headers: expect.objectContaining({
+                        'X-Suite-Platform': expect.any(String),
+                    }),
+                }),
+            );
+        });
     });
 });

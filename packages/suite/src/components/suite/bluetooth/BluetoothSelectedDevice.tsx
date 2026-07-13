@@ -1,14 +1,14 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import { DeviceBluetoothConnectionStatusType } from '@suite-common/bluetooth';
-import { Card, Column, Row } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { Translation } from '@suite/intl';
+import { type DeviceBluetoothConnectionStatusType } from '@suite-common/bluetooth';
+import { Banner, Card, Modal, Row } from '@trezor/components';
+import { InfoIcon } from '@trezor/icons';
+
+import { type DesktopBluetoothDevice } from 'src/actions/bluetooth/DesktopBluetoothDevice';
 
 import { BluetoothDeviceComponent } from './BluetoothDeviceComponent';
-import { BluetoothDialogCard } from './BluetoothDialogCard';
 import { BluetoothTips } from './BluetoothTips';
-import { DesktopBluetoothDevice } from '../../../actions/bluetooth/DesktopBluetoothDevice';
-import { Translation } from '../Translation';
 import { PairingState } from './PairingState';
 
 export type OkComponentProps = {
@@ -20,6 +20,7 @@ const OkComponent = ({ device }: OkComponentProps) => {
         disconnected: <PairingState isLoading text="TR_BLUETOOTH_DISCONNECTED_BUT_WAITING" />,
         pairing: <PairingState isLoading text="TR_BLUETOOTH_PAIRING" />,
         paired: <PairingState text="TR_BLUETOOTH_PAIRED" />,
+        'pairing-canceled': 'Pairing canceled', // Shall not be shown in the UI
         'pairing-error': 'Pairing failed', // Shall not be shown in the UI
         connecting: <PairingState isLoading text="TR_BLUETOOTH_CONNECTING" />,
         connected: <PairingState text="TR_BLUETOOTH_CONNECTED" />,
@@ -27,12 +28,9 @@ const OkComponent = ({ device }: OkComponentProps) => {
     };
 
     return (
-        <Row gap={spacings.md} alignItems="center" justifyContent="stretch">
-            <BluetoothDeviceComponent device={device} flex="1" />
-
-            <Column alignItems="center" gap={spacings.md}>
-                {map[device.connectionStatus.type]}
-            </Column>
+        <Row gap={16} justifyContent="space-between">
+            <BluetoothDeviceComponent device={device} />
+            {map[device.connectionStatus.type]}
         </Row>
     );
 };
@@ -52,21 +50,59 @@ const ErrorComponent = ({ device, onReScanClick }: ErrorComponentProps) => (
 
 export type BluetoothSelectedDeviceProps = {
     device: DesktopBluetoothDevice;
+    onCancel: () => void;
     onReScanClick: () => void;
 };
 
 export const BluetoothSelectedDevice = ({
     device,
+    onCancel,
     onReScanClick,
-}: BluetoothSelectedDeviceProps) => (
-    <BluetoothDialogCard>
-        {device.connectionStatus.type === 'connection-error' ||
-        device.connectionStatus.type === 'pairing-error' ? (
-            <ErrorComponent onReScanClick={onReScanClick} device={device} />
-        ) : (
+}: BluetoothSelectedDeviceProps) => {
+    const isError =
+        device.connectionStatus.type === 'connection-error' ||
+        device.connectionStatus.type === 'pairing-error';
+
+    if (isError) {
+        return <ErrorComponent onReScanClick={onReScanClick} device={device} />;
+    }
+
+    const showHint = ['disconnected', 'connecting', 'pairing'].includes(
+        device.connectionStatus.type,
+    );
+
+    const devicePairing = device.connectionStatus.type === 'pairing';
+
+    return (
+        <Modal
+            onCancel={onCancel}
+            heading={
+                devicePairing ? (
+                    <Translation id="TR_CONFIRM_PAIRING_TREZOR" />
+                ) : (
+                    <Translation id="TR_CONNECT_YOUR_TREZOR" />
+                )
+            }
+            description={
+                devicePairing ? (
+                    <Translation id="TR_CONFIRM_PAIRING_TREZOR_DESCRIPTION" />
+                ) : (
+                    <Translation id="TR_CONNECT_YOUR_TREZOR_DESCRIPTION" />
+                )
+            }
+            width={600}
+        >
             <Card>
                 <OkComponent device={device} />
+                {showHint && (
+                    <Banner
+                        intent="info"
+                        icon={InfoIcon}
+                        margin={{ top: 16 }}
+                        description={<Translation id="TR_CONFIRM_BLUETOOTH_PAIRING" />}
+                    />
+                )}
             </Card>
-        )}
-    </BluetoothDialogCard>
-);
+        </Modal>
+    );
+};

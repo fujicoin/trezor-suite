@@ -1,32 +1,66 @@
-import { ReactNode } from 'react';
+import { type ReactNode, useRef } from 'react';
 
-import { Column, SkeletonRectangle } from '@trezor/components';
-import { spacings } from '@trezor/theme';
-import { PrimitiveType } from '@trezor/type-utils';
+import { type TranslationKey, useTranslation } from '@suite/intl';
+import { Column, Skeleton } from '@trezor/components';
+import { type PrimitiveType, exhaustive } from '@trezor/type-utils';
 
-import { TranslationKey } from 'src/components/suite/Translation';
 import { PageHeader } from 'src/components/suite/layouts/SuiteLayout';
-import { useLayout, useTranslation } from 'src/hooks/suite';
+import { useLayout } from 'src/hooks/suite';
 import { AccountHeaderProvider } from 'src/support/suite/AccountHeaderProvider';
-import { AppState } from 'src/types/suite';
+import { type AppState } from 'src/types/suite';
 
 import { AccountBanners } from './AccountBanners/AccountBanners';
 import { AccountException } from './AccountException/AccountException';
-import { AccountNavigation } from './AccountTopPanel/AccountNavigation';
-import { AccountTopPanel } from './AccountTopPanel/AccountTopPanel';
+import { AccountNavigation } from './AccountNavigation';
 import { CoinjoinAccountDiscovery } from './CoinjoinAccountDiscovery/CoinjoinAccountDiscovery';
 
 type WalletPageHeaderProps = {
+    balanceSectionRef: React.RefObject<HTMLDivElement | null>;
     isSubpage?: boolean;
 };
 
-const WalletPageHeader = ({ isSubpage }: WalletPageHeaderProps) => (
-    <AccountHeaderProvider>
+const WalletPageHeader = ({ balanceSectionRef, isSubpage }: WalletPageHeaderProps) => (
+    <AccountHeaderProvider balanceSectionRef={balanceSectionRef}>
         <PageHeader />
-        {!isSubpage && <AccountTopPanel />}
         {!isSubpage && <AccountNavigation />}
     </AccountHeaderProvider>
 );
+
+type WalletBodyProps = {
+    account: AppState['wallet']['selectedAccount'];
+    children?: ReactNode;
+};
+
+const WalletBody = ({ account, children }: WalletBodyProps) => {
+    const { status, account: selectedAccount, loader, network } = account;
+
+    switch (status) {
+        case 'loading': {
+            if (selectedAccount?.accountType === 'coinjoin') {
+                return <CoinjoinAccountDiscovery />;
+            }
+
+            return (
+                <Skeleton
+                    width="100%"
+                    height={300}
+                    borderRadius={12}
+                    animate={loader === 'account-loading'}
+                />
+            );
+        }
+
+        case 'exception':
+            return children ?? <AccountException loader={loader} network={network} />;
+
+        case 'loaded':
+        case 'none':
+            return children;
+
+        default:
+            return exhaustive(status);
+    }
+};
 
 type WalletLayoutProps = {
     title: TranslationKey;
@@ -45,45 +79,19 @@ export const WalletLayout = ({
 }: WalletLayoutProps) => {
     const { translationString } = useTranslation();
     const l10nTitle = translationString(title, titleValues);
+    const balanceSectionRef = useRef<HTMLDivElement>(null);
 
-    useLayout(l10nTitle, <WalletPageHeader isSubpage={isSubpage} />);
+    useLayout(
+        l10nTitle,
+        <WalletPageHeader balanceSectionRef={balanceSectionRef} isSubpage={isSubpage} />,
+    );
 
-    const { status, account: selectedAccount, loader, network } = account;
-
-    const getPageContent = () => {
-        if (status === 'loading') {
-            if (selectedAccount?.accountType === 'coinjoin') {
-                return (
-                    <>
-                        <AccountBanners account={selectedAccount} />
-                        <CoinjoinAccountDiscovery />
-                    </>
-                );
-            } else {
-                return (
-                    <>
-                        <SkeletonRectangle
-                            width="100%"
-                            height="300px"
-                            borderRadius="12px"
-                            animate={loader === 'account-loading'}
-                        />
-                    </>
-                );
-            }
-        } else {
-            return (
-                <>
-                    <AccountBanners account={selectedAccount} />
-                    {status === 'exception' ? (
-                        <AccountException loader={loader} network={network} />
-                    ) : (
-                        children
-                    )}
-                </>
-            );
-        }
-    };
-
-    return <Column gap={spacings.xxxl}>{getPageContent()}</Column>;
+    return (
+        <AccountHeaderProvider balanceSectionRef={balanceSectionRef}>
+            <Column gap={40}>
+                <AccountBanners account={account.account} />
+                <WalletBody account={account}>{children}</WalletBody>
+            </Column>
+        </AccountHeaderProvider>
+    );
 };

@@ -1,7 +1,7 @@
-import { createWeakMapSelector } from '@suite-common/redux-utils';
+import { createWeakMapSelector, returnStableArrayIfEmpty } from '@suite-common/redux-utils';
 
-import { BluetoothState } from './bluetoothReducer';
-import { BluetoothDeviceCommon } from './types';
+import { type BluetoothState } from './bluetoothReducer';
+import { type BluetoothDeviceCommon } from './types';
 
 export type WithBluetoothState<T extends BluetoothDeviceCommon> = {
     bluetooth: BluetoothState<T>;
@@ -16,7 +16,7 @@ export const selectKnownDevices = <T extends BluetoothDeviceCommon>(state: WithB
 
 export const selectNearbyDevices = <T extends BluetoothDeviceCommon>(
     state: WithBluetoothState<T>,
-) => state.bluetooth.nearbyDevices;
+) => returnStableArrayIfEmpty(state.bluetooth.nearbyDevices ?? []);
 
 /**
  * We need to have generic `createWeakMapSelector.withTypes` so we need to wrap it into Higher Order Function,
@@ -46,3 +46,21 @@ export const prepareSelectAllDevices = <T extends BluetoothDeviceCommon>() =>
 
 export const selectScanStatus = <T extends BluetoothDeviceCommon>(state: WithBluetoothState<T>) =>
     state.bluetooth.scanStatus;
+
+export const selectAutoConnectPolicy = <T extends BluetoothDeviceCommon>(
+    state: WithBluetoothState<T>,
+) => state.bluetooth.autoConnectPolicy;
+
+export const selectIsDeviceOsUnpairingRequired = <T extends BluetoothDeviceCommon>(
+    state: WithBluetoothState<T>,
+) => state.bluetooth.isDeviceOsUnpairingRequired;
+
+export const selectKnownDeviceByDeviceId = <T extends BluetoothDeviceCommon>(
+    state: WithBluetoothState<T>,
+    deviceId?: string,
+) => {
+    if (!deviceId) return undefined;
+    const knownDevices = selectKnownDevices(state);
+
+    return knownDevices.find(device => device.deviceId === deviceId);
+};

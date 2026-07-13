@@ -1,31 +1,26 @@
-import { PayloadAction } from '@reduxjs/toolkit';
+import { type PayloadAction } from '@reduxjs/toolkit';
 
 import { createReducerWithExtraDeps, createWeakMapSelector } from '@suite-common/redux-utils';
 import {
-    type BackendType,
     type NetworkSymbol,
     getNetworkOptional,
     networksCollection,
 } from '@suite-common/wallet-config';
-import { Blockchain, BlockchainNetworks } from '@suite-common/wallet-types';
+import { type Blockchain, type BlockchainNetworks } from '@suite-common/wallet-types';
+import { getCustomBackends } from '@suite-common/wallet-utils';
 import {
-    BlockchainBlock,
-    BlockchainError,
-    BlockchainInfo,
-    BlockchainReconnecting,
+    type BlockchainBlock,
+    type BlockchainError,
+    type BlockchainInfo,
+    type BlockchainReconnecting,
     BLOCKCHAIN as TREZOR_CONNECT_BLOCKCHAIN_ACTIONS,
 } from '@trezor/connect';
 
 import { blockchainActions } from './blockchainActions';
-
-/*
-  get url suffix from default network and generate url for selected network
-  regex source: https://www.oreilly.com/library/view/regular-expressions-cookbook/9780596802837/ch07s12.html
-*/
-export const getBlockExplorerUrlSuffix = (url: string) =>
-    url.match(/^([a-z][a-z0-9+\-.]*:(\/\/[^/?#]+)?)?([a-z0-9\-._~%!$&'()*+,;=:@/]*)/)!.pop();
-
-export const isHttpProtocol = (url: string) => /^https?:\/\//.test(url);
+import {
+    type WalletSettingsRootState,
+    selectEnabledNetworks,
+} from '../settings/walletSettingsReducer';
 
 export type BlockchainState = BlockchainNetworks;
 
@@ -38,7 +33,6 @@ export const blockchainInitialState: BlockchainNetworks = networksCollection.red
     (state, network) => {
         state[network.symbol] = {
             connected: false,
-            explorer: network.explorer,
             blockHash: '0',
             blockHeight: 0,
             version: '0',
@@ -86,53 +80,8 @@ const connect = (draft: BlockchainState, info: BlockchainInfo) => {
         return;
     }
 
-    const isHttp = isHttpProtocol(info.url); // can use dynamic backend url settings
-
-    // solana rpc nodes and stellar horizon nodes do not have explorer, so we cannot use backend as explorer
-    const isBackendAlsoExplorer =
-        network.networkType !== 'solana' && network.networkType !== 'stellar';
-
-    const useBackendAsExplorer = isHttp && isBackendAlsoExplorer;
-
     draft[network.symbol] = {
         url: info.url,
-        explorer: {
-            base: `${
-                useBackendAsExplorer
-                    ? info.url + getBlockExplorerUrlSuffix(network.explorer.base)
-                    : network.explorer.base
-            }`,
-            tx: `${
-                useBackendAsExplorer
-                    ? info.url + getBlockExplorerUrlSuffix(network.explorer.tx)
-                    : network.explorer.tx
-            }`,
-            account: `${
-                useBackendAsExplorer
-                    ? info.url + getBlockExplorerUrlSuffix(network.explorer.account)
-                    : network.explorer.account
-            }`,
-            queryString: network.explorer.queryString,
-            nft: network.explorer.nft
-                ? `${
-                      isHttp
-                          ? info.url + getBlockExplorerUrlSuffix(network.explorer.nft)
-                          : network.explorer.nft
-                  }`
-                : undefined,
-            address: `${
-                isHttp
-                    ? info.url + getBlockExplorerUrlSuffix(network.explorer.address)
-                    : network.explorer.address
-            }`,
-            token: network.explorer.token
-                ? `${
-                      isHttp
-                          ? info.url + getBlockExplorerUrlSuffix(network.explorer.token)
-                          : network.explorer.token
-                  }`
-                : undefined,
-        },
         connected: true,
         blockHash: info.blockHash,
         blockHeight: info.blockHeight,
@@ -157,7 +106,6 @@ const error = (draft: BlockchainState, payload: BlockchainError) => {
         draft[network.symbol] = {
             ...draft[network.symbol],
             connected: false,
-            explorer: network.explorer,
             error,
         };
         delete draft[network.symbol].url;
@@ -204,13 +152,21 @@ export const prepareBlockchainReducer = createReducerWithExtraDeps(
                     delete state[symbol].backends.selected;
                 } else if (!action.payload.urls.length) {
                     delete state[symbol].backends.selected;
-                    delete state[symbol].backends.urls?.[type as BackendType];
+                    delete state[symbol].backends.urls?.[type];
                 } else {
-                    state[symbol].backends.selected = type as BackendType;
+                    state[symbol].backends.selected = type;
                     state[symbol].backends.urls = {
                         ...state[symbol].backends.urls,
-                        [type as BackendType]: action.payload.urls,
+                        [type]: action.payload.urls,
                     };
+                }
+            })
+            .addCase(blockchainActions.setBackendGapLimit, (state, action) => {
+                const { symbol, gapLimit } = action.payload;
+                if (gapLimit === undefined) {
+                    delete state[symbol].backends.gapLimit;
+                } else {
+                    state[symbol].backends.gapLimit = gapLimit;
                 }
             })
             .addCase(extra.actionTypes.storageLoad, extra.reducers.storageLoadBlockchain)
@@ -241,7 +197,9 @@ export const prepareBlockchainReducer = createReducerWithExtraDeps(
     },
 );
 
-const createMemoizedSelector = createWeakMapSelector.withTypes<BlockchainRootState>();
+const createMemoizedSelector = createWeakMapSelector.withTypes<
+    BlockchainRootState & WalletSettingsRootState
+>();
 
 export const selectBlockchainState = (state: BlockchainRootState) => state.wallet.blockchain;
 
@@ -253,15 +211,36 @@ export const selectBlockchainHeightBySymbol = createMemoizedSelector(
     blockchain => blockchain?.blockHeight ?? null,
 );
 
-export const selectBlockchainExplorerBySymbol = createMemoizedSelector(
-    [selectNetworkBlockchainInfo],
-    blockchain => blockchain?.explorer ?? null,
-);
-
 export const selectBlockchainBlockInfoBySymbol = createMemoizedSelector(
     [selectNetworkBlockchainInfo],
     blockchain => ({
         blockhash: blockchain.blockHash,
         blockHeight: blockchain.blockHeight,
     }),
+);
+
+export const selectBlockchainBackendType = createMemoizedSelector(
+    [selectNetworkBlockchainInfo],
+    blockchain => blockchain.backends.selected,
+);
+
+export const selectIsCustomBackendConfigured = createMemoizedSelector(
+    [selectBlockchainBackendType],
+    backendType => !!backendType,
+);
+
+export const selectGapLimit = (state: BlockchainRootState, symbol: NetworkSymbol) =>
+    state.wallet.blockchain[symbol]?.backends.gapLimit;
+
+export const selectCustomBackends = createMemoizedSelector(
+    [selectBlockchainState],
+    blockchainState => getCustomBackends(blockchainState),
+);
+
+export const selectEnabledCustomBackends = createMemoizedSelector(
+    [selectCustomBackends, selectEnabledNetworks],
+    (customBackends, enabledNetworks) =>
+        customBackends
+            .map(({ symbol }) => symbol)
+            .filter(symbol => enabledNetworks.includes(symbol)),
 );

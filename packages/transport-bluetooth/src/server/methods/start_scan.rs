@@ -7,7 +7,6 @@ use tokio::time::{sleep, Duration};
 
 use crate::server::{
     adapter_manager::{AdapterError, AdapterManager},
-    device::SERVICE_UUID,
     types::{
         AbortProcess, AdapterState, ChannelMessage, MethodResult, NotificationEvent,
         WsResponsePayload,
@@ -19,20 +18,7 @@ async fn start_scanning(adapter: &Adapter) -> Result<(), AdapterError> {
     // stop previous process just to be sure
     stop_scanning(adapter).await;
 
-    // workaround for windows
-    #[allow(unused_mut)]
-    let mut filter = ScanFilter {
-        services: vec![SERVICE_UUID],
-    };
-    #[cfg(target_os = "windows")]
-    {
-        // TODO: windows use default ScanFilter
-        // ScanFilter doesn't work correctly on windows https://github.com/deviceplug/btleplug/issues/249
-        // TODO: i believe i have a fix for that in btleplug
-        filter = ScanFilter::default();
-    }
-
-    if let Err(err) = adapter.start_scan(filter).await {
+    if let Err(err) = adapter.start_scan(ScanFilter::default()).await {
         info!("Start scan error {err}");
         return Err(err.into());
     }
@@ -52,7 +38,7 @@ pub async fn start_scan(manager: AdapterManager, broadcast: ConnectionBroadcast)
     if manager.is_scanning().await {
         info!("AdapterManager is already scanning");
         let devices = manager.get_devices().await;
-        return Ok(WsResponsePayload::Peripherals(devices));
+        return Ok(WsResponsePayload::Peripherals { devices });
     } else {
         manager.set_scanning(true).await;
     }
@@ -76,6 +62,14 @@ pub async fn start_scan(manager: AdapterManager, broadcast: ConnectionBroadcast)
                     stop_scanning(&adapter).await;
                     manager_ref.set_scanning(false).await;
                     info!("Abort start_scan loop");
+                    break;
+                }
+                ChannelMessage::Abort(AbortProcess::ClientDisconnected(_client)) => {
+                    if manager_ref.is_listeners_empty().await {
+                        info!("All clients disconnected, stopping scanning");
+                        stop_scanning(&adapter).await;
+                        manager_ref.set_scanning(false).await;
+                    }
                     break;
                 }
                 ChannelMessage::Notification(NotificationEvent::AdapterStateChanged { state }) => {
@@ -102,5 +96,5 @@ pub async fn start_scan(manager: AdapterManager, broadcast: ConnectionBroadcast)
     sleep(Duration::from_millis(200)).await;
 
     let devices = manager.get_devices().await;
-    Ok(WsResponsePayload::Peripherals(devices))
+    Ok(WsResponsePayload::Peripherals { devices })
 }

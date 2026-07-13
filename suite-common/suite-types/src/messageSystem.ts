@@ -5,8 +5,15 @@
 
 /**
  * ISO 8601 date-time format.
+ *
+ * This interface was referenced by `MessageSystem`'s JSON-Schema
+ * via the `definition` "date-time".
  */
 export type DateTime = string;
+/**
+ * This interface was referenced by `MessageSystem`'s JSON-Schema
+ * via the `definition` "version".
+ */
 export type Version = string | string[];
 export type Model = '1' | 'T' | 'T1B1' | 'T2T1' | 'T2B1' | 'Safe 3' | 'T3B1' | 'T3T1' | 'T3W1' | '';
 export type FirmwareRevision = string;
@@ -15,6 +22,14 @@ export type FirmwareVariant = '*' | 'bitcoin-only' | 'universal';
  * Eligible authorized vendors.
  */
 export type Vendor = '*' | 'trezor.io';
+/**
+ * Supported THP pairing methods: 1=SkipPairing, 2=CodeEntry, 3=QrCode, 4=NFC.
+ */
+export type PairingMethod = 'SkipPairing' | 'CodeEntry' | 'QrCode' | 'NFC';
+/**
+ * This interface was referenced by `MessageSystem`'s JSON-Schema
+ * via the `definition` "countryCodes".
+ */
 export type CountryCodes =
     | 'AD'
     | 'AE'
@@ -271,10 +286,28 @@ export type CountryCodes =
  * @minItems 1
  */
 export type CountryCode = CountryCodes[];
+/**
+ * This interface was referenced by `MessageSystem`'s JSON-Schema
+ * via the `definition` "conditions".
+ */
 export type Conditions = Condition[];
 export type Variant = 'info' | 'warning' | 'critical';
+/**
+ * This interface was referenced by `MessageSystem`'s JSON-Schema
+ * via the `definition` "category".
+ */
 export type Category = 'banner' | 'context' | 'modal' | 'feature';
 export type CTAAction = 'internal-link' | 'external-link';
+/**
+ * This interface was referenced by `MessageSystem`'s JSON-Schema
+ * via the `definition` "tradingType".
+ */
+export type TradingType = 'buy' | 'sell' | 'exchange' | 'concierge';
+/**
+ * This interface was referenced by `MessageSystem`'s JSON-Schema
+ * via the `definition` "yieldFlowType".
+ */
+export type YieldFlowType = 'deposit' | 'withdraw' | 'redeem' | 'claim';
 
 /**
  * JSON schema of the Trezor Suite messaging system.
@@ -354,6 +387,14 @@ export interface Device {
     bootloader: Version;
     variant: FirmwareVariant;
     vendor: Vendor;
+    thpProperties?: TrezorHostProtocolTHPProperties;
+}
+export interface TrezorHostProtocolTHPProperties {
+    internalModel?: string;
+    modelVariant?: number;
+    protocolVersionMajor?: number;
+    protocolVersionMinor?: number;
+    pairingMethods?: PairingMethod[];
 }
 export interface Message {
     id: string;
@@ -373,6 +414,9 @@ export interface Message {
 }
 /**
  * A multilingual text localization.
+ *
+ * This interface was referenced by `MessageSystem`'s JSON-Schema
+ * via the `definition` "localization".
  */
 export interface Localization {
     en: string;
@@ -405,8 +449,50 @@ export interface Modal {
 export interface Feature {
     domain: string;
     flag: boolean;
+    /**
+     * Optional payload with arbitrary properties
+     */
+    payload?: {
+        [k: string]: unknown;
+    };
+    /**
+     * Legacy field for 'dashboard.promoBanner'
+     */
     visibleBanner?: string;
-    [k: string]: unknown;
+    /**
+     * Legacy field for 'security.firmware.hashCheck.timeout'
+     */
+    timeoutThresholdsPerModel?: {
+        [k: string]: unknown;
+    } | null;
+    /**
+     * Legacy field for 'coinjoin'
+     */
+    averageAnonymityGainPerRound?: number;
+    /**
+     * Legacy field for 'coinjoin'
+     */
+    roundsFailRateBuffer?: number;
+    /**
+     * Legacy field for 'coinjoin'
+     */
+    roundsDurationInHours?: number;
+    /**
+     * Legacy field for 'coinjoin'
+     */
+    maxMiningFeeModifier?: number;
+    /**
+     * Legacy field for 'coinjoin'
+     */
+    maxFeePerVbyte?: number;
+    /**
+     * Legacy field for 'coinjoin'
+     */
+    legalDocumentsVersion?: number;
+    /**
+     * Legacy field for 'coinjoin'
+     */
+    isPublic?: boolean;
 }
 /**
  * Only used for 'context' category.

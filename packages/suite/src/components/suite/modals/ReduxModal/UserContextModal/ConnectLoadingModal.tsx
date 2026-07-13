@@ -15,15 +15,15 @@ export const ConnectLoadingModal = () => {
         <ConnectModalBackdrop>
             <Modal.ModalBase
                 data-testid="@connect-popup-loading"
-                variant="primary"
-                size="small"
+                intent="brand"
+                width={600}
                 heading={popupCall.methodInfo.methodTitle}
                 description={<ConnectCallSource />}
             >
                 <Column gap={spacings.xs}>
                     <Card>
                         <Row alignItems="center" justifyContent="center" margin={spacings.xxl}>
-                            <Spinner />
+                            <Spinner size={40} isDisabled={true} />
                         </Row>
                     </Card>
                 </Column>

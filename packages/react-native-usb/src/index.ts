@@ -1,6 +1,6 @@
-import { EventSubscription } from 'expo-modules-core';
+import { type EventSubscription } from 'expo-modules-core';
 
-import { NativeDevice, OnConnectEvent, WebUSBDevice } from './ReactNativeUsb.types';
+import { type NativeDevice, type OnConnectEvent, type WebUSBDevice } from './ReactNativeUsb.types';
 import { ReactNativeUsbModule } from './ReactNativeUsbModule';
 
 const DEBUG_LOGS = false;
@@ -34,11 +34,11 @@ const transferIn = async (deviceName: string, endpointNumber: number, length: nu
             debugLog('JS: USB read error: ', error);
             throw error;
         })
-        .then((result: number[]) => {
-            debugLog('JS: Native USB read result:', JSON.stringify(result));
+        .then(result => {
+            debugLog('JS: Native USB read result length:', result.length);
 
             return {
-                data: new Uint8Array(result),
+                data: result,
                 status: 'ok',
             };
         });
@@ -54,7 +54,12 @@ const transferOut = async (
 ) => {
     try {
         const perf = performance.now();
-        await ReactNativeUsbModule.transferOut(deviceName, endpointNumber, data.toString());
+        // Ensure we pass a Uint8Array directly to native code (maps to kotlin.ByteArray)
+        const uint8Data =
+            data instanceof Uint8Array
+                ? data
+                : new Uint8Array(ArrayBuffer.isView(data) ? data.buffer : data);
+        await ReactNativeUsbModule.transferOut(deviceName, endpointNumber, uint8Data);
         debugLog('JS: USB write time', performance.now() - perf);
 
         return { status: 'ok' };
@@ -94,8 +99,6 @@ const createWebUSBDevice = (device: NativeDevice): WebUSBDevice => ({
     usbVersionMajor: 2,
     usbVersionMinor: 0,
     usbVersionSubminor: 0,
-    deviceVersionMajor: 1,
-    deviceVersionMinor: 0,
     deviceVersionSubminor: 0,
     configurations: [],
 });

@@ -3,8 +3,8 @@ import { ActivityIndicator } from 'react-native';
 import { Box, Text, VStack, resetLetterSpacingOnAndroidStyle } from '@suite-native/atoms';
 import { Icon } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
-import { useHandleHardwareBackNavigation } from '@suite-native/navigation';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { useInterceptNativeNavigation } from '@suite-native/navigation';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { ConnectDeviceScreenView } from '../../components/connect/ConnectDeviceScreenView';
 import { useOnDeviceReadyNavigation } from '../../hooks/useOnDeviceReadyNavigation';
@@ -17,7 +17,7 @@ const screenStyle = prepareNativeStyle(() => ({
 
 export const ConnectingDeviceScreen = () => {
     useOnDeviceReadyNavigation();
-    useHandleHardwareBackNavigation();
+    useInterceptNativeNavigation();
 
     const { applyStyle } = useNativeStyles();
 
@@ -27,7 +27,7 @@ export const ConnectingDeviceScreen = () => {
                 <ActivityIndicator size="large" />
                 <Box flexDirection="row" alignItems="center">
                     <Text
-                        variant="titleMedium"
+                        variant="headline-md"
                         style={applyStyle(resetLetterSpacingOnAndroidStyle)}
                     >
                         <Translation id="moduleConnectDevice.connectingDeviceScreen.title" />
@@ -36,7 +36,7 @@ export const ConnectingDeviceScreen = () => {
                         <Icon name="trezorLogo" size="extraLarge" />
                     </Box>
                 </Box>
-                <Text variant="highlight" color="textSubdued">
+                <Text variant="body-md-strong" color="contentSecondary">
                     <Translation id="moduleConnectDevice.connectingDeviceScreen.hodlOn" />
                 </Text>
             </VStack>

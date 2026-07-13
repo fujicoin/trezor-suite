@@ -4,4 +4,4 @@
 // Each app which integrates the SDK has its own source, e.g. source for Trezor Suite is '1'.
 export const WALLET_SDK_SOURCE = '1';
 
-export const BACKUP_APY = 4.13;
+export const WALLET_SDK_SOURCE_MOBILE = '111';

@@ -1,42 +1,28 @@
-import { MouseEvent, Ref, forwardRef } from 'react';
-import { ReactSVG } from 'react-svg';
+import { type ComponentType, type KeyboardEvent, type MouseEvent, type SVGProps } from 'react';
 
-import styled, { DefaultTheme, css } from 'styled-components';
+import styled, { css } from 'styled-components';
 
-// TODO: suite-common imports in non-suite packages should not be allowed
-// eslint-disable-next-line @typescript-eslint/no-restricted-imports
-import { IconName, icons } from '@suite-common/icons/src/icons';
-import { CSSColor, Color } from '@trezor/theme';
+import { type Color } from '@trezor/theme';
 
-import { UIVariant } from '../../config/types';
 import {
-    FrameProps,
-    FramePropsKeys,
+    type IconIntent,
+    type IconPriority,
+    type IconSize,
+    iconIntents,
+    iconPriorities,
+} from './types';
+import { mapIntentToCSS } from './utils';
+import {
+    type FrameProps,
+    type FramePropsKeys,
     pickAndPrepareFrameProps,
     withFrameProps,
 } from '../../utils/frameProps';
-import { TransientProps } from '../../utils/transientProps';
+import { type TransientProps } from '../../utils/transientProps';
 
-export const iconVariants = [
-    'primary',
-    'tertiary',
-    'default',
-    'info',
-    'warning',
-    'destructive',
-    'purple',
-    'disabled',
-] as const;
-
-export type IconVariant = Extract<UIVariant, (typeof iconVariants)[number]> | 'purple';
-
-export type ExclusiveColorOrVariant =
-    | { variant?: IconVariant; color?: undefined }
-    | {
-          variant?: undefined;
-          /** @deprecated Use only is case of absolute desperation. Prefer using `variant`. */
-          color?: CSSColor;
-      };
+export { iconIntents, iconPriorities };
+export type { IconIntent, IconPriority, IconSize };
+export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 export const allowedIconFrameProps = [
     'margin',
@@ -45,154 +31,115 @@ export const allowedIconFrameProps = [
 ] as const satisfies FramePropsKeys[];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedIconFrameProps)[number]>;
 
-export const iconSizes = {
-    extraSmall: 8,
-    small: 12,
-    medium: 16,
-    mediumLarge: 20,
-    large: 24,
-    extraLarge: 32,
-} as const;
+type ExclusiveColorOrIntent =
+    | {
+          intent?: IconIntent;
+          priority?: IconPriority;
+          isDisabled?: boolean;
+          color?: undefined;
+      }
+    | {
+          intent?: undefined;
+          priority?: undefined;
+          isDisabled?: undefined;
+          color?: Color;
+      };
 
-export type IconSize = keyof typeof iconSizes;
+type ContainerProps = {
+    $size: IconSize;
+    $intent?: IconIntent;
+    $priority?: IconPriority;
+    $isDisabled: boolean;
+    $color?: Color;
+} & TransientProps<AllowedFrameProps>;
 
-export const getIconSize = (size: IconSize | number) =>
-    typeof size === 'string' ? iconSizes[size] : size;
-
-const variantColorMap: Record<IconVariant, Color> = {
-    primary: 'iconPrimaryDefault',
-    tertiary: 'iconSubdued',
-    info: 'iconAlertBlue',
-    warning: 'iconAlertYellow',
-    destructive: 'iconAlertRed',
-    purple: 'iconAlertPurple',
-    default: 'iconDefault',
-    disabled: 'iconDisabled',
-};
-
-export const getColorForIconVariant = ({
-    variant,
-    theme,
-    color,
-}: Pick<IconProps, 'color' | 'variant'> & { theme: DefaultTheme }): CSSColor =>
-    color ?? (variant ? theme[variantColorMap[variant]] : 'currentColor');
-
-type SvgWrapperProps = TransientProps<Pick<IconProps, 'color' | 'variant'>> & {
-    $hoverColor?: string;
-    $size: number;
-};
-
-const SvgWrapper = styled.div<SvgWrapperProps & TransientProps<AllowedFrameProps>>`
+const Container = styled.div<ContainerProps>`
     ${({ $size }) => css`
         width: ${$size}px;
         height: ${$size}px;
     `}
 
     path {
-        fill: ${({ $variant, $color, theme }) =>
-            getColorForIconVariant({ variant: $variant, color: $color, theme })};
+        fill: ${({ $intent, $priority = 'primary', $isDisabled, $color, theme }) => {
+            if ($color !== undefined) {
+                return theme[$color];
+            }
+
+            if ($intent === undefined && !$isDisabled) {
+                return 'currentColor';
+            }
+
+            return mapIntentToCSS($intent ?? 'neutral', $priority, $isDisabled, theme);
+        }};
         transition: fill 0.14s;
     }
 
     flex-shrink: 0;
-
-    &:hover {
-        path {
-            fill: ${({ $hoverColor }) => $hoverColor};
-        }
-    }
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
     ${withFrameProps}
 `;
 
-const SVG = styled(ReactSVG)`
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-
-    div {
-        display: flex;
-        justify-content: center;
-    }
-
-    path {
-        transition:
-            stroke 0.15s,
-            fill 0.15s;
-    }
-` as typeof ReactSVG;
-
-export type IconProps = AllowedFrameProps & {
-    name: IconName;
-    size?: IconSize | number;
-    onClick?: (e: any) => void;
-    className?: string;
+export type IconBaseProps = AllowedFrameProps & {
+    size?: IconSize;
+    onClick?: (e: MouseEvent<HTMLDivElement> | KeyboardEvent<Element>) => void;
     'data-testid'?: string;
-    hoverColor?: string;
-} & ExclusiveColorOrVariant;
+};
 
-export const Icon = forwardRef(
-    (
-        {
-            name,
-            size = 'large',
-            color,
-            variant,
-            onClick,
-            className,
-            'data-testid': dataTest,
-            hoverColor,
-            cursor,
-            ...rest
-        }: IconProps,
-        ref?: Ref<HTMLDivElement>,
-    ) => {
-        const iconSize = getIconSize(size);
+export type IconSharedProps = IconBaseProps & ExclusiveColorOrIntent;
 
-        const handleOnKeyDown = (e: React.KeyboardEvent) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                onClick?.(e);
-            }
-        };
+export type IconProps = IconSharedProps & {
+    as: IconComponent;
+};
 
-        const handleInjection = (svg: SVGSVGElement) => {
-            svg.setAttribute('width', '100%');
-            svg.setAttribute('height', '100%');
-        };
-
-        const handleClick = (e: MouseEvent<any>) => {
+export const Icon = ({
+    as: IconComponent,
+    size = 24,
+    intent,
+    priority = 'primary',
+    isDisabled = false,
+    color,
+    onClick,
+    'data-testid': dataTest,
+    cursor,
+    ...rest
+}: IconProps) => {
+    const handleOnKeyDown = (e: KeyboardEvent<Element>) => {
+        if (e.key === 'Enter' || e.key === ' ') {
             onClick?.(e);
+        }
+    };
 
-            // We need to stop default/propagation in case the icon is rendered in popup/modal so it won't close it.
-            e.preventDefault();
-            e.stopPropagation();
-        };
+    const handleClick = (e: MouseEvent<HTMLDivElement>) => {
+        onClick?.(e);
 
-        const frameProps = pickAndPrepareFrameProps(rest, allowedIconFrameProps);
+        // We need to stop default/propagation in case the icon is rendered in popup/modal so it won't close it.
+        e.preventDefault();
+        e.stopPropagation();
+    };
 
-        return (
-            <SvgWrapper
-                $hoverColor={hoverColor}
-                $color={color}
-                $size={iconSize}
-                $variant={variant}
-                data-testid={dataTest}
-                onClick={onClick ? handleClick : undefined}
-                className={className}
-                ref={ref}
-                {...frameProps}
-                $cursor={cursor ?? (onClick ? 'pointer' : undefined)}
-            >
-                <SVG
-                    tabIndex={onClick ? 0 : undefined}
-                    onKeyDown={handleOnKeyDown}
-                    src={icons[name as IconName]}
-                    beforeInjection={handleInjection}
-                />
-            </SvgWrapper>
-        );
-    },
-);
+    const frameProps = pickAndPrepareFrameProps(rest, allowedIconFrameProps);
 
-export type { IconName };
+    return (
+        <Container
+            $size={size}
+            $intent={intent}
+            $priority={priority}
+            $isDisabled={isDisabled}
+            $color={color}
+            data-testid={dataTest}
+            onClick={onClick && !isDisabled ? handleClick : undefined}
+            {...frameProps}
+            $cursor={cursor ?? (onClick && !isDisabled ? 'pointer' : undefined)}
+        >
+            <IconComponent
+                width="100%"
+                height="100%"
+                tabIndex={onClick && !isDisabled ? 0 : undefined}
+                onKeyDown={handleOnKeyDown}
+            />
+        </Container>
+    );
+};

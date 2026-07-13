@@ -1,7 +1,8 @@
+import { Translation } from '@suite/intl';
 import { H3, Modal } from '@trezor/components';
+import { PasswordIcon } from '@trezor/icons';
 
 import { changePin } from 'src/actions/settings/deviceSettingsActions';
-import { Translation } from 'src/components/suite';
 import { useDispatch } from 'src/hooks/suite';
 
 export const PinMismatchModal = () => {
@@ -19,9 +20,9 @@ export const PinMismatchModal = () => {
                     <Translation id="TR_TRY_AGAIN" />
                 </Modal.Button>
             }
-            iconName="password"
-            variant="warning"
-            size="small"
+            icon={PasswordIcon}
+            intent="warning"
+            width={600}
         >
             <H3>
                 <Translation id="TR_PIN_MISMATCH_HEADING" />

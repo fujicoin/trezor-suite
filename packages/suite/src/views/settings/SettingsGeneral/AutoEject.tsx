@@ -1,15 +1,16 @@
 import { useState } from 'react';
 
-import { selectDevices } from '@suite-common/wallet-core';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { Anchor, SettingsAnchor } from '@suite/router';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectDevices } from '@suite-common/device';
+import { selectIsDeviceAutoEjectEnabled } from '@suite-common/wallet-core';
 import { Modal, Switch } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { ActionColumn, SectionItem, TextColumn } from '@trezor/product-components';
 
 import { setAutoEjectEnabledThunk } from 'src/actions/suite/autoEjectThunks';
-import { SettingsSectionItem } from 'src/components/settings';
-import { ActionColumn, TextColumn, Translation } from 'src/components/suite';
-import { SettingsAnchor } from 'src/constants/suite/anchors';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectIsAutoEjectEnabled } from 'src/selectors/suite/suiteSelectors';
 
 const AutoEjectConfirmationModal = ({
     onCancel,
@@ -27,13 +28,13 @@ const AutoEjectConfirmationModal = ({
         <Modal
             heading={<Translation id="TR_AUTO_EJECT_CONFIRMATION_TITLE" />}
             onCancel={onCancel}
-            size="small"
+            width={600}
             bottomContent={
                 <>
                     <Modal.Button onClick={handleConfirmClick} data-testid="@log/export-button">
                         <Translation id="TR_CONFIRM_AUTO_EJECT" />
                     </Modal.Button>
-                    <Modal.Button onClick={onCancel} variant="tertiary">
+                    <Modal.Button onClick={onCancel} intent="neutral" priority="secondary">
                         <Translation id="TR_CANCEL" />
                     </Modal.Button>
                 </>
@@ -45,28 +46,26 @@ const AutoEjectConfirmationModal = ({
 };
 
 export const AutoEject = () => {
-    const isAutoEjectEnabled = useSelector(selectIsAutoEjectEnabled);
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
+    const isAutoEjectEnabled = useSelector(selectIsDeviceAutoEjectEnabled);
     const dispatch = useDispatch();
     const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
 
     const devices = useSelector(selectDevices);
 
-    const disconnectedDevices = devices.filter(device => !device.connected && device.state);
-    const hasAnyDisconnectedWallet = disconnectedDevices.length > 0;
+    const hasAnyDisconnectedWallet = devices.some(device => !device.connected && device.state);
 
     const toggleAutoEject = () => {
-        const nextIsAutoEjectedEnabled = !isAutoEjectEnabled;
         dispatch(
             setAutoEjectEnabledThunk({
-                disconnectedDevices,
-                enabled: nextIsAutoEjectedEnabled,
+                shouldEnable: !isAutoEjectEnabled,
             }),
         );
 
         analytics.report({
-            type: EventType.SettingsGeneralAutoEject,
+            type: events.settingsGeneralAutoEjectEvent.name,
             payload: {
-                value: nextIsAutoEjectedEnabled,
+                value: !isAutoEjectEnabled,
             },
         });
     };
@@ -80,24 +79,32 @@ export const AutoEject = () => {
     };
 
     return (
-        <SettingsSectionItem anchorId={SettingsAnchor.AutoEject}>
-            <TextColumn
-                title={<Translation id="TR_AUTO_EJECT" />}
-                description={<Translation id="TR_AUTO_EJECT_DESCRIPTION" />}
-            />
-            <ActionColumn>
-                <Switch
-                    isChecked={isAutoEjectEnabled}
-                    onChange={handleSubmit}
-                    data-testid="@settings/auto-eject-switch"
-                />
-            </ActionColumn>
-            {isConfirmationModalOpen && (
-                <AutoEjectConfirmationModal
-                    onCancel={() => setIsConfirmationModalOpen(false)}
-                    onSubmit={toggleAutoEject}
-                />
+        <Anchor anchorId={SettingsAnchor.AutoEject}>
+            {({ anchorId, anchorRef, shouldHighlight }) => (
+                <SectionItem
+                    data-testid={anchorId}
+                    ref={anchorRef}
+                    shouldHighlight={shouldHighlight}
+                >
+                    <TextColumn
+                        title={<Translation id="TR_AUTO_EJECT" />}
+                        description={<Translation id="TR_AUTO_EJECT_DESCRIPTION" />}
+                    />
+                    <ActionColumn>
+                        <Switch
+                            isChecked={isAutoEjectEnabled}
+                            onChange={handleSubmit}
+                            data-testid="@settings/auto-eject-switch"
+                        />
+                    </ActionColumn>
+                    {isConfirmationModalOpen && (
+                        <AutoEjectConfirmationModal
+                            onCancel={() => setIsConfirmationModalOpen(false)}
+                            onSubmit={toggleAutoEject}
+                        />
+                    )}
+                </SectionItem>
             )}
-        </SettingsSectionItem>
+        </Anchor>
     );
 };

@@ -1,21 +1,20 @@
-import { G } from '@mobily/ts-belt';
-
 import {
-    NativeStyleObject,
+    type NativeStyleObject,
     mergeNativeStyleObjects,
     prepareNativeStyle,
     useNativeStyles,
-} from '@trezor/styles';
+} from '@trezor/styles-native';
+import { isNotNullOrUndefined } from '@trezor/utils';
 
-import { Box, BoxProps } from './Box';
+import { Box, type BoxProps } from './Box';
 
-type DividerProps = Omit<BoxProps, 'style'> & {
+export type DividerProps = Omit<BoxProps, 'style'> & {
     style?: NativeStyleObject;
 };
 
 const dividerStyle = prepareNativeStyle(utils => ({
     borderBottomWidth: utils.borders.widths.small,
-    borderBottomColor: utils.colors.borderElevation1,
+    borderBottomColor: utils.colors.borderNeutral,
     flex: 1,
 }));
 
@@ -24,7 +23,7 @@ export const Divider = ({ style, ...props }: DividerProps) => {
 
     const defaultStyle = applyStyle(dividerStyle);
 
-    const mergedStyle = G.isNotNullable(style)
+    const mergedStyle = isNotNullOrUndefined(style)
         ? mergeNativeStyleObjects([defaultStyle, style])
         : defaultStyle;
 

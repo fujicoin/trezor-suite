@@ -1,5 +1,30 @@
-import { prepareAnalyticsReducer } from '@suite-common/analytics';
+import { createMemoryHistory } from 'history';
+
+import { debugInitialState } from '@suite/debug';
+import { prepareFlagsReducer } from '@suite/flags';
+import { lockRouter, locksInitialState, locksReducer } from '@suite/locks';
+import { metadataReducer } from '@suite/metadata';
+import { modalReducer } from '@suite/modal';
+import type { PathString } from '@suite/router';
+import {
+    createSuiteRouterHistory,
+    goto,
+    initialRedirection,
+    onLocationChange,
+    routerAppChanged,
+    routerInit,
+    routerLocationChange,
+    routerMiddleware,
+    routerReducer,
+} from '@suite/router';
+import {
+    prepareSuiteSettingsReducer,
+    suiteSettingsActions,
+    suiteSettingsInitialState,
+} from '@suite/settings';
+import { prepareAnalyticsReducer } from '@suite-common/analytics-redux';
 import { connectInitThunk } from '@suite-common/connect-init';
+import { prepareDeviceReducer } from '@suite-common/device';
 import {
     fetchConfigThunk,
     initMessageSystemThunk,
@@ -7,6 +32,7 @@ import {
     prepareMessageSystemReducer,
 } from '@suite-common/message-system';
 import { validJws } from '@suite-common/message-system/src/__fixtures__/messageSystemActions';
+import { extraDependenciesCommonMock } from '@suite-common/test-utils';
 import {
     initTokenDefinitionsThunk,
     periodicCheckTokenDefinitionsThunk,
@@ -20,32 +46,28 @@ import {
     periodicCheckStakeDataThunk,
     periodicFetchFiatRatesThunk,
     preloadFeeInfoThunk,
-    prepareDeviceReducer,
+    stakeDataActions,
     updateMissingTxFiatRatesThunk,
 } from '@suite-common/wallet-core';
 import { walletConnectInitThunk } from '@suite-common/walletconnect';
 import TrezorConnect from '@trezor/connect';
 import { initialBreakpointFlags } from '@trezor/theme';
 
-import { ROUTER, SUITE } from 'src/actions/suite/constants';
+import { SUITE } from 'src/actions/suite/constants';
 import { init } from 'src/actions/suite/initAction';
-import suiteMiddleware from 'src/middlewares/suite/suiteMiddleware';
-import metadataReducer from 'src/reducers/suite/metadataReducer';
-import modalReducer from 'src/reducers/suite/modalReducer';
-import routerReducer from 'src/reducers/suite/routerReducer';
+import { prepareSuiteMiddleware } from 'src/middlewares/suite/suiteMiddleware';
 import suiteReducer from 'src/reducers/suite/suiteReducer';
 import windowReducer from 'src/reducers/suite/windowReducer';
 import walletReducers from 'src/reducers/wallet';
 import { extraDependencies } from 'src/support/extraDependencies';
-import { setLocation, setNavigate } from 'src/support/suite/navigationService';
 import { configureStore } from 'src/support/tests/configureStore';
 import type { AppState } from 'src/types/suite';
-
-import { appChanged } from '../suiteActions';
 
 const deviceReducer = prepareDeviceReducer(extraDependencies);
 const analyticsReducer = prepareAnalyticsReducer(extraDependencies);
 const messageSystemReducer = prepareMessageSystemReducer(extraDependencies);
+const flagsReducer = prepareFlagsReducer(extraDependencies);
+const suiteSettingsReducer = prepareSuiteSettingsReducer(extraDependencies);
 
 global.fetch = jest.fn().mockImplementation(() =>
     Promise.resolve({
@@ -56,21 +78,30 @@ global.fetch = jest.fn().mockImplementation(() =>
 
 const EMPTY_ACTION = { type: 'foo' } as any;
 
-const getInitialState = (initialRun?: boolean) => ({
-    suite: {
-        ...suiteReducer(undefined, EMPTY_ACTION),
-        ...(initialRun !== undefined ? ({ flags: { initialRun } } as any) : {}),
-    },
-    router: routerReducer(undefined, EMPTY_ACTION),
-    analytics: analyticsReducer(undefined, EMPTY_ACTION),
-    modal: modalReducer(undefined, EMPTY_ACTION),
-    wallet: walletReducers(undefined, EMPTY_ACTION),
-    messageSystem: messageSystemReducer(undefined, EMPTY_ACTION),
-    device: deviceReducer(undefined, EMPTY_ACTION),
-    metadata: metadataReducer(undefined, EMPTY_ACTION),
-    firmware: { firmwareUpdateSource: 'production' },
-    window: windowReducer({ ...initialBreakpointFlags, isVisible: true }, EMPTY_ACTION),
-});
+const getInitialState = (initialRun?: boolean) => {
+    const initialFlagsState = flagsReducer(undefined, EMPTY_ACTION);
+
+    return {
+        suite: suiteReducer(undefined, EMPTY_ACTION),
+        suiteSettings: suiteSettingsInitialState,
+        debug: debugInitialState,
+        flags: {
+            ...(initialRun !== undefined
+                ? { ...initialFlagsState, initialRun }
+                : { ...initialFlagsState }),
+        },
+        locks: locksInitialState,
+        router: routerReducer(undefined, EMPTY_ACTION),
+        analytics: analyticsReducer(undefined, EMPTY_ACTION),
+        modal: modalReducer(undefined, EMPTY_ACTION),
+        wallet: walletReducers(undefined, EMPTY_ACTION),
+        messageSystem: messageSystemReducer(undefined, EMPTY_ACTION),
+        device: deviceReducer(undefined, EMPTY_ACTION),
+        metadata: metadataReducer(undefined, EMPTY_ACTION),
+        firmware: { firmwareChannel: 'production' },
+        window: windowReducer({ ...initialBreakpointFlags, isVisible: true }, EMPTY_ACTION),
+    };
+};
 
 type Fixture = {
     description: string;
@@ -94,16 +125,22 @@ const fixtures: Fixture[] = [
             SUITE.INIT,
             initDevices.pending.type,
             initDevices.fulfilled.type,
-            SUITE.SET_LANGUAGE,
+            suiteSettingsActions.setLanguage.type,
             initMessageSystemThunk.pending.type,
             fetchConfigThunk.pending.type,
             messageSystemActions.fetchSuccessUpdate.type,
             fetchConfigThunk.fulfilled.type,
             initMessageSystemThunk.fulfilled.type,
-            appChanged.type,
-            ROUTER.LOCATION_CHANGE,
-            SUITE.LOCK_ROUTER,
+            initialRedirection.pending.type,
+            goto.pending.type,
+            onLocationChange.pending.type,
+            routerAppChanged.type,
+            routerLocationChange.type,
+            lockRouter.type,
             connectInitThunk.pending.type,
+            onLocationChange.fulfilled.type,
+            goto.fulfilled.type,
+            initialRedirection.fulfilled.type,
             connectInitThunk.fulfilled.type,
             initBlockchainThunk.pending.type,
             preloadFeeInfoThunk.pending.type,
@@ -124,10 +161,13 @@ const fixtures: Fixture[] = [
             periodicFetchFiatRatesThunk.fulfilled.type,
             updateMissingTxFiatRatesThunk.pending.type,
             updateMissingTxFiatRatesThunk.fulfilled.type,
+            routerInit.pending.type,
             periodicCheckStakeDataThunk.pending.type,
             initStakeDataThunk.pending.type,
+            stakeDataActions.fetchStakeDataRequest.type,
             walletConnectInitThunk.pending.type,
             SUITE.READY,
+            stakeDataActions.fetchStakeDataFailure.type,
         ],
     },
     {
@@ -141,13 +181,15 @@ const fixtures: Fixture[] = [
             SUITE.INIT,
             initDevices.pending.type,
             initDevices.fulfilled.type,
-            SUITE.SET_LANGUAGE,
+            suiteSettingsActions.setLanguage.type,
             initMessageSystemThunk.pending.type,
             fetchConfigThunk.pending.type,
             messageSystemActions.fetchSuccessUpdate.type,
             fetchConfigThunk.fulfilled.type,
             initMessageSystemThunk.fulfilled.type,
+            initialRedirection.pending.type,
             connectInitThunk.pending.type,
+            initialRedirection.fulfilled.type,
             connectInitThunk.fulfilled.type,
             initBlockchainThunk.pending.type,
             preloadFeeInfoThunk.pending.type,
@@ -168,12 +210,16 @@ const fixtures: Fixture[] = [
             periodicFetchFiatRatesThunk.fulfilled.type,
             updateMissingTxFiatRatesThunk.pending.type,
             updateMissingTxFiatRatesThunk.fulfilled.type,
-            appChanged.type,
-            ROUTER.LOCATION_CHANGE,
+            routerInit.pending.type,
+            onLocationChange.pending.type,
+            routerAppChanged.type,
+            routerLocationChange.type,
             periodicCheckStakeDataThunk.pending.type,
             initStakeDataThunk.pending.type,
+            stakeDataActions.fetchStakeDataRequest.type,
             walletConnectInitThunk.pending.type,
             SUITE.READY,
+            stakeDataActions.fetchStakeDataFailure.type,
         ],
     },
     {
@@ -186,13 +232,15 @@ const fixtures: Fixture[] = [
             SUITE.INIT,
             initDevices.pending.type,
             initDevices.fulfilled.type,
-            SUITE.SET_LANGUAGE,
+            suiteSettingsActions.setLanguage.type,
             initMessageSystemThunk.pending.type,
             fetchConfigThunk.pending.type,
             messageSystemActions.fetchSuccessUpdate.type,
             fetchConfigThunk.fulfilled.type,
             initMessageSystemThunk.fulfilled.type,
+            initialRedirection.pending.type,
             connectInitThunk.pending.type,
+            initialRedirection.fulfilled.type,
             connectInitThunk.fulfilled.type,
             initBlockchainThunk.pending.type,
             preloadFeeInfoThunk.pending.type,
@@ -213,11 +261,15 @@ const fixtures: Fixture[] = [
             periodicFetchFiatRatesThunk.fulfilled.type,
             updateMissingTxFiatRatesThunk.pending.type,
             updateMissingTxFiatRatesThunk.fulfilled.type,
-            ROUTER.LOCATION_CHANGE,
+            routerInit.pending.type,
+            onLocationChange.pending.type,
+            routerLocationChange.type,
             periodicCheckStakeDataThunk.pending.type,
             initStakeDataThunk.pending.type,
+            stakeDataActions.fetchStakeDataRequest.type,
             walletConnectInitThunk.pending.type,
             SUITE.READY,
+            stakeDataActions.fetchStakeDataFailure.type,
         ],
     },
     {
@@ -231,16 +283,22 @@ const fixtures: Fixture[] = [
             SUITE.INIT,
             initDevices.pending.type,
             initDevices.fulfilled.type,
-            SUITE.SET_LANGUAGE,
+            suiteSettingsActions.setLanguage.type,
             initMessageSystemThunk.pending.type,
             fetchConfigThunk.pending.type,
             messageSystemActions.fetchSuccessUpdate.type,
             fetchConfigThunk.fulfilled.type,
             initMessageSystemThunk.fulfilled.type,
-            appChanged.type,
-            ROUTER.LOCATION_CHANGE,
-            SUITE.LOCK_ROUTER,
+            initialRedirection.pending.type,
+            goto.pending.type,
+            onLocationChange.pending.type,
+            routerAppChanged.type,
+            routerLocationChange.type,
+            lockRouter.type,
             connectInitThunk.pending.type,
+            onLocationChange.fulfilled.type,
+            goto.fulfilled.type,
+            initialRedirection.fulfilled.type,
             connectInitThunk.rejected.type,
             SUITE.ERROR,
         ],
@@ -250,32 +308,42 @@ const fixtures: Fixture[] = [
 type State = ReturnType<typeof getInitialState>;
 
 const initStore = (state: State) => {
-    const mockStore = configureStore<State, any>([suiteMiddleware]);
+    const memoryHistory = createMemoryHistory();
+    const suiteRouterHistory = createSuiteRouterHistory({ history: memoryHistory });
+    const mockStore = configureStore<State, any>(
+        [
+            prepareSuiteMiddleware(() => extraDependenciesCommonMock),
+            routerMiddleware(() => extraDependenciesCommonMock),
+        ],
+        {
+            services: {
+                suiteRouterHistory,
+            },
+        },
+    );
     const store = mockStore(state);
     store.subscribe(() => {
         const action = store.getActions().slice(-1)[0];
-        const { suite, router } = store.getState();
+        const { suite, suiteSettings, router, locks } = store.getState();
         store.getState().suite = suiteReducer(suite, action);
+        store.getState().suiteSettings = suiteSettingsReducer(suiteSettings, action);
         store.getState().router = routerReducer(router, action);
+        store.getState().locks = locksReducer(locks, action);
     });
 
-    return store;
+    return {
+        store,
+        suiteRouterHistory,
+    };
 };
 
 describe('Suite init action', () => {
     fixtures.forEach(({ description, options, actions }) => {
         it(description, async () => {
-            const store = initStore(getInitialState(options.initialRun));
+            const { store, suiteRouterHistory } = initStore(getInitialState(options.initialRun));
 
             if (options?.initialPath) {
-                setLocation({
-                    pathname: options.initialPath,
-                    state: undefined,
-                    key: '',
-                    hash: '',
-                    search: '',
-                });
-                setNavigate(() => {});
+                suiteRouterHistory.navigate({ pathname: options.initialPath as PathString });
             }
 
             if (options?.trezorConnectError) {

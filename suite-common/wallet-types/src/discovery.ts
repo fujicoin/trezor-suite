@@ -1,15 +1,20 @@
-import type { DeviceUniquePath } from '@trezor/connect';
-import { BundleProgress, StaticSessionId } from '@trezor/connect';
+import type { BundleProgress, DeviceUniquePath, StaticSessionId } from '@trezor/connect';
+
+export type DiscoveryCallIds = {
+    initialDeviceState: string;
+    emptyPassphraseCheck: string;
+    discoverAccounts: string;
+    confirmDeviceState: string;
+};
 
 type CommonDiscoveryStatus = {
     isAddingHiddenWallet?: boolean; // to control visibility of special loader
     isAddingExistingWallet?: boolean; // to control visibility of special loader
-    isAddingHiddenWalletWithRespectToSettings?: boolean;
     hasLoadedAnyNonEmptyAccount?: boolean; // NOTE: used to indicate the the discovery started loading actual accounts
-    emptyWallet?: boolean;
     passphraseOnDevice?: boolean;
     startTimestamp?: number;
     passphraseSubmitted?: boolean;
+    useScopedCallIds?: boolean;
 };
 
 export type DiscoveryStatus = CommonDiscoveryStatus &
@@ -19,9 +24,6 @@ export type DiscoveryStatus = CommonDiscoveryStatus &
           }
         | {
               status: 'enter-passphrase';
-          }
-        | {
-              status: 'passphrase-enable-on-device';
           }
         | {
               status: 'passphrase-duplicate';
@@ -40,7 +42,7 @@ export type DiscoveryStatus = CommonDiscoveryStatus &
           }
         | {
               status: 'confirm-empty-passphrase';
-              //   accountsToBeCreated: Account[];
+              accountFailed?: boolean;
           }
         | {
               status: 'complete';

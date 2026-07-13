@@ -1,22 +1,27 @@
 import {
-    BleError,
+    type BleError,
     BleErrorCode,
     BleManager,
-    Characteristic,
-    ConnectionOptions,
-    Device,
+    type Characteristic,
+    type ConnectionOptions,
+    type Device,
     LogLevel,
-    ScanOptions,
-    State,
-    Subscription,
+    type State,
+    type Subscription,
 } from 'react-native-ble-plx';
 
 import { EventEmitter } from 'events';
 
-import { readMessageBuffer } from '@trezor/transport/src/utils/readMessageBuffer';
+import { readMessageBuffer } from '@trezor/transport-common';
 import type { TimerId } from '@trezor/type-utils';
 
-import { BluetoothDevice, DeviceConnectionStatusChangeEvent } from './types';
+import {
+    type BluetoothDevice,
+    type DeviceBatteryLevelChangeEvent,
+    type DeviceConnectionStatusChangeEvent,
+    type DevicePushNotificationEvent,
+} from './types';
+import { base64ToByteArray, toBluetoothDevice } from './utils';
 
 type DeviceId = string;
 
@@ -25,13 +30,30 @@ type BleDeviceWithMetadata = {
     writeCharacteristic: Characteristic;
 };
 
-const eventNames = {
-    deviceConnectionStatusChange: 'deviceConnectionStatusChange',
-    nearbyDevicesChange: 'nearbyDevicesChange',
-};
+const TrezorService = {
+    // UUID of the Bluetooth service used to identify a BLE device as Trezor.
+    uuid: '8c000001-a59b-4d58-a9ad-073df69fa1b1',
+    characteristics: {
+        writeUuid: '8c000002-a59b-4d58-a9ad-073df69fa1b1',
+        notifyUuid: '8c000003-a59b-4d58-a9ad-073df69fa1b1',
+        pushUuid: '8c000004-a59b-4d58-a9ad-073df69fa1b1',
+    },
+} as const;
 
-// UUID of the Bluetooth service used to identify a BLE device as Trezor.
-const SERVICE_UUID = '8c000001-a59b-4d58-a9ad-073df69fa1b1';
+const BatteryService = {
+    // UUID of the standardized Battery service.
+    uuid: '0000180f-0000-1000-8000-00805f9b34fb',
+    characteristics: {
+        batteryLevelUuid: '00002a19-0000-1000-8000-00805f9b34fb',
+    },
+} as const;
+
+const eventNames = {
+    nearbyDevicesChange: 'nearbyDevicesChange',
+    deviceConnectionStatusChange: 'deviceConnectionStatusChange',
+    devicePushNotification: 'devicePushNotification',
+    deviceBatteryLevelChange: 'deviceBatteryLevelChange',
+} as const;
 
 const DEBUG_LOGS = false;
 
@@ -45,15 +67,6 @@ const debugLog = (...args: any[]) => {
 const errorLog = (...args: any[]) => {
     console.error('BluetoothManager', ...args);
 };
-
-const toBluetoothDevice = (device: Device): BluetoothDevice => ({
-    id: device.id,
-    name: device.name ?? 'Unknown',
-    // @suite-common utils expect the Bluetooth company identifier (first two bytes) to be trimmed
-    manufacturerData: Array.from(Buffer.from(device.manufacturerData ?? '', 'base64')).slice(2),
-    lastUpdatedTimestamp: Date.now(),
-    connectionStatus: { type: 'disconnected' },
-});
 
 class BluetoothManager {
     private bleManager: BleManager | null = null;
@@ -78,11 +91,25 @@ class BluetoothManager {
 
     public onNearbyDevicesChange = (
         listener: (nearbyDevices: BluetoothDevice[]) => void,
-    ): Subscription => {
-        this.eventEmitter.on(eventNames.nearbyDevicesChange, listener);
+    ): Subscription => this.subscribeTo(eventNames.nearbyDevicesChange, listener);
+
+    public onDeviceConnectionStatusChange = (
+        listener: (event: DeviceConnectionStatusChangeEvent) => void,
+    ): Subscription => this.subscribeTo(eventNames.deviceConnectionStatusChange, listener);
+
+    public onDevicePushNotification = (
+        listener: (event: DevicePushNotificationEvent) => void,
+    ): Subscription => this.subscribeTo(eventNames.devicePushNotification, listener);
+
+    public onDeviceBatteryLevelChange = (
+        listener: (event: DeviceBatteryLevelChangeEvent) => void,
+    ): Subscription => this.subscribeTo(eventNames.deviceBatteryLevelChange, listener);
+
+    private subscribeTo = (eventName: keyof typeof eventNames, listener: (arg: any) => void) => {
+        this.eventEmitter.on(eventName, listener);
 
         return {
-            remove: () => this.eventEmitter.off(eventNames.nearbyDevicesChange, listener),
+            remove: () => this.eventEmitter.off(eventName, listener),
         };
     };
 
@@ -90,57 +117,67 @@ class BluetoothManager {
         this.eventEmitter.emit(eventNames.nearbyDevicesChange, this.nearbyDevices);
     };
 
-    public onDeviceConnectionStatusChange = (
-        listener: (event: DeviceConnectionStatusChangeEvent) => void,
-    ): Subscription => {
-        this.eventEmitter.on(eventNames.deviceConnectionStatusChange, listener);
-
-        return {
-            remove: () => this.eventEmitter.off(eventNames.deviceConnectionStatusChange, listener),
-        };
-    };
-
     private updateDeviceConnectionStatusChange = (event: DeviceConnectionStatusChangeEvent) => {
         const { deviceId, connectionStatus } = event;
-        this.nearbyDevices = this.nearbyDevices.map(d =>
-            // Make sure that pairing-error is the final state, reconnecting is not possible.
-            d.id === deviceId && d.connectionStatus.type !== 'pairing-error'
-                ? { ...d, lastUpdatedTimestamp: Date.now(), connectionStatus }
-                : d,
-        );
-        // TODO: Do not emit any other events when the connection status is pairing-error?
+        if (
+            connectionStatus.type === 'pairing-canceled' ||
+            connectionStatus.type === 'pairing-error'
+        ) {
+            // If pairing is canceled or fails, the device vanishes and is no longer connectable.
+            this.nearbyDevices = this.nearbyDevices.filter(d => d.id !== deviceId);
+        } else {
+            this.nearbyDevices = this.nearbyDevices.map(d =>
+                d.id === deviceId
+                    ? { ...d, lastUpdatedTimestamp: Date.now(), connectionStatus }
+                    : d,
+            );
+        }
         this.eventEmitter.emit(eventNames.deviceConnectionStatusChange, event);
         this.emitNearbyDevicesChange();
     };
 
-    public startDeviceScan = () => {
-        const options: ScanOptions = {
-            allowDuplicates: true, // ensures we get frequent scan updates even on iOS
-        };
-        this.getBleManager().startDeviceScan([SERVICE_UUID], options, (error, scannedDevice) => {
-            if (error) {
-                errorLog('Scan error', error);
-                this.stopStaleNearbyDevicesRemoval();
-            }
-            if (scannedDevice) {
-                debugLog(`Scanned device ${scannedDevice}`);
-                const nearbyDevice = toBluetoothDevice(scannedDevice);
-                const nearbyDeviceIndex = this.nearbyDevices.findIndex(
-                    d => d.id === nearbyDevice.id,
-                );
-                if (nearbyDeviceIndex >= 0) {
-                    const oldNearbyDevice = this.nearbyDevices[nearbyDeviceIndex];
-                    nearbyDevice.connectionStatus = oldNearbyDevice.connectionStatus;
-                    this.nearbyDevices[nearbyDeviceIndex] = nearbyDevice;
-                    if (nearbyDevice.manufacturerData[0] !== oldNearbyDevice.manufacturerData[0]) {
+    private emitDevicePushNotification = (event: DevicePushNotificationEvent) => {
+        this.eventEmitter.emit(eventNames.devicePushNotification, event);
+    };
+
+    private emitDeviceBatteryLevelChange = (event: DeviceBatteryLevelChangeEvent) => {
+        this.eventEmitter.emit(eventNames.deviceBatteryLevelChange, event);
+    };
+
+    public startDeviceScan = (errorHandler?: (error: BleError) => void) => {
+        this.getBleManager().startDeviceScan(
+            [TrezorService.uuid],
+            { allowDuplicates: true }, // ensures we get frequent scan updates even on iOS
+            (error, scannedDevice) => {
+                if (error) {
+                    errorLog('Scan error', error);
+                    this.stopStaleNearbyDevicesRemoval();
+                    errorHandler?.(error);
+                }
+                if (scannedDevice) {
+                    debugLog(`Scanned device ${scannedDevice}`);
+                    const nearbyDevice = toBluetoothDevice(scannedDevice);
+                    const nearbyDeviceIndex = this.nearbyDevices.findIndex(
+                        d => d.id === nearbyDevice.id,
+                    );
+                    if (nearbyDeviceIndex >= 0) {
+                        const { nearbyDevices } = this;
+                        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+                        const oldNearbyDevice: BluetoothDevice = nearbyDevices[nearbyDeviceIndex];
+                        nearbyDevice.connectionStatus = oldNearbyDevice.connectionStatus;
+                        this.nearbyDevices[nearbyDeviceIndex] = nearbyDevice;
+                        if (
+                            nearbyDevice.manufacturerData[0] !== oldNearbyDevice.manufacturerData[0]
+                        ) {
+                            this.emitNearbyDevicesChange();
+                        }
+                    } else {
+                        this.nearbyDevices.unshift(nearbyDevice);
                         this.emitNearbyDevicesChange();
                     }
-                } else {
-                    this.nearbyDevices.unshift(nearbyDevice);
-                    this.emitNearbyDevicesChange();
                 }
-            }
-        });
+            },
+        );
         this.startStaleNearbyDevicesRemoval();
     };
 
@@ -170,17 +207,11 @@ class BluetoothManager {
             return;
         }
 
-        const now = Date.now();
         // Since we get frequent scan updates, we can filter disconnected devices quite aggressively.
-        const disconnectedCutoffTimestamp = now - 3_000;
-        // Pairing requests timeout after 30 seconds on both platforms.
-        const pairingErrorCutoffTimestamp = now - 30_000;
-
+        const disconnectedCutoffTimestamp = Date.now() - 3_000;
         const filteredNearbyDevices = this.nearbyDevices.filter(
             ({ lastUpdatedTimestamp, connectionStatus: { type: status } }) =>
-                (status !== 'disconnected' && status !== 'pairing-error') ||
-                (status === 'disconnected' && lastUpdatedTimestamp > disconnectedCutoffTimestamp) ||
-                (status === 'pairing-error' && lastUpdatedTimestamp > pairingErrorCutoffTimestamp),
+                status !== 'disconnected' || lastUpdatedTimestamp > disconnectedCutoffTimestamp,
         );
         if (filteredNearbyDevices.length !== this.nearbyDevices.length) {
             this.nearbyDevices = filteredNearbyDevices;
@@ -211,14 +242,18 @@ class BluetoothManager {
         // Get a list of known devices by their identifiers.
         const devices = await this.getBleManager().devices([deviceId]);
         debugLog(`Found ${devices.length} already known device(s)`);
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
         [device] = devices;
 
         if (!device) {
             // Get a list of the peripherals currently connected to the system which have discovered
             // services. Connected to system doesn't mean connected to our app, we check that below.
-            const connectedDevices = await this.getBleManager().connectedDevices([SERVICE_UUID]);
+            const connectedDevices = await this.getBleManager().connectedDevices([
+                TrezorService.uuid,
+            ]);
             const matchingConnectedDevices = connectedDevices.filter(d => d.id === deviceId);
             debugLog(`Found ${matchingConnectedDevices.length} already connected device(s)`);
+            // @ts-expect-error: indexing with noUncheckedIndexedAccess
             [device] = matchingConnectedDevices;
         }
 
@@ -299,25 +334,30 @@ class BluetoothManager {
     private discoverAndTestCharacteristics = async (device: Device) => {
         await device.discoverAllServicesAndCharacteristics();
 
-        const characteristics: Characteristic[] =
-            await device.characteristicsForService(SERVICE_UUID);
-        if (characteristics.length === 0) {
-            throw new Error(
-                'No device characteristics found. Make sure the device is connected and has the correct service UUID.',
-            );
-        }
+        const trezorCharacteristics = await device.characteristicsForService(TrezorService.uuid);
+        const batteryCharacteristics = await device.characteristicsForService(BatteryService.uuid);
 
         let writeCharacteristic: Characteristic | undefined;
         let notifyCharacteristic: Characteristic | undefined;
-        for (const characteristic of characteristics) {
-            if (characteristic.isWritableWithoutResponse) {
-                debugLog('Found write characteristic: ', characteristic.uuid);
+        let pushCharacteristic: Characteristic | undefined;
+        let batteryCharacteristic: Characteristic | undefined;
+
+        for (const characteristic of trezorCharacteristics) {
+            if (characteristic.uuid === TrezorService.characteristics.writeUuid) {
+                debugLog('Found write characteristic', characteristic.uuid);
                 writeCharacteristic = characteristic;
-            } else if (characteristic.isNotifiable) {
-                debugLog('Found notify characteristic: ', characteristic.uuid);
+            } else if (characteristic.uuid === TrezorService.characteristics.notifyUuid) {
+                debugLog('Found notify characteristic', characteristic.uuid);
                 notifyCharacteristic = characteristic;
-            } else {
-                debugLog('Found other unknown characteristic: ', characteristic.uuid);
+            } else if (characteristic.uuid === TrezorService.characteristics.pushUuid) {
+                debugLog('Found push characteristic', characteristic.uuid);
+                pushCharacteristic = characteristic;
+            }
+        }
+        for (const characteristic of batteryCharacteristics) {
+            if (characteristic.uuid === BatteryService.characteristics.batteryLevelUuid) {
+                debugLog('Found battery characteristic', characteristic.uuid);
+                batteryCharacteristic = characteristic;
             }
         }
 
@@ -327,6 +367,12 @@ class BluetoothManager {
         if (!notifyCharacteristic) {
             throw new Error('Notify characteristic not found.');
         }
+        if (!pushCharacteristic) {
+            throw new Error('Push characteristic not found.');
+        }
+        if (!batteryCharacteristic) {
+            throw new Error('Battery characteristic not found.');
+        }
 
         try {
             await this.attemptToWriteAfterConnect(device, writeCharacteristic);
@@ -334,7 +380,7 @@ class BluetoothManager {
             debugLog(`Device ${device.id} pairing canceled`);
             this.updateDeviceConnectionStatusChange({
                 deviceId: device.id,
-                connectionStatus: { type: 'pairing-error', error: error.message },
+                connectionStatus: { type: 'pairing-canceled' },
             });
             // If a pairing request is first accepted on the device but later rejected on the host,
             // the bluetooth connection might stay open, and thus we have to cancel it explicitly.
@@ -342,24 +388,21 @@ class BluetoothManager {
             throw error;
         }
 
-        device.monitorCharacteristicForService(
-            SERVICE_UUID,
-            notifyCharacteristic.uuid,
-            (error, characteristic) => {
-                if (error) {
-                    debugLog('Error monitoring characteristic', error);
-                } else if (characteristic) {
-                    const { value } = characteristic;
-                    debugLog('Received data', value);
-                    if (value) {
-                        debugLog('Processing device message', device.id, value);
-                        this.readBuffer.onMessage(device.id, Buffer.from(value, 'base64'));
-                    }
-                } else {
-                    errorLog('No characteristic received');
-                }
-            },
-        );
+        this.monitorCharacteristic(notifyCharacteristic, 'notify', (value: string) => {
+            this.readBuffer.onMessage(device.id, Buffer.from(value, 'base64'));
+        });
+        this.monitorCharacteristic(pushCharacteristic, 'push', (value: string) => {
+            this.emitDevicePushNotification({
+                deviceId: device.id,
+                data: base64ToByteArray(value),
+            });
+        });
+        this.monitorCharacteristic(batteryCharacteristic, 'battery', (value: string) => {
+            this.emitDeviceBatteryLevelChange({
+                deviceId: device.id,
+                data: base64ToByteArray(value),
+            });
+        });
 
         debugLog(`Adding device ${device.id} to connected devices`);
         this.connectedDevices[device.id] = {
@@ -388,6 +431,24 @@ class BluetoothManager {
             clearTimeout(timeoutId);
         }
     };
+
+    private monitorCharacteristic = (
+        characteristicToMonitor: Characteristic,
+        name: 'notify' | 'push' | 'battery',
+        callback: (value: string) => void,
+    ) =>
+        characteristicToMonitor.monitor((error, characteristic) => {
+            if (error) {
+                debugLog(`Error monitoring ${name} characteristic:`, error);
+            } else if (characteristic) {
+                const { deviceID, value } = characteristic;
+                debugLog(`Received ${name} characteristic data:`, value);
+                if (value) {
+                    debugLog(`Processing message for device ${deviceID}:`, value);
+                    callback(value);
+                }
+            }
+        });
 
     public disconnectDevice = ({ deviceId }: { deviceId: DeviceId }) => {
         debugLog(`Disconnecting device ${deviceId}`);

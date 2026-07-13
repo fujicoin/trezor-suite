@@ -1,22 +1,29 @@
-import { Route } from '@suite-common/suite-types';
+import { selectSelectedAccount } from '@suite/account';
+import { Translation } from '@suite/intl';
+import {
+    isAccountTabRoute,
+    resolveEffectiveBackgroundRouteName,
+    selectRoute,
+    selectSuiteRouterHistoryDep,
+} from '@suite/router';
+import { useServices } from '@suite-common/dependency-injection';
 
 import { useSelector } from 'src/hooks/suite';
-import { selectIsAccountTabPage } from 'src/reducers/suite/routerReducer';
-import { selectSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
 
 import { AccountName } from './AccountName/AccountName';
 import { AccountSubpageName } from './AccountName/AccountSubpageName';
 import { BasicName } from './BasicName';
 import { SettingsName } from './SettingsName';
 
-interface PageNameProps {
-    backRoute?: Route['name'];
-}
-
-export const PageName = ({ backRoute }: PageNameProps) => {
-    const currentRoute = useSelector(state => state.router.route?.name);
+export const PageName = () => {
+    const route = useSelector(selectRoute);
+    const { suiteRouterHistory } = useServices(selectSuiteRouterHistoryDep);
+    const currentRoute = resolveEffectiveBackgroundRouteName(
+        route,
+        suiteRouterHistory.getLocation(),
+    );
     const selectedAccount = useSelector(selectSelectedAccount);
-    const isAccountTabPage = useSelector(selectIsAccountTabPage);
+    const isAccountTabPage = isAccountTabRoute(currentRoute);
 
     // TODO: does not work properly with foreground apps, e.g. FW update,
     // as the `route` does not indicate the current page
@@ -25,12 +32,25 @@ export const PageName = ({ backRoute }: PageNameProps) => {
         return <SettingsName />;
     }
 
-    if (selectedAccount && isAccountTabPage) {
-        return <AccountName selectedAccount={selectedAccount} />;
-    }
-    if (selectedAccount) {
-        return <AccountSubpageName selectedAccount={selectedAccount} backRoute={backRoute} />;
+    if (currentRoute?.includes('earn')) {
+        return (
+            <BasicName>
+                <Translation id="TR_EARN" />
+            </BasicName>
+        );
     }
 
-    return <BasicName nameId="TR_DASHBOARD" />;
+    if (selectedAccount && isAccountTabPage) {
+        return <AccountName key={selectedAccount.key} selectedAccount={selectedAccount} />;
+    }
+
+    if (selectedAccount) {
+        return <AccountSubpageName key={selectedAccount.key} selectedAccount={selectedAccount} />;
+    }
+
+    return (
+        <BasicName>
+            <Translation id="TR_DASHBOARD" />
+        </BasicName>
+    );
 };

@@ -1,18 +1,41 @@
-const ICONS_URL_BASE = 'https://data.trezor.io/suite/icons/coins/';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+import {
+    COIN_IMAGE_SIZES,
+    type CoinImageSize,
+    ICONS_URL_BASE,
+    createCoinImageName,
+} from '@suite-common/icons/src/index';
 
-const composeAssetLogoUrl = (fileName: string, quality?: '@2x') =>
-    `${ICONS_URL_BASE}${fileName}${quality === undefined ? '' : quality}.webp`;
+export interface GetAssetLogoUrlParams {
+    coingeckoId: string;
+    contractAddress?: string;
+    /**
+     * Pixel density of the image
+     */
+    density?: 1 | 2;
+    size?: number;
+}
+
+function resolveImageSize(
+    size: GetAssetLogoUrlParams['size'] = 24,
+    density: GetAssetLogoUrlParams['density'] = 1,
+) {
+    const targetSize = size * density;
+
+    return (
+        COIN_IMAGE_SIZES.find(s => s >= targetSize) ??
+        (Math.max(...COIN_IMAGE_SIZES) as CoinImageSize)
+    );
+}
 
 export const getAssetLogoUrl = ({
     coingeckoId,
     contractAddress,
-    quality,
-}: {
-    coingeckoId: string;
-    contractAddress?: string;
-    quality?: '@2x';
-}) =>
-    composeAssetLogoUrl(
-        contractAddress ? `${coingeckoId}--${contractAddress}` : coingeckoId,
-        quality,
-    );
+    density,
+    size,
+}: GetAssetLogoUrlParams) => {
+    const resolvedSize = resolveImageSize(size, density);
+    const fileName = createCoinImageName({ coingeckoId, contractAddress, size: resolvedSize });
+
+    return `${ICONS_URL_BASE}/${fileName}` as const;
+};

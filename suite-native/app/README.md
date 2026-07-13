@@ -7,9 +7,23 @@ Trezor Suite native application.
 Generally it's recommended to follow official [React Native environment setup](https://reactnative.dev/docs/set-up-your-environment) guide.
 
 1. [Android Guide](https://reactnative.dev/docs/set-up-your-environment?os=macos&platform=android)
-    - If you have Linux, install `watchman` preferably using Homebrew (others methods seem to be unmaintained)
+    - If you have Linux, `watchman` can be installed via `apt` on debian/ubuntu. Alternatively you may install it via Homebrew for Linux - recommended by watchman, but may cause other issues on Linux.
 2. [iOS Guide](https://reactnative.dev/docs/set-up-your-environment?os=macos&platform=ios)
     - Make sure you have the latest version of the Xcode command line tools installed: `xcode-select --install`
+
+### NixOS prerequisites
+
+shell
+
+```
+USE_ANDROID=1 nix-shell
+```
+
+flakes
+
+```
+nix develop .#use_android
+```
 
 ## Before you run the app
 
@@ -44,7 +58,7 @@ It is also possible for development purposes to connect Trezor emulator to iOS S
 
 ## Connecting a physical Trezor
 
-Once Trezor Suite Lite is running in iOS Simulator / Android emulator, it's possible to use it with a physical Trezor.
+Once Trezor Suite is running in iOS Simulator / Android emulator, it's possible to use it with a physical Trezor.
 
 1. Start desktop version of Trezor Suite that will serve as Trezor Bridge.
     - Make sure Trezor emulator is stopped before starting the desktop app.
@@ -69,7 +83,7 @@ Aliases available in root folder:
 
 You can show DEV utils on production build FOR DEVELOPMENT PURPOSES ONLY – do not use it for your personal wallets!
 
-To reveal dev menu, you have to click at least 7 times on commit hash at the bottom of About Trezor Suite Lite page.
+To reveal dev menu, you have to click at least 7 times on commit hash at the bottom of About Trezor Suite page.
 
 ## Environment variables
 
@@ -81,9 +95,9 @@ You can override ENV variables locally using `.env.development.local` (or `.env.
 
 > If you use `.env` file, it has the lowest priority. See [what other .env\* files you can use](https://github.com/bkeepers/dotenv/blob/c6e583a/README.md#what-other-env-files-can-i-use).
 
-- `EXPO_PUBLIC_IS_ANALYTICS_LOGGER_ENABLED=true` in `.env.development.local` to debug analytics locally,
 - `EXPO_PUBLIC_IS_SENTRY_ON_DEBUG_BUILD_ENABLED=true` to debug Sentry locally and
 - `EXPO_PUBLIC_IS_NATIVE_USB_LOGGER_ENABLED=true` to debug @trezor/transport-native-usb locally.
+- `EXPO_PUBLIC_IS_NATIVE_BLUETOOTH_LOGGER_ENABLED=true` to debug @trezor/transport-native-bluetooth locally.
 - `EXPO_PUBLIC_FF_*` overrides initial state for Feature Flags. See [.env.development](./.env.development) for examples to copy to `.env.development.local` file and [featureFlagsSlice.ts](../feature-flags/src/featureFlagsSlice.ts) for all available values.
 
 ## Native changes - bumping runtimeVersion
@@ -96,8 +110,9 @@ Whenever you do a change in a native code (updating native dependency and so on)
     - `yarn native:prebuild:clean`
     - `yarn native:android` or `yarn native:ios`
 2. In case of issues with the packager, try to restart it with `--reset-cache` i.e (`yarn s --reset-cache`).
-3. Sometimes it's helpful to combine two previous points with uninstalling the app from the device/emulator.
-4. Make sure you are using pure Node or `nvm` for managing node version (other version managers like `fnm` can cause build issues on iOS).
-5. `npx react-native doctor` may help to identify issues with your environment, though not every check _has_ to pass
-6. Android emulator on Linux may be unstable with default software renderer. Then go to settings of the Android Virtual Device and choose Graphics acceleration: Hardware.<br />
+3. If metro crashes after running `yarn start` on iOS, try running `watchman watch-del-all` to clear stale file‑watch state.
+4. Sometimes it's helpful to combine two previous points with uninstalling the app from the device/emulator.
+5. Make sure you are using pure Node or `nvm` for managing node version (other version managers like `fnm` can cause build issues on iOS).
+6. `npx react-native doctor` may help to identify issues with your environment, though not every check _has_ to pass
+7. Android emulator on Linux may be unstable with default software renderer. Then go to settings of the Android Virtual Device and choose Graphics acceleration: Hardware.<br />
    For further debugging, start emulator with `adb logcat -v long > emulator_log.txt` running somewhere in the background.

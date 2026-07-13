@@ -2,40 +2,39 @@ import { useMemo, useState } from 'react';
 
 import styled from 'styled-components';
 
+import { AccountLabel } from '@suite/account';
+import { Translation } from '@suite/intl';
+import { closeModal } from '@suite/modal';
+import { goto } from '@suite/router';
+import { TxSimulationBanner } from '@suite/tx-simulation/src/common';
 import { useDappScan } from '@suite-common/tx-simulation';
 import { selectAllAccountsToList } from '@suite-common/wallet-core';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
+import { sortByCoin } from '@suite-common/wallet-utils';
 import {
     selectPendingProposal,
     sessionProposalApproveThunk,
     sessionProposalRejectThunk,
 } from '@suite-common/walletconnect';
-import { PendingConnectionProposalNetwork } from '@suite-common/walletconnect/src/walletConnectTypes';
+import { type PendingConnectionProposalNetwork } from '@suite-common/walletconnect/src/walletConnectTypes';
 import {
     Badge,
     Banner,
     Card,
     Column,
-    ElevationUp,
     Modal,
-    Option,
+    type Option,
     Row,
     Select,
     Text,
     Tooltip,
 } from '@trezor/components';
-import { BannerButton } from '@trezor/components/src/components/Banner/BannerButton';
+import { ShieldCheckFilledIcon, ShieldWarningFilledIcon } from '@trezor/icons';
 import { CoinLogo } from '@trezor/product-components';
 import { spacings, spacingsPx } from '@trezor/theme';
 
-import { onCancel } from 'src/actions/suite/modalActions';
-import { goto } from 'src/actions/suite/routerActions';
-import { AccountLabel, Translation } from 'src/components/suite';
 import { ConnectAppIcon } from 'src/components/suite/ConnectAppIcon';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectAccountLabels } from 'src/reducers/suite/metadataReducer';
-
-import { TxSimulationBanner } from './TxSimulationModal';
 
 const NetworkItemWrapper = styled.div<{ $isDisabled: boolean }>`
     display: flex;
@@ -53,21 +52,22 @@ export const WalletConnectProposalModal = ({ eventId }: WalletConnectProposalMod
     const dispatch = useDispatch();
     const pendingProposal = useSelector(selectPendingProposal);
     const accounts = useSelector(selectAllAccountsToList);
-    const accountLabels = useSelector(selectAccountLabels);
     const selectableAccounts = useMemo<Account[]>(
         () =>
-            pendingProposal?.networks
-                .filter(network => network.status === 'active')
-                .flatMap(network =>
-                    accounts.filter(account => account.symbol === network.symbol),
-                ) ?? [],
+            sortByCoin(
+                pendingProposal?.networks
+                    .filter(network => network.status === 'active')
+                    .flatMap(network =>
+                        accounts.filter(account => account.symbol === network.symbol),
+                    ) ?? [],
+            ),
         [accounts, pendingProposal?.networks],
     );
     const [selectedDefaultAccount, setSelectedDefaultAccount] = useState<Account | null>(
         selectableAccounts[0] || null,
     );
     const [ignoreWarning, setIgnoreWarning] = useState(false);
-    const { isLoading, isMalicious } = useDappScan(pendingProposal?.params.proposer.metadata.url);
+    const dappScanQuery = useDappScan(pendingProposal?.params.proposer.metadata.url);
 
     const handleAccept = () => {
         dispatch(
@@ -76,15 +76,15 @@ export const WalletConnectProposalModal = ({ eventId }: WalletConnectProposalMod
                 selectedDefaultAccount,
             }),
         );
-        dispatch(onCancel());
+        dispatch(closeModal());
     };
     const handleReject = () => {
         dispatch(sessionProposalRejectThunk({ eventId }));
-        dispatch(onCancel());
+        dispatch(closeModal());
     };
     const handleGoToCoinSettings = async () => {
-        await dispatch(onCancel());
-        dispatch(goto('settings-coins'));
+        await dispatch(closeModal());
+        dispatch(goto({ routeName: 'settings-coins' }));
     };
 
     const getTooltipContent = (network: PendingConnectionProposalNetwork) => {
@@ -115,18 +115,24 @@ export const WalletConnectProposalModal = ({ eventId }: WalletConnectProposalMod
             bottomContent={
                 <>
                     <Modal.Button
-                        variant="primary"
                         onClick={handleAccept}
                         isDisabled={
                             pendingProposal.expired ||
                             noNetworksActivated ||
-                            ((pendingProposal.isScam || isMalicious) && !ignoreWarning)
+                            ((pendingProposal.isScam || dappScanQuery.data?.isMalicious) &&
+                                !ignoreWarning)
                         }
-                        isLoading={isLoading}
+                        isLoading={dappScanQuery.isLoading}
+                        data-testid="@walletconnect-proposal/confirm-button"
                     >
                         <Translation id="TR_CONFIRM" />
                     </Modal.Button>
-                    <Modal.Button variant="tertiary" onClick={handleReject}>
+                    <Modal.Button
+                        intent="neutral"
+                        priority="secondary"
+                        onClick={handleReject}
+                        data-testid="@walletconnect-proposal/cancel-button"
+                    >
                         <Translation id="TR_CANCEL" />
                     </Modal.Button>
                 </>
@@ -149,26 +155,26 @@ export const WalletConnectProposalModal = ({ eventId }: WalletConnectProposalMod
                         <Column gap={spacings.xxs}>
                             <Row gap={spacings.sm}>
                                 <Text>{pendingProposal.params.proposer.metadata.name}</Text>
-                                <Text variant="tertiary">
+                                <Text intent="neutral" priority="secondary">
                                     {pendingProposal.params.proposer.metadata.url}
                                 </Text>
                             </Row>
                             <Row gap={spacings.sm}>
                                 {!pendingProposal.isScam &&
                                     pendingProposal.validation === 'VALID' && (
-                                        <Badge variant="info" icon="shieldCheckFilled">
+                                        <Badge intent="info" iconLeft={ShieldCheckFilledIcon}>
                                             <Translation id="TR_WALLETCONNECT_SERVICE_VERIFIED" />
                                         </Badge>
                                     )}
                                 {!pendingProposal.isScam &&
                                     pendingProposal.validation === 'UNKNOWN' && (
-                                        <Badge variant="warning" icon="shieldWarningFilled">
+                                        <Badge intent="warning" iconLeft={ShieldWarningFilledIcon}>
                                             <Translation id="TR_WALLETCONNECT_SERVICE_UNKNOWN" />
                                         </Badge>
                                     )}
                                 {(pendingProposal.isScam ||
                                     pendingProposal.validation === 'INVALID') && (
-                                    <Badge variant="destructive" icon="shieldWarningFilled">
+                                    <Badge intent="critical" iconLeft={ShieldWarningFilledIcon}>
                                         <Translation id="TR_WALLETCONNECT_SERVICE_DANGEROUS" />
                                     </Badge>
                                 )}
@@ -199,9 +205,7 @@ export const WalletConnectProposalModal = ({ eventId }: WalletConnectProposalMod
                                         )}
                                         <Text>
                                             {network.name}
-                                            {network.required && (
-                                                <Text variant="destructive">*</Text>
-                                            )}
+                                            {network.required && <Text intent="critical">*</Text>}
                                         </Text>
                                     </NetworkItemWrapper>
                                 </Tooltip>
@@ -214,38 +218,28 @@ export const WalletConnectProposalModal = ({ eventId }: WalletConnectProposalMod
                 </Text>
                 {selectableAccounts.length > 0 && (
                     <Card paddingType="none">
-                        {/* Wrapped to keep consistent styling */}
-                        <ElevationUp>
-                            <Select
-                                isSearchable={false}
-                                isClearable={false}
-                                isRenderedInModal={true}
-                                size="large"
-                                value={selectedDefaultAccount}
-                                options={selectableAccounts}
-                                formatOptionLabel={(account: Account) => (
-                                    <Row gap={spacings.xs}>
-                                        {account.symbol && (
-                                            <CoinLogo
-                                                type="token"
-                                                symbol={account.symbol}
-                                                size={24}
-                                            />
-                                        )}
-                                        <AccountLabel
-                                            account={{
-                                                ...account,
-                                                accountLabel: accountLabels[account.key],
-                                            }}
-                                            key={account.descriptor}
-                                            showAccountTypeBadge
-                                            accountTypeBadgeSize="small"
-                                        />
-                                    </Row>
-                                )}
-                                onChange={(option: Option) => setSelectedDefaultAccount(option)}
-                            />
-                        </ElevationUp>
+                        <Select
+                            isSearchable={false}
+                            isClearable={false}
+                            size="large"
+                            value={selectedDefaultAccount}
+                            options={selectableAccounts}
+                            formatOptionLabel={(account: Account) => (
+                                <Row gap={spacings.xs}>
+                                    {account.symbol && (
+                                        <CoinLogo type="token" symbol={account.symbol} size={24} />
+                                    )}
+                                    <AccountLabel
+                                        account={account}
+                                        key={account.descriptor}
+                                        showAccountTypeBadge
+                                        accountTypeBadgeSize="small"
+                                    />
+                                </Row>
+                            )}
+                            onChange={(option: Option) => setSelectedDefaultAccount(option)}
+                            closeMenuOnScroll={false}
+                        />
                     </Card>
                 )}
 
@@ -253,46 +247,45 @@ export const WalletConnectProposalModal = ({ eventId }: WalletConnectProposalMod
                     noNetworksActivated ||
                     selectableAccounts.length === 0) && (
                     <Banner
-                        variant="warning"
+                        intent="warning"
                         rightContent={
-                            <BannerButton
-                                onClick={() => handleGoToCoinSettings()}
-                                icon="arrowRight"
-                                iconAlignment="end"
-                            >
+                            <Banner.Button onClick={() => handleGoToCoinSettings()}>
                                 <Translation id="TR_COIN_SETTINGS" />
-                            </BannerButton>
+                            </Banner.Button>
                         }
-                    >
-                        <Translation
-                            id={
-                                requiredNetworksNotActivated
-                                    ? 'TR_WALLETCONNECT_REQUIRED_NETWORKS_NOT_ACTIVATED'
-                                    : 'TR_WALLETCONNECT_NO_NETWORKS_ACTIVATED'
-                            }
-                        />
-                    </Banner>
+                        description={
+                            <Translation
+                                id={
+                                    requiredNetworksNotActivated
+                                        ? 'TR_WALLETCONNECT_REQUIRED_NETWORKS_NOT_ACTIVATED'
+                                        : 'TR_WALLETCONNECT_NO_NETWORKS_ACTIVATED'
+                                }
+                            />
+                        }
+                    />
                 )}
 
-                {(isMalicious || pendingProposal.isScam) && (
+                {(dappScanQuery.data?.isMalicious || pendingProposal.isScam) && (
                     <TxSimulationBanner
                         type="error"
-                        title={<Translation id="TR_WALLETCONNECT_IS_SCAM" />}
+                        title="TR_WALLETCONNECT_IS_SCAM"
                         description={<></>}
-                        disclaimerAccepted={ignoreWarning}
-                        setDisclaimerAccepted={setIgnoreWarning}
+                        isAccepted={ignoreWarning}
+                        onChange={setIgnoreWarning}
                     />
                 )}
                 {pendingProposal.validation === 'INVALID' && (
-                    <Banner variant="destructive">
-                        <Translation id="TR_WALLETCONNECT_UNABLE_TO_VERIFY" />
-                    </Banner>
+                    <Banner
+                        intent="critical"
+                        description={<Translation id="TR_WALLETCONNECT_UNABLE_TO_VERIFY" />}
+                    />
                 )}
 
                 {pendingProposal.expired && (
-                    <Banner variant="warning">
-                        <Translation id="TR_WALLETCONNECT_REQUEST_EXPIRED" />
-                    </Banner>
+                    <Banner
+                        intent="warning"
+                        description={<Translation id="TR_WALLETCONNECT_REQUEST_EXPIRED" />}
+                    />
                 )}
             </Column>
         </Modal>

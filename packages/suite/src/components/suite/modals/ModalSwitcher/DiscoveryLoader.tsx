@@ -1,8 +1,8 @@
-import { selectSelectedDevice } from '@suite-common/wallet-core';
+import { Translation } from '@suite/intl';
+import { selectSelectedDevice } from '@suite-common/device';
 import { Column, H3, Spinner } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
 import { CardWithDevice } from 'src/views/suite/SwitchDevice/CardWithDevice';
 import { SwitchDeviceModal } from 'src/views/suite/SwitchDevice/SwitchDeviceModal';
@@ -19,7 +19,7 @@ export const DiscoveryLoader = () => {
                     alignItems="center"
                     margin={{ top: spacings.xxxl, bottom: spacings.xl }}
                 >
-                    <Spinner size={80} isGrey={false} />
+                    <Spinner size={48} />
                     <H3 align="center" margin={{ top: spacings.xxxxl }}>
                         <Translation id="TR_COIN_DISCOVERY_LOADER_DESCRIPTION" />
                     </H3>

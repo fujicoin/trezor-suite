@@ -4,13 +4,12 @@
 import { Menu, Tray } from 'electron';
 import path from 'path';
 
-import { DEVICE, DeviceEvent } from '@trezor/connect';
+import { DEVICE, type DeviceEvent } from '@trezor/connect';
 import { validateIpcMessage } from '@trezor/ipc-proxy';
-import { Status, TraySettings } from '@trezor/suite-desktop-api/src/messages';
+import { type Status, type TraySettings } from '@trezor/suite-desktop-api/src/messages';
 
 import { app, ipcMain } from '../typed-electron';
-
-import { ModuleInitBackground, mainThreadEmitter } from './index';
+import { type ModuleInitBackground, mainThreadEmitter } from './module';
 
 export const SERVICE_NAME = 'tray';
 
@@ -132,7 +131,7 @@ export const initBackground: ModuleInitBackground = ({ store, mainWindowProxy })
     });
 
     ipcMain.handle('tray/change-settings', (ipcEvent, updatedSettings: TraySettings) => {
-        validateIpcMessage(ipcEvent);
+        validateIpcMessage({ ipcEvent });
 
         try {
             store.setTraySettings({
@@ -149,7 +148,7 @@ export const initBackground: ModuleInitBackground = ({ store, mainWindowProxy })
     });
 
     ipcMain.handle('tray/get-settings', ipcEvent => {
-        validateIpcMessage(ipcEvent);
+        validateIpcMessage({ ipcEvent });
 
         try {
             return { success: true, payload: store.getTraySettings() };

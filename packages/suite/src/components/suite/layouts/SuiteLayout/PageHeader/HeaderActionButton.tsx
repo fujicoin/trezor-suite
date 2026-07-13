@@ -1,30 +1,50 @@
-import { Button, ButtonProps, IconButton, IconButtonProps } from '@trezor/components';
+import { Button, type ButtonProps, IconButton, type IconComponent } from '@trezor/components';
 import { breakpoints } from '@trezor/theme';
 
 import { ConditionalRender } from 'src/support/suite/ConditionalRender';
+
+type HeaderActionButtonProps = Pick<
+    ButtonProps,
+    'onClick' | 'data-testid' | 'size' | 'isDisabled' | 'children' | 'intent' | 'priority'
+> & {
+    icon: IconComponent;
+};
 
 export const HeaderActionButton = ({
     icon,
     onClick,
     'data-testid': dataTestId,
-    variant,
     size,
+    intent,
+    priority,
     isDisabled,
     children,
-}: Pick<ButtonProps, 'onClick' | 'data-testid' | 'variant' | 'size' | 'isDisabled' | 'children'> &
-    Pick<IconButtonProps, 'icon'>) => {
-    const commonProps = { icon, onClick, 'data-testid': dataTestId, variant, size, isDisabled };
-
-    return (
-        <>
-            <ConditionalRender container="content" maxWidth={breakpoints.mobile}>
-                <IconButton {...commonProps} />
-            </ConditionalRender>
-            <ConditionalRender container="content" minWidth={breakpoints.mobile}>
-                <Button {...commonProps} textWrap={false}>
-                    {children}
-                </Button>
-            </ConditionalRender>
-        </>
-    );
-};
+}: HeaderActionButtonProps) => (
+    <>
+        <ConditionalRender container="content" maxWidth={breakpoints.mobile}>
+            <IconButton
+                icon={icon}
+                onClick={onClick}
+                data-testid={dataTestId}
+                intent={intent}
+                size={size}
+                isDisabled={isDisabled}
+                priority={priority}
+                tooltip={{ content: children }}
+            />
+        </ConditionalRender>
+        <ConditionalRender container="content" minWidth={breakpoints.mobile}>
+            <Button
+                iconLeft={icon}
+                onClick={onClick}
+                data-testid={dataTestId}
+                size={size}
+                isDisabled={isDisabled}
+                intent={intent}
+                priority={priority}
+            >
+                {children}
+            </Button>
+        </ConditionalRender>
+    </>
+);

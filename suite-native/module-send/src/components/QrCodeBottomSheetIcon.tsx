@@ -1,10 +1,8 @@
-import { TouchableOpacity } from 'react-native';
-
-import { useBottomSheetModal } from '@suite-native/atoms';
+import { PressableOpacity, useBottomSheetModal } from '@suite-native/atoms';
 import { Icon } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
 import { ScanQRBottomSheet } from '@suite-native/qr-code';
-import { useNativeStyles } from '@trezor/styles';
+import { useNativeStyles } from '@trezor/styles-native';
 
 type QrCodeBottomSheetIconProps = {
     onCodeScanned: (data: string) => void;
@@ -16,10 +14,9 @@ export const QrCodeBottomSheetIcon = ({ onCodeScanned }: QrCodeBottomSheetIconPr
 
     return (
         <>
-            <TouchableOpacity onPress={openModal} hitSlop={utils.spacings.sp8}>
+            <PressableOpacity onPress={openModal} hitSlop={utils.spacings.sp8}>
                 <Icon name="qrCode" size="large" />
-            </TouchableOpacity>
-
+            </PressableOpacity>
             <ScanQRBottomSheet
                 title={<Translation id="moduleSend.outputs.recipients.addressQrLabel" />}
                 ref={bottomSheetRef}

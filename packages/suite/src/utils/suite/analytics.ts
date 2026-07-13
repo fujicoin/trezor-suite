@@ -1,29 +1,55 @@
-import { selectActiveExperimentsWithVariants } from '@suite-common/message-system';
-import { UNIT_ABBREVIATIONS } from '@suite-common/suite-constants';
+import type { SuiteReadyPayload } from '@suite/analytics';
+import { selectIsLegacyLabelingVisible } from '@suite/metadata';
+import { AccountTransactionBaseAnchor } from '@suite/router';
+import {
+    selectAutodetectLanguage,
+    selectAutodetectTheme,
+    selectExperimentalFeatures,
+    selectLanguage,
+    selectTheme,
+} from '@suite/settings';
+import { getIsTorEnabled } from '@suite/tor';
 import {
     selectRememberedHiddenWalletsCount,
     selectRememberedStandardWalletsCount,
-} from '@suite-common/wallet-core';
-import { getCustomBackends } from '@suite-common/wallet-utils';
+} from '@suite-common/device';
+import {
+    formatExperimentVariantsForAnalytics,
+    selectActiveExperimentsWithVariants,
+} from '@suite-common/message-system';
+import { type MetadataProviderType } from '@suite-common/metadata-types';
+import { UNIT_ABBREVIATIONS } from '@suite-common/suite-constants';
 import {
     getBrowserName,
     getBrowserVersion,
     getCpuArch,
-    getOsName,
     getOsVersion,
+} from '@suite-common/suite-utils';
+import { getCustomBackends } from '@suite-common/wallet-utils';
+import {
+    getOsName,
     getPlatformLanguages,
     getScreenHeight,
     getScreenWidth,
     getWindowHeight,
     getWindowWidth,
 } from '@trezor/env-utils';
-import { AppUpdateEvent, SuiteAnalyticsEventSuiteReady } from '@trezor/suite-analytics';
-import { UpdateInfo } from '@trezor/suite-desktop-api';
 
-import { AccountTransactionBaseAnchor } from 'src/constants/suite/anchors';
-import { AppState } from 'src/types/suite';
+import { type AppState } from 'src/types/suite';
 
-import { getIsTorEnabled } from './tor';
+const resolveLabelingType = (
+    state: AppState,
+): MetadataProviderType | 'missing-provider' | 'suite-sync' | 'off' => {
+    if (selectIsLegacyLabelingVisible(state)) {
+        return (
+            state.metadata.providers.find(
+                p => p.clientId === state.metadata.selectedProvider.labels,
+            )?.type || 'missing-provider'
+        );
+    }
+
+    return state.suiteSync.settings.isSuiteSyncEnabled ? 'suite-sync' : 'off';
+};
 
 // redact transaction id from account transaction anchor
 export const redactTransactionIdFromAnchor = (anchor?: string) => {
@@ -37,37 +63,30 @@ export const redactTransactionIdFromAnchor = (anchor?: string) => {
 // 1. replace coinjoin by taproot
 export const redactRouterUrl = (url: string) => url.replace(/coinjoin/g, 'taproot');
 
-export const getSuiteReadyPayload = async (
-    state: AppState,
-): Promise<SuiteAnalyticsEventSuiteReady['payload']> => {
+export const getSuiteReadyPayload = async (state: AppState): Promise<SuiteReadyPayload> => {
     const experimentVariants = selectActiveExperimentsWithVariants(state);
     const [osVersion, osCpuArch] = await Promise.all([getOsVersion(), getCpuArch()]);
 
     return {
-        language: state.suite.settings.language,
+        language: selectLanguage(state),
         enabledNetworks: state.wallet.settings.enabledNetworks,
         customBackends: getCustomBackends(state.wallet.blockchain)
             .map(({ symbol }) => symbol)
             .filter(symbol => state.wallet.settings.enabledNetworks.includes(symbol)),
         localCurrency: state.wallet.settings.localCurrency,
         bitcoinUnit: UNIT_ABBREVIATIONS[state.wallet.settings.bitcoinAmountUnit],
-        discreetMode: state.wallet.settings.discreetMode,
+        discreetMode: state.discreetMode.isActive,
         screenWidth: getScreenWidth(),
         screenHeight: getScreenHeight(),
         platformLanguages: getPlatformLanguages().join(','),
-        tor: getIsTorEnabled(state.suite.torStatus),
-        // todo: duplicated with suite/src/utils/suite/logUtils
-        labeling: state.metadata.enabled
-            ? state.metadata.providers.find(
-                  p => p.clientId === state.metadata.selectedProvider.labels,
-              )?.type || 'missing-provider'
-            : '',
+        tor: getIsTorEnabled(state.tor.torStatus),
+        labeling: resolveLabelingType(state),
         rememberedStandardWallets: selectRememberedStandardWalletsCount(state),
         rememberedHiddenWallets: selectRememberedHiddenWalletsCount(state),
-        theme: state.suite.settings.theme.variant,
+        theme: selectTheme(state),
         suiteVersion: process.env.VERSION || '',
         earlyAccessProgram: state.desktopUpdate.allowPrerelease,
-        experimentalFeatures: state.suite.settings.experimental,
+        experimentalFeatures: selectExperimentalFeatures(state),
         browserName: getBrowserName(),
         browserVersion: getBrowserVersion(),
         osName: getOsName(),
@@ -76,30 +95,14 @@ export const getSuiteReadyPayload = async (
 
         windowWidth: getWindowWidth(),
         windowHeight: getWindowHeight(),
-        autodetectLanguage: state.suite.settings.autodetect.language,
-        autodetectTheme: state.suite.settings.autodetect.theme,
+        autodetectLanguage: selectAutodetectLanguage(state),
+        autodetectTheme: selectAutodetectTheme(state),
 
         isAutomaticUpdateEnabled: state.desktopUpdate.isAutomaticUpdateEnabled,
 
-        experimentVariants: experimentVariants.map(({ name, variant }) => `${name}:${variant}`),
+        experimentVariants: formatExperimentVariantsForAnalytics(experimentVariants),
+
+        mevProtection: state.wallet.settings.mevProtection,
+        networkReserve: state.wallet.settings.networkReserve,
     };
 };
-
-export const getAppUpdatePayload = ({
-    status,
-    earlyAccessProgram,
-    updateInfo,
-    isAutoUpdated,
-}: {
-    status: AppUpdateEvent['status'];
-    earlyAccessProgram: boolean;
-    updateInfo?: UpdateInfo;
-    isAutoUpdated?: boolean;
-}): AppUpdateEvent => ({
-    fromVersion: process.env.VERSION || '',
-    toVersion: updateInfo?.version,
-    status,
-    earlyAccessProgram,
-    isPrerelease: updateInfo?.prerelease,
-    isAutoUpdated,
-});

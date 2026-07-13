@@ -1,11 +1,12 @@
 import { useSelector } from 'react-redux';
 
-import { TrezorDevice } from '@suite-common/suite-types';
+import { type TrezorDevice } from '@suite-common/suite-types';
 import { selectHasRunningDiscovery } from '@suite-common/wallet-core';
 import { HStack, Loader, Text } from '@suite-native/atoms';
 import { Icon } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { WalletLabel } from '@suite-native/wallet';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { WalletRememberModeIconButton } from './WalletRememberModeIconButton';
 
@@ -24,7 +25,6 @@ export const WalletRow = ({ device }: WalletRowProps) => {
     const { applyStyle } = useNativeStyles();
     const hasDiscovery = useSelector(selectHasRunningDiscovery);
 
-    // todo: only makes sense if device is already authorized (has state)
     const walletNameLabel = device.useEmptyPassphrase ? (
         <Translation id="moduleSettings.viewOnly.wallet.standard" />
     ) : (
@@ -39,9 +39,13 @@ export const WalletRow = ({ device }: WalletRowProps) => {
     return (
         <HStack key={device.instance} style={applyStyle(walletRowStyle)}>
             <HStack spacing="sp12" alignItems="center">
-                {/* // todo: only makes sense if device is already authorized (has state) */}
                 <Icon name={device.useEmptyPassphrase ? 'wallet' : 'password'} size="mediumLarge" />
-                <Text variant="callout">{walletNameLabel}</Text>
+                <Text variant="body-sm-strong">
+                    <WalletLabel
+                        deviceStaticSessionId={device.state?.staticSessionId}
+                        fallbackLabel={walletNameLabel}
+                    />
+                </Text>
             </HStack>
             {showToggleButton ? (
                 <WalletRememberModeIconButton device={device} />

@@ -6,11 +6,11 @@ import {
     AppTabsRoutes,
     AuthorizeDeviceStackRoutes,
     HomeStackRoutes,
-    RootStackParamList,
+    type RootStackParamList,
     RootStackRoutes,
-    SendStackParamList,
-    SendStackRoutes,
-    StackToStackCompositeNavigationProps,
+    type SendStackParamList,
+    type SendStackRoutes,
+    type StackToStackCompositeNavigationProps,
 } from '@suite-native/navigation';
 
 type NavigationProps = StackToStackCompositeNavigationProps<
@@ -25,7 +25,7 @@ export const useShowDeviceDisconnectedAlert = () => {
 
     const handleReconnect = () => {
         navigation.navigate(RootStackRoutes.AuthorizeDeviceStack, {
-            screen: AuthorizeDeviceStackRoutes.ConnectAndUnlockDevice,
+            screen: AuthorizeDeviceStackRoutes.DeviceConnectionGuard,
             params: {
                 // If user cancels the re-connecting process, redirect him to the Home screen.
                 onCancelNavigationTarget: {
@@ -48,7 +48,7 @@ export const useShowDeviceDisconnectedAlert = () => {
 
     const showReviewCancellationAlert = () =>
         setTimeout(
-            // Timeout is needed to prevent the alert from being shown before the redirect from @suite-native/device - useHandleDeviceConnection hook happens.
+            // Timeout is needed to prevent the alert from being shown before the redirect from @suite-native/device - deviceConnectionMiddleware happens.
             () =>
                 showAlert({
                     title: <Translation id="moduleSend.review.deviceDisconnectedAlert.title" />,
@@ -58,8 +58,8 @@ export const useShowDeviceDisconnectedAlert = () => {
                     primaryButtonTitle: (
                         <Translation id="moduleSend.review.deviceDisconnectedAlert.primaryButton" />
                     ),
-                    primaryButtonVariant: 'redBold',
-                    secondaryButtonVariant: 'redElevation0',
+                    primaryButtonColorProps: { intent: 'critical', priority: 'primary' },
+                    secondaryButtonColorProps: { intent: 'critical', priority: 'secondary' },
                     secondaryButtonTitle: <Translation id="generic.buttons.cancel" />,
                     onPressPrimaryButton: handleReconnect,
                     onPressSecondaryButton: handleCancel,

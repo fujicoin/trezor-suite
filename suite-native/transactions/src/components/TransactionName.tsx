@@ -1,14 +1,42 @@
-import { WalletAccountTransaction } from '@suite-common/wallet-types';
-import { Translation, TxKeyPath } from '@suite-native/intl';
+import { redactNumericalSubstring, useDiscreetMode } from '@suite-common/discreet-mode';
+import { useFormatters } from '@suite-common/formatters';
+import { type TronTxContractType } from '@suite-common/wallet-constants';
+import { type StakeType, type WalletAccountTransaction } from '@suite-common/wallet-types';
+import { getTxStakeType } from '@suite-common/wallet-utils';
+import { Text } from '@suite-native/atoms';
+import { Translation, type TxKeyPath } from '@suite-native/intl';
+import { type NativeTypographyStyle } from '@trezor/theme';
+import { exhaustive } from '@trezor/type-utils';
+import { BigNumber } from '@trezor/utils';
+
+import { getUnstakeTxAmount } from '../utils';
 
 type TransactionNameProps = {
     transaction: WalletAccountTransaction;
     isPending: boolean;
+    variant?: NativeTypographyStyle;
 };
 
 interface GetSelfTransactionMessageByTypeProps {
     type?: Required<WalletAccountTransaction>['cardanoSpecific']['subtype'];
 }
+
+const getStakeTransactionMessage = (stakeType: StakeType, isPending: boolean): TxKeyPath | null => {
+    switch (stakeType) {
+        case 'stake':
+            return isPending ? 'transactions.name.staking' : 'transactions.name.stake';
+        case 'unstake':
+            return isPending ? 'transactions.name.unstaking' : 'transactions.name.unstake';
+        case 'claim':
+            return isPending ? 'transactions.name.claiming' : 'transactions.name.claim';
+        case 'change-delegate':
+            return isPending
+                ? 'transactions.name.changingDelegate'
+                : 'transactions.name.changeDelegate';
+        default:
+            return exhaustive(stakeType);
+    }
+};
 
 const getSelfTransactionMessageByType = ({
     type,
@@ -52,13 +80,146 @@ export const getTransactionName = (
     }
 };
 
-export const TransactionName = ({ transaction, isPending }: TransactionNameProps) => {
+const getTronTransactionMessage = (transaction: WalletAccountTransaction) => {
+    const contractType = transaction.tronSpecific?.contractType as TronTxContractType;
+
+    switch (contractType) {
+        case 'AccountCreateContract':
+            return 'transactions.name.tron.createAccount';
+        case 'AccountUpdateContract':
+            return 'transactions.name.tron.updateAccount';
+        case 'CreateSmartContract':
+            return 'transactions.name.tron.deploySmartContract';
+        case 'VoteWitnessContract':
+            return 'transactions.name.tron.voteWitness';
+        case 'FreezeBalanceContract':
+        case 'FreezeBalanceV2Contract':
+            return 'transactions.name.tron.freezeBalance';
+        case 'UnfreezeBalanceContract':
+        case 'UnfreezeBalanceV2Contract':
+            return 'transactions.name.tron.unfreezeBalance';
+        case 'WithdrawExpireUnfreezeContract':
+            return 'transactions.name.tron.withdrawBalance';
+        case 'WithdrawBalanceContract':
+            return 'transactions.name.tron.claimRewards';
+        case 'DelegateResourceContract':
+            return 'transactions.name.tron.delegateResource';
+        case 'UnDelegateResourceContract':
+            return 'transactions.name.tron.undelegateResource';
+        default:
+            return undefined;
+    }
+};
+
+export const TransactionName = ({ transaction, isPending, variant }: TransactionNameProps) => {
+    const { CryptoAmountFormatter: cryptoAmountFormatter } = useFormatters();
+    const { isDiscreetMode } = useDiscreetMode();
     const ethName = transaction.ethereumSpecific?.parsedData?.name;
 
-    // use name of eth txns, but not for recv or sent Transfer
-    if (ethName) {
-        return ethName;
+    // Stellar trustline addition/removal (short version without asset code)
+    if (
+        transaction.stellarSpecific?.operationType === 'changeTrust' &&
+        transaction.stellarSpecific?.changeTrust
+    ) {
+        return (
+            <Text variant={variant}>
+                {transaction.stellarSpecific.changeTrust.isRemoval ? (
+                    <Translation id="transactions.name.stellarTrustlineRemoved" />
+                ) : (
+                    <Translation id="transactions.name.stellarTrustlineAdded" />
+                )}
+            </Text>
+        );
     }
 
-    return <Translation id={getTransactionName(transaction, isPending)} />;
+    // Tron-specific transactions
+    const tronTransactionMessageId = getTronTransactionMessage(transaction);
+    if (tronTransactionMessageId) {
+        const { contractType, votes, unstakeAmount } = transaction.tronSpecific ?? {};
+
+        if (contractType === 'VoteWitnessContract' && votes?.length) {
+            const totalVotes = votes
+                .reduce((sum, vote) => sum.plus(vote.count ?? '0'), new BigNumber(0))
+                .toString();
+            const displayedVotes = isDiscreetMode
+                ? redactNumericalSubstring(totalVotes)
+                : totalVotes;
+
+            return (
+                <Text variant={variant}>
+                    <Translation
+                        id="transactions.name.tron.votedVotes"
+                        values={{ votes: displayedVotes }}
+                    />
+                </Text>
+            );
+        }
+
+        const isUnfreeze =
+            contractType === 'UnfreezeBalanceContract' ||
+            contractType === 'UnfreezeBalanceV2Contract';
+
+        if (isUnfreeze && unstakeAmount) {
+            const formattedUnfreezeAmount = cryptoAmountFormatter.format(unstakeAmount, {
+                symbol: transaction.symbol,
+                isBalance: false,
+                isEllipsisAppended: false,
+            });
+            const displayedUnfreezeAmount = isDiscreetMode
+                ? redactNumericalSubstring(formattedUnfreezeAmount)
+                : formattedUnfreezeAmount;
+
+            return (
+                <Text variant={variant}>
+                    <Translation id={tronTransactionMessageId} /> {displayedUnfreezeAmount}
+                </Text>
+            );
+        }
+
+        return (
+            <Text variant={variant}>
+                <Translation id={tronTransactionMessageId} />
+            </Text>
+        );
+    }
+
+    const stakeType = getTxStakeType(transaction);
+    const unstakeAmount = getUnstakeTxAmount(transaction);
+
+    if (unstakeAmount !== undefined && !isPending) {
+        const formattedUnstakeAmount = cryptoAmountFormatter.format(unstakeAmount, {
+            symbol: transaction.symbol,
+            isBalance: false,
+            isEllipsisAppended: false,
+        });
+        const displayedUnstakeAmount = isDiscreetMode
+            ? redactNumericalSubstring(formattedUnstakeAmount)
+            : formattedUnstakeAmount;
+
+        return (
+            <Text variant={variant}>
+                <Translation
+                    id="transactions.detail.unstakeHeader"
+                    values={{ amount: displayedUnstakeAmount }}
+                />
+            </Text>
+        );
+    }
+
+    const stakeTranslationId = stakeType ? getStakeTransactionMessage(stakeType, isPending) : null;
+
+    // The contract method name (e.g. "Transfer") must not override the "self" label for
+    // self-transactions, otherwise sending to your own account shows up as a generic transfer.
+    const ethNameToDisplay = transaction.type === 'self' ? undefined : ethName;
+
+    return (
+        <Text variant={variant}>
+            {stakeTranslationId ? (
+                <Translation id={stakeTranslationId} />
+            ) : (
+                // use name of eth txns, but not for recv or sent Transfer
+                ethNameToDisplay || <Translation id={getTransactionName(transaction, isPending)} />
+            )}
+        </Text>
+    );
 };

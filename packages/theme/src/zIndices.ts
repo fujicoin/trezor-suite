@@ -3,7 +3,9 @@
 
 export const zIndices = {
     windowControls: 100,
+    toast: 70,
     tooltip: 60, // above all content to be always fully visible when toggled
+    modalGuide: 51, // above GUIDE to stay accessible when guide is open
     guide: 50, // above MODAL to stay accessible when modal is open
     guideButton: 49, // below GUIDE to get covered by the guide when it is opening
 
@@ -22,6 +24,7 @@ export const zIndices = {
     pageSubHeader: 11, // below PAGE_HEADER to be hidden beneath it, but above STICKY_BAR
     stickyBar: 10, // above page content to scroll over it
     secondaryStickyBar: 9, // below STICKY_BAR so that it can hide beneath it when no longer needed
+    labeling: 4,
     selectMenu: 3,
     onboardingForeground: 2, // for handling multiple layers on the onboarding page
     base: 1, // above static content to be fully visible

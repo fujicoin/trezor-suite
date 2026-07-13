@@ -1,9 +1,9 @@
 import { combineReducers } from '@reduxjs/toolkit';
-import { CryptoId, SellListResponse, SellProviderInfo } from 'invity-api';
+import { type CryptoId, type SellListResponse, type SellProviderInfo } from 'invity-api';
 
 import { configureMockStore } from '@suite-common/test-utils';
 
-import { sellThunks } from '../../';
+import { sellThunks } from '../';
 import { invityAPI } from '../../../invityAPI';
 import { sellInitialState, tradingSellReducer } from '../../../reducers/sellReducer';
 import { regional } from '../../../regional';
@@ -25,20 +25,21 @@ describe('loadSellInfoThunk', () => {
         tradedFiatCurrencies: ['CZK', 'USD'],
         type: 'Fiat',
         supportedCountries: ['CZ'],
+        supportedSubdivisions: {},
     };
 
     const store = configureMockStore({
         extra: {},
         reducer: combineReducers({
             wallet: combineReducers({
-                tradingNew: combineReducers({
+                trading: combineReducers({
                     sell: tradingSellReducer,
                 }),
             }),
         }),
         preloadedState: {
             wallet: {
-                tradingNew: {
+                trading: {
                     sell: sellInitialState,
                 },
             },

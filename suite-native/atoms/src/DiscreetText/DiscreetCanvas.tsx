@@ -1,7 +1,7 @@
 import { Blur, Canvas, Text as SkiaText, useFont } from '@shopify/react-native-skia';
 
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-import { Color } from '@trezor/theme';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+import { type Color } from '@trezor/theme';
 
 const satoshiFont = require('../../../../packages/theme/fonts/TTSatoshi-Medium.otf');
 
@@ -36,7 +36,7 @@ export const DiscreetCanvas = ({ width, height, fontSize, text, color }: Discree
     const blurValue = height * 0.3;
 
     return (
-        <Canvas style={applyStyle(discreetCanvasStyle, { height, width })}>
+        <Canvas style={applyStyle(discreetCanvasStyle, { height, width })} pointerEvents="none">
             <SkiaText y={fontSize} text={text} font={font} color={colors[color]}>
                 <Blur blur={blurValue} mode="decal" />
             </SkiaText>

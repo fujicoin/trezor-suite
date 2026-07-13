@@ -1,67 +1,73 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
+import { action } from 'storybook/actions';
 
-import { IconButton as IconButtonComponent, IconButtonProps } from './IconButton';
-import { variables } from '../../../config';
-import { buttonSizes, buttonVariants, subtleButtonVariants } from '../buttonStyleUtils';
+import * as generatedIcons from '@trezor/icons';
 
-const meta: Meta = {
-    title: 'Buttons',
+import {
+    IconButton as IconButtonComponent,
+    type IconButtonProps,
+    allowedIconButtonFrameProps,
+} from './IconButton';
+import { getFramePropsStory } from '../../../utils/frameProps';
+import { buttonIntents, buttonPriorities, buttonSizes } from '../types';
+
+const meta: Meta<IconButtonProps> = {
+    title: '🫵 Buttons',
     component: IconButtonComponent,
-} as Meta;
+};
+
 export default meta;
 
 export const IconButton: StoryObj<IconButtonProps> = {
     args: {
-        label: 'label',
-        icon: 'arrowRight',
-        variant: 'primary',
-        size: 'large',
+        onClick: action('onClick'),
+        icon: generatedIcons.AddressBookFilledIcon,
+        intent: 'brand',
+        priority: 'primary',
+        size: 'medium',
         isDisabled: false,
         isLoading: false,
-        isSubtle: false,
+        isInverse: false,
+        isFloating: false,
+        tooltip: { content: 'Address book' },
+        ...getFramePropsStory(allowedIconButtonFrameProps).args,
     },
     argTypes: {
-        label: {
+        icon: {
+            options: Object.keys(generatedIcons),
+            mapping: generatedIcons,
+            control: { type: 'select' },
+        },
+        href: {
             type: 'string',
         },
-        icon: {
-            options: variables.ICONS,
-            control: {
-                type: 'select',
-            },
+        target: {
+            type: 'string',
         },
-        variant: {
-            control: {
-                type: 'radio',
-            },
-            options: buttonVariants,
+        intent: {
+            control: { type: 'select' },
+            options: buttonIntents,
+        },
+        priority: {
+            control: { type: 'select' },
+            options: buttonPriorities,
         },
         size: {
-            control: {
-                type: 'radio',
-            },
+            control: { type: 'select' },
             options: buttonSizes,
         },
-        iconSize: {
-            control: {
-                type: 'number',
-            },
-        },
         isDisabled: {
-            control: {
-                type: 'boolean',
-            },
+            type: 'boolean',
         },
         isLoading: {
-            control: {
-                type: 'boolean',
-            },
+            type: 'boolean',
         },
-        isSubtle: {
-            control: {
-                type: 'boolean',
-            },
-            description: `Available only for variants: <strong>${subtleButtonVariants.join(', ')}</strong>`,
+        isInverse: {
+            type: 'boolean',
         },
+        isFloating: {
+            type: 'boolean',
+        },
+        ...getFramePropsStory(allowedIconButtonFrameProps).argTypes,
     },
 };

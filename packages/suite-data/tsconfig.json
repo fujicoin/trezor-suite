@@ -12,10 +12,6 @@
         {
             "path": "../../suite-common/suite-utils"
         },
-        { "path": "../connect" },
-        { "path": "../env-utils" },
-        { "path": "../urls" },
-        { "path": "../utils" },
         { "path": "../eslint" }
     ]
 }

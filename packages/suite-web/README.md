@@ -15,3 +15,5 @@ Visualize size of output files with [Webpack Bundle Analyzer](https://github.com
 ```
 yarn workspace @trezor/suite-web analyze
 ```
+
+👉 **Read more at [skills/security-headers/SKILL.md](/skills/security-headers/SKILL.md)**.

@@ -1,22 +1,23 @@
-import { useState } from 'react';
-
 import {
-    BuyTradeStatus,
-    ExchangeProviderInfo,
-    ExchangeTradeStatus,
-    SellTradeStatus,
+    type BuyTradeStatus,
+    type ExchangeProviderInfo,
+    type ExchangeTradeStatus,
+    type SellTradeStatus,
 } from 'invity-api';
 
-import { Rating, buildUserFeedbackData, sendFeedback } from '@suite-common/feedback';
-import { TradingType } from '@suite-common/trading';
-import { Button, Card, Column, IconCircle, Row, Text, Textarea } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { type Rating, buildUserFeedbackData, sendFeedbackAction } from '@suite-common/feedback';
+import { selectCountryCode } from '@suite-common/geolocation';
+import {
+    formatExperimentVariantsForAnalytics,
+    selectActiveExperimentsWithVariants,
+} from '@suite-common/message-system';
+import { type TradingType } from '@suite-common/trading';
+import { FeedbackCard } from '@trezor/product-components';
 
-import { Translation } from 'src/components/suite';
-import { EmojiRatingSelector } from 'src/components/suite/EmojiRatingSelector';
-import { ExperimentWrapper } from 'src/components/suite/Experiment/ExperimentWrapper';
-import { useDevice, useDispatch } from 'src/hooks/suite';
-import { TradingGetCryptoQuoteAmountProps } from 'src/types/trading/trading';
+import { useDispatch, useSelector } from 'src/hooks/suite';
+import { type TradingGetCryptoQuoteAmountProps } from 'src/types/trading/trading';
 
 interface TradingDetailFeedbackProps {
     status: ExchangeTradeStatus | SellTradeStatus | BuyTradeStatus | undefined;
@@ -24,6 +25,7 @@ interface TradingDetailFeedbackProps {
     provider?: ExchangeProviderInfo['name'];
     id?: string;
     quoteAmounts: TradingGetCryptoQuoteAmountProps;
+    country?: string;
 }
 
 export const TradingDetailFeedback = ({
@@ -32,21 +34,18 @@ export const TradingDetailFeedback = ({
     provider,
     id,
     quoteAmounts: { sendCurrency, receiveCurrency },
+    country,
 }: TradingDetailFeedbackProps) => {
-    const [rating, setRating] = useState<Rating | undefined>();
-    const [description, setDescription] = useState<string>('');
-    const [view, setView] = useState<'form' | 'success'>('form');
-
     const { device } = useDevice();
     const dispatch = useDispatch();
+    const geolocation = useSelector(selectCountryCode);
+    const activeExperimentsWithVariants = useSelector(selectActiveExperimentsWithVariants);
 
-    const submitFeedback = () => {
-        if (!rating) return;
-
+    const handleSubmit = (rating: Rating, description: string) => {
         const userData = buildUserFeedbackData(device);
 
         dispatch(
-            sendFeedback({
+            sendFeedbackAction({
                 type: 'SUGGESTION',
                 payload: {
                     category: 'trade',
@@ -58,85 +57,25 @@ export const TradingDetailFeedback = ({
                     type,
                     sendCurrency,
                     receiveCurrency,
+                    geolocation: geolocation || undefined,
+                    countryOfResidence: country || undefined,
+                    activeExperimentsWithVariants: formatExperimentVariantsForAnalytics(
+                        activeExperimentsWithVariants,
+                    ),
                     ...userData,
                 },
             }),
         );
-
-        setView('success');
-        setRating(undefined);
-        setDescription('');
     };
 
-    const isFormValid = rating !== undefined && description.trim().length > 0;
-
-    const Success = (
-        <Row gap={spacings.lg} margin={{ vertical: spacings.xs }}>
-            <IconCircle name="check" size={64} />
-            <Column gap={spacings.xs}>
-                <Text typographyStyle="titleSmall">
-                    <Translation id="TR_EXCHANGE_DETAIL_FEEDBACK_SUCCESS_TITLE" />
-                </Text>
-                <Text typographyStyle="hint">
-                    <Translation id="TR_EXCHANGE_DETAIL_FEEDBACK_SUCCESS_DESCRIPTION" />
-                </Text>
-            </Column>
-        </Row>
-    );
-
-    const Form = (
-        <>
-            <Text typographyStyle="titleSmall">
-                <Translation id="TR_EXCHANGE_DETAIL_FEEDBACK_TITLE" />
-            </Text>
-
-            <EmojiRatingSelector value={rating} onChange={setRating} />
-
-            <Text typographyStyle="hint">
-                <Translation id="TR_EXCHANGE_DETAIL_FEEDBACK_DESCRIPTION" />
-            </Text>
-
-            <Textarea
-                rows={3}
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                characterCount
-                data-testid="@trading/feedback/textarea"
-                maxLength={1000}
-            />
-
-            <Button
-                isDisabled={!isFormValid}
-                variant="primary"
-                type="button"
-                size="small"
-                onClick={submitFeedback}
-            >
-                <Translation id="TR_EXCHANGE_DETAIL_FEEDBACK_INPUT_BUTTON" />
-            </Button>
-        </>
-    );
-
     return (
-        <ExperimentWrapper
-            id="tradingFeedbackForm"
-            components={[
-                { variant: 'A', element: <></> },
-                {
-                    variant: 'B',
-                    element: (
-                        <Card>
-                            <Column
-                                gap={spacings.md}
-                                alignItems="start"
-                                margin={{ vertical: spacings.xs }}
-                            >
-                                {view === 'form' ? Form : Success}
-                            </Column>
-                        </Card>
-                    ),
-                },
-            ]}
+        <FeedbackCard
+            heading={<Translation id="TR_EXCHANGE_DETAIL_FEEDBACK_TITLE" />}
+            description={<Translation id="TR_FEEDBACK_CARD_DESCRIPTION" />}
+            submitLabel={<Translation id="TR_FEEDBACK_CARD_SEND" />}
+            successHeading={<Translation id="TR_FEEDBACK_CARD_SUCCESS_TITLE" />}
+            successDescription={<Translation id="TR_FEEDBACK_CARD_SUCCESS_DESCRIPTION" />}
+            onSubmit={handleSubmit}
         />
     );
 };

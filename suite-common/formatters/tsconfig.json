@@ -2,9 +2,11 @@
     "extends": "../../tsconfig.base.json",
     "compilerOptions": { "outDir": "libDev" },
     "references": [
+        { "path": "../discreet-mode" },
         { "path": "../suite-constants" },
         { "path": "../suite-types" },
         { "path": "../wallet-config" },
+        { "path": "../wallet-types" },
         { "path": "../wallet-utils" },
         {
             "path": "../../packages/blockchain-link-types"

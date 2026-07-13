@@ -1,10 +1,10 @@
+import { Box } from '@suite-native/atoms';
 import {
-    Box,
     SwipeableWalkthroughStep,
     SwipeableWalkthroughStepHeader,
-    SwipeableWalkthroughStepProps,
-} from '@suite-native/atoms';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+    type SwipeableWalkthroughStepProps,
+} from '@suite-native/swipeable-walkthrough';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 export type WalletBackupTutorialStepProps = Omit<
     SwipeableWalkthroughStepProps,

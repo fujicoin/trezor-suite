@@ -1,56 +1,36 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import { transparentize } from 'polished';
 import styled from 'styled-components';
 
 import { selectAccountTransactions } from '@suite-common/wallet-core';
-import { Icon, IconName, variables } from '@trezor/components';
+import {
+    Column,
+    IconCircle,
+    type IconCircleIntent,
+    type IconComponent,
+    Paragraph,
+} from '@trezor/components';
 import type { AccountUtxo } from '@trezor/connect';
-import { CSSColor } from '@trezor/theme';
+import { negativeSpacings, typography } from '@trezor/theme';
 
 import { useSelector } from 'src/hooks/suite';
 import { useSendFormContext } from 'src/hooks/wallet';
 
 import { UtxoSelection } from './UtxoSelection/UtxoSelection';
 
-const Wrapper = styled.section`
-    border-bottom: 1px solid ${({ theme }) => theme.legacy.STROKE_GREY};
-    margin: 12px 0 16px;
-    padding-bottom: 14px;
-`;
-
 const Header = styled.header`
     align-items: center;
     display: flex;
-    font-size: ${variables.FONT_SIZE.SMALL};
+    ${typography['body-sm']}
     gap: 16px;
     margin: 6px 0 12px;
-`;
-
-const Heading = styled.div`
-    font-weight: ${variables.FONT_WEIGHT.DEMI_BOLD};
-    margin-bottom: 4px;
-`;
-
-const Description = styled.div`
-    color: ${({ theme }) => theme.legacy.TYPE_LIGHT_GREY};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledIcon = styled(Icon)<{ $backgroundColor?: string }>`
-    background: ${({ $backgroundColor }) =>
-        $backgroundColor && transparentize(0.9, $backgroundColor)};
-    border-radius: 50%;
-    margin-left: -8px;
-    padding: 20px;
 `;
 
 interface UtxoSelectionListProps {
     description: ReactNode;
     heading: ReactNode;
-    icon: IconName;
-    iconColor?: CSSColor;
+    icon: IconComponent;
+    iconIntent?: IconCircleIntent;
     utxos: AccountUtxo[];
     withHeader: boolean;
 }
@@ -59,7 +39,7 @@ export const UtxoSelectionList = ({
     description,
     heading,
     icon,
-    iconColor,
+    iconIntent = 'neutral',
     utxos,
     withHeader,
 }: UtxoSelectionListProps) => {
@@ -68,30 +48,36 @@ export const UtxoSelectionList = ({
     const accountTransactions = useSelector(state => selectAccountTransactions(state, account.key));
 
     return (
-        <Wrapper>
+        <Column>
             {withHeader && (
                 <Header>
-                    <StyledIcon
-                        name={icon}
-                        size={20}
-                        color={iconColor}
-                        $backgroundColor={iconColor}
+                    <IconCircle
+                        icon={icon}
+                        size={64}
+                        intent={iconIntent}
+                        margin={{ left: negativeSpacings.xs }}
                     />
                     <div>
-                        <Heading>{heading}</Heading>
-                        <Description>{description}</Description>
+                        <Paragraph typographyStyle="body-md" margin={{ bottom: 4 }}>
+                            {heading}
+                        </Paragraph>
+                        <Paragraph typographyStyle="body-md" intent="neutral" priority="secondary">
+                            {description}
+                        </Paragraph>
                     </div>
                 </Header>
             )}
-            {utxos.map(utxo => (
-                <UtxoSelection
-                    key={`${utxo.txid}-${utxo.vout}`}
-                    transaction={accountTransactions.find(
-                        transaction => transaction.txid === utxo.txid,
-                    )}
-                    utxo={utxo}
-                />
-            ))}
-        </Wrapper>
+            <Column gap={4}>
+                {utxos.map(utxo => (
+                    <UtxoSelection
+                        key={`${utxo.txid}-${utxo.vout}`}
+                        transaction={accountTransactions.find(
+                            transaction => transaction.txid === utxo.txid,
+                        )}
+                        utxo={utxo}
+                    />
+                ))}
+            </Column>
+        </Column>
     );
 };

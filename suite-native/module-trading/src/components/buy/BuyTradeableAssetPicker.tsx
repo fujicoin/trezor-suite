@@ -1,21 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TextInput } from 'react-native';
+import { type TextInput } from 'react-native';
 import { useSelector } from 'react-redux';
 
-import { selectHasBitcoinOnlyFirmware } from '@suite-common/wallet-core';
+import { selectHasBitcoinOnlyFirmware } from '@suite-common/device';
 import { HStack } from '@suite-native/atoms';
+import { selectBuyTradeableAssets } from '@suite-native/trading-state';
+import { type TradeableAsset } from '@suite-native/trading-types';
+import { noop } from '@trezor/utils';
 
 import { BuyCryptoAmountInput } from './BuyCryptoAmountInput';
 import { BuyTradeableAssetsSheet } from './BuyTradeableAssetsSheet';
 import { useBuyFormContext } from '../../hooks/buy/useBuyFormContext';
 import { useSheetControls } from '../../hooks/general/useSheetControls';
-import { selectBuyTradeableAssetsSorted } from '../../selectors/buySelectors';
-import { TradeableAsset } from '../../types/general';
 import { SelectTradeableAssetButton } from '../general/SelectTradeableAssetButton';
 
-const ASSET_PICKER_TEST_ID = '@trading/buy/asset-button';
-
-const noop = () => {};
+const ASSET_PICKER_TEST_ID = '@trading/buy/asset-receive-button';
 
 export const BuyTradeableAssetPicker = () => {
     const inputRef = useRef<TextInput>(null);
@@ -24,7 +23,7 @@ export const BuyTradeableAssetPicker = () => {
     const { isSheetVisible, hideSheet, showSheet, setSelectedValue, selectedValue } =
         useSheetControls(form, 'asset');
     const hasBitcoinOnlyFirmware = useSelector(selectHasBitcoinOnlyFirmware);
-    const assets = useSelector(selectBuyTradeableAssetsSorted);
+    const assets = useSelector(selectBuyTradeableAssets);
 
     const btcAsset = useMemo(() => assets.find(asset => asset.cryptoId === 'bitcoin'), [assets]);
 
@@ -39,7 +38,7 @@ export const BuyTradeableAssetPicker = () => {
             setSelectedValue(asset);
             if (shouldFocusInput) {
                 setShouldFocusInput(false);
-                // CryptoAmountInput is rendered disabled allow changes to propagate.
+                // CryptoAmountInput is rendered disabled allow changes to propagate
                 setTimeout(() => {
                     inputRef.current?.focus();
                 }, 0);
@@ -77,6 +76,7 @@ export const BuyTradeableAssetPicker = () => {
                 isVisible={isSheetVisible}
                 onClose={hideSheet}
                 onAssetSelect={onAssetSelect}
+                hideKeyboardOnAssetSelect={!shouldFocusInput}
             />
         </>
     );

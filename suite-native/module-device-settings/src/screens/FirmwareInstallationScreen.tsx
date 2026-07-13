@@ -6,17 +6,17 @@ import { useNavigation } from '@react-navigation/native';
 import { selectThpStep } from '@suite-common/thp';
 import { FirmwareInstallationScreenContent } from '@suite-native/firmware';
 import {
-    FirmwareUpdateStackParamList,
-    FirmwareUpdateStackRoutes,
-    StackNavigationProps,
+    type DeviceSettingsStackParamList,
+    DeviceSettingsStackRoutes,
+    type StackNavigationProps,
     useNavigateToInitialScreen,
 } from '@suite-native/navigation';
 
 import { useInitiateThpConnection } from '../hooks/useInitiateThpConnection';
 
 type NavigationProp = StackNavigationProps<
-    FirmwareUpdateStackParamList,
-    FirmwareUpdateStackRoutes.FirmwareInstallation
+    DeviceSettingsStackParamList,
+    DeviceSettingsStackRoutes.FirmwareUpdateStack
 >;
 
 export const FirmwareInstallationScreen = () => {
@@ -35,7 +35,7 @@ export const FirmwareInstallationScreen = () => {
     }, [thpStep, initiateThpConnection, navigateToInitialScreen]);
 
     const handleFirmwareInstallationFailure = useCallback(() => {
-        navigation.navigate(FirmwareUpdateStackRoutes.ConfirmFirmwareUpdate);
+        navigation.popTo(DeviceSettingsStackRoutes.FirmwareUpdateStack);
     }, [navigation]);
 
     return (

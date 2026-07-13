@@ -1,14 +1,16 @@
 import { useSelector } from 'react-redux';
 
-import { TokenDefinitionsRootState } from '@suite-common/token-definitions';
+import type { DeviceRootState } from '@suite-common/device';
+import { type TokenDefinitionsRootState } from '@suite-common/token-definitions';
 import { getNetwork } from '@suite-common/wallet-config';
 import {
-    DeviceRootState,
-    TransactionsRootState,
+    type TransactionsRootState,
+    type WalletSettingsRootState,
     selectBaseCurrency,
+    selectIsAmountInSats,
     selectIsBaseCurrencyInSats,
 } from '@suite-common/wallet-core';
-import { asBaseCurrencyAmount } from '@suite-common/wallet-utils';
+import { asBaseCurrencyAmount } from '@suite-common/wallet-types';
 import { Input } from '@suite-native/atoms';
 import { useCryptoFiatConverters } from '@suite-native/formatters';
 import { useField, useFormContext } from '@suite-native/forms';
@@ -17,8 +19,8 @@ import { selectAccountTokenDecimals } from '@suite-native/tokens';
 import { BigNumber } from '@trezor/utils';
 
 import { SendAmountCurrencyLabelWrapper } from './CryptoAmountInput';
-import { SendOutputsFormValues } from '../sendOutputsFormSchema';
-import { SendAmountInputProps } from '../types';
+import { type SendOutputsFormValues } from '../sendOutputsFormSchema';
+import { type SendAmountInputProps } from '../types';
 import { getOutputFieldName } from '../utils';
 
 export const FiatAmountInput = ({
@@ -33,12 +35,17 @@ export const FiatAmountInput = ({
     const { setValue } = useFormContext<SendOutputsFormValues>();
     const baseCurrencyCode = useSelector(selectBaseCurrency);
     const isBaseCurrencyInSats = useSelector(selectIsBaseCurrencyInSats);
+    const isAmountInSats = useSelector((state: WalletSettingsRootState) =>
+        selectIsAmountInSats(state, symbol),
+    );
     const { fiatAmountTransformer } = useAmountInputTransformers(symbol);
     const { decimals } = getNetwork(symbol);
     const tokenDecimals = useSelector(
         (state: DeviceRootState & TokenDefinitionsRootState & TransactionsRootState) =>
             selectAccountTokenDecimals(state, accountKey, tokenContract),
     );
+    // Use 0 decimals if amount is in sats, otherwise use token decimals or network decimals
+    const cryptoDecimals = isAmountInSats ? 0 : (tokenDecimals ?? decimals);
     const converters = useCryptoFiatConverters({ symbol, tokenContract });
 
     const cryptoFieldName = getOutputFieldName(recipientIndex, 'amount');
@@ -62,7 +69,6 @@ export const FiatAmountInput = ({
             asBaseCurrencyAmount(new BigNumber(transformedValue)),
         );
         if (cryptoValue) {
-            const cryptoDecimals = tokenDecimals ?? decimals;
             setValue(cryptoFieldName, cryptoValue.toFixed(cryptoDecimals), {
                 shouldValidate: true,
             });
@@ -74,6 +80,7 @@ export const FiatAmountInput = ({
     return (
         <Input
             ref={inputRef}
+            labelType="noLabel"
             value={value}
             placeholder="0"
             keyboardType="numeric"

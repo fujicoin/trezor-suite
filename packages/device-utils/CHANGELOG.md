@@ -1,3 +1,26 @@
+# 1.2.0
+
+- npm-prerelease: @trezor/device-utils 1.1.5-beta.2 (c8bf86b47e)
+- refactor(connect): new replace-imports.sh script using babel (2128d273f3)
+- npm-prerelease: @trezor/device-utils 1.1.5-beta.1 (ca75efb7b4)
+- fix(suite): Fix types (24e4379636)
+
+# 1.1.4
+
+- npm-prerelease: @trezor/device-utils 1.1.4-beta.1 (abda519429)
+- fix(device-utils): removed firmware_revision and url from intermediary type (cfd4c253f6)
+- fix(suite): normalize the color of the unacquired device to 1 if undefined as well as acquired device (bafeb394e3)
+
+# 1.1.3
+
+- npm-prerelease: @trezor/device-utils 1.1.3-beta.2 (8657afd6ce)
+- fix: circular import from index (wtf) -> DeviceModelInternal (757166c1cd)
+- feat(suite): Update images (28789fd3ea)
+- npm-prerelease: @trezor/device-utils 1.1.3-beta.1 (02503aa637)
+- feat(device-utils): add min_suite_native_version env condition (6349b6d499)
+- feat(device-utils): update types to new releases JSON (d1d2f3f104)
+- fix(device-utils): change firmware release config types (b116410297)
+
 # 1.1.2
 
 - refactor: from regular to universal firmware-type (9e0c95d36b)

@@ -1,22 +1,26 @@
 import { useEffect, useMemo, useRef } from 'react';
 
+import { selectSelectedAccount } from '@suite/account';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { openModal } from '@suite/modal';
+import { useServices } from '@suite-common/dependency-injection';
 import { notificationsActions } from '@suite-common/toast-notifications';
 import { selectAccountClaimTransactions } from '@suite-common/wallet-core';
 import { getStakingDataForNetwork, isPending } from '@suite-common/wallet-utils';
 import { Button, Card, Column, InfoItem, Paragraph, Tooltip } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { ChecksIcon, InfoIcon, LightningIcon, SpinnerGapIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { openModal } from 'src/actions/suite/modalActions';
-import { BaseCurrencyValue, FormattedCryptoAmount, Translation } from 'src/components/suite';
+import { BaseCurrencyValue, FormattedCryptoAmount } from 'src/components/suite';
 import { useDispatch, useSelector } from 'src/hooks/suite';
 import { useMessageSystemStaking } from 'src/hooks/suite/useMessageSystemStaking';
-import { selectSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
 
 export const ClaimCard = () => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const selectedAccount = useSelector(selectSelectedAccount);
     const claimTxs = useSelector(state =>
-        selectAccountClaimTransactions(state, selectedAccount?.key || ''),
+        selectAccountClaimTransactions(state, selectedAccount?.key || null),
     );
     const { isClaimingDisabled, claimingMessageContent } = useMessageSystemStaking(
         selectedAccount?.symbol,
@@ -26,6 +30,7 @@ export const ClaimCard = () => {
 
     const { canClaim = false, claimableAmount = '0' } =
         getStakingDataForNetwork(selectedAccount) ?? {};
+    const isClaimButtonDisabled = isClaimingDisabled || !selectedAccount;
 
     // Show success message when claim tx confirmation is complete.
     const prevIsClaimPending = useRef(false);
@@ -51,11 +56,16 @@ export const ClaimCard = () => {
     }, [dispatch, isClaimPending, selectedAccount?.symbol, selectedAccount?.key]);
 
     const openClaimModal = () => {
-        if (!isClaimingDisabled) {
-            dispatch(openModal({ type: 'claim' }));
+        if (!isClaimButtonDisabled) {
+            dispatch(
+                openModal({
+                    type: 'claim',
+                    account: selectedAccount,
+                }),
+            );
 
             analytics.report({
-                type: EventType.StakingClaim,
+                type: events.stakingClaimEvent.name,
                 payload: {
                     action: 'continue',
                     step: 'staking-dashboard',
@@ -69,14 +79,14 @@ export const ClaimCard = () => {
 
     const content = (
         <>
-            <Paragraph typographyStyle="titleSmall" variant="primary">
+            <Paragraph typographyStyle="headline-sm" intent="brand">
                 <FormattedCryptoAmount
                     data-testid="@staking/can-claim"
                     value={claimableAmount}
                     symbol={selectedAccount?.symbol}
                 />
             </Paragraph>
-            <Paragraph typographyStyle="hint" variant="tertiary">
+            <Paragraph typographyStyle="body-sm" intent="neutral" priority="secondary">
                 <BaseCurrencyValue
                     showApproximationIndicator
                     amount={claimableAmount}
@@ -88,21 +98,21 @@ export const ClaimCard = () => {
 
     return isClaimPending ? (
         <Card data-testid="@staking/can-claim-card">
-            <InfoItem label={<Translation id="TR_STAKE_CLAIM_PENDING" />} iconName="spinnerGap">
+            <InfoItem label={<Translation id="TR_STAKE_CLAIM_PENDING" />} icon={SpinnerGapIcon}>
                 {content}
             </InfoItem>
         </Card>
     ) : (
-        <Card data-testid="@staking/can-claim-card" variant="primary">
+        <Card data-testid="@staking/can-claim-card">
             <Column flex="1" gap={spacings.xl}>
                 <InfoItem
                     label={<Translation id="TR_STAKE_UNSTAKED_AND_READY_TO_CLAIM" />}
-                    iconName="checks"
+                    icon={ChecksIcon}
                 >
                     {content}
                 </InfoItem>
-                <InfoItem label={<Translation id="TR_STAKE_TIME_TO_CLAIM" />} iconName="lightning">
-                    <Paragraph typographyStyle="titleSmall">
+                <InfoItem label={<Translation id="TR_STAKE_TIME_TO_CLAIM" />} icon={LightningIcon}>
+                    <Paragraph typographyStyle="headline-sm">
                         <Translation id="TR_STAKE_INSTANT" />
                     </Paragraph>
                 </InfoItem>
@@ -110,8 +120,9 @@ export const ClaimCard = () => {
                 <Tooltip content={claimingMessageContent}>
                     <Button
                         onClick={openClaimModal}
-                        isDisabled={isClaimingDisabled}
-                        icon={isClaimingDisabled ? 'info' : undefined}
+                        isDisabled={isClaimButtonDisabled}
+                        iconLeft={isClaimButtonDisabled ? InfoIcon : undefined}
+                        data-testid="@account/staking/claim-button"
                     >
                         <Translation id="TR_STAKE_CLAIM" />
                     </Button>

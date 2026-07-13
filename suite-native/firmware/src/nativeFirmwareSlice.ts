@@ -1,10 +1,10 @@
-import { PayloadAction, createSlice } from '@reduxjs/toolkit';
+import { type PayloadAction, createSlice } from '@reduxjs/toolkit';
 
 export interface NativeFirmwareState {
     isFirmwareInstallationRunning: boolean;
 }
 
-const initialState: NativeFirmwareState = {
+export const nativeFirmwareInitialState: NativeFirmwareState = {
     isFirmwareInstallationRunning: false,
 };
 
@@ -14,7 +14,7 @@ export type NativeFirmwareRootState = {
 
 export const nativeFirmwareSlice = createSlice({
     name: 'nativeFirmware',
-    initialState,
+    initialState: nativeFirmwareInitialState,
     reducers: {
         setIsFirmwareInstallationRunning: (state, action: PayloadAction<boolean>) => {
             state.isFirmwareInstallationRunning = action.payload;

@@ -1,29 +1,35 @@
-import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from 'react';
-import { FieldPath, UseFormReturn } from 'react-hook-form';
+import {
+    type Dispatch,
+    type SetStateAction,
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+} from 'react';
+import { type FieldPath, type UseFormReturn } from 'react-hook-form';
 import { useDispatch } from 'react-redux';
 
 import { isFulfilled } from '@reduxjs/toolkit';
 
+import { type TranslationKey, isTranslationKey, useTranslation } from '@suite/intl';
 import { COMPOSE_ERROR_TYPES } from '@suite-common/wallet-constants';
 import { composeSendFormTransactionFeeLevelsThunk } from '@suite-common/wallet-core';
 import {
-    ExcludedUtxos,
-    FeeInfo,
-    FormState,
-    PrecomposedLevels,
-    PrecomposedLevelsCardano,
-    PrecomposedTransaction,
-    PrecomposedTransactionCardano,
+    type ExcludedUtxos,
+    type FeeInfo,
+    type FormState,
+    type PrecomposedLevels,
+    type PrecomposedLevelsCardano,
+    type PrecomposedTransaction,
+    type PrecomposedTransactionCardano,
 } from '@suite-common/wallet-types';
 import { findComposeErrors } from '@suite-common/wallet-utils';
-import { FeeLevel } from '@trezor/connect';
+import { type FeeLevel } from '@trezor/connect';
 import { useDebounce } from '@trezor/react-utils';
 import { isChanged } from '@trezor/utils';
 
-import { TranslationKey } from 'src/components/suite/Translation';
-import { SendContextValues, UseSendFormState } from 'src/types/wallet/sendForm';
+import { type SendContextValues, type UseSendFormState } from 'src/types/wallet/sendForm';
 
-import { useTranslation } from '../suite';
 import { useSolanaSubscribeBlocks } from './form/useSolanaSubscribeBlocks';
 
 type Props = UseFormReturn<FormState> & {
@@ -36,6 +42,7 @@ type Props = UseFormReturn<FormState> & {
     setAmount: (index: number, amount: string) => void;
     targetAnonymity?: number;
     prison?: Record<string, unknown>;
+    setShowReserveBanner: SendContextValues['setShowReserveBanner'];
 };
 
 // This hook should be used only as a sub-hook of `useSendForm`
@@ -53,6 +60,7 @@ export const useSendFormCompose = ({
     setLoading,
     setAmount,
     prison,
+    setShowReserveBanner,
 }: Props) => {
     const [composedLevels, setComposedLevels] =
         useState<SendContextValues['composedLevels']>(undefined);
@@ -60,7 +68,6 @@ export const useSendFormCompose = ({
     const [draftSaveRequest, setDraftSaveRequest] = useState(false);
 
     const dispatch = useDispatch();
-
     const { translationString } = useTranslation();
 
     const composeRequestID = useRef(0); // compose ID, incremented with every compose request
@@ -175,7 +182,7 @@ export const useSendFormCompose = ({
             if (!composed) return;
             if (composed.type === 'error') {
                 const { error, errorMessage } = composed;
-                if (!errorMessage) {
+                if (!errorMessage || !isTranslationKey(errorMessage.id)) {
                     // composed tx doesn't have an errorMessage (Translation props)
                     // this error is unexpected and should be handled in sendFormActions
                     console.warn('Compose unexpected error', error);
@@ -224,7 +231,10 @@ export const useSendFormCompose = ({
             // set calculated and formatted "max" value to `Amount` input
             if (typeof setMaxOutputId === 'number' && composed.max) {
                 setAmount(setMaxOutputId, composed.max);
+                setShowReserveBanner(true);
                 setDraftSaveRequest(true);
+            } else {
+                setShowReserveBanner(false);
             }
             setLoading(false);
         },
@@ -238,6 +248,7 @@ export const useSendFormCompose = ({
             setValue,
             setLoading,
             translationString,
+            setShowReserveBanner,
         ],
     );
 
@@ -260,12 +271,14 @@ export const useSendFormCompose = ({
             !selectedFee || (typeof setMaxOutputId === 'number' && selectedFee !== 'custom');
         if (shouldSwitch && composed.type === 'error') {
             // find nearest possible tx
+            // eslint-disable-next-line no-restricted-syntax -- composedLevels is keyed by fee labels but typed as Record<string, …>, so assert the keys back to FeeLevel['label']
             const nearest = (Object.keys(composedLevels) as FeeLevel['label'][]).find(
-                key => composedLevels[key].type !== 'error',
+                key => composedLevels[key]?.type !== 'error',
             );
             // switch to it
-            if (nearest) {
-                composed = composedLevels[nearest];
+            const nearestComposed = nearest ? composedLevels[nearest] : undefined;
+            if (nearest && nearestComposed) {
+                composed = nearestComposed;
                 setValue('selectedFee', nearest);
                 if (nearest === 'custom') {
                     // @ts-expect-error: type = error already filtered above
@@ -289,17 +302,23 @@ export const useSendFormCompose = ({
             if (!composedLevels) return;
             if (current === 'custom') {
                 // set custom level from previously selected level
-                const prevLevel = composedLevels[prev || 'normal'];
+                const prevLevel = composedLevels[prev || 'normal'] ?? composedLevels.normal;
                 const level = {
                     ...composedLevels,
                     custom: prevLevel,
                 } as
-                    | (PrecomposedLevels & { custom: PrecomposedTransaction })
-                    | (PrecomposedLevelsCardano & { custom: PrecomposedTransactionCardano });
+                    | (PrecomposedLevels & {
+                          custom: PrecomposedTransaction;
+                      })
+                    | (PrecomposedLevelsCardano & {
+                          custom: PrecomposedTransactionCardano;
+                      });
                 setComposedLevels(level);
             } else {
                 const currentLevel = composedLevels[current || 'normal'];
-                updateComposedValues(currentLevel);
+                if (currentLevel) {
+                    updateComposedValues(currentLevel);
+                }
             }
             setDraftSaveRequest(true);
         },

@@ -2,17 +2,24 @@ import { useMemo } from 'react';
 
 import { AnimatePresence, motion } from 'framer-motion';
 
+import { selectIsDebugModeActive } from '@suite/debug';
+import { type ExperimentalFeature } from '@suite/experimental';
+import { LearnMoreButton } from '@suite/external-links';
+import { feedbackRequested } from '@suite/feature-feedback';
+import { Translation } from '@suite/intl';
+import { goto } from '@suite/router';
+import { selectExperimentalFeatures, suiteSettingsActions } from '@suite/settings';
+import { useServices } from '@suite-common/dependency-injection';
 import { Banner, Button, Checkbox, Column, Row, Switch } from '@trezor/components';
+import { WarningIcon } from '@trezor/icons';
+import { ActionColumn, SectionItem, TextColumn } from '@trezor/product-components';
 import { spacings } from '@trezor/theme';
 import { EXPERIMENTAL_FEATURES_KB_URL } from '@trezor/urls';
 import { typedObjectKeys } from '@trezor/utils';
 
-import { SUITE } from 'src/actions/suite/constants';
-import { goto } from 'src/actions/suite/routerActions';
-import { ActionColumn, SectionItem, TextColumn, Translation } from 'src/components/suite';
-import { EXPERIMENTAL_FEATURES, ExperimentalFeature } from 'src/constants/suite/experimental';
+import { EXPERIMENTAL_FEATURES } from 'src/constants/suite/experimental';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectIsDebugModeActive } from 'src/selectors/suite/suiteSelectors';
+import { selectSuiteServices } from 'src/support/extraDependencies';
 
 type FeatureLineProps = {
     feature: ExperimentalFeature;
@@ -21,50 +28,56 @@ type FeatureLineProps = {
 
 const FeatureLine = ({ feature, enabledFeatures }: FeatureLineProps) => {
     const dispatch = useDispatch();
+    const services = useServices(selectSuiteServices);
     const checked = enabledFeatures.includes(feature);
 
     const config = EXPERIMENTAL_FEATURES[feature];
-    const titleId = config.title;
-    const descId = config.description;
+    const { title, description } = config;
     const url = config.knowledgeBaseUrl;
 
     const onChangeFeature = async () => {
         const newValue = !checked;
 
         try {
-            await config?.onToggle?.({ dispatch, newValue });
-            dispatch({
-                type: SUITE.SET_EXPERIMENTAL_FEATURES,
-                payload: {
-                    enabledFeatures: newValue
+            await config?.onToggle?.({ services, newValue, dispatch });
+            dispatch(
+                suiteSettingsActions.setExperimentalFeatures(
+                    newValue
                         ? [...enabledFeatures, feature]
                         : enabledFeatures.filter(enabledFeature => enabledFeature !== feature),
-                },
-            });
+                ),
+            );
+            if (!newValue) {
+                dispatch(feedbackRequested({ feature, isFeatureBeingDisabled: true }));
+            }
         } catch (error) {
             console.error('Could not turn on an experimental feature: ', error);
         }
     };
+
     const handleClick = () => {
         if (!config.routeName) return;
-        dispatch(goto(config.routeName));
+        dispatch(goto({ routeName: config.routeName }));
     };
 
     return (
         <Row gap={spacings.sm}>
             <TextColumn
-                title={titleId ? <Translation id={titleId} /> : feature}
-                description={descId && <Translation id={descId} />}
-                buttonLink={url}
-                buttonTitle={<Translation id="TR_LEARN_MORE" />}
+                title={title ? <Translation {...title} /> : feature}
+                description={description ? <Translation {...description} /> : undefined}
+                bottomContent={url ? <LearnMoreButton url={url} /> : undefined}
             />
             <ActionColumn>
                 {config.routeName ? (
-                    <Button variant="tertiary" onClick={handleClick}>
+                    <Button intent="neutral" priority="secondary" onClick={handleClick}>
                         <Translation id="TR_GO_TO_EXP_FEATURE" />
                     </Button>
                 ) : (
-                    <Checkbox isChecked={checked} onClick={onChangeFeature} />
+                    <Checkbox
+                        isChecked={checked}
+                        onChange={onChangeFeature}
+                        data-testid={`@settings/experimental-features/${feature}-checkbox`}
+                    />
                 )}
             </ActionColumn>
         </Row>
@@ -87,24 +100,44 @@ const motionDivProps = {
     exit: 'initial',
 } as const;
 
+const bannerMotionDivProps = {
+    variants: {
+        initial: { overflow: 'hidden', height: 0, marginTop: 0, opacity: 0 },
+        visible: {
+            height: 'auto',
+            marginTop: '12px',
+            opacity: 1,
+            transitionEnd: { overflow: 'unset' },
+        },
+    },
+    transition: { duration: 0.24, ease: 'easeInOut' },
+    initial: 'initial',
+    animate: 'visible',
+    exit: 'initial',
+} as const;
+
 export const Experimental = () => {
-    const enabledFeatures = useSelector(state => state.suite.settings.experimental);
+    const enabledFeatures = useSelector(selectExperimentalFeatures);
+    const isExperimentalEnabled = enabledFeatures !== undefined;
     const isDebug = useSelector(selectIsDebugModeActive);
 
     const dispatch = useDispatch();
+    const services = useServices(selectSuiteServices);
 
     const onSwitchExperimental = () => {
         enabledFeatures?.forEach(feature =>
             EXPERIMENTAL_FEATURES[feature]?.onToggle?.({
+                services,
+                newValue: !isExperimentalEnabled,
                 dispatch,
-                newValue: false,
             }),
         );
 
-        dispatch({
-            type: SUITE.SET_EXPERIMENTAL_FEATURES,
-            payload: { enabledFeatures: enabledFeatures === undefined ? [] : undefined },
-        });
+        dispatch(
+            suiteSettingsActions.setExperimentalFeatures(
+                enabledFeatures === undefined ? [] : undefined,
+            ),
+        );
     };
 
     const experimentalFeatures = useMemo(
@@ -124,16 +157,30 @@ export const Experimental = () => {
                 <TextColumn
                     title={<Translation id="TR_EXPERIMENTAL_FEATURES_ALLOW" />}
                     description={
-                        <Banner icon="warning" variant="warning">
-                            <Translation id="TR_EXPERIMENTAL_FEATURES_WARNING" />
-                        </Banner>
+                        <>
+                            <Translation id="TR_EXPERIMENTAL_FEATURES_DESCRIPTION" />
+                            <AnimatePresence>
+                                {isExperimentalEnabled && (
+                                    <motion.div {...bannerMotionDivProps}>
+                                        <Banner
+                                            icon={WarningIcon}
+                                            intent="warning"
+                                            description={
+                                                <Translation id="TR_EXPERIMENTAL_FEATURES_WARNING_IF_ENABLED" />
+                                            }
+                                        />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </>
                     }
-                    buttonLink={EXPERIMENTAL_FEATURES_KB_URL}
+                    bottomContent={<LearnMoreButton url={EXPERIMENTAL_FEATURES_KB_URL} />}
                 />
                 <ActionColumn>
                     <Switch
-                        isChecked={enabledFeatures !== undefined}
+                        isChecked={isExperimentalEnabled}
                         onChange={onSwitchExperimental}
+                        data-testid="@settings/experimental-features/toggle-switch"
                     />
                 </ActionColumn>
             </SectionItem>
@@ -144,7 +191,7 @@ export const Experimental = () => {
                             {experimentalFeatures.map(feature => (
                                 <FeatureLine
                                     key={feature}
-                                    feature={feature as ExperimentalFeature}
+                                    feature={feature}
                                     enabledFeatures={enabledFeatures}
                                 />
                             ))}

@@ -1,25 +1,27 @@
+import { StretchInY, StretchOutY } from 'react-native-reanimated';
 import { useSelector } from 'react-redux';
 
-import { BuyTrade } from 'invity-api';
+import type { BuyTrade } from 'invity-api';
 
+import { useServices } from '@suite-common/dependency-injection';
 import { invariant } from '@suite-common/suite-utils';
 import {
-    TradingRootState as TradingRootStateCommon,
+    type TradingRootState as TradingRootStateCommon,
     selectTradingBuyIsLoading,
     selectTradingBuyProviders,
     selectTradingProviderByNameAndTradeType,
 } from '@suite-common/trading';
-import { EventType, analytics } from '@suite-native/analytics';
-import { HStack, Text } from '@suite-native/atoms';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
+import { AnimatedBox, HStack, Text } from '@suite-native/atoms';
 import { useTranslate } from '@suite-native/intl';
+import { OverviewRow, OverviewValueSkeleton, ProviderLogo } from '@suite-native/trading-atoms';
+import {
+    type TradingRootState,
+    selectBuyQuotesByPaymentMethodNative,
+} from '@suite-native/trading-state';
 
 import { useBuyFormContext } from '../../hooks/buy/useBuyFormContext';
 import { useSheetControls } from '../../hooks/general/useSheetControls';
-import { TradingRootState } from '../../reducers';
-import { selectBuyQuotesByPaymentMethodNative } from '../../selectors/buySelectors';
-import { OverviewRow } from '../general/OverviewRow';
-import { OverviewValueSkeleton } from '../general/OverviewValueSkeleton';
-import { ProviderLogo } from '../general/ProviderLogo';
 import { ProviderSheet } from '../general/ProviderSheet/ProviderSheet';
 
 type BuyProviderPickerRightProps = {
@@ -48,8 +50,8 @@ const BuyProviderPickerRight = ({ isLoading, selectedValue }: BuyProviderPickerR
         <HStack>
             <ProviderLogo logo={logo} />
             <Text
-                color="textSubdued"
-                variant="body"
+                color="contentPrimary"
+                variant="body-sm"
                 accessibilityLabel={translate('moduleTrading.tradingScreen.selectedProvider')}
                 testID={PROVIDER_PICKER_TEST_ID + '/value'}
             >
@@ -64,7 +66,7 @@ export const BuyProviderPicker = () => {
     const form = useBuyFormContext();
     const providers = useSelector(selectTradingBuyProviders);
     const isLoading = useSelector(selectTradingBuyIsLoading);
-
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const { isSheetVisible, hideSheet, showSheet, setSelectedValue, selectedValue } =
         useSheetControls(form, 'quote');
     const { paymentMethod } = selectedValue ?? {};
@@ -79,7 +81,7 @@ export const BuyProviderPicker = () => {
 
         showSheet();
         analytics.report({
-            type: EventType.TradingCompareOffers,
+            type: events.tradingCompareOffersEvent.name,
             payload: {
                 type: 'buy',
             },
@@ -92,7 +94,7 @@ export const BuyProviderPicker = () => {
         if (selectedValue?.exchange === quote.exchange) return;
 
         analytics.report({
-            type: EventType.TradingParameterChanged,
+            type: events.tradingParameterChangedEvent.name,
             payload: {
                 type: 'buy',
                 parameter: 'provider',
@@ -106,18 +108,17 @@ export const BuyProviderPicker = () => {
 
     return (
         <>
-            <OverviewRow
-                title={translate('moduleTrading.tradingScreen.provider')}
-                noBottomBorder
-                onPress={handleProviderPress}
-                testID={PROVIDER_PICKER_TEST_ID}
-                noCaret={isLoading}
-                warning={
-                    isLoading ? undefined : translate('moduleTrading.tradingScreen.kycWarning')
-                }
-            >
-                <BuyProviderPickerRight isLoading={isLoading} selectedValue={selectedValue} />
-            </OverviewRow>
+            <AnimatedBox entering={StretchInY} exiting={StretchOutY}>
+                <OverviewRow
+                    title={translate('moduleTrading.tradingScreen.provider')}
+                    noBottomBorder
+                    onPress={handleProviderPress}
+                    testID={PROVIDER_PICKER_TEST_ID}
+                    noCaret={isLoading}
+                >
+                    <BuyProviderPickerRight isLoading={isLoading} selectedValue={selectedValue} />
+                </OverviewRow>
+            </AnimatedBox>
             <ProviderSheet
                 quotes={quotes}
                 isVisible={isSheetVisible}

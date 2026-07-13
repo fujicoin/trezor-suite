@@ -1,25 +1,19 @@
-import { useTheme } from 'styled-components';
-
-import {
-    Column,
-    ComponentWithSubIcon,
-    Icon,
-    IconName,
-    IconVariant,
-    iconSizes,
-} from '@trezor/components';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { SettingsAnchor, goto } from '@suite/router';
+import { TorStatus, selectTorState } from '@suite/tor';
+import { Column, Icon, type IconComponent, type UIIntent } from '@trezor/components';
 import { isDesktop } from '@trezor/env-utils';
-import { spacings } from '@trezor/theme';
+import {
+    ArrowsClockwiseIcon,
+    CheckIcon,
+    InfoIcon,
+    TorBrowserIcon,
+    WarningIcon,
+    XIcon,
+} from '@trezor/icons';
+import { QuickActionButton, TooltipRow } from '@trezor/product-components';
 
-import { goto } from 'src/actions/suite/routerActions';
-import { SettingsAnchor } from 'src/constants/suite/anchors';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectTorState } from 'src/selectors/suite/suiteSelectors';
-import { TorStatus } from 'src/types/suite';
-
-import { QuickActionButton } from './QuickActionButton';
-import { TooltipRow } from './TooltipRow';
-import { Translation, TranslationKey } from '../../../../Translation';
 
 const torStatusTranslationMap: Record<TorStatus, TranslationKey> = {
     [TorStatus.Enabled]: 'TR_TOR_ENABLED',
@@ -27,54 +21,33 @@ const torStatusTranslationMap: Record<TorStatus, TranslationKey> = {
     [TorStatus.Disabling]: 'TR_TOR_DISABLING',
     [TorStatus.Enabling]: 'TR_TOR_ENABLING',
     [TorStatus.Error]: 'TR_TOR_ERROR',
-    [TorStatus.Misbehaving]: 'TR_TOR_MISBEHAVING',
+    [TorStatus.Slow]: 'TR_TOR_SLOW',
 };
 
-const torIconMap: Record<TorStatus, IconName> = {
-    [TorStatus.Enabled]: 'check',
-    [TorStatus.Disabled]: 'x',
-    [TorStatus.Disabling]: 'arrowsClockwise',
-    [TorStatus.Enabling]: 'arrowsClockwise',
-    [TorStatus.Error]: 'warning',
-    [TorStatus.Misbehaving]: 'warning',
+const torIconMap: Record<TorStatus, IconComponent> = {
+    [TorStatus.Enabled]: CheckIcon,
+    [TorStatus.Disabled]: XIcon,
+    [TorStatus.Disabling]: ArrowsClockwiseIcon,
+    [TorStatus.Enabling]: ArrowsClockwiseIcon,
+    [TorStatus.Error]: WarningIcon,
+    [TorStatus.Slow]: InfoIcon,
 };
 
-const torIconVariantMap: Record<TorStatus, IconVariant> = {
-    [TorStatus.Enabled]: 'primary',
-    [TorStatus.Disabled]: 'destructive',
-    [TorStatus.Disabling]: 'destructive',
+const torIntentMap: Record<TorStatus, UIIntent> = {
+    [TorStatus.Enabled]: 'brand',
+    [TorStatus.Disabled]: 'critical',
+    [TorStatus.Disabling]: 'critical',
     [TorStatus.Enabling]: 'info',
     [TorStatus.Error]: 'warning',
-    [TorStatus.Misbehaving]: 'warning',
+    [TorStatus.Slow]: 'info',
 };
-
-type TorTooltipProps = {
-    variant: IconVariant;
-    iconName: IconName;
-    torStatus: TorStatus;
-};
-
-const TorTooltip = ({ variant, iconName, torStatus }: TorTooltipProps) => (
-    <Column gap={spacings.xs} alignItems="start">
-        <TooltipRow
-            circleIconName={iconName}
-            variant={variant}
-            header={<Translation id="TR_TOR" />}
-            leftItem={<Icon name="torBrowser" size={iconSizes.medium} />}
-        >
-            <Translation id={torStatusTranslationMap[torStatus]} />
-        </TooltipRow>
-    </Column>
-);
 
 export const Tor = () => {
     const dispatch = useDispatch();
-    const theme = useTheme();
 
     const { torStatus, isTorDisabled } = useSelector(selectTorState);
     const isTorIconVisible = isDesktop() && !isTorDisabled;
 
-    const variant = torIconVariantMap[torStatus];
     const iconName = torIconMap[torStatus];
 
     return (
@@ -82,22 +55,25 @@ export const Tor = () => {
             <QuickActionButton
                 tooltip={{
                     content: (
-                        <TorTooltip variant={variant} iconName={iconName} torStatus={torStatus} />
+                        <Column padding={4} alignItems="start">
+                            <TooltipRow
+                                icon={iconName}
+                                intent={torIntentMap[torStatus]}
+                                header={<Translation id="TR_TOR" />}
+                                leftItem={<Icon as={TorBrowserIcon} size={16} />}
+                            >
+                                <Translation id={torStatusTranslationMap[torStatus]} />
+                            </TooltipRow>
+                        </Column>
                     ),
                 }}
-                onClick={() => dispatch(goto('settings-index', { anchor: SettingsAnchor.Tor }))}
-            >
-                <ComponentWithSubIcon
-                    variant={variant}
-                    subIconProps={{
-                        name: iconName,
-                        color: theme['iconDefaultInverted'],
-                        size: iconSizes.extraSmall,
-                    }}
-                >
-                    <Icon name="torBrowser" size={iconSizes.medium} variant="tertiary" />
-                </ComponentWithSubIcon>
-            </QuickActionButton>
+                onClick={() =>
+                    dispatch(goto({ routeName: 'settings-index', anchor: SettingsAnchor.Tor }))
+                }
+                icon={TorBrowserIcon}
+                subIconIntent={torIntentMap[torStatus]}
+                subIcon={iconName}
+            />
         )
     );
 };

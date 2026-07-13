@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { Translation } from '@suite/intl';
 import { hasNetworkPotentialFraudTransactions } from '@suite-common/token-definitions';
 import {
     selectAreAllTransactionsLoaded,
@@ -7,9 +8,8 @@ import {
 } from '@suite-common/wallet-core';
 import { Card, Column, Text } from '@trezor/components';
 
-import { Translation } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
-import { Account, WalletAccountTransaction } from 'src/types/wallet';
+import { type Account, type WalletAccountTransaction } from 'src/types/wallet';
 
 import { TransactionList } from './TransactionList';
 import { useVisibleTransactions } from './useFetchTransactions';
@@ -17,7 +17,7 @@ import { useVisibleTransactions } from './useFetchTransactions';
 export const NoVisibleTransactions = () => (
     <Card>
         <Column alignItems="center">
-            <Text typographyStyle="hint" variant="tertiary">
+            <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
                 <Translation id="TR_NO_VISIBLE_TRANSACTIONS" />
             </Text>
         </Column>

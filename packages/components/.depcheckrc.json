@@ -1,0 +1,16 @@
+{
+    "ignore-patterns": ["libDev", "lib"],
+    "ignores": [
+        "stylelint-config-standard",
+        "@babel/preset-react",
+        "postcss-styled-syntax",
+        "typescript-styled-plugin",
+        "@storybook/react-webpack5",
+        "@storybook/addon-links",
+        "@storybook/addon-docs",
+
+        "// Todo: hack to workaround the issue, see: https://github.com/JedWatson/react-select/issues/4631",
+        "@emotion/cache",
+        "@emotion/react"
+    ]
+}

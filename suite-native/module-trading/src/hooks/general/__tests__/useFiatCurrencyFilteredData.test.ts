@@ -1,6 +1,6 @@
 import { act, renderHookWithBasicProvider } from '@suite-native/test-utils';
+import { type FiatCurrencyItem } from '@suite-native/trading-types';
 
-import { FiatCurrencyItem } from '../../../types/general';
 import { useFiatCurrencyFilteredData } from '../useFiatCurrencyFilteredData';
 
 const supportedFiatCurrencies: FiatCurrencyItem[] = [
@@ -61,7 +61,7 @@ describe('useFiatCurrencyFilteredData', () => {
             result.current.setFilterValue('unITed');
         });
 
-        expect(result.current.filteredData[0].data).toEqual([
+        expect(result.current.filteredData[0]?.data).toEqual([
             expect.objectContaining({ value: 'usd' }),
         ]);
     });
@@ -73,7 +73,7 @@ describe('useFiatCurrencyFilteredData', () => {
             result.current.setFilterValue('uSd');
         });
 
-        expect(result.current.filteredData[0].data).toEqual([
+        expect(result.current.filteredData[0]?.data).toEqual([
             expect.objectContaining({ value: 'usd' }),
         ]);
     });

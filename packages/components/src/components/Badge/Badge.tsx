@@ -1,194 +1,77 @@
 import React from 'react';
 
-import styled, { DefaultTheme, css, useTheme } from 'styled-components';
+import { borders } from '@trezor/theme';
 
-import { CSSColor, Color, borders, spacings, spacingsPx, typography } from '@trezor/theme';
-
-import type { UISize, UIVariant } from '../../config/types';
+import { type BadgeIntent, type BadgeSize } from './types';
 import {
-    FrameProps,
-    FramePropsKeys,
+    mapIntentToBackgroundColor,
+    mapIntentToIconColor,
+    mapSizeToIconSize,
+    mapSizeToPadding,
+    mapSizeToTypographyStyle,
+} from './utils';
+import {
+    type FrameProps,
+    type FramePropsKeys,
     pickAndPrepareFrameProps,
-    withFrameProps,
 } from '../../utils/frameProps';
-import { TransientProps } from '../../utils/transientProps';
-import { focusStyleTransition, getFocusShadowStyle } from '../../utils/utils';
-import { Icon, IconName } from '../Icon/Icon';
+import { Box } from '../Box/Box';
+import { Row } from '../Flex/Flex';
+import { Icon, type IconComponent } from '../Icon/Icon';
+import { Text } from '../typography/Text/Text';
 
-export const badgeSizes = ['medium', 'small', 'tiny'] as const satisfies UISize[];
-export type BadgeSize = Extract<UISize, (typeof badgeSizes)[number]>;
-
-export const allowedBadgeFrameProps = ['margin'] as const satisfies FramePropsKeys[];
+export const allowedBadgeFrameProps = ['margin', 'cursor'] as const satisfies FramePropsKeys[];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedBadgeFrameProps)[number]>;
-
-export type BadgeVariant = Extract<
-    UIVariant,
-    'primary' | 'tertiary' | 'destructive' | 'warning' | 'info'
->;
 
 export type BadgeProps = AllowedFrameProps & {
     size?: BadgeSize;
-    variant?: BadgeVariant;
-    onElevation?: boolean;
-    isDisabled?: boolean;
-    icon?: IconName;
-    hasAlert?: boolean;
-    className?: string;
+    intent?: BadgeIntent;
+    iconLeft?: IconComponent;
+    iconRight?: IconComponent;
     children?: React.ReactNode;
-    inline?: boolean;
     'data-testid'?: string;
 };
 
-type MapArgs = {
-    $variant: BadgeVariant;
-    $onElevation?: boolean;
-    theme: DefaultTheme;
-};
-
-type BadgeContainerProps = {
-    $size: BadgeSize;
-    $variant: BadgeVariant;
-    $hasAlert: boolean;
-    $inline: boolean;
-    $onElevation: boolean;
-} & TransientProps<AllowedFrameProps>;
-
-const mapVariantToBackgroundColor = ({ $variant, $onElevation, theme }: MapArgs): CSSColor => {
-    const colorMap: Record<BadgeVariant, Color> = {
-        primary: 'backgroundPrimarySubtleOnElevation0',
-        tertiary: `backgroundNeutralSubtleOnElevation${$onElevation ? 1 : 0}`,
-        destructive: 'backgroundAlertRedSubtleOnElevation0',
-        warning: 'backgroundAlertYellowSubtleOnElevation0',
-        info: 'backgroundAlertBlueSubtleOnElevation0',
-    };
-
-    return theme[colorMap[$variant]];
-};
-
-const mapVariantToTextColor = ({ $variant, theme }: MapArgs): CSSColor => {
-    const colorMap: Record<BadgeVariant, Color> = {
-        primary: 'textPrimaryDefault',
-        tertiary: 'textSubdued',
-        destructive: 'textAlertRed',
-        warning: 'textAlertYellow',
-        info: 'textAlertBlue',
-    };
-
-    return theme[colorMap[$variant]];
-};
-
-const mapVariantToIconColor = ({ $variant, theme }: MapArgs): CSSColor => {
-    const colorMap: Record<BadgeVariant, Color> = {
-        primary: 'iconPrimaryDefault',
-        tertiary: 'iconSubdued',
-        destructive: 'iconAlertRed',
-        warning: 'iconAlertYellow',
-        info: 'iconAlertBlue',
-    };
-
-    return theme[colorMap[$variant]];
-};
-
-const mapSizeToPadding = ({ $size }: { $size: BadgeSize }): string => {
-    const colorMap: Record<BadgeSize, string> = {
-        tiny: `0 ${spacings.xs - spacings.xxxs}px`,
-        small: `0 ${spacingsPx.xs}`,
-        medium: `${spacingsPx.xxxs} ${spacingsPx.xs}`,
-    };
-
-    return colorMap[$size];
-};
-
-const mapSizeToIconSize = ({ $size }: { $size: BadgeSize }): number => {
-    const sizes: Record<BadgeSize, number> = {
-        tiny: 12,
-        small: 16,
-        medium: 20,
-    };
-
-    return sizes[$size];
-};
-
-const Container = styled.div<BadgeContainerProps>`
-    display: ${({ $inline }) => ($inline ? 'inline-flex' : 'flex')};
-    align-items: center;
-    gap: ${spacingsPx.xxs};
-    padding: ${mapSizeToPadding};
-    border-radius: ${borders.radii.full};
-    border: 1px solid transparent;
-    background: ${mapVariantToBackgroundColor};
-    transition: ${focusStyleTransition};
-
-    &:disabled {
-        background: ${({ theme }) => theme.backgroundNeutralSubtleOnElevation0};
-    }
-
-    ${getFocusShadowStyle()}
-
-    ${({ theme, $hasAlert }) =>
-        $hasAlert &&
-        css`
-            &:not(:focus-visible) {
-                border: 1px solid ${theme.borderAlertRed};
-                box-shadow: 0 0 0 1px ${theme.borderAlertRed};
-            }
-        `}
-
-    ${withFrameProps}
-`;
-
-const Content = styled.span<{ $isDisabled: boolean; $variant: BadgeVariant; $size: BadgeSize }>`
-    color: ${({ $isDisabled, theme }) =>
-        $isDisabled ? theme.textDisabled : mapVariantToTextColor};
-    ${({ $size }) => ($size === 'medium' ? typography.hint : typography.label)};
-`;
-
 export const Badge = ({
     size = 'medium',
-    variant = 'tertiary',
-    onElevation,
-    isDisabled,
-    icon,
-    hasAlert,
-    className,
+    intent = 'neutral',
+    iconLeft,
+    iconRight,
     children,
-    inline,
     'data-testid': dataTest,
     ...rest
 }: BadgeProps) => {
-    const theme = useTheme();
-    const frameProps = pickAndPrepareFrameProps(rest, allowedBadgeFrameProps);
+    const frameProps = pickAndPrepareFrameProps(rest, allowedBadgeFrameProps, false);
+    const textPriority = intent === 'neutral' ? 'secondary' : 'primary';
+
+    const iconProps = {
+        color: mapIntentToIconColor(intent),
+        size: mapSizeToIconSize(size),
+    };
 
     return (
-        <Container
-            $size={size}
-            $variant={variant}
-            $hasAlert={!!hasAlert}
-            $onElevation={!!onElevation}
-            className={className}
-            $inline={inline === true}
+        <Box
+            display="inline-flex"
+            data-testid={dataTest}
+            borderRadius={borders.radii.full}
+            backgroundColor={mapIntentToBackgroundColor(intent)}
             {...frameProps}
         >
-            {icon && (
-                <Icon
-                    name={icon}
-                    color={
-                        isDisabled
-                            ? theme.iconDisabled
-                            : mapVariantToIconColor({ $variant: variant, theme })
-                    }
-                    size={mapSizeToIconSize({ $size: size })}
-                />
-            )}
-
-            <Content
-                $size={size}
-                $variant={variant}
-                $isDisabled={!!isDisabled}
-                data-testid={dataTest}
-            >
-                {children}
-            </Content>
-        </Container>
+            <Row gap={4} padding={mapSizeToPadding(size)}>
+                {iconLeft && <Icon as={iconLeft} {...iconProps} />}
+                <Text
+                    as="div"
+                    typographyStyle={mapSizeToTypographyStyle(size)}
+                    intent={intent}
+                    priority={textPriority}
+                    textWrap="nowrap"
+                >
+                    {children}
+                </Text>
+                {iconRight && <Icon as={iconRight} {...iconProps} />}
+            </Row>
+        </Box>
     );
 };
+
+export type { BadgeSize, BadgeIntent };

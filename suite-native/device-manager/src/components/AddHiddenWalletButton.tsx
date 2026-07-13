@@ -2,47 +2,35 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
-import {
-    runDiscoveryThunk,
-    selectIsDeviceProtectedByPassphrase,
-    selectSelectedDevice,
-    startDiscoveryThunk,
-} from '@suite-common/wallet-core';
-import { EventType, analytics } from '@suite-native/analytics';
-import { HStack, Text } from '@suite-native/atoms';
-import { Icon } from '@suite-native/icons';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectSelectedDevice } from '@suite-common/device';
+import { runDiscoveryThunk, startDiscoveryThunk } from '@suite-common/wallet-core';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
+import { Button } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import {
-    AuthorizeDeviceStackParamList,
-    AuthorizeDeviceStackRoutes,
-    RootStackParamList,
+    type PassphraseStackParamList,
+    PassphraseStackRoutes,
+    type RootStackParamList,
     RootStackRoutes,
-    StackToStackCompositeNavigationProps,
+    type StackToStackCompositeNavigationProps,
 } from '@suite-native/navigation';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
 
-import { DeviceAction } from './DeviceAction';
 import { useDeviceManager } from '../hooks/useDeviceManager';
 
-const textStyle = prepareNativeStyle(_ => ({
-    flex: 1,
-}));
-
 type NavigationProp = StackToStackCompositeNavigationProps<
-    AuthorizeDeviceStackParamList,
-    AuthorizeDeviceStackRoutes.PassphraseForm,
+    PassphraseStackParamList,
+    PassphraseStackRoutes.PassphraseForm,
     RootStackParamList
 >;
 
 export const AddHiddenWalletButton = () => {
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const dispatch = useDispatch();
 
     const navigation = useNavigation<NavigationProp>();
 
-    const { applyStyle } = useNativeStyles();
-
     const device = useSelector(selectSelectedDevice);
-    const isPassphraseEnabledOnDevice = useSelector(selectIsDeviceProtectedByPassphrase);
 
     const { setIsDeviceManagerVisible } = useDeviceManager();
 
@@ -50,7 +38,7 @@ export const AddHiddenWalletButton = () => {
         if (!device) return;
         setIsDeviceManagerVisible(false);
 
-        analytics.report({ type: EventType.PassphraseAddHiddenWallet });
+        analytics.report({ type: events.passphraseAddHiddenWalletEvent.name });
         dispatch(
             startDiscoveryThunk({
                 device,
@@ -58,33 +46,22 @@ export const AddHiddenWalletButton = () => {
                 isAddingExistingWallet: false,
             }),
         );
-        dispatch(runDiscoveryThunk(device));
+        dispatch(runDiscoveryThunk({ device }));
 
-        // If passphrase is not enabled on the device, we need to show the enable screen first
-        if (!isPassphraseEnabledOnDevice) {
-            analytics.report({ type: EventType.PassphraseNotEnabled });
-            navigation.navigate(RootStackRoutes.AuthorizeDeviceStack, {
-                screen: AuthorizeDeviceStackRoutes.PassphraseEnableOnDevice,
-            });
-        } else {
-            navigation.navigate(RootStackRoutes.AuthorizeDeviceStack, {
-                screen: AuthorizeDeviceStackRoutes.PassphraseForm,
-            });
-        }
+        navigation.navigate(RootStackRoutes.PassphraseStack, {
+            screen: PassphraseStackRoutes.PassphraseForm,
+        });
     };
 
     return (
-        <DeviceAction
-            testID="@device-manager/passphrase/add"
+        <Button
+            intent="neutral"
+            priority="secondary"
+            iconLeft="password"
             onPress={handleAddHiddenWallet}
-            flex={1}
+            testID="@device-manager/passphrase/add"
         >
-            <HStack marginLeft="sp4">
-                <Text variant="hint" style={applyStyle(textStyle)}>
-                    <Translation id="deviceManager.deviceButtons.addHiddenWallet" />
-                </Text>
-                <Icon name="caretRight" size="mediumLarge" />
-            </HStack>
-        </DeviceAction>
+            <Translation id="deviceManager.deviceButtons.addHiddenWallet" />
+        </Button>
     );
 };

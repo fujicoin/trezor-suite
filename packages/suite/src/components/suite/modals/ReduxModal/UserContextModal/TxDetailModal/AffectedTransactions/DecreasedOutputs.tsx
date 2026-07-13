@@ -1,5 +1,8 @@
-import { NetworkSymbol } from '@suite-common/wallet-config';
-import { Account, FormState } from '@suite-common/wallet-types';
+import { Address } from '@suite/address';
+import { HiddenPlaceholder } from '@suite/discreet-mode';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { type Account, type FormState } from '@suite-common/wallet-types';
 import { formatNetworkAmount } from '@suite-common/wallet-utils';
 import {
     Banner,
@@ -7,17 +10,17 @@ import {
     Column,
     Divider,
     Icon,
-    Link,
     RadioCard,
     Row,
     Text,
+    TextButton,
 } from '@trezor/components';
+import { ArrowRightIcon, WarningIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 import { HELP_CENTER_REPLACE_BY_FEE_BITCOIN } from '@trezor/urls';
 
-import { Address, FormattedCryptoAmount, HiddenPlaceholder } from 'src/components/suite';
-import { Translation, TranslationKey } from 'src/components/suite/Translation';
-import { RbfContextValues, useRbfContext } from 'src/hooks/wallet/useRbfForm';
+import { FormattedCryptoAmount } from 'src/components/suite/FormattedCryptoAmount';
+import { type RbfContextValues, useRbfContext } from 'src/hooks/wallet/useRbfForm';
 
 type AmountRowProps = {
     labelTranslationKey: TranslationKey;
@@ -31,7 +34,7 @@ const AmountItem = ({ labelTranslationKey, shouldSendInSats, amount, symbol }: A
 
     return (
         <Column>
-            <Text variant="tertiary" typographyStyle="label">
+            <Text intent="neutral" priority="secondary" typographyStyle="body-xs">
                 <Translation id={labelTranslationKey} />
             </Text>
             <FormattedCryptoAmount value={value} symbol={symbol} />
@@ -59,10 +62,10 @@ const ReducedAmount = ({ composedLevels, setMaxOutputId, account, selectedFee }:
 
     return (
         <>
-            <Icon name="arrowRight" />
+            <Icon as={ArrowRightIcon} />
             <AmountItem
                 labelTranslationKey="TR_RBF_NEW_AMOUNT"
-                amount={precomposedTx.outputs[setMaxOutputId].amount.toString()}
+                amount={precomposedTx.outputs[setMaxOutputId]?.amount.toString() ?? '0'}
                 symbol={account.symbol}
                 shouldSendInSats={true} // precomposedTx.outputs is always in Sats
             />
@@ -103,27 +106,24 @@ export const DecreasedOutputs = () => {
     };
 
     return (
-        <Card fillType="flat" paddingType="none">
+        <Card type="contrast" paddingType="none">
             <Row justifyContent="space-between" alignItems="center" padding={spacings.md}>
-                <Text typographyStyle="body">
+                <Text typographyStyle="body-md">
                     <Translation id="TR_AMOUNT_REDUCED_TXS" />
                 </Text>
-                <Text variant="primary" typographyStyle="hint">
-                    <Link
-                        icon="arrowUpRight"
-                        variant="nostyle"
-                        href={HELP_CENTER_REPLACE_BY_FEE_BITCOIN}
-                    >
-                        <Translation id="TR_LEARN_MORE" />
-                    </Link>
-                </Text>
+                <TextButton href={HELP_CENTER_REPLACE_BY_FEE_BITCOIN} size="small" isUnderlined>
+                    <Translation id="TR_LEARN_MORE" />
+                </TextButton>
             </Row>
 
             <Divider margin={spacings.zero} />
             <Column margin={spacings.md} gap={spacings.md}>
-                <Banner variant="warning" data-testid="@send/decreased-outputs" icon="warning">
-                    <Translation id={getDecreaseWarring()} />
-                </Banner>
+                <Banner
+                    intent="warning"
+                    data-testid="@send/decreased-outputs"
+                    icon={WarningIcon}
+                    description={<Translation id={getDecreaseWarring()} />}
+                />
                 {useRadio && (
                     <Text>
                         <Translation id="TR_DECREASED_AMOUNT_SELECTION_EXPLANATION" />
@@ -146,7 +146,7 @@ export const DecreasedOutputs = () => {
                                           }
                                         : undefined
                                 }
-                                isActive={useRadio && isChecked}
+                                isSelected={useRadio && isChecked}
                             >
                                 <Row gap={spacings.sm}>
                                     <AmountItem
@@ -164,7 +164,11 @@ export const DecreasedOutputs = () => {
                                         />
                                     )}
                                     <Column margin={{ left: 'auto' }}>
-                                        <Text variant="tertiary" typographyStyle="label">
+                                        <Text
+                                            intent="neutral"
+                                            priority="secondary"
+                                            typographyStyle="body-xs"
+                                        >
                                             <Translation id="TR_RECIPIENT_ADDRESS" />
                                         </Text>
                                         <HiddenPlaceholder>

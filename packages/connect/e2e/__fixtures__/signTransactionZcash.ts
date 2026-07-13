@@ -7,7 +7,7 @@ export default {
     },
     tests: [
         {
-            // See https://zec1.trezor.io/tx/e5229ae8c02f74af5e0c2100371710424fa85902c29752498c39921de2246824
+            // See https://zec.trezor.io/tx/e5229ae8c02f74af5e0c2100371710424fa85902c29752498c39921de2246824
             description: 'Zcash: inputs v1, no change',
             skip: ['>1.8.3', '>2.1.8'], // test works only in FW range [1.8.1 - 1.8.3] and [2.1.1 - 2.1.8]
             params: {
@@ -18,12 +18,14 @@ export default {
                         prev_hash:
                             '84533aa6244bcee68040d851dc4f502838ed3fd9ce838e2e48dbf440e7f4df2a',
                         prev_index: 0,
+                        amount: '13123',
                     },
                     {
                         address_n: "m/44'/133'/0'/1/0",
                         prev_hash:
                             '84533aa6244bcee68040d851dc4f502838ed3fd9ce838e2e48dbf440e7f4df2a',
                         prev_index: 1,
+                        amount: '3299',
                     },
                 ],
                 outputs: [
@@ -41,7 +43,7 @@ export default {
             },
         },
         {
-            // See https://zec1.trezor.io/tx/0f762a2da5252d684fb3510a3104bcfb556fab34583b3b0e1994d0f7409cc075
+            // See https://zec.trezor.io/tx/0f762a2da5252d684fb3510a3104bcfb556fab34583b3b0e1994d0f7409cc075
             description: 'Zcash: input v2, no change',
             skip: ['>1.8.3', '>2.1.8'], // test works only in FW range [1.8.1 - 1.8.3] and [2.1.1 - 2.1.8]
             params: {
@@ -52,6 +54,7 @@ export default {
                         prev_hash:
                             '29d25589db4623d1a33c58745b8f95b131f49841c79dcd171847d0d7e9e2dc3a',
                         prev_index: 0,
+                        amount: '80000',
                     },
                 ],
                 outputs: [
@@ -70,7 +73,7 @@ export default {
         },
         {
             // NOTE: this is not a valid transaction
-            // Inputs from https://zec1.trezor.io/tx/e2802f0118d9f41f68b65f2b9f4a7c2efc876aee4e8c4b48c4a4deef6b7c0c28
+            // Inputs from https://zec.trezor.io/tx/e2802f0118d9f41f68b65f2b9f4a7c2efc876aee4e8c4b48c4a4deef6b7c0c28
             description: 'Zcash: unsupported inputs v3, with change',
             params: {
                 coin: 'Zcash',
@@ -121,7 +124,7 @@ export default {
         },
         {
             // NOTE: this is not a valid transaction
-            // Inputs from https://zec1.trezor.io/tx/234b2cf6cb2a50be29f45efae27fe717e3bb31967a72927d122cac1f50988cab
+            // Inputs from https://zec.trezor.io/tx/234b2cf6cb2a50be29f45efae27fe717e3bb31967a72927d122cac1f50988cab
             description: 'Zcash: input v4',
             skip: ['<1.9.0', '<2.2.0', '>1.11.0', '>2.5.0'],
             params: {

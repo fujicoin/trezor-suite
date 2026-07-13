@@ -4,46 +4,63 @@ import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { useSetAtom } from 'jotai';
 
+import { selectIsDeviceBackupRequired, selectIsDeviceBackupUnfinished } from '@suite-common/device';
 import {
-    selectIsDeviceBackupRequired,
-    selectIsDeviceBackupUnfinished,
-} from '@suite-common/wallet-core';
-import {
-    DeviceDangerBannerCause,
-    deviceDangerBannerAtom,
-    selectFirmwareRevisionCheckErrorIfEnabled,
-    selectIsSkippedRevisionCheckError,
-} from '@suite-native/device';
+    getIsSkippedRevisionCheckError,
+    revisionCheckErrorScenarios,
+} from '@suite-common/firmware-authenticity';
 import {
     AppTabsRoutes,
     HomeStackRoutes,
     RootStackRoutes,
+    useLastRouteName,
     useNavigationRouteMatch,
 } from '@suite-native/navigation';
 import { selectIsOnboardingFinished } from '@suite-native/settings';
+import { type FirmwareRevisionCheckError } from '@trezor/connect';
+
+import { type DeviceDangerBannerCause, deviceDangerBannerAtom } from '../deviceAtoms';
+import { selectSelectedDeviceFirmwareRevisionCheckErrorIfEnabled } from '../selectors';
+
+/**
+ * On mobile, we should skip revision check errors that are defined as skipped, but also the offline error,
+ * because its banner is rendered separately in useIsOfflineBannerVisible.
+ * So consider it skipped when rendering the banner centrally.
+ */
+const getShouldSkipRevisionCheckError = (
+    revisionCheckError: FirmwareRevisionCheckError | null,
+): boolean => {
+    if (revisionCheckError === null) return false;
+    if (getIsSkippedRevisionCheckError(revisionCheckError)) return true;
+
+    return (
+        revisionCheckError === 'cannot-perform-check-offline' &&
+        // if TS throws error, it means that the aforementioned logic is no longer valid, and this function should be removed
+        revisionCheckErrorScenarios[revisionCheckError].type === 'softWarning'
+    );
+};
 
 export const useRenderDeviceDangerBanner = () => {
     const setBannerVariant = useSetAtom(deviceDangerBannerAtom);
     const navigation = useNavigation();
-    const lastRoute = navigation.getState()?.routes.at(-1)?.name;
-    const isDeviceOnboardingStackFocused = lastRoute === RootStackRoutes.DeviceOnboardingStack;
+    const lastRoute = useLastRouteName();
+    const isOnboardingFinished = useSelector(selectIsOnboardingFinished);
+    const revisionCheckError = useSelector(selectSelectedDeviceFirmwareRevisionCheckErrorIfEnabled);
+    const isSkippedRevisionCheckError = getShouldSkipRevisionCheckError(revisionCheckError);
+    const isDeviceBackupUnfinished = useSelector(selectIsDeviceBackupUnfinished);
+    const isDeviceBackupRequired = useSelector(selectIsDeviceBackupRequired);
 
+    const isBannerExtended = useNavigationRouteMatch([
+        HomeStackRoutes.Home,
+        AppTabsRoutes.HomeStack,
+    ]);
+
+    const isDeviceOnboardingStackFocused = lastRoute === RootStackRoutes.DeviceOnboardingStack;
     const isRouteExcluded =
         useNavigationRouteMatch([
             RootStackRoutes.DeviceCompromisedModal,
             RootStackRoutes.BackupFailedModal,
         ]) || isDeviceOnboardingStackFocused;
-
-    const isBannerExtended = useNavigationRouteMatch([
-        AppTabsRoutes.HomeStack,
-        HomeStackRoutes.Home,
-    ]);
-
-    const isOnboardingFinished = useSelector(selectIsOnboardingFinished);
-    const revisionCheckError = useSelector(selectFirmwareRevisionCheckErrorIfEnabled);
-    const isSkippedRevisionCheckError = useSelector(selectIsSkippedRevisionCheckError);
-    const isDeviceBackupUnfinished = useSelector(selectIsDeviceBackupUnfinished);
-    const isDeviceBackupRequired = useSelector(selectIsDeviceBackupRequired);
 
     useEffect(() => {
         let dangerCause: DeviceDangerBannerCause | undefined;
@@ -75,13 +92,15 @@ export const useRenderDeviceDangerBanner = () => {
 
         return setBannerVariant({ variant, cause: dangerCause });
     }, [
-        isRouteExcluded,
-        isBannerExtended,
         revisionCheckError,
         isSkippedRevisionCheckError,
         isDeviceBackupUnfinished,
         isDeviceBackupRequired,
         isOnboardingFinished,
         setBannerVariant,
+        navigation,
+        lastRoute,
+        isBannerExtended,
+        isRouteExcluded,
     ]);
 };

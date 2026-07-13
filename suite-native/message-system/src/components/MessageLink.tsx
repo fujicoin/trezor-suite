@@ -1,13 +1,17 @@
-import { CTA, Localization } from '@suite-common/suite-types';
+import { type CTA, type Localization } from '@suite-common/suite-types';
 import { Link } from '@suite-native/link';
-import { TypographyStyle } from '@trezor/theme';
+import { type TypographyStyle } from '@trezor/theme';
 
 type MessageLinkProps = {
     messageCTA?: CTA;
     language: keyof Localization;
     textVariant?: TypographyStyle;
 };
-export const MessageLink = ({ messageCTA, language, textVariant = 'hint' }: MessageLinkProps) => {
+export const MessageLink = ({
+    messageCTA,
+    language,
+    textVariant = 'body-sm',
+}: MessageLinkProps) => {
     const messageLinkLabel = messageCTA?.label[language];
     const messageLink = messageCTA?.link;
     const isExternalLink = messageCTA?.action === 'external-link';
@@ -21,8 +25,8 @@ export const MessageLink = ({ messageCTA, language, textVariant = 'hint' }: Mess
             href={messageLink}
             label={messageLinkLabel}
             isUnderlined
-            textColor="textDefault"
-            textPressedColor="textSubdued"
+            textColor="contentPrimary"
+            textPressedColor="contentSecondary"
             textVariant={textVariant}
         />
     );

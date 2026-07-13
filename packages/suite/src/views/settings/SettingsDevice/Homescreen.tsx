@@ -2,31 +2,26 @@ import { useRef, useState } from 'react';
 
 import styled from 'styled-components';
 
-import { Button, ButtonGroup, Tooltip, variables } from '@trezor/components';
-import { DeviceModelInternal } from '@trezor/device-utils';
-import { HOMESCREEN_EDITOR_URL } from '@trezor/urls';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { Anchor, SettingsAnchor } from '@suite/router';
+import { Paragraph, Tooltip } from '@trezor/components';
+import { ActionButton, ActionColumn, SectionItem, TextColumn } from '@trezor/product-components';
 
 import { applySettings } from 'src/actions/settings/deviceSettingsActions';
-import { openModal } from 'src/actions/suite/modalActions';
-import { SettingsSectionItem } from 'src/components/settings';
-import {
-    ActionButton,
-    ActionColumn,
-    SectionItem,
-    TextColumn,
-    Translation,
-} from 'src/components/suite';
-import { SettingsAnchor } from 'src/constants/suite/anchors';
-import { HAS_MONOCHROME_SCREEN } from 'src/constants/suite/device';
-import { useDevice, useDispatch } from 'src/hooks/suite';
+import { useDispatch } from 'src/hooks/suite';
 import {
     ImageValidationError,
+    convertImage,
     deviceModelInformation,
     fileToDataUrl,
     imagePathToHex,
     isHomescreenSupportedOnDevice,
     validateImage,
 } from 'src/utils/suite/homescreen';
+
+import { ChangeHomescreenButtons } from './Homescreen/ChangeHomescreenButtons';
+import { HomescreenSettingsTitle } from './Homescreen/HomescreenSettingsTitle';
 
 const HiddenInput = styled.input`
     display: none;
@@ -36,15 +31,9 @@ const Col = styled.div`
     flex-direction: column;
 `;
 
-const ValidationMessage = styled.div`
-    color: ${({ theme }) => theme.legacy.TYPE_ORANGE};
-    font-size: ${variables.FONT_SIZE.NORMAL};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-`;
-
-interface HomescreenProps {
+type HomescreenProps = {
     isDeviceLocked: boolean;
-}
+};
 
 export const Homescreen = ({ isDeviceLocked }: HomescreenProps) => {
     const [customHomescreen, setCustomHomescreen] = useState('');
@@ -72,13 +61,21 @@ export const Homescreen = ({ isDeviceLocked }: HomescreenProps) => {
     };
 
     const onUploadHomescreen = async (files: FileList | null) => {
-        if (!files || !files.length) return;
-        const file = files[0];
+        if (!files?.length) return;
+        // @ts-expect-error: indexing noUncheckedIndexedAccess
+        let currentFile: File = files[0];
+        let validationResult = await validateImage({ file: currentFile, deviceModelInternal });
 
-        const validationResult = await validateImage(file, deviceModelInternal);
+        // Do NOT touch the image if it's already valid
+        if (validationResult) {
+            currentFile =
+                (await convertImage({ file: currentFile, deviceModelInternal })) ?? currentFile;
+            validationResult = await validateImage({ file: currentFile, deviceModelInternal });
+        }
+
         setValidationError(validationResult);
 
-        const dataUrl = await fileToDataUrl(file);
+        const dataUrl = await fileToDataUrl(currentFile);
         setCustomHomescreen(dataUrl);
     };
 
@@ -89,91 +86,60 @@ export const Homescreen = ({ isDeviceLocked }: HomescreenProps) => {
         resetUpload();
     };
 
-    const openGallery = () => dispatch(openModal({ type: 'device-background-gallery' }));
-
     const isSupportedHomescreen = isHomescreenSupportedOnDevice(device);
 
-    // TODO: condition based on device screen width/height
+    const cancelButton = (
+        <ActionButton
+            intent="neutral"
+            priority="secondary"
+            onClick={resetUpload}
+            isDisabled={isDeviceLocked}
+            isTooltipActive={isDeviceLocked}
+            tooltipContent={<Translation id="TR_SETTINGS_DEVICE_BANNER_TITLE_REMEMBERED" />}
+        >
+            <Translation id="TR_CANCEL" />
+        </ActionButton>
+    );
+
     return (
         <>
-            <SettingsSectionItem anchorId={SettingsAnchor.Homescreen}>
-                {HAS_MONOCHROME_SCREEN[deviceModelInternal] && (
-                    <TextColumn
-                        title={<Translation id="TR_DEVICE_SETTINGS_HOMESCREEN_TITLE" />}
-                        description={
-                            <Translation id="TR_DEVICE_SETTINGS_HOMESCREEN_IMAGE_SETTINGS_BW_128x64" />
-                        }
-                        buttonLink={HOMESCREEN_EDITOR_URL}
-                        buttonTitle={<Translation id="TR_DEVICE_SETTINGS_HOMESCREEN_EDITOR" />}
-                    />
-                )}
-
-                {[
-                    DeviceModelInternal.T2T1,
-                    DeviceModelInternal.T3T1,
-                    DeviceModelInternal.T3W1, // TODO T3W1
-                ].includes(deviceModelInternal) && (
-                    <TextColumn
-                        title={<Translation id="TR_DEVICE_SETTINGS_HOMESCREEN_TITLE" />}
-                        description={
-                            <Translation id="TR_DEVICE_SETTINGS_HOMESCREEN_IMAGE_SETTINGS_COLOR_240x240" />
-                        }
-                    />
-                )}
-                <ActionColumn>
-                    <HiddenInput
-                        ref={fileInputElement}
-                        type="file"
-                        accept={deviceModelInformation[deviceModelInternal].supports
-                            .map(format => `image/${format}`)
-                            .join(', ')}
-                        onChange={e => onUploadHomescreen(e.target.files)}
-                    />
-                    <Tooltip
-                        maxWidth={285}
-                        content={
-                            !isSupportedHomescreen && (
-                                <Translation id="TR_UPDATE_FIRMWARE_HOMESCREEN_TOOLTIP" />
-                            )
-                        }
+            <Anchor anchorId={SettingsAnchor.Homescreen}>
+                {({ anchorId, anchorRef, shouldHighlight }) => (
+                    <SectionItem
+                        data-testid={anchorId}
+                        ref={anchorRef}
+                        shouldHighlight={shouldHighlight}
                     >
-                        <ButtonGroup size="small">
+                        <HomescreenSettingsTitle deviceModelInternal={deviceModelInternal} />
+
+                        <ActionColumn>
+                            <HiddenInput
+                                ref={fileInputElement}
+                                type="file"
+                                accept={['png', 'jpeg', 'gif', 'webp', 'svg+xml']
+                                    .map(format => `image/${format}`)
+                                    .join(', ')}
+                                onChange={e => onUploadHomescreen(e.target.files)}
+                            />
                             <Tooltip
-                                isActive={isDeviceLocked}
+                                maxWidth={285}
                                 content={
-                                    <Translation id="TR_SETTINGS_DEVICE_BANNER_TITLE_REMEMBERED" />
+                                    !isSupportedHomescreen && (
+                                        <Translation id="TR_UPDATE_FIRMWARE_HOMESCREEN_TOOLTIP" />
+                                    )
                                 }
                             >
-                                <Button
-                                    onClick={() => fileInputElement?.current?.click()}
-                                    isDisabled={isDeviceLocked || !isSupportedHomescreen}
-                                    variant="primary"
-                                    data-testid="@settings/device/homescreen-upload"
-                                    key="@settings/device/homescreen-upload"
-                                >
-                                    <Translation id="TR_DEVICE_SETTINGS_HOMESCREEN_UPLOAD_IMAGE" />
-                                </Button>
+                                <ChangeHomescreenButtons
+                                    deviceModelInternal={deviceModelInternal}
+                                    isDeviceLocked={isDeviceLocked}
+                                    isSupportedHomescreen={isSupportedHomescreen}
+                                    onImageUploadClick={() => fileInputElement?.current?.click()}
+                                />
                             </Tooltip>
-                            <Tooltip
-                                isActive={isDeviceLocked}
-                                content={
-                                    <Translation id="TR_SETTINGS_DEVICE_BANNER_TITLE_REMEMBERED" />
-                                }
-                            >
-                                <Button
-                                    onClick={openGallery}
-                                    isDisabled={isDeviceLocked || !isSupportedHomescreen}
-                                    data-testid="@settings/device/homescreen-gallery"
-                                    key="@settings/device/homescreen-gallery"
-                                    variant="primary"
-                                >
-                                    <Translation id="TR_DEVICE_SETTINGS_HOMESCREEN_SELECT_FROM_GALLERY" />
-                                </Button>
-                            </Tooltip>
-                        </ButtonGroup>
-                    </Tooltip>
-                </ActionColumn>
-            </SettingsSectionItem>
+                        </ActionColumn>
+                    </SectionItem>
+                )}
+            </Anchor>
             {customHomescreen && !validationError && (
                 <SectionItem>
                     <Col>
@@ -189,17 +155,7 @@ export const Homescreen = ({ isDeviceLocked }: HomescreenProps) => {
                         <ActionButton onClick={onChangeHomescreen} isDisabled={isDeviceLocked}>
                             <Translation id="TR_CHANGE_HOMESCREEN" />
                         </ActionButton>
-                        <ActionButton
-                            variant="primary"
-                            onClick={resetUpload}
-                            isDisabled={isDeviceLocked}
-                            isTooltipActive={isDeviceLocked}
-                            tooltipContent={
-                                <Translation id="TR_SETTINGS_DEVICE_BANNER_TITLE_REMEMBERED" />
-                            }
-                        >
-                            <Translation id="TR_DROP_IMAGE" />
-                        </ActionButton>
+                        {cancelButton}
                     </ActionColumn>
                 </SectionItem>
             )}
@@ -208,15 +164,18 @@ export const Homescreen = ({ isDeviceLocked }: HomescreenProps) => {
                     <TextColumn
                         title={<Translation id="TR_CUSTOM_HOMESCREEN" />}
                         description={
-                            <ValidationMessage>
+                            <Paragraph typographyStyle="body-md" intent="warning">
                                 <Translation
                                     id={validationError}
                                     values={{
                                         width: deviceModelInformation[deviceModelInternal].width,
                                         height: deviceModelInformation[deviceModelInternal].height,
+                                        maxImageSize:
+                                            deviceModelInformation[deviceModelInternal]
+                                                .maxImageSize / 1024,
                                     }}
                                 />
-                            </ValidationMessage>
+                            </Paragraph>
                         }
                     />
 
@@ -233,19 +192,7 @@ export const Homescreen = ({ isDeviceLocked }: HomescreenProps) => {
                             />
                         </Col>
                     )}
-                    <ActionColumn>
-                        <ActionButton
-                            variant="primary"
-                            onClick={resetUpload}
-                            isDisabled={isDeviceLocked}
-                            isTooltipActive={isDeviceLocked}
-                            tooltipContent={
-                                <Translation id="TR_SETTINGS_DEVICE_BANNER_TITLE_REMEMBERED" />
-                            }
-                        >
-                            <Translation id="TR_DROP_IMAGE" />
-                        </ActionButton>
-                    </ActionColumn>
+                    <ActionColumn>{cancelButton}</ActionColumn>
                 </SectionItem>
             )}
         </>

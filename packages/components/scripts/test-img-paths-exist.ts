@@ -3,9 +3,9 @@
 import fs from 'fs';
 import path from 'path';
 
-import { PNG_IMAGES, SVG_IMAGES } from '../src/components/Image/images';
+import { IMAGES } from '../src/components/Image/images';
 
-const imageDir = path.join(__dirname, '../../suite-data/files/images');
+const imageDir = path.join(__dirname, '../../suite-data/files/images/images');
 
 const notFound: string[] = [];
 const caseMismatch: string[] = [];
@@ -16,16 +16,16 @@ function fileExistsWithCaseSync(filepath: string) {
         return true;
     }
     const filenames = fs.readdirSync(dir);
-    if (filenames.indexOf(path.basename(filepath)) === -1) {
+    if (!filenames.includes(path.basename(filepath))) {
         return false;
     }
 
     return fileExistsWithCaseSync(dir);
 }
 
-const checkImgSet = (imgSet: Record<string, string>, ext: string) => {
+const checkImgSet = (imgSet: Record<string, string>) => {
     for (const value of Object.values(imgSet)) {
-        const imagePath = path.join(imageDir, ext, value);
+        const imagePath = path.join(imageDir, value);
 
         const caseMatches = fileExistsWithCaseSync(imagePath);
         const fileExists = fs.existsSync(imagePath);
@@ -38,8 +38,7 @@ const checkImgSet = (imgSet: Record<string, string>, ext: string) => {
     }
 };
 
-checkImgSet(PNG_IMAGES, 'png');
-checkImgSet(SVG_IMAGES, 'svg');
+checkImgSet(IMAGES);
 
 console.log('=== NOT FOUND ===');
 console.log(notFound);

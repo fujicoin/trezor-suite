@@ -1,4 +1,4 @@
-import { SpacingValuesNew, SpacingValuesPxNew } from './spacings';
+import { type SpacingValuesNew, type SpacingValuesPxNew } from './spacings';
 
 export const borders = {
     widths: {
@@ -24,9 +24,10 @@ export type BorderRadii =
     | SpacingValuesNew;
 export type BorderWidths =
     | (typeof borders.widths)[keyof typeof borders.widths]
-    | SpacingValuesPxNew;
+    | SpacingValuesPxNew
+    | SpacingValuesNew;
 
-type NativeRadiusValue = 4 | 6 | 8 | 12 | 16 | 20;
+type NativeRadiusValue = 4 | 6 | 8 | 12 | 16 | 20 | 24;
 
 export const nativeBorders = {
     widths: {
@@ -41,6 +42,7 @@ export const nativeBorders = {
         r12: 12,
         r16: 16,
         r20: 20,
+        r24: 24,
         round: 100, // Equivalent to 50% on the web
     } satisfies { [V in NativeRadiusValue as `r${V}`]: V } & { round: 100 },
 } as const;

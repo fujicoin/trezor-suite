@@ -1,55 +1,46 @@
+import { Platform } from 'react-native';
+
 describe('featureFlagsSlice', () => {
     afterEach(() => {
+        Platform.OS = 'ios';
         jest.resetModules();
-        jest.resetAllMocks();
+        jest.clearAllMocks();
     });
 
     describe('initial state', () => {
-        it('should have correct initial state on android', () => {
-            jest.mock('@trezor/env-utils', () => ({
-                ...jest.requireActual('@trezor/env-utils'),
-                isAndroid: () => true,
-            }));
-
+        it('should have correct initial state on iOS', () => {
+            Platform.OS = 'ios';
             const { featureFlagsReducer } = require('../featureFlagsSlice');
 
             const initialState = featureFlagsReducer(undefined, { type: 'undefined_action' });
 
             expect(initialState).toEqual({
-                isDeviceConnectEnabled: true,
-                isBluetoothEnabled: false,
                 areDebugOnlyNetworksEnabled: false,
+                areExperimentalOnlyNetworksEnabled: false,
                 isCardanoSendEnabled: false,
-                isConnectPopupEnabled: false,
                 isDebugKeysAllowed: false,
-                isWalletConnectEnabled_v2: true,
-                isTradingBuyEnabled: false,
-                isTradingExchangeEnabled: false,
-                isTradingSellEnabled: false,
+                isTradingResidenceCheckEnabled: true,
+                isTradingDebugEnabled: false,
+                isTradingSlip24Enabled: false,
+                isN4w1BackupEnabled: false,
             });
         });
 
-        it('should have correct initial state on iOS', () => {
-            jest.mock('@trezor/env-utils', () => ({
-                ...jest.requireActual('@trezor/env-utils'),
-                isAndroid: () => false,
-            }));
-
+        it('should have correct initial state on android', () => {
+            Platform.OS = 'android';
             const { featureFlagsReducer } = require('../featureFlagsSlice');
 
             const initialState = featureFlagsReducer(undefined, { type: 'undefined_action' });
 
             expect(initialState).toEqual({
-                isDeviceConnectEnabled: false,
-                isBluetoothEnabled: false,
                 areDebugOnlyNetworksEnabled: false,
+                areExperimentalOnlyNetworksEnabled: false,
                 isCardanoSendEnabled: false,
-                isConnectPopupEnabled: false,
                 isDebugKeysAllowed: false,
-                isWalletConnectEnabled_v2: false,
-                isTradingBuyEnabled: false,
-                isTradingExchangeEnabled: false,
-                isTradingSellEnabled: false,
+                isTradingResidenceCheckEnabled: false,
+                isTradingDebugEnabled: false,
+                isTradingSlip24Enabled: false,
+                isN4w1BackupEnabled: false,
             });
         });
     });
@@ -60,15 +51,15 @@ describe('featureFlagsSlice', () => {
 
             const state = featureFlagsReducer(
                 undefined,
-                toggleFeatureFlag({ featureFlag: 'isDeviceConnectEnable' }),
+                toggleFeatureFlag({ featureFlag: 'areDebugOnlyNetworksEnabled' }),
             );
-            expect(state.isDeviceConnectEnabled).toEqual(false);
+            expect(state.areDebugOnlyNetworksEnabled).toEqual(true);
 
             const state2 = featureFlagsReducer(
                 state,
-                toggleFeatureFlag({ featureFlag: 'isDeviceConnectEnabled' }),
+                toggleFeatureFlag({ featureFlag: 'areDebugOnlyNetworksEnabled' }),
             );
-            expect(state2.isDeviceConnectEnabled).toEqual(true);
+            expect(state2.areDebugOnlyNetworksEnabled).toEqual(false);
         });
     });
 });

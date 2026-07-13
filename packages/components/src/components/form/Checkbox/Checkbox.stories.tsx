@@ -1,42 +1,30 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 import { useArgs } from 'storybook/preview-api';
 
-import {
-    Checkbox as CheckboxComponent,
-    CheckboxProps,
-    allowedCheckboxFrameProps,
-    checkboxVariants,
-    labelAlignments,
-    verticalAlignments,
-} from './Checkbox';
+import { Checkbox as CheckboxComponent, allowedCheckboxFrameProps } from './Checkbox';
+import { labelAlignments, verticalAlignments } from './types';
 import { getFramePropsStory } from '../../../utils/frameProps';
 
-const meta: Meta = {
-    title: 'Form',
+const meta: Meta<typeof CheckboxComponent> = {
+    title: '✏️ Form',
     component: CheckboxComponent,
-} as Meta;
+};
 export default meta;
 
-export const Checkbox: StoryObj<CheckboxProps> = {
+export const Checkbox: StoryObj<typeof meta> = {
     render: ({ ...args }) => {
         // eslint-disable-next-line
         const [{ isChecked }, updateArgs] = useArgs();
         const handleIsChecked = () => updateArgs({ isChecked: !isChecked });
 
         return (
-            <CheckboxComponent
-                variant="primary"
-                isChecked={isChecked}
-                {...args}
-                onClick={handleIsChecked}
-            >
+            <CheckboxComponent isChecked={isChecked} {...args} onChange={handleIsChecked}>
                 {args.children}
             </CheckboxComponent>
         );
     },
     args: {
-        children: 'Checkbox',
-        variant: 'primary',
+        children: 'Label',
         isChecked: false,
         isDisabled: false,
         labelAlignment: 'end',
@@ -45,11 +33,11 @@ export const Checkbox: StoryObj<CheckboxProps> = {
     },
 
     argTypes: {
-        variant: {
-            control: {
-                type: 'radio',
-            },
-            options: checkboxVariants,
+        isChecked: {
+            control: 'boolean',
+        },
+        isDisabled: {
+            control: 'boolean',
         },
         labelAlignment: {
             control: {

@@ -1,6 +1,7 @@
 {
     "name": "@trezor/connect-common",
-    "version": "0.4.2",
+    "version": "10.0.0-alpha.1",
+    "type": "module",
     "author": "Trezor <info@trezor.io>",
     "homepage": "https://github.com/trezor/trezor-suite/tree/develop/packages/connect-common",
     "keywords": [
@@ -14,38 +15,68 @@
     "bugs": {
         "url": "https://github.com/trezor/trezor-suite/issues"
     },
-    "npmPublishAccess": "public",
-    "license": "SEE LICENSE IN LICENSE.md",
+    "license": "MIT",
     "description": "Collection of assets and utils used by trezor-connect library.",
     "main": "./src/index.ts",
     "files": [
         "lib/",
-        "files/**/*.json",
-        "files/**/*.txt",
-        "CHANGELOG.md",
-        "!**/*.map"
+        "CHANGELOG.md"
     ],
     "publishConfig": {
-        "main": "lib/index.js",
-        "types": "lib/index.d.ts",
-        "typings": "lib/index.d.ts"
+        "main": "./lib/index.mjs",
+        "types": "./lib/index.d.mts",
+        "exports": {
+            ".": {
+                "types": "./lib/index.d.mts",
+                "default": "./lib/index.mjs"
+            },
+            "./lib/*": "./lib/*",
+            "./lib/constants": {
+                "types": "./lib/constants/index.d.mts",
+                "default": "./lib/constants/index.mjs"
+            },
+            "./lib/data": {
+                "types": "./lib/data/index.d.mts",
+                "default": "./lib/data/index.mjs"
+            },
+            "./lib/events": {
+                "types": "./lib/events/index.d.mts",
+                "default": "./lib/events/index.mjs"
+            },
+            "./lib/types": {
+                "types": "./lib/types/index.d.mts",
+                "default": "./lib/types/index.mjs"
+            }
+        }
     },
     "scripts": {
-        "test:unit": "yarn g:jest",
-        "build:lib": "yarn g:rimraf lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/replace-imports.sh ./lib",
+        "build:lib": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/publish/replace-imports.sh ./lib && DTS_OUT_DIR=lib yarn build:dts:inline",
+        "build:dts:inline": "node ../../scripts/inline-devdep-types.mjs",
         "type-check": "yarn g:tsc --build tsconfig.json",
-        "prepublishOnly": "yarn tsx ../../scripts/prepublishNPM.js",
-        "prepublish": "yarn tsx ../../scripts/prepublish.js",
-        "validate-releases.json": "./scripts/check-all-firmware-revisions.sh"
+        "test:unit": "yarn g:jest",
+        "depcheck": "yarn g:depcheck",
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     },
     "dependencies": {
-        "@trezor/env-utils": "workspace:*",
+        "@trezor/device-utils": "workspace:*",
+        "@trezor/protobuf": "workspace:*",
+        "@trezor/protocol": "workspace:^",
+        "@trezor/schema-utils": "workspace:*",
+        "@trezor/type-utils": "workspace:*",
         "@trezor/utils": "workspace:*"
     },
     "peerDependencies": {
         "tslib": "^2.6.2"
     },
     "devDependencies": {
-        "tsx": "^4.20.3"
+        "@trezor/blockchain-link": "workspace:^",
+        "@trezor/blockchain-link-types": "workspace:^",
+        "@trezor/coins-cardano": "workspace:*",
+        "@trezor/device-authenticity": "workspace:^",
+        "@trezor/transport-common": "workspace:*",
+        "@trezor/utxo-lib": "workspace:*",
+        "@types/chrome": "^0.1.40",
+        "@types/jest": "30.0.0",
+        "@types/node": "22.13.10"
     }
 }

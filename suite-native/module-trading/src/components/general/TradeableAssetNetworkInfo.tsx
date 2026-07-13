@@ -4,8 +4,7 @@ import { getNetwork } from '@suite-common/wallet-config';
 import { Box, HStack, Text } from '@suite-native/atoms';
 import { NetworkIcon } from '@suite-native/icons';
 import { useTranslate } from '@suite-native/intl';
-
-import { TradeableAsset } from '../../types/general';
+import { type TradeableAsset } from '@suite-native/trading-types';
 
 export type TradeableAssetNetworkInfoProps = {
     asset: TradeableAsset | undefined;
@@ -35,8 +34,8 @@ export const TradeableAssetNetworkInfo = ({ asset }: TradeableAssetNetworkInfoPr
         <HStack paddingHorizontal="sp8">
             <NetworkIcon symbol={symbol} size="large" />
             <Text
-                variant="hint"
-                color="textDefault"
+                variant="body-sm"
+                color="contentPrimary"
                 accessibilityLabel={translate('moduleTrading.networkName')}
             >
                 {name}

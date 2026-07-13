@@ -14,7 +14,7 @@ export const DeviceAuthenticitySuccessScreen = () => {
                     <PictogramTitleHeader
                         variant="success"
                         title={<Translation id="moduleDeviceSettings.authenticity.success.title" />}
-                        titleVariant="titleMedium"
+                        titleVariant="headline-md"
                         subtitle={
                             <Translation id="moduleDeviceSettings.authenticity.success.subtitle" />
                         }
@@ -22,7 +22,8 @@ export const DeviceAuthenticitySuccessScreen = () => {
                 </Box>
 
                 <Button
-                    colorScheme="primary"
+                    intent="brand"
+                    priority="primary"
                     onPress={navigateToInitialScreen}
                     testID="@device-authenticity/close-button"
                 >

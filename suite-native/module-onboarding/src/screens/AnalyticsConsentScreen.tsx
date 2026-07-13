@@ -1,42 +1,65 @@
 import { useState } from 'react';
-import { TouchableOpacity } from 'react-native';
 
-import { EventType, analytics } from '@suite-native/analytics';
-import { Box, Button, Card, Switch, Text, TitleHeader, VStack } from '@suite-native/atoms';
+import { type AnalyticsSharedEvents } from '@suite-common/analytics';
+import { useServices } from '@suite-common/dependency-injection';
+import {
+    type AnalyticsNativeEvents,
+    events,
+    selectNativeAnalyticsDep,
+} from '@suite-native/analytics';
+import {
+    Box,
+    Button,
+    Card,
+    PressableOpacity,
+    Switch,
+    Text,
+    TitleHeader,
+    VStack,
+} from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import { useOpenLink } from '@suite-native/link';
 import {
-    OnboardingStackParamList,
+    type OnboardingStackParamList,
     OnboardingStackRoutes,
     Screen,
-    StackProps,
+    type StackProps,
 } from '@suite-native/navigation';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { type Analytics } from '@trezor/analytics-uploader';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+import { DATA_PRIVACY_URL } from '@trezor/urls';
 
 import { AnalyticsInfoRow } from '../components/AnalyticsInfoRow';
-
-const LEARN_MORE_LINK = 'https://data.trezor.io/legal/privacy-policy.html';
 
 const consentWrapperStyle = prepareNativeStyle(utils => ({
     padding: utils.spacings.sp16,
     borderRadius: utils.borders.radii.r16,
-    backgroundColor: utils.colors.backgroundTertiaryDefaultOnElevation1,
+    backgroundColor: utils.colors.legacyBackgroundTertiaryDefaultOnElevation1,
 }));
 
-const reportAnalyticsOnboardingCompleted = (isTrackingAllowed: boolean) => {
+const reportAnalyticsOnboardingCompleted = (
+    isTrackingAllowed: boolean,
+    analytics: Analytics<AnalyticsSharedEvents> & Analytics<AnalyticsNativeEvents>,
+) => {
     // For users who have not allowed tracking, enable analytics just for reporting
     // the OnboardingCompleted event and then disable it again.
-    if (!isTrackingAllowed) analytics.enable();
+    if (!isTrackingAllowed) {
+        analytics.enable();
+    }
     analytics.report({
-        type: EventType.OnboardingCompleted,
+        type: events.onboardingCompletedEvent.name,
         payload: { analyticsPermission: isTrackingAllowed },
     });
-    if (!isTrackingAllowed) analytics.disable();
+
+    if (!isTrackingAllowed) {
+        analytics.disable();
+    }
 };
 
 export const AnalyticsConsentScreen = ({
     navigation,
 }: StackProps<OnboardingStackParamList, OnboardingStackRoutes.AnalyticsConsent>) => {
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const [isEnabled, setIsEnabled] = useState(true);
 
     const { applyStyle } = useNativeStyles();
@@ -44,7 +67,7 @@ export const AnalyticsConsentScreen = ({
     const handleOpenLink = useOpenLink();
 
     const handleRedirect = () => {
-        reportAnalyticsOnboardingCompleted(isEnabled);
+        reportAnalyticsOnboardingCompleted(isEnabled, analytics);
 
         navigation.navigate(OnboardingStackRoutes.Biometrics);
     };
@@ -55,7 +78,7 @@ export const AnalyticsConsentScreen = ({
     };
 
     const handleClickOnLearMoreLink = () => {
-        handleOpenLink(LEARN_MORE_LINK);
+        handleOpenLink(DATA_PRIVACY_URL);
     };
 
     const toggleAnalyticsConsent = () => {
@@ -68,7 +91,7 @@ export const AnalyticsConsentScreen = ({
                 <VStack spacing="sp24" paddingTop="sp32">
                     <TitleHeader
                         title={<Translation id="moduleOnboarding.analyticsConsentScreen.title" />}
-                        titleVariant="titleMedium"
+                        titleVariant="headline-md"
                         subtitle={
                             <Translation id="moduleOnboarding.analyticsConsentScreen.subtitle" />
                         }
@@ -97,10 +120,7 @@ export const AnalyticsConsentScreen = ({
                                         }
                                     />
                                 </VStack>
-                                <TouchableOpacity
-                                    onPress={toggleAnalyticsConsent}
-                                    activeOpacity={0.5}
-                                >
+                                <PressableOpacity onPress={toggleAnalyticsConsent}>
                                     <Box
                                         flexDirection="row"
                                         alignItems="center"
@@ -116,7 +136,7 @@ export const AnalyticsConsentScreen = ({
                                             onChange={toggleAnalyticsConsent}
                                         />
                                     </Box>
-                                </TouchableOpacity>
+                                </PressableOpacity>
                             </VStack>
                         </Box>
                     </Card>
@@ -129,7 +149,8 @@ export const AnalyticsConsentScreen = ({
                         <Translation id="generic.buttons.confirm" />
                     </Button>
                     <Button
-                        colorScheme="tertiaryElevation0"
+                        intent="neutral"
+                        priority="secondary"
                         testID="@onboarding/AnalyticsConsent/learMoreBtn"
                         onPress={handleClickOnLearMoreLink}
                     >

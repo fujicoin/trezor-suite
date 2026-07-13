@@ -1,5 +1,5 @@
 import { HEADER_SIZE, MESSAGE_HEADER_BYTE, MESSAGE_MAGIC_HEADER_BYTE } from './constants';
-import { TransportProtocol } from '../types';
+import { type TransportProtocol } from '../types';
 
 // header: 3f2323 `?##` and chunkHeader: 3f `?`
 export const getHeaders: TransportProtocol['getHeaders'] = () => {
@@ -18,10 +18,6 @@ export const getHeaders: TransportProtocol['getHeaders'] = () => {
 
 export const encode: TransportProtocol['encode'] = (data, options) => {
     const { messageType } = options;
-    if (typeof messageType === 'string') {
-        throw new Error(`Unsupported message type ${messageType}`);
-    }
-
     const fullSize = HEADER_SIZE + data.length;
 
     const encodedBuffer = Buffer.alloc(fullSize);

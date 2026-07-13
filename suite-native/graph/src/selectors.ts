@@ -1,21 +1,27 @@
 import { A } from '@mobily/ts-belt';
 
-import { AccountItem } from '@suite-common/graph';
-import { isIgnoredBalanceHistoryCoin } from '@suite-common/graph/src/constants';
+import type { DeviceRootState } from '@suite-common/device';
+import { type AccountItem, isIgnoredBalanceHistoryCoin } from '@suite-common/graph';
+import { createWeakMapSelector, returnStableArrayIfEmpty } from '@suite-common/redux-utils';
 import {
-    TokenDefinitionsRootState,
+    type TokenDefinitionsRootState,
     selectFilterKnownTokens,
 } from '@suite-common/token-definitions';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 import {
-    AccountsRootState,
-    DeviceRootState,
+    type AccountsRootState,
+    type DiscoveryRootState,
     selectAccountByKey,
     selectDeviceMainnetAccounts,
+    selectHasRunningDiscovery,
 } from '@suite-common/wallet-core';
-import { TokenAddress } from '@suite-common/wallet-types';
+import { type AccountKey, type TokenAddress } from '@suite-common/wallet-types';
 import { tryGetAccountIdentity } from '@suite-common/wallet-utils';
 
 type GraphCommonRootState = DeviceRootState & AccountsRootState & TokenDefinitionsRootState;
+type PortfolioGraphRootState = GraphCommonRootState & DiscoveryRootState;
+
+const createMemoizedSelector = createWeakMapSelector.withTypes<GraphCommonRootState>();
 
 export const selectPortfolioGraphAccountItems = (state: GraphCommonRootState): AccountItem[] => {
     const accounts = selectDeviceMainnetAccounts(state);
@@ -36,25 +42,31 @@ export const selectPortfolioGraphAccountItems = (state: GraphCommonRootState): A
     });
 };
 
-export const selectHasDeviceHistoryEnabledAccounts = (
-    state: DeviceRootState & AccountsRootState,
-): boolean => {
-    const accounts = selectDeviceMainnetAccounts(state);
+export const selectPortfolioGraphAccountItemsIfDiscoveryIsNotRunning = (
+    state: PortfolioGraphRootState,
+): AccountItem[] => {
+    if (selectHasRunningDiscovery(state)) {
+        return returnStableArrayIfEmpty<AccountItem>();
+    }
 
-    return A.isNotEmpty(accounts.filter(a => !isIgnoredBalanceHistoryCoin(a.symbol)));
+    return selectPortfolioGraphAccountItems(state);
 };
 
-export const selectHasDeviceHistoryIgnoredAccounts = (
-    state: DeviceRootState & AccountsRootState,
-): boolean => {
-    const accounts = selectDeviceMainnetAccounts(state);
+export const selectHasDeviceHistoryEnabledAccounts = createMemoizedSelector(
+    [selectDeviceMainnetAccounts],
+    (accounts): boolean =>
+        A.isNotEmpty(accounts.filter(a => !isIgnoredBalanceHistoryCoin(a.symbol))),
+);
 
-    return A.isNotEmpty(accounts.filter(a => isIgnoredBalanceHistoryCoin(a.symbol)));
-};
+export const selectDeviceHistoryIgnoredNetworkSymbols = createMemoizedSelector(
+    [selectDeviceMainnetAccounts],
+    (accounts): readonly NetworkSymbol[] =>
+        A.uniq(accounts.filter(a => isIgnoredBalanceHistoryCoin(a.symbol)).map(a => a.symbol)),
+);
 
 export const selectIsHistoryEnabledAccountByAccountKey = (
     state: AccountsRootState,
-    accountKey: string | undefined,
+    accountKey: AccountKey | undefined,
 ): boolean => {
     const account = selectAccountByKey(state, accountKey);
 

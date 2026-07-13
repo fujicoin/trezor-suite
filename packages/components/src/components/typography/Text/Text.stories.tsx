@@ -1,18 +1,18 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 
 import {
     Text as TextComponent,
-    TextProps,
+    type TextProps,
     allowedTextFrameProps,
     allowedTextTextProps,
 } from './Text';
 import { getFramePropsStory } from '../../../utils/frameProps';
 import { getTextPropsStory } from '../utils';
 
-const meta: Meta = {
-    title: 'Typography',
+const meta: Meta<typeof TextComponent> = {
+    title: '🅰️ Typography',
     component: TextComponent,
-} as Meta;
+};
 export default meta;
 
 export const Text: StoryObj<TextProps> = {
@@ -20,14 +20,14 @@ export const Text: StoryObj<TextProps> = {
         children: 'Quos delectus veritatis est doloribus dolor.',
         isHighlighted: false,
         isMonospaced: false,
-        breakAll: false,
+        isDisabled: false,
         ...getTextPropsStory(allowedTextTextProps).args,
         ...getFramePropsStory(allowedTextFrameProps).args,
     },
     argTypes: {
         isHighlighted: { control: 'boolean' },
         isMonospaced: { control: 'boolean' },
-        breakAll: { control: 'boolean' },
+        isDisabled: { control: 'boolean' },
         ...getTextPropsStory(allowedTextTextProps).argTypes,
         ...getFramePropsStory(allowedTextFrameProps).argTypes,
     },

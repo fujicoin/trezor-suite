@@ -1,8 +1,7 @@
+import { Translation } from '@suite/intl';
+import { type WordCount, wordCounts } from '@suite/recovery';
 import { Card, Column, Grid, H4, Paragraph, RadioCard } from '@trezor/components';
 import { spacings } from '@trezor/theme';
-
-import { Translation } from 'src/components/suite';
-import { WordCount, wordCounts } from 'src/types/recovery';
 
 type SelectWordCountStepProps = {
     setWordCount: (number: WordCount) => void;
@@ -19,11 +18,11 @@ export const SelectWordCountStep = ({ setWordCount, wordCount }: SelectWordCount
                 {wordCounts.map(count => (
                     <RadioCard
                         key={count}
-                        isActive={wordCount === count}
+                        isSelected={wordCount === count}
                         onClick={() => setWordCount(count)}
                         dataTestId={`@recovery/select-count/${count}`}
                     >
-                        <Paragraph align="center" typographyStyle="highlight">
+                        <Paragraph align="center" typographyStyle="body-md-strong">
                             <Translation id="TR_WORDS" values={{ count }} />
                         </Paragraph>
                     </RadioCard>

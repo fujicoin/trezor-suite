@@ -1,24 +1,24 @@
-import { ReactElement } from 'react';
+import { type ReactElement } from 'react';
 
+import { Translation, useTranslation } from '@suite/intl';
+import { selectLanguage } from '@suite/settings';
 import { BTC_LOCKTIME_VALUE } from '@suite-common/wallet-constants';
 import { selectBlockchainHeightBySymbol } from '@suite-common/wallet-core';
-import { getInputState, isInteger, localizeNumber } from '@suite-common/wallet-utils';
+import { isInteger, localizeNumber } from '@suite-common/wallet-utils';
 import { Row, Text } from '@trezor/components';
 import { NumberInput } from '@trezor/product-components';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { BigNumber } from '@trezor/utils';
 
-import { Translation } from 'src/components/suite';
-import { useSelector, useTranslation } from 'src/hooks/suite';
+import { useSelector } from 'src/hooks/suite';
 import { useSendFormContext } from 'src/hooks/wallet';
-import { selectLanguage } from 'src/selectors/suite/suiteSelectors';
 
 export const inputName = 'bitcoinLocktimeBlockHeight';
 
 type LocktimeBlockHeightProps = {
-    innerAddon?: ReactElement;
+    rightContent?: ReactElement;
 };
 
-export const LocktimeBlockHeight = ({ innerAddon }: LocktimeBlockHeightProps) => {
+export const LocktimeBlockHeight = ({ rightContent }: LocktimeBlockHeightProps) => {
     const {
         control,
         formState: { errors },
@@ -59,13 +59,13 @@ export const LocktimeBlockHeight = ({ innerAddon }: LocktimeBlockHeightProps) =>
             control={control}
             name={inputName}
             locale={locale}
-            inputState={getInputState(error)}
+            hasError={!!error}
             onChange={() => composeTransaction()}
             rules={rules}
             bottomText={
                 <Row justifyContent="space-between" width="100%">
                     <Text>{error?.message || ''}</Text>
-                    <Text variant="tertiary">
+                    <Text intent="neutral" priority="secondary">
                         <Translation
                             id="LOCKTIME_CURRENT_BLOCKHEIGHT"
                             values={{ blockheight: localizeNumber(blockchainHeight, locale) }}
@@ -73,7 +73,12 @@ export const LocktimeBlockHeight = ({ innerAddon }: LocktimeBlockHeightProps) =>
                     </Text>
                 </Row>
             }
-            innerAddon={innerAddon}
+            labelLeft={
+                <Text typographyStyle="body-sm">
+                    <Translation id="LOCKTIME_DESCRIPTION" />
+                </Text>
+            }
+            rightContent={rightContent}
             data-testid="locktime-blockheight-input"
         />
     );

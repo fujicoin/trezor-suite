@@ -1,10 +1,15 @@
-import { DefaultTheme, createGlobalStyle } from 'styled-components';
+import { type DefaultTheme, createGlobalStyle } from 'styled-components';
 
-import { typography } from '@trezor/theme';
+import { fontFamilies, typography } from '@trezor/theme';
 
 import animations from './animations';
 
 const GlobalStyle = createGlobalStyle<{ theme: DefaultTheme }>`
+    :root {
+        --font-sans: ${fontFamilies.base};
+        color-scheme: ${({ theme }) => (theme.mode === 'light' ? 'light' : 'dark')};
+    }
+
     #app {
         display: flex;
         flex-direction: column;
@@ -17,16 +22,16 @@ const GlobalStyle = createGlobalStyle<{ theme: DefaultTheme }>`
     }
 
     body, html {
-        background: ${({ theme }) => theme.backgroundSurfaceElevation0};
+        background: ${({ theme }) => theme.surfaceFillPage};
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
-        ${typography.body}
-        color: ${({ theme }) => theme.textDefault};
+        ${typography['body-md']}
+        color: ${({ theme }) => theme.contentPrimary};
         height: 100%;
         overflow-y: hidden;
 
         /* BlinkMacSystemFont, which is macOS Chrome/Electron suggested fallback font, breaks emojis (e.g. in Guide) so we omit it */
-        font-family: "TT Satoshi", -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        font-family: var(--font-sans);
     }
 
     a {
@@ -38,17 +43,13 @@ const GlobalStyle = createGlobalStyle<{ theme: DefaultTheme }>`
         margin: 0;
         padding: 0;
         outline: none;
-        font-family: "TT Satoshi", -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        font-family: var(--font-sans);
     }
 
     *,
     *::before,
     *::after {
         box-sizing: border-box;
-    }
-
-    :root {
-        color-scheme: ${({ theme }) => (theme.legacy.THEME === 'light' ? 'light' : 'dark')};
     }
 
     ${animations}

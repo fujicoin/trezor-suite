@@ -1,28 +1,19 @@
-import { TranslationKey } from '@suite-common/intl-types';
-import { ConnectedDeviceStatus, getStatus } from '@suite-common/suite-utils';
+import { useDevice } from '@suite/device';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { goto } from '@suite/router';
+import {
+    type DeviceStatus as ConnectedDeviceStatus,
+    type getStatus,
+} from '@suite-common/suite-utils';
 import { acquireDevice, selectDeviceThunk } from '@suite-common/wallet-core';
-import { Banner, BannerVariant } from '@trezor/components';
+import { Banner, type BannerIntent } from '@trezor/components';
 import { exhaustive } from '@trezor/type-utils';
 
-import { goto } from '../../../actions/suite/routerActions';
-import { redirectAfterWalletSelectedThunk } from '../../../actions/wallet/addWalletThunk';
-import { Translation } from '../../../components/suite';
-import { useDevice, useDispatch } from '../../../hooks/suite';
-import type { ForegroundAppProps, TrezorDevice } from '../../../types/suite';
+import { redirectAfterWalletSelectedThunk } from 'src/actions/wallet/addWalletThunk';
+import { useDispatch } from 'src/hooks/suite';
+import type { ForegroundAppProps, TrezorDevice } from 'src/types/suite';
 
-const getDeviceResolveStatusCTAMessage = (
-    deviceStatus: ReturnType<typeof getStatus>,
-): TranslationKey => {
-    switch (deviceStatus) {
-        case 'bootloader':
-            return 'TR_SELECT_DEVICE_SHORT';
-        case 'initialize':
-        case 'unacquired-thp-required':
-            return 'TR_CONTINUE_SETUP';
-        default:
-            return 'TR_SOLVE_ISSUE';
-    }
-};
+import { getDeviceResolveStatusCTAMessage } from './getDeviceResolveStatusCTAMessage';
 
 const getDeviceNeedsAttentionMessage = (
     deviceStatus: ReturnType<typeof getStatus>,
@@ -42,17 +33,29 @@ const getDeviceNeedsAttentionMessage = (
             return 'TR_NEEDS_ATTENTION_UNACQUIRED';
         case 'firmware-required':
             return 'TR_NEEDS_ATTENTION_FIRMWARE_REQUIRED';
+        case 'firmware-corrupted':
+            return 'TR_NEEDS_ATTENTION_FIRMWARE_CORRUPTED';
         case 'unavailable':
             return 'TR_NEEDS_ATTENTION_UNAVAILABLE';
         case 'unreadable':
             return 'TR_NEEDS_ATTENTION_UNREADABLE';
-        case 'unacquired-thp-required':
+        case 'device-thp-locked':
             return 'TR_NEEDS_ATTENTION_UNACQUIRED_THP_REQUIRED';
+        case 'device-busy':
+            return 'TR_NEEDS_ATTENTION_DEVICE_BUSY';
+        case 'device-bootloader-locked':
+        case 'device-hard-locked':
+            return 'TR_NEEDS_ATTENTION_DEVICE_LOCKED';
+        case 'device-pin-locked':
+            return 'TR_NEEDS_ATTENTION_DEVICE_LOCKED';
+        case 'device-rebooting':
+            return 'TR_RESTARTING_TREZOR';
 
         case 'connected':
         case 'disconnected':
         case 'firmware-recommended':
         case 'unknown':
+        case 'acquired':
             return null;
 
         default:
@@ -60,13 +63,18 @@ const getDeviceNeedsAttentionMessage = (
     }
 };
 
-const getDeviceStatusWarningVariant = (
-    deviceStatus: ReturnType<typeof getStatus>,
-): BannerVariant => {
+const getDeviceStatusWarningIntent = (deviceStatus: ReturnType<typeof getStatus>): BannerIntent => {
     switch (deviceStatus) {
         case 'bootloader':
         case 'initialize':
+        case 'was-used-in-other-window':
+        case 'used-in-other-window':
+        case 'unacquired':
+        case 'device-thp-locked':
             return 'info';
+        case 'firmware-required':
+        case 'firmware-corrupted':
+            return 'critical';
         default:
             return 'warning';
     }
@@ -84,7 +92,7 @@ export const NeedsAttentionBanner = ({
     onCancel,
 }: NeedsAttentionBannerProps) => {
     const deviceResolveIssueCTAMessage = getDeviceResolveStatusCTAMessage(deviceStatus);
-    const deviceStatusBannerVariant = getDeviceStatusWarningVariant(deviceStatus);
+    const deviceStatusBannerIntent = getDeviceStatusWarningIntent(deviceStatus);
     const deviceStatusMessage = getDeviceNeedsAttentionMessage(deviceStatus);
     const isLocked = useDevice().isLocked(true);
     const dispatch = useDispatch();
@@ -95,56 +103,73 @@ export const NeedsAttentionBanner = ({
         onCancel?.(false);
     };
 
-    const onSolveIssueClick = (): void => {
+    const createOnIssueClickHandler = (): (() => void) | null => {
         switch (deviceStatus) {
+            case 'firmware-required':
+                return () => {
+                    onCancel?.(false);
+                    dispatch(selectDeviceThunk({ device }));
+                    dispatch(goto({ routeName: 'firmware-index' }));
+                };
             // If onboarding is pending, then it should pass through Manual Device Check.
             case 'initialize': // Wiped device with firmware present.
             case 'bootloader': // Fresh or factory-reset device? Can also be initalized device manually put into BL,
                 // but we cannot tell (device.features.initialized is null)
-                selectDevice();
-                dispatch(goto('suite-start'));
-                break;
+                return () => {
+                    selectDevice();
+                    dispatch(goto({ routeName: 'suite-start' }));
+                };
 
             case 'seedless':
-            case 'firmware-required':
+            case 'firmware-corrupted':
             case 'unavailable':
             case 'unreadable':
             case 'connected':
             case 'disconnected':
             case 'firmware-recommended':
             case 'unknown':
-                selectDevice();
-                break;
+                return () => selectDevice();
 
             case 'used-in-other-window':
             case 'was-used-in-other-window':
             case 'unacquired':
-                dispatch(acquireDevice({ requestedDevice: device }));
-                break;
-            case 'unacquired-thp-required':
-                onCancel?.(false);
-                dispatch(acquireDevice({ requestedDevice: device }));
-                break;
+                return () => dispatch(acquireDevice({ requestedDevice: device }));
+            case 'device-thp-locked':
+                return () => {
+                    onCancel?.(false);
+                    dispatch(acquireDevice({ requestedDevice: device }));
+                };
+
+            case 'device-busy':
+            case 'device-rebooting':
+            case 'device-bootloader-locked':
+            case 'device-hard-locked':
+            case 'device-pin-locked':
+            case 'acquired':
+                return null;
 
             default:
                 return exhaustive(deviceStatus);
         }
     };
 
+    const onIssueClick = createOnIssueClickHandler();
+
     return (
         <Banner
-            variant={deviceStatusBannerVariant}
+            intent={deviceStatusBannerIntent}
             rightContent={
-                <Banner.Button
-                    onClick={onSolveIssueClick}
-                    data-testid="@switch-device/solve-issue-button"
-                    isDisabled={isLocked}
-                >
-                    <Translation id={deviceResolveIssueCTAMessage} />
-                </Banner.Button>
+                onIssueClick && (
+                    <Banner.Button
+                        onClick={onIssueClick}
+                        data-testid="@switch-device/solve-issue-button"
+                        isDisabled={isLocked}
+                    >
+                        <Translation id={deviceResolveIssueCTAMessage} />
+                    </Banner.Button>
+                )
             }
-        >
-            {deviceStatusMessage && <Translation id={deviceStatusMessage} />}
-        </Banner>
+            description={deviceStatusMessage ? <Translation id={deviceStatusMessage} /> : undefined}
+        />
     );
 };

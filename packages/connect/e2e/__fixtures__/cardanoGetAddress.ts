@@ -1,6 +1,5 @@
+import { NETWORK_IDS, PROTOCOL_MAGICS } from '@trezor/connect-common/src/constants/cardano';
 import { MessagesSchema } from '@trezor/protobuf';
-
-import { NETWORK_IDS, PROTOCOL_MAGICS } from '../../src/constants/cardano';
 
 const { CardanoAddressType } = MessagesSchema;
 
@@ -14,6 +13,7 @@ const legacyResults = {
 
 export default {
     method: 'cardanoGetAddress',
+    enabledCoins: ['ada'] as const,
     setup: {
         mnemonic: 'mnemonic_all',
     },

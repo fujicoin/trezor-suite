@@ -11,7 +11,8 @@ export const WALLETCONNECT_METADATA = {
     icons: ['https://trezor.io/images/suite/appIcon.png'],
     redirect: isNative()
         ? {
-              native: 'trezorsuitelite://walletconnect/',
+              native: 'trezorsuite://walletconnect/',
+              universal: 'https://connect.trezor.io/9/deeplink/wc',
               linkMode: true,
           }
         : {},

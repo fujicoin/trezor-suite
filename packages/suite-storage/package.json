@@ -11,11 +11,12 @@
     "description": "trezor suite storage",
     "scripts": {
         "type-check": "yarn g:tsc --build tsconfig.json",
-        "type-check:watch": "yarn type-check -- --watch"
+        "type-check:watch": "yarn type-check -- --watch",
+        "depcheck": "yarn g:depcheck",
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     },
-    "main": "./src/web/index.ts",
-    "react-native": "./src/native/index.ts",
-    "browser": "./src/web/index.ts",
+    "main": "./src/index.ts",
+    "browser": "./src/index.ts",
     "dependencies": {
         "@trezor/eslint": "workspace:*",
         "@trezor/utils": "workspace:*",

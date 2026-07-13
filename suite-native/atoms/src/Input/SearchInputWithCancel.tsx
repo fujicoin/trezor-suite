@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
-import { HStack, TextButton } from '@suite-native/atoms';
 import { Translation, useTranslate } from '@suite-native/intl';
 import { useDebounce } from '@trezor/react-utils';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+
+import { TextButton } from '../Button/TextButton';
+import { HStack } from '../Stack';
 
 type ClearAndBlur = {
     clear?: () => void;
@@ -78,7 +80,7 @@ export function SearchInputWithCancel<R extends ClearAndBlur | null>({
         <HStack alignItems="center" spacing={0}>
             <Animated.View layout={LinearTransition} style={applyStyle(inputWrapperStyle)}>
                 <SearchComponent
-                    {...(searchRef ? { ref: searchRef as React.Ref<any> } : {})}
+                    {...(searchRef ? { ref: searchRef } : {})}
                     placeholder={placeholder ?? translate('moduleTrading.defaultSearchLabel')}
                     onFocus={() => {
                         setIsInputActive(true);

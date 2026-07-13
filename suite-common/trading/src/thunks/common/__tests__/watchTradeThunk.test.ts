@@ -1,27 +1,24 @@
 import { combineReducers } from '@reduxjs/toolkit';
 
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
-import { Account } from '@suite-common/wallet-types';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
+import { type Account, type AccountKey } from '@suite-common/wallet-types';
 
 import { accountBtc } from '../../../__fixtures__/utils';
 import { invityAPI } from '../../../invityAPI';
+import { type TradingState, initialState } from '../../../reducers/tradingCommonReducer';
+import { prepareTradingReducer } from '../../../reducers/tradingReducer';
 import {
-    TradingState,
-    initialState,
-    prepareTradingReducer,
-} from '../../../reducers/tradingReducer';
-import {
-    TradingTransaction,
-    TradingTransactionBuy,
-    TradingTransactionExchange,
-    TradingTransactionSell,
+    type TradingTransaction,
+    type TradingTransactionBuy,
+    type TradingTransactionExchange,
+    type TradingTransactionSell,
 } from '../../../types';
 import { watchTradeThunk } from '../watchTradeThunk';
 
 describe('watchTradeThunk', () => {
     jest.mock('../../../invityAPI');
 
-    const tradingReducer = prepareTradingReducer(extraDependenciesMock);
+    const tradingReducer = prepareTradingReducer(extraDependenciesCommonMock);
     const account = accountBtc as Account;
     const refreshCount = 1;
 
@@ -30,12 +27,12 @@ describe('watchTradeThunk', () => {
             extra: {},
             reducer: combineReducers({
                 wallet: combineReducers({
-                    tradingNew: tradingReducer,
+                    trading: tradingReducer,
                 }),
             }),
             preloadedState: {
                 wallet: {
-                    tradingNew: {
+                    trading: {
                         ...initialState,
                         ...updatedState,
                     },
@@ -193,7 +190,7 @@ describe('watchTradeThunk', () => {
                     status: 'LOGIN_REQUEST',
                     orderId: 'tradeKey',
                 },
-                sendAccountKey: 'sendAccountKey',
+                sendAccountKey: 'sendAccountKey' as AccountKey, // Todo: create properly via `createAccountKey()`,
             } as TradingTransactionSell;
 
             const store = getStore({

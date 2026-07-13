@@ -1,18 +1,19 @@
-import { SignOperator } from '@suite-common/suite-types';
+import { type ExtendedMessageDescriptor, Translation } from '@suite/intl';
+import { type SignOperator } from '@suite-common/suite-types';
 import { selectBaseCurrency, selectHistoricFiatRatesByTimestamp } from '@suite-common/wallet-core';
-import { Timestamp } from '@suite-common/wallet-types';
+import { type Timestamp } from '@suite-common/wallet-types';
 import {
     formatCardanoDeposit,
     formatCardanoWithdrawal,
     formatNetworkAmount,
+    getCardanoStakingSignValue,
     getFiatRateKey,
 } from '@suite-common/wallet-utils';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { BigNumber } from '@trezor/utils';
 
-import { BaseCurrencyValue, FormattedCryptoAmount, Translation } from 'src/components/suite';
+import { BaseCurrencyValue, FormattedCryptoAmount, Sign } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
-import { ExtendedMessageDescriptor } from 'src/types/suite';
-import { WalletAccountTransaction } from 'src/types/wallet';
+import { type WalletAccountTransaction } from 'src/types/wallet';
 
 import { TransactionTargetLayout } from './TransactionTargetLayout';
 
@@ -29,9 +30,6 @@ export const CustomRow = ({
     title: ExtendedMessageDescriptor['id'];
     transaction: WalletAccountTransaction;
     useFiatValues?: boolean;
-    isFirst?: boolean;
-    isLast?: boolean;
-    className?: string;
 }) => {
     const fiatCurrencyCode = useSelector(selectBaseCurrency);
     const fiatRateKey = getFiatRateKey(transaction.symbol, fiatCurrencyCode);
@@ -51,13 +49,16 @@ export const CustomRow = ({
                 />
             }
             fiatAmount={
-                useFiatValues ? (
-                    <BaseCurrencyValue
-                        amount={amount}
-                        symbol={transaction.symbol}
-                        historicRate={historicRate}
-                        useHistoricRate
-                    />
+                useFiatValues && historicRate ? (
+                    <>
+                        <Sign value={sign} grayscale />
+                        <BaseCurrencyValue
+                            amount={amount}
+                            symbol={transaction.symbol}
+                            historicRate={historicRate}
+                            useHistoricRate
+                        />
+                    </>
                 ) : undefined
             }
         />
@@ -73,9 +74,6 @@ export const FeeRow = ({
     fee: string;
     transaction: WalletAccountTransaction;
     useFiatValues?: boolean;
-    isFirst?: boolean;
-    isLast?: boolean;
-    className?: string;
 }) => (
     <CustomRow
         {...baseLayoutProps}
@@ -94,9 +92,6 @@ export const WithdrawalRow = ({
 }: {
     transaction: WalletAccountTransaction;
     useFiatValues?: boolean;
-    isFirst?: boolean;
-    isLast?: boolean;
-    className?: string;
 }) => (
     <CustomRow
         {...baseLayoutProps}
@@ -115,18 +110,11 @@ export const DepositRow = ({
 }: {
     transaction: WalletAccountTransaction;
     useFiatValues?: boolean;
-    isFirst?: boolean;
-    isLast?: boolean;
-    className?: string;
 }) => (
     <CustomRow
         {...baseLayoutProps}
         title="TR_TX_DEPOSIT"
-        sign={
-            transaction.cardanoSpecific?.subtype === 'stake_deregistration'
-                ? 'positive'
-                : 'negative'
-        }
+        sign={getCardanoStakingSignValue(transaction)}
         amount={formatCardanoDeposit(transaction) ?? '0'}
         transaction={transaction}
         useFiatValues={useFiatValues}
@@ -171,8 +159,6 @@ export const CoinjoinRow = ({ transaction, useFiatValues }: CoinjoinRowProps) =>
                     }}
                 />
             }
-            isFirst
-            isLast
         />
     );
 };

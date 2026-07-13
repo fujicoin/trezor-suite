@@ -2,19 +2,20 @@ import { useRef } from 'react';
 
 import styled, { css } from 'styled-components';
 
-import { selectSelectedDevice } from '@suite-common/wallet-core';
-import { Box, Icon, Tooltip } from '@trezor/components';
-import { focusStyleTransition, getFocusShadowStyle } from '@trezor/components/src/utils/utils';
-import { borders, spacingsPx } from '@trezor/theme';
+import { Translation } from '@suite/intl';
+import { selectSelectedDevice } from '@suite-common/device';
+import { Box, Icon, Row, ShortcutBadge, TOOLTIP_DELAY_LONG, Tooltip } from '@trezor/components';
+import { commonFocusStyles, focusStyleTransition } from '@trezor/components/src/utils/utils';
+import { CaretCircleDownIcon } from '@trezor/icons';
+import { borders, spacings, spacingsPx, zIndices } from '@trezor/theme';
 
 import { setRecentlyConnectedDevicePath } from 'src/actions/suite/suiteActions';
 import { openSwitchDeviceDialog } from 'src/actions/wallet/addWalletThunk';
-import { useDiscovery, useDispatch, useSelector } from 'src/hooks/suite';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 import { selectRecentlyConnectedDevice } from 'src/selectors/suite/suiteSelectors';
+import { useResponsiveContext } from 'src/support/suite/ResponsiveContext';
 
 import { SidebarDeviceStatus } from './SidebarDeviceStatus';
-import { useResponsiveContext } from '../../../../../support/suite/ResponsiveContext';
-import { Translation } from '../../../Translation';
 import { ExpandedSidebarOnly } from '../Sidebar/ExpandedSidebarOnly';
 
 const CaretContainer = styled.div`
@@ -22,6 +23,7 @@ const CaretContainer = styled.div`
     padding: 10px;
     border-radius: 50%;
     transition: background 0.15s;
+    flex-shrink: 0;
 `;
 
 const Wrapper = styled.div<{ $isSidebarCollapsed?: boolean }>`
@@ -38,11 +40,13 @@ const Wrapper = styled.div<{ $isSidebarCollapsed?: boolean }>`
             justify-content: center;
         `}
 
-    ${getFocusShadowStyle()};
+    &:focus-visible {
+        ${commonFocusStyles}
+    }
 
     &:hover {
         ${CaretContainer} {
-            background: ${({ theme }) => theme.backgroundTertiaryPressedOnElevation0};
+            background: ${({ theme }) => theme.elementFillGhostPressed};
         }
     }
 `;
@@ -83,13 +87,10 @@ export const DeviceSelector = () => {
     const selectedDevice = useSelector(selectSelectedDevice);
     const recentlyConnectedDevice = useSelector(selectRecentlyConnectedDevice);
     const dispatch = useDispatch();
-    const { isDiscoveryRunning } = useDiscovery();
 
     const handleSwitchDeviceClick = () => {
-        if (!isDiscoveryRunning) {
-            dispatch(openSwitchDeviceDialog());
-            dispatch(setRecentlyConnectedDevicePath(null));
-        }
+        dispatch(openSwitchDeviceDialog());
+        dispatch(setRecentlyConnectedDevicePath(null));
     };
 
     const { isSidebarCollapsed } = useResponsiveContext();
@@ -98,29 +99,38 @@ export const DeviceSelector = () => {
         <Tooltip
             isOpen={recentlyConnectedDevice !== undefined}
             content={<RecentlyConnectedDeviceTooltipContent />}
-            placement="right-end"
-            hasArrow
+            placement="right"
+            zIndex={zIndices.popover /* to prevent it from appearing above modals */}
         >
             <Wrapper $isSidebarCollapsed={isSidebarCollapsed}>
+                {/* The shortcut hint is shown only in the expanded sidebar; when collapsed,
+                    DeviceStatus renders its own tooltip with the device detail and shortcut. */}
                 <Tooltip
-                    isActive={isDiscoveryRunning}
-                    isFullWidth
-                    placement="bottom"
-                    cursor={isDiscoveryRunning ? 'not-allowed' : undefined}
-                    content={<Translation id="TR_UNAVAILABLE_WHILE_LOADING" />}
+                    cursor="pointer"
+                    width="100%"
+                    isActive={!isSidebarCollapsed}
+                    delayShow={TOOLTIP_DELAY_LONG}
+                    placement="right"
+                    content={
+                        <Row gap={spacings.sm} alignItems="center">
+                            <Translation id="TR_GUIDE_KEYBOARD_SHORTCUTS_SWITCH_DEVICE" />
+                            <ShortcutBadge shortcut={['ALT', 'KEY_W']} />
+                        </Row>
+                    }
                 >
                     <InnerContainer
                         onClick={handleSwitchDeviceClick}
-                        $isDisabled={isDiscoveryRunning}
                         tabIndex={0}
                         data-testid="@menu/switch-device"
                     >
-                        <SidebarDeviceStatus />
+                        <Box flex="1" minWidth="0" overflow="hidden">
+                            <SidebarDeviceStatus />
+                        </Box>
 
                         <ExpandedSidebarOnly>
-                            {selectedDevice && selectedDevice.state && (
+                            {selectedDevice?.state && (
                                 <CaretContainer>
-                                    <Icon size={20} name="caretCircleDown" />
+                                    <Icon size={20} as={CaretCircleDownIcon} />
                                 </CaretContainer>
                             )}
                         </ExpandedSidebarOnly>

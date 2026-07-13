@@ -1,9 +1,10 @@
-import { Route } from '@suite-common/suite-types';
-import { IconName, SubTabs } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { type Route, goto } from '@suite/router';
+import { useServices } from '@suite-common/dependency-injection';
+import { type IconComponent, SubTabs } from '@trezor/components';
+import { HandshakeIcon, MinusIcon, PlusIcon, RepeatIcon } from '@trezor/icons';
 
-import { goto } from 'src/actions/suite/routerActions';
-import { Translation, TranslationKey } from 'src/components/suite/Translation';
 import { useDispatch } from 'src/hooks/suite';
 
 type TradingLayoutNavigationProps = {
@@ -12,60 +13,74 @@ type TradingLayoutNavigationProps = {
 
 type NavigationItem = {
     id: Route['name'];
-    icon: IconName;
+    icon: IconComponent;
     translationId: TranslationKey;
 };
 
 const navigationItems: NavigationItem[] = [
     {
+        id: 'wallet-trading-exchange',
+        icon: RepeatIcon,
+        translationId: 'TR_TRADING_SWAP',
+    },
+    {
         id: 'wallet-trading-buy',
-        icon: 'plus',
+        icon: PlusIcon,
         translationId: 'TR_NAV_BUY',
     },
     {
         id: 'wallet-trading-sell',
-        icon: 'minus',
+        icon: MinusIcon,
         translationId: 'TR_NAV_SELL',
     },
     {
-        id: 'wallet-trading-dca',
-        icon: 'clock',
-        translationId: 'TR_NAV_DCA',
+        id: 'wallet-trading-concierge',
+        icon: HandshakeIcon,
+        translationId: 'TR_NAV_CONCIERGE',
     },
 ];
 
 export const TradingLayoutNavigation = ({ route }: TradingLayoutNavigationProps) => {
     const dispatch = useDispatch();
-
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const goToRoute = (route: Route['name']) => () => {
-        dispatch(goto(route, { preserveParams: true }));
+        dispatch(goto({ routeName: route }));
 
         switch (route) {
             case 'wallet-trading-buy':
                 return analytics.report({
-                    type: EventType.TradingNavigate,
+                    type: events.tradeNavigateEvent.name,
                     payload: {
                         action: 'navigate',
                         type: 'buy',
-                        from: 'buy/sell/dca-form',
+                        from: 'buy/sell',
                     },
                 });
             case 'wallet-trading-sell':
                 return analytics.report({
-                    type: EventType.TradingNavigate,
+                    type: events.tradeNavigateEvent.name,
                     payload: {
                         action: 'navigate',
                         type: 'sell',
-                        from: 'buy/sell/dca-form',
+                        from: 'buy/sell',
                     },
                 });
-            case 'wallet-trading-dca':
+            case 'wallet-trading-exchange':
                 return analytics.report({
-                    type: EventType.TradingNavigate,
+                    type: events.tradeNavigateEvent.name,
                     payload: {
                         action: 'navigate',
-                        type: 'dca',
-                        from: 'buy/sell/dca-form',
+                        type: 'exchange',
+                        from: 'buy/sell',
+                    },
+                });
+            case 'wallet-trading-concierge':
+                return analytics.report({
+                    type: events.tradeNavigateEvent.name,
+                    payload: {
+                        action: 'navigate',
+                        type: 'concierge',
+                        from: 'buy/sell',
                     },
                 });
         }
@@ -78,7 +93,7 @@ export const TradingLayoutNavigation = ({ route }: TradingLayoutNavigationProps)
                     key={item.id}
                     data-testid={`@trading/menu/${item.id}`}
                     id={item.id}
-                    iconName={item.icon}
+                    icon={item.icon}
                     onClick={goToRoute(item.id)}
                 >
                     <Translation id={item.translationId} />

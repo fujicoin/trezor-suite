@@ -1,19 +1,22 @@
 import { combineReducers } from '@reduxjs/toolkit';
-import { CryptoId, ExchangeTradeSigned } from 'invity-api';
+import { type CryptoId, type ExchangeTradeSigned } from 'invity-api';
 
 import { createThunk } from '@suite-common/redux-utils';
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
-import { Account, GeneralPrecomposedTransaction } from '@suite-common/wallet-types';
-import { PROTO } from '@trezor/connect';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
+import { type Account, type GeneralPrecomposedTransaction } from '@suite-common/wallet-types';
+import TrezorConnect, { type Address, type PROTO } from '@trezor/connect';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- TODO: extract pathUtils to a shared location and remove this exception (see #27376 deferred work)
+import { validatePath } from '@trezor/connect/src/utils/pathUtils';
 
 import { invityAPI } from '../../../invityAPI';
-import { initialState, prepareTradingReducer } from '../../../reducers/tradingReducer';
-import { tradingGetCoinSlip44 } from '../../../utils/signature/signatureUtils';
+import { initialState } from '../../../reducers/tradingCommonReducer';
+import { prepareTradingReducer } from '../../../reducers/tradingReducer';
 import { createPaymentRequestsThunk } from '../createPaymentRequestsThunk';
 import { getNonce } from '../getNonce';
+import { getPurchaseAddress } from '../getPurchaseAddress';
 import { getRefundAddress } from '../getRefundAddress';
 
-const tradingReducer = prepareTradingReducer(extraDependenciesMock);
+const tradingReducer = prepareTradingReducer(extraDependenciesCommonMock);
 
 // Mock internal thunks - this is the key change from the previous approach
 jest.mock('../getNonce', () => ({
@@ -22,6 +25,10 @@ jest.mock('../getNonce', () => ({
 
 jest.mock('../getRefundAddress', () => ({
     getRefundAddress: jest.fn(),
+}));
+
+jest.mock('../getPurchaseAddress', () => ({
+    getPurchaseAddress: jest.fn(),
 }));
 
 jest.mock('../../../utils/signature/signatureUtils', () => {
@@ -39,6 +46,11 @@ jest.mock('../../../invityAPI', () => ({
     invityAPI: {
         getSignedTrade: jest.fn(),
     },
+}));
+
+jest.mock('@trezor/connect', () => ({
+    ...jest.requireActual('@trezor/connect'),
+    getAddress: jest.fn(),
 }));
 
 describe('createPaymentRequestsThunk', () => {
@@ -180,20 +192,34 @@ describe('createPaymentRequestsThunk', () => {
             ),
         );
 
-        (tradingGetCoinSlip44 as jest.Mock).mockReturnValue(Promise.resolve(2));
+        (getPurchaseAddress as unknown as jest.Mock).mockImplementation(
+            createThunk(getPurchaseAddress.typePrefix, (_, { fulfillWithValue }) =>
+                fulfillWithValue({
+                    mac: mockMac,
+                    path: "m/84'/2'/0'",
+                }),
+            ),
+        );
+
+        (TrezorConnect.getAddress as jest.Mock).mockResolvedValue({
+            success: true,
+            payload: { address: '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2' } as Address,
+        });
     });
 
     const createMockStore = (preloadedState = {}) =>
         configureMockStore({
-            extra: extraDependenciesMock,
+            extra: extraDependenciesCommonMock,
             reducer: combineReducers({
                 wallet: combineReducers({
-                    tradingNew: tradingReducer,
+                    trading: tradingReducer,
+                    accounts: () => [mockAccount],
                 }),
             }),
             preloadedState: {
                 wallet: {
-                    tradingNew: {
+                    accounts: [mockAccount],
+                    trading: {
                         ...initialState,
                         info: {
                             coins: {
@@ -229,7 +255,7 @@ describe('createPaymentRequestsThunk', () => {
 
         const mockPaymentRequest: PROTO.PaymentRequest = {
             recipient_name: 'Changelly',
-            amount: '100000',
+            amount: '100000', // decimal subunits (satoshis), encoded to LE bytes by @trezor/connect
             nonce: mockNonce,
             signature: 'signature123',
             memos: [
@@ -238,15 +264,15 @@ describe('createPaymentRequestsThunk', () => {
                         address: '1ReceiveAddress123',
                         amount: '0.05 LTC',
                         coin_type: 2,
-                        mac: 'verified-mac',
-                        address_n: [2147483692, 2147483648, 2147483648],
+                        mac: 'test-mac-456',
+                        address_n: validatePath("m/84'/2'/0'"),
                     },
                 },
                 {
                     refund_memo: {
                         address: '1RefundAddress456',
                         mac: mockMac,
-                        address_n: [2147483692, 2147483648, 2147483648],
+                        address_n: validatePath("m/44'/0'/0'"),
                     },
                 },
             ],
@@ -259,8 +285,9 @@ describe('createPaymentRequestsThunk', () => {
                 exchange: {
                     selectedQuote: mockExchangeQuote,
                     exchangeInfo: mockExchangeInfo,
+                    receiveAccountKey: mockAccount.key,
+                    receiveAddress: mockExchangeQuote.receiveAddress,
                 },
-                verifiedAddress: { mac: 'verified-mac', path: "m/44'/0'/0'" },
             });
 
             // Execute thunk
@@ -283,8 +310,9 @@ describe('createPaymentRequestsThunk', () => {
                 exchange: {
                     selectedQuote: { ...mockExchangeQuote, orderId: undefined },
                     exchangeInfo: mockExchangeInfo,
+                    receiveAccountKey: mockAccount.key,
+                    receiveAddress: mockExchangeQuote.receiveAddress,
                 },
-                verifiedAddress: { mac: 'verified-mac', path: "m/44'/0'/0'" },
             });
 
             const result = await store.dispatch(
@@ -303,13 +331,13 @@ describe('createPaymentRequestsThunk', () => {
             });
         });
 
-        it('should reject when verified address is missing', async () => {
+        it('should reject when receive account is missing', async () => {
             const store = createMockStore({
                 exchange: {
                     selectedQuote: mockExchangeQuote,
                     exchangeInfo: mockExchangeInfo,
+                    receiveAccountKey: undefined, // missing
                 },
-                verifiedAddress: null,
             });
 
             const result = await store.dispatch(
@@ -335,8 +363,9 @@ describe('createPaymentRequestsThunk', () => {
                 exchange: {
                     selectedQuote: mockExchangeQuote,
                     exchangeInfo: mockExchangeInfo,
+                    receiveAccountKey: mockAccount.key,
+                    receiveAddress: mockExchangeQuote.receiveAddress,
                 },
-                verifiedAddress: { mac: 'verified-mac', path: "m/44'/0'/0'" },
             });
 
             const result = await store.dispatch(
@@ -355,7 +384,7 @@ describe('createPaymentRequestsThunk', () => {
             });
         });
 
-        it('should reject when payment request creation fails', async () => {
+        it('should reject when payment request creation errors', async () => {
             invityAPI.getSignedTrade = () =>
                 Promise.resolve({
                     mockExchangeQuote,
@@ -368,8 +397,9 @@ describe('createPaymentRequestsThunk', () => {
                         ...mockExchangeQuote,
                     },
                     exchangeInfo: mockExchangeInfo,
+                    receiveAccountKey: mockAccount.key,
+                    receiveAddress: mockExchangeQuote.receiveAddress,
                 },
-                verifiedAddress: { mac: 'verified-mac', path: "m/44'/0'/0'" },
             });
 
             const result = await store.dispatch(
@@ -392,7 +422,7 @@ describe('createPaymentRequestsThunk', () => {
     describe('sell flow', () => {
         const mockSellPaymentRequest: PROTO.PaymentRequest = {
             recipient_name: 'Coinbase',
-            amount: '100000',
+            amount: '100000', // decimal subunits (satoshis), encoded to LE bytes by @trezor/connect
             nonce: mockNonce,
             signature: 'sell-signature123',
             memos: [
@@ -405,7 +435,7 @@ describe('createPaymentRequestsThunk', () => {
                     refund_memo: {
                         address: '1RefundAddress789',
                         mac: mockMac,
-                        address_n: [2147483692, 2147483648, 2147483648],
+                        address_n: validatePath("m/44'/0'/0'"),
                     },
                 },
             ],
@@ -462,7 +492,7 @@ describe('createPaymentRequestsThunk', () => {
             });
         });
 
-        it('should reject when sell payment request creation fails', async () => {
+        it('should reject when sell payment request creation errors', async () => {
             invityAPI.getSignedTrade = () =>
                 Promise.resolve({
                     ...mockSignedSellTrade,
@@ -569,7 +599,7 @@ describe('createPaymentRequestsThunk', () => {
 
     describe('error handling', () => {
         it('should handle invityAPI.getSignedTrade rejection', async () => {
-            invityAPI.getSignedTrade = () => Promise.reject('API request failed');
+            invityAPI.getSignedTrade = () => Promise.reject('API request errored');
 
             const mockExchangeQuote = {
                 orderId: 'exchange-order-123',
@@ -585,7 +615,6 @@ describe('createPaymentRequestsThunk', () => {
                     selectedQuote: mockExchangeQuote,
                     exchangeInfo: mockExchangeInfo,
                 },
-                verifiedAddress: { mac: 'verified-mac', path: "m/44'/0'/0'" },
             });
 
             const result = await store.dispatch(

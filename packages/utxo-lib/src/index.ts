@@ -4,10 +4,12 @@ import * as bufferutils from './bufferutils';
 import { composeTx } from './compose';
 import * as crypto from './crypto';
 import { deriveAddresses, getXpubOrDescriptorInfo } from './derivation';
-import { discovery } from './discovery';
+import { addDescriptorChecksum } from './descriptors/checksum';
+import { createAddressCache, discovery } from './discovery';
 import * as networks from './networks';
 import * as payments from './payments';
 import * as script from './script';
+import { TxWeightCalculator } from './txWeightCalculator';
 
 export { Transaction } from './transaction';
 
@@ -23,9 +25,14 @@ export {
     deriveAddresses,
     getXpubOrDescriptorInfo,
     discovery,
+    createAddressCache,
+    TxWeightCalculator,
+    addDescriptorChecksum,
 };
 
 export type { PaymentType } from './derivation';
+export type { AddressCache, AddressProvider } from './discovery';
+export type { TransactionOptions, TxInput, TxOutput } from './transaction';
 export type {
     ComposeInput,
     ComposeOutput,
@@ -37,7 +44,8 @@ export type {
     ComposeResultFinal,
     ComposedTransaction,
     CoinSelectPaymentType,
+    ComposeFeePolicy,
+    TransactionInputOutputSortingStrategy,
 } from './types';
 export type { Network } from './networks';
 export type { BIP32Interface } from './bip32';
-export type { TransactionInputOutputSortingStrategy } from './types/compose';

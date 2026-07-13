@@ -1,33 +1,22 @@
 import { useSelector } from 'react-redux';
 
-import {
-    selectHasBitcoinOnlyFirmware,
-    selectIsDeviceInViewOnlyMode,
-    selectIsPortfolioTrackerDevice,
-} from '@suite-common/wallet-core';
+import { selectHasBitcoinOnlyFirmware, selectIsPortfolioTrackerDevice } from '@suite-common/device';
+import { BtcOnlyFirmwareInfo, PortfolioTrackerInfo } from '@suite-native/trading-atoms';
+import { selectIsTradingExchangeEnabled } from '@suite-native/trading-state';
 
 import { ExchangeTabContent } from './ExchangeTabContent';
-import { selectIsTradingExchangeEnabled } from '../../selectors/commonSelectors';
-import { BtcOnlyFirmwareInfo } from '../general/Error/BtcOnlyFirmwareInfo';
-import { PortfolioTrackerInfo } from '../general/Error/PorfolioTrackerInfo';
 import { TradingTypeDisabled } from '../general/Error/TradingTypeDisabled';
-import { ViewOnlyWalletInfo } from '../general/Error/ViewOnlyWalletInfo';
 
 const ExchangeTabEnabled = () => {
-    const isDeviceInViewOnlyMode = useSelector(selectIsDeviceInViewOnlyMode);
     const hasBitcoinOnlyFirmware = useSelector(selectHasBitcoinOnlyFirmware);
     const isPortfolioTrackerDevice = useSelector(selectIsPortfolioTrackerDevice);
 
     if (isPortfolioTrackerDevice) {
-        return <PortfolioTrackerInfo />;
+        return <PortfolioTrackerInfo testID="@trading/exchange/portfolio-tracker-info" />;
     }
 
     if (hasBitcoinOnlyFirmware) {
         return <BtcOnlyFirmwareInfo />;
-    }
-
-    if (isDeviceInViewOnlyMode) {
-        return <ViewOnlyWalletInfo />;
     }
 
     return <ExchangeTabContent />;

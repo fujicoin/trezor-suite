@@ -15,13 +15,13 @@ export const DeviceNameScreen = () => {
                 <VStack marginTop="sp32" spacing="sp32" style={{ marginBottom: 'auto' }}>
                     <TitleHeader
                         title={<Translation id="moduleDeviceSettings.changeDeviceName.title" />}
-                        titleVariant="titleMedium"
+                        titleVariant="headline-md"
                     />
                     <VStack>
                         <TextInputField
                             //  eslint-disable-next-line jsx-a11y/no-autofocus
                             autoFocus
-                            keepPlaceholderOnFocus
+                            labelType="noLabel"
                             placeholder={device?.name || ''}
                             name="deviceName"
                             autoCorrect={false}
@@ -31,7 +31,7 @@ export const DeviceNameScreen = () => {
                             hint={hintMessage || ''}
                             maxLength={MAX_LENGTH}
                             rightIcon={
-                                <Text variant="body" color="textSubdued">
+                                <Text variant="body-md" color="contentSecondary">
                                     {`${deviceNameValue.length}/${MAX_LENGTH}`}
                                 </Text>
                             }

@@ -1,16 +1,16 @@
-import { Subscription } from 'react-native-ble-plx';
+import { type Subscription } from 'react-native-ble-plx';
 
 import {
     AbstractApi,
-    AbstractApiConstructorParams,
+    type AbstractApiArgs,
+    type AbstractApiConstructorParams,
     DEVICE_TYPE,
-} from '@trezor/transport/src/api/abstract';
-import * as ERRORS from '@trezor/transport/src/errors';
-import {
-    AsyncResultWithTypedError,
-    DescriptorApiLevel,
-    PathInternal,
-} from '@trezor/transport/src/types';
+    type DescriptorApiLevel,
+    TRANSPORT_ERROR as ERRORS,
+    type PathInternal,
+    error,
+    success,
+} from '@trezor/transport-common';
 
 import { bluetoothManager } from './bluetoothManager';
 
@@ -18,24 +18,40 @@ import { bluetoothManager } from './bluetoothManager';
 export class BluetoothApi extends AbstractApi {
     chunkSize = 244;
 
-    private subscription: Subscription;
+    private subscriptions: Subscription[];
+    private pushNotificationSubscribedDevices = new Set<string>();
+    private batteryLevelChangeSubscribedDevices = new Set<string>();
 
-    constructor(params: AbstractApiConstructorParams) {
-        super(params);
-        this.subscription = bluetoothManager.onDeviceConnectionStatusChange(event => {
-            this.logger?.debug('onDeviceConnectionStatusChange', event);
-            this.emit('transport-interface-change', this.getDescriptors());
-        });
+    constructor(params: Omit<AbstractApiConstructorParams, 'type'>) {
+        super({ ...params, type: 'bluetooth' });
+        this.subscriptions = [
+            bluetoothManager.onDeviceConnectionStatusChange(event => {
+                this.logger?.debug('onDeviceConnectionStatusChange', event);
+                this.emit('transport-interface-change', this.getDescriptors());
+            }),
+            bluetoothManager.onDevicePushNotification(({ deviceId, data }) => {
+                this.logger?.debug('onDevicePushNotificationEvent', { deviceId, data });
+                if (this.pushNotificationSubscribedDevices.has(deviceId)) {
+                    this.emit('trezor-push-notification', { id: deviceId, data });
+                }
+            }),
+            bluetoothManager.onDeviceBatteryLevelChange(({ deviceId, data }) => {
+                this.logger?.debug('onDeviceBatteryLevelChange', { deviceId, data });
+                if (this.batteryLevelChangeSubscribedDevices.has(deviceId)) {
+                    this.emit('battery-level', { id: deviceId, data });
+                }
+            }),
+        ];
     }
 
     public async enumerate() {
         this.logger?.debug('enumerate');
         try {
-            return this.success(this.getDescriptors());
-        } catch (error) {
-            this.logger?.error('enumerate error', error);
+            return success(this.getDescriptors());
+        } catch (err) {
+            this.logger?.error('enumerate error', err);
 
-            return this.unknownError(error, []);
+            return this.unknownError(err, []);
         }
     }
 
@@ -45,6 +61,7 @@ export class BluetoothApi extends AbstractApi {
             path: deviceId as PathInternal,
             type: DEVICE_TYPE.TypeBluetooth,
             id: deviceId,
+            apiType: this.type,
         }));
 
         return descriptors;
@@ -54,44 +71,32 @@ export class BluetoothApi extends AbstractApi {
         this.logger?.debug('listen', 'method not implemented');
     }
 
-    public async read(
-        path: string,
-        signal?: AbortSignal,
-    ): AsyncResultWithTypedError<
-        Buffer,
-        | typeof ERRORS.DEVICE_NOT_FOUND
-        | typeof ERRORS.INTERFACE_UNABLE_TO_OPEN_DEVICE
-        | typeof ERRORS.INTERFACE_DATA_TRANSFER
-        | typeof ERRORS.DEVICE_DISCONNECTED_DURING_ACTION
-        | typeof ERRORS.UNEXPECTED_ERROR
-        | typeof ERRORS.ABORTED_BY_SIGNAL
-        | typeof ERRORS.ABORTED_BY_TIMEOUT
-    > {
+    public async read(...[path, options]: AbstractApiArgs<'read'>) {
         this.logger?.debug('read');
 
         if (!bluetoothManager.isDeviceConnected(path)) {
-            return this.error({ error: ERRORS.DEVICE_NOT_FOUND });
+            return error({ code: ERRORS.DEVICE_NOT_FOUND });
         }
 
         try {
-            const result = await bluetoothManager.read(path, signal);
+            const result = await bluetoothManager.read(path, options?.signal);
             if (!result.success) {
-                return this.error({ error: ERRORS.INTERFACE_DATA_TRANSFER });
+                return error({ code: ERRORS.INTERFACE_DATA_TRANSFER });
             }
 
             return result;
-        } catch (error) {
-            this.logger?.error('read error', error);
+        } catch (err) {
+            this.logger?.error('read error', err);
 
-            return this.error({ error: ERRORS.INTERFACE_DATA_TRANSFER, message: error.message });
+            return error({ code: ERRORS.INTERFACE_DATA_TRANSFER, message: err.message });
         }
     }
 
-    public async write(path: string, buffer: Buffer) {
+    public async write(...[path, buffer]: AbstractApiArgs<'write'>) {
         this.logger?.debug('write', buffer);
 
         if (!bluetoothManager.isDeviceConnected(path)) {
-            return this.error({ error: ERRORS.DEVICE_NOT_FOUND });
+            return error({ code: ERRORS.DEVICE_NOT_FOUND });
         }
 
         try {
@@ -100,31 +105,43 @@ export class BluetoothApi extends AbstractApi {
 
             await bluetoothManager.write(path, chunk);
 
-            return this.success(undefined);
-        } catch (error) {
-            this.logger?.error('write error', error);
+            return success(undefined);
+        } catch (err) {
+            this.logger?.error('write error', err);
 
-            return this.error({ error: ERRORS.INTERFACE_DATA_TRANSFER, message: error.message });
+            return error({ code: ERRORS.INTERFACE_DATA_TRANSFER, message: err.message });
         }
     }
 
-    public async openDevice(path: string, _first: boolean) {
-        this.logger?.debug('openDevice', path);
+    public async openDevice(...[path, options]: AbstractApiArgs<'openDevice'>) {
+        this.logger?.debug('openDevice', path, options);
+
+        if (options?.channel === 'trezor-push-notification') {
+            this.pushNotificationSubscribedDevices.add(path);
+        } else if (options?.channel === 'battery-level') {
+            this.batteryLevelChangeSubscribedDevices.add(path);
+        }
 
         // BT does not need to be opened, it is opened when connected
-        return this.success(undefined);
+        return success(undefined);
     }
 
-    public async closeDevice(path: string) {
-        this.logger?.debug('closeDevice', path);
-        bluetoothManager.cancelRead(path);
+    public async closeDevice(...[path, options]: AbstractApiArgs<'closeDevice'>) {
+        this.logger?.debug('closeDevice', path, options);
 
-        return this.success(undefined);
+        if (options?.channel === 'read') {
+            bluetoothManager.cancelRead(path);
+        } else if (options?.channel === 'trezor-push-notification') {
+            this.pushNotificationSubscribedDevices.delete(path);
+        } else if (options?.channel === 'battery-level') {
+            this.batteryLevelChangeSubscribedDevices.delete(path);
+        }
+
+        return success(undefined);
     }
 
     public async dispose(): Promise<void> {
         this.logger?.debug('dispose');
-        // Clean up any resources or listeners here
-        this.subscription?.remove();
+        this.subscriptions.forEach(s => s.remove());
     }
 }

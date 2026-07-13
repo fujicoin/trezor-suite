@@ -1,28 +1,33 @@
-import { WalletAccountTransaction } from '@suite-common/wallet-types';
+import { Translation } from '@suite/intl';
+import { selectIsPhishingTransaction } from '@suite-common/wallet-core';
+import { type WalletAccountTransaction, createAccountKey } from '@suite-common/wallet-types';
 import { Column, Divider } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite/useSelector';
 
-import { AnalyzeInExplorerBanner } from './AnalyzeInExplorerBanner';
 import { CollapsibleIOSection } from './CollapsibleIOSection';
 import { IOGroup } from './IOGroup';
 import { TokenSpecificBalanceDetailsRow } from './TokenSpecificBalanceDetailsRow';
 
-export type IODetails = WalletAccountTransaction['details']['vin'][number];
-
 type IODetailsProps = {
     tx: WalletAccountTransaction;
-    isPhishingTransaction: boolean;
 };
 
-// Not ready for Cardano tokens, they will not be visible, probably
-export const IODetails = ({ tx, isPhishingTransaction }: IODetailsProps) => {
+// Not ready for Cardano tokens because they are utxo based
+export const IODetails = ({ tx }: IODetailsProps) => {
     const network = useSelector(state => state.wallet.selectedAccount.network);
+    const accountKey = createAccountKey({
+        accountDescriptor: tx.descriptor,
+        networkSymbol: tx.symbol,
+        deviceStaticSessionId: tx.deviceState,
+    });
+    const { isPhishing: isPhishingTransaction } = useSelector(state =>
+        selectIsPhishingTransaction(state, tx.txid, accountKey),
+    );
 
     const getContent = () => {
-        if (network?.networkType === 'ethereum') {
+        if (network?.networkType === 'ethereum' || network?.networkType === 'tron') {
             return (
                 <>
                     <IOGroup
@@ -37,7 +42,7 @@ export const IODetails = ({ tx, isPhishingTransaction }: IODetailsProps) => {
                     />
                 </>
             );
-        } else if (network?.networkType === 'solana') {
+        } else if (network?.networkType === 'solana' || network?.networkType === 'stellar') {
             return (
                 <>
                     <IOGroup
@@ -61,6 +66,7 @@ export const IODetails = ({ tx, isPhishingTransaction }: IODetailsProps) => {
                         tx={tx}
                         inputs={tx.details.vin?.filter(vin => vin.isAccountOwned)}
                         outputs={tx.details.vout?.filter(vout => vout.isAccountOwned)}
+                        isPhishingTransaction={isPhishingTransaction}
                     />
                     <Divider margin={{ top: spacings.xs, bottom: spacings.xxs }} />
                     <CollapsibleIOSection
@@ -68,20 +74,22 @@ export const IODetails = ({ tx, isPhishingTransaction }: IODetailsProps) => {
                         tx={tx}
                         inputs={tx.details.vin?.filter(vin => !vin.isAccountOwned)}
                         outputs={tx.details.vout?.filter(vout => !vout.isAccountOwned)}
+                        isPhishingTransaction={isPhishingTransaction}
                     />
                 </>
             );
         } else {
             return (
-                <IOGroup tx={tx} inputs={tx.details.vin} outputs={tx.details.vout} isUtxoBased />
+                <IOGroup
+                    tx={tx}
+                    inputs={tx.details.vin}
+                    outputs={tx.details.vout}
+                    isUtxoBased
+                    isPhishingTransaction={isPhishingTransaction}
+                />
             );
         }
     };
 
-    return (
-        <Column gap={spacings.xxl}>
-            <AnalyzeInExplorerBanner txid={tx.txid} symbol={tx.symbol} />
-            <Column gap={spacings.lg}>{getContent()}</Column>
-        </Column>
-    );
+    return <Column gap={20}>{getContent()}</Column>;
 };

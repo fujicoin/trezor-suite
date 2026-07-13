@@ -1,18 +1,19 @@
 import { useState } from 'react';
 
+import { selectSelectedAccount } from '@suite/account';
+import { setFlag } from '@suite/flags';
+import { Translation } from '@suite/intl';
 import {
     DefinitionType,
     TokenManagementAction,
     tokenDefinitionsActions,
 } from '@suite-common/token-definitions';
 import { Card, Checkbox, H2, Modal, Paragraph } from '@trezor/components';
+import { WarningIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { setFlag } from 'src/actions/suite/suiteActions';
-import { Translation } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
 import { useDispatch } from 'src/hooks/suite/useDispatch';
-import { selectSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
 
 interface UnhideTokenModalProps {
     address: string;
@@ -29,7 +30,7 @@ export const UnhideTokenModal = ({ address, onCancel }: UnhideTokenModalProps) =
 
     const onUnhide = () => {
         if (checked) {
-            dispatch(setFlag('showUnhideTokenModal', false));
+            dispatch(setFlag({ key: 'showUnhideTokenModal', value: false }));
         }
         dispatch(
             tokenDefinitionsActions.setTokenStatus({
@@ -45,14 +46,14 @@ export const UnhideTokenModal = ({ address, onCancel }: UnhideTokenModalProps) =
     return (
         <Modal
             onCancel={onCancel}
-            iconName="warning"
-            variant="warning"
+            icon={WarningIcon}
+            intent="warning"
             bottomContent={
                 <>
                     <Modal.Button onClick={onUnhide}>
                         <Translation id="TR_UNHIDE" />
                     </Modal.Button>
-                    <Modal.Button variant="tertiary" onClick={onCancel}>
+                    <Modal.Button intent="neutral" priority="secondary" onClick={onCancel}>
                         <Translation id="TR_CANCEL" />
                     </Modal.Button>
                 </>
@@ -61,11 +62,11 @@ export const UnhideTokenModal = ({ address, onCancel }: UnhideTokenModalProps) =
             <H2>
                 <Translation id="TR_UNHIDE_TOKEN_TITLE" />
             </H2>
-            <Paragraph variant="tertiary" margin={{ top: spacings.xs }}>
+            <Paragraph intent="neutral" priority="secondary" margin={{ top: spacings.xs }}>
                 <Translation id="TR_UNHIDE_TOKEN_TEXT" />
             </Paragraph>
             <Card margin={{ top: spacings.xl }}>
-                <Checkbox isChecked={checked} onClick={() => setChecked(!checked)}>
+                <Checkbox isChecked={checked} onChange={() => setChecked(!checked)}>
                     <Translation id="TR_DO_NOT_SHOW_AGAIN" />
                 </Checkbox>
             </Card>

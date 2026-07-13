@@ -1,30 +1,32 @@
-import { CryptoId } from 'invity-api';
+import type { CryptoId } from 'invity-api';
 
-import { asBaseCurrencyAmount } from '@suite-common/wallet-utils';
+import { asBaseCurrencyAmount } from '@suite-common/wallet-types';
 import { Form } from '@suite-native/forms';
 import {
-    TestStore,
-    initStore,
-    renderHookWithStoreProviderAsync,
-    renderWithStoreProviderAsync,
+    type TestStore,
+    renderHookWithStoreProvider,
+    renderWithStoreProvider,
     userEvent,
-} from '@suite-native/test-utils';
+} from '@suite-native/test-utils-store';
+import {
+    getBtcAccount,
+    getEthAccount,
+    getInitializedTradingState,
+} from '@suite-native/trading-fixtures';
+import { selectAccountsWithTokensToSellSectionCondensedListByTradingType } from '@suite-native/trading-state';
+import { type MyAssetTradeable, type SellFormType } from '@suite-native/trading-types';
 import { BigNumber } from '@trezor/utils';
 
-import { getBtcAccount, getEthAccount } from '../../../../__fixtures__/account';
-import { getInitializedTradingState } from '../../../../__fixtures__/tradingState';
+import { createTradingLightStore } from '../../../../__tests__/tradingTestUtils';
 import { useSellForm } from '../../../../hooks/sell/useSellForm';
-import { selectAccountsWithTokensToSellSectionListByTradingType } from '../../../../selectors/commonSelectors';
-import { MyAsset } from '../../../../types/general';
-import { SellFormType } from '../../../../types/sell';
 import { SellSendAssetPicker } from '../SellSendAssetPicker';
 
-jest.mock('../../../../selectors/commonSelectors', () => ({
-    ...jest.requireActual('../../../../selectors/commonSelectors'),
-    selectAccountsWithTokensToSellSectionListByTradingType: jest.fn(),
+jest.mock('@suite-native/trading-state', () => ({
+    ...jest.requireActual('@suite-native/trading-state'),
+    selectAccountsWithTokensToSellSectionCondensedListByTradingType: jest.fn(),
 }));
 const mockedSelectAccountsWithTokensToSellSectionListByTradingType =
-    selectAccountsWithTokensToSellSectionListByTradingType as unknown as jest.Mock;
+    selectAccountsWithTokensToSellSectionCondensedListByTradingType as unknown as jest.Mock;
 
 describe('SellSendAssetPicker', () => {
     let form: SellFormType;
@@ -33,7 +35,7 @@ describe('SellSendAssetPicker', () => {
     const btcAccount = getBtcAccount();
     const ethAccount = getEthAccount();
 
-    const defaultAssets: MyAsset[] = [
+    const defaultAssets: MyAssetTradeable[] = [
         {
             name: 'Bitcoin',
             symbol: 'btc',
@@ -57,24 +59,25 @@ describe('SellSendAssetPicker', () => {
         },
     ];
 
-    const getPreloadedState = () => ({
-        wallet: {
-            tradingNew: getInitializedTradingState(),
-            accounts: [btcAccount, ethAccount],
-        },
-    });
-
-    const renderSellForm = () => renderHookWithStoreProviderAsync(() => useSellForm(), { store });
+    const renderSellForm = () => renderHookWithStoreProvider(() => useSellForm(), { store });
 
     const renderSellSendAssetPicker = () =>
-        renderWithStoreProviderAsync(<SellSendAssetPicker />, {
+        renderWithStoreProvider(<SellSendAssetPicker />, {
             store,
             wrapper: ({ children }) => <Form form={form}>{children}</Form>,
         });
 
-    beforeEach(async () => {
-        store = await initStore(getPreloadedState());
-        const { result } = await renderSellForm();
+    beforeEach(() => {
+        store = createTradingLightStore({
+            tradeType: 'sell',
+            overrides: {
+                wallet: {
+                    trading: getInitializedTradingState(),
+                    accounts: [btcAccount, ethAccount],
+                },
+            },
+        });
+        const { result } = renderSellForm();
         form = result.current;
 
         mockedSelectAccountsWithTokensToSellSectionListByTradingType.mockReturnValue(
@@ -83,7 +86,7 @@ describe('SellSendAssetPicker', () => {
     });
 
     it('should select asset on item press', async () => {
-        const { getByText } = await renderSellSendAssetPicker();
+        const { getByText } = renderSellSendAssetPicker();
 
         await userEvent.press(getByText('BTC'));
 
@@ -97,11 +100,11 @@ describe('SellSendAssetPicker', () => {
     });
 
     it('should select account on item press', async () => {
-        const { getByText } = await renderSellSendAssetPicker();
+        const { getByText } = renderSellSendAssetPicker();
 
         await userEvent.press(getByText('BTC'));
 
-        const accountKeyStore = store.getState().wallet.tradingNew.sell.tradingAccountKey;
+        const accountKeyStore = store.getState().wallet.trading.sell.tradingAccountKey;
         expect(accountKeyStore).toBe(btcAccount.key);
     });
 });

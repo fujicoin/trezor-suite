@@ -1,17 +1,20 @@
-import { memo } from 'react';
+import { memo, useEffect, useEffectEvent } from 'react';
 import { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 
 import { AnimatedBox, VStack } from '@suite-native/atoms';
+import { useSellAnalyticReportCallback } from '@suite-native/trading-analytics';
+import { AmountEditingDoneButton } from '@suite-native/trading-atoms';
 
 import { SellAlert } from './SellAlert';
 import { SellCard } from './SellCard';
 import { SellConfirmation } from './SellConfirmation';
+import { SellKYCWarning } from './SellKYCWarning';
 import { SellPaymentCard } from './payment/SellPaymentCard';
 import { useFocusedValueWatch } from '../../hooks/general/useFocusedValueWatch';
 import { useMountedRecentlyFlag } from '../../hooks/general/useMountedRecentlyFlag';
 import { useSellFormContext } from '../../hooks/sell/useSellFormContext';
 import { useSellQuotes } from '../../hooks/sell/useSellQuotes';
-import { AmountEditingDoneButton } from '../general/AmountEditingDoneButton';
+import { ConciergeAlert } from '../concierge/ConciergeAlert';
 
 type SellFormProps = {
     shouldAnimateEntering?: boolean;
@@ -63,7 +66,9 @@ const SellFormMemoized = memo(
                                 shouldAnimateEntering={shouldAnimateEntering}
                                 isFormMountedRecently={isFormMountedRecently}
                             />
+                            <SellKYCWarning />
                             <SellConfirmation enteringAnimation={enteringAnimation} />
+                            <ConciergeAlert tradingType="sell" />
                         </>
                     )}
                 </VStack>
@@ -75,8 +80,16 @@ const SellFormMemoized = memo(
 export const SellForm = ({ shouldAnimateEntering }: SellFormProps) => {
     const sellForm = useSellFormContext();
     const isAmountInputActiveDebounced = useFocusedValueWatch(sellForm.watch);
+    const reportToAnalytics = useSellAnalyticReportCallback();
 
     useSellQuotes(sellForm);
+
+    const reportVisit = useEffectEvent(() => {
+        reportToAnalytics('sell-form', 'visit');
+    });
+    useEffect(() => {
+        reportVisit();
+    }, []);
 
     return (
         <SellFormMemoized

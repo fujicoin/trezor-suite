@@ -1,14 +1,12 @@
+import { selectSelectedDevice } from '@suite-common/device';
 import { createThunk } from '@suite-common/redux-utils';
-import { TrezorDevice } from '@suite-common/suite-types';
-import { selectSelectedDevice } from '@suite-common/wallet-core';
+import { type TrezorDevice } from '@suite-common/suite-types';
 import TrezorConnect, { FirmwareType } from '@trezor/connect';
 import { hasBitcoinOnlyFirmware, isBitcoinOnlyDevice } from '@trezor/device-utils';
 
 import { FIRMWARE_MODULE_PREFIX, firmwareActions } from './firmwareActions';
 import { selectFirmware } from './firmwareReducer';
 import { getBinFilesBaseUrlThunk } from './getBinFilesBaseUrlThunk';
-
-export const INVALID_HASH_ERROR = 'Invalid hash';
 
 export type FirmwareUpdateProps = {
     firmwareType?: FirmwareType;
@@ -44,7 +42,7 @@ export const firmwareUpdate = createThunk<
 
         const {
             selectors: { selectLanguage },
-            utils: { reportSecurityCheck },
+            services: { reportSecurityCheck },
         } = extra;
 
         const device = selectSelectedDevice(getState());
@@ -98,9 +96,14 @@ export const firmwareUpdate = createThunk<
             btcOnly: toBitcoinOnlyFirmware,
             binary,
             baseUrl,
-            // Firmware language should only be set during the initial firmware installation.
-            language: device.firmware === 'none' ? targetTranslationLanguage : undefined,
         });
+
+        // Firmware language should only be set during the initial firmware installation.
+        if (device.firmware === 'none' && targetTranslationLanguage) {
+            await TrezorConnect.changeLanguage({
+                language: targetTranslationLanguage,
+            });
+        }
 
         const targetProperties = binary
             ? {}
@@ -111,12 +114,12 @@ export const firmwareUpdate = createThunk<
 
         if (!firmwareUpdateResponse.success) {
             dispatch(firmwareActions.setStatus('error'));
-            dispatch(firmwareActions.setFirmwareUpdateError(firmwareUpdateResponse.payload.error));
+            dispatch(firmwareActions.setFirmwareUpdateError(firmwareUpdateResponse.error.message));
 
             return rejectWithValue({
                 device,
                 ...targetProperties,
-                ...firmwareUpdateResponse.payload,
+                error: firmwareUpdateResponse.error.message,
                 connectResponse: firmwareUpdateResponse,
             });
         } else {

@@ -1,20 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 
+import { useServices } from '@suite-common/dependency-injection';
 import {
-    TradingTransaction,
-    TradingTransactionBuy,
-    TradingTransactionExchange,
-    TradingTransactionSell,
-    TradingType,
+    type TradingTransaction,
+    type TradingTransactionBuy,
+    type TradingTransactionExchange,
+    type TradingTransactionSell,
+    selectTradingTradeByOrderId,
     tradeFinalStatuses,
     tradingThunks,
 } from '@suite-common/trading';
-import { Account } from '@suite-common/wallet-types';
-import { EventType, analytics } from '@suite-native/analytics';
+import { type AccountsRootState, selectAccountByKey } from '@suite-common/wallet-core';
+import { type AccountKey } from '@suite-common/wallet-types';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
+import { getTradeStatusStep } from '@suite-native/trading-quote-utils';
+import { type TradingRootState } from '@suite-native/trading-state';
 
 import { useReloadTimer } from './useReloadTimer';
-import { getTradeStatusStep } from '../../utils/general/utils';
 
 export type TradingTradeMapProps = {
     buy: TradingTransactionBuy;
@@ -22,23 +25,26 @@ export type TradingTradeMapProps = {
     exchange: TradingTransactionExchange;
 };
 
-export interface TradingUseWatchTradeProps<T extends TradingType> {
-    account: Account | undefined;
-    trade: TradingTradeMapProps[T] | undefined;
+export interface TradingUseWatchTradeProps {
+    accountKey: AccountKey | undefined;
+    orderId: string | undefined;
     isInProgress: boolean;
 }
 const REFRESH_SECONDS_BASE = 30;
 const REFRESH_SECONDS_IN_PROGRESS = 10;
 
 export const shouldRefreshTrade = (trade: TradingTransaction | undefined) =>
-    trade && trade.data.status && !tradeFinalStatuses[trade.tradeType].includes(trade.data.status);
+    trade?.data.status && !tradeFinalStatuses[trade.tradeType].includes(trade.data.status);
 
-export const useWatchTrade = <T extends TradingType>({
-    account,
-    trade,
-    isInProgress,
-}: TradingUseWatchTradeProps<T>) => {
+export const useWatchTrade = ({ accountKey, orderId, isInProgress }: TradingUseWatchTradeProps) => {
     const dispatch = useDispatch();
+    const { analytics } = useServices(selectNativeAnalyticsDep);
+    const account = useSelector((state: AccountsRootState) =>
+        selectAccountByKey(state, accountKey),
+    );
+    const trade = useSelector((state: TradingRootState) =>
+        selectTradingTradeByOrderId(state, orderId),
+    );
     const shouldRefresh = useMemo(() => shouldRefreshTrade(trade), [trade]);
     const { timer, shouldReload, resetCount } = useReloadTimer({
         isEnabled: shouldRefresh,
@@ -55,12 +61,12 @@ export const useWatchTrade = <T extends TradingType>({
 
             if (trade && currentStatus) {
                 analytics.report({
-                    type: EventType.TradingStatus,
+                    type: events.tradingStatusEvent.name,
                     payload: { type: trade.tradeType, status: currentStatus },
                 });
             }
         }
-    }, [trade, account, previousStatus]);
+    }, [trade, account, previousStatus, analytics]);
 
     useEffect(() => {
         if (trade && account && (!hasRefreshed || shouldReload) && shouldRefresh) {

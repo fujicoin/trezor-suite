@@ -1,16 +1,17 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Pressable } from 'react-native';
 import {
-    SharedValue,
+    type SharedValue,
     useAnimatedStyle,
     useDerivedValue,
     withTiming,
 } from 'react-native-reanimated';
 
-import { Icon, IconName } from '@suite-native/icons';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { Icon, type IconName } from '@suite-native/icons';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
-import { AnimatedBox, Box } from '../Box';
+import { AnimatedBox } from '../AnimatedBox';
+import { Box } from '../Box';
 import { Divider } from '../Divider';
 import { HStack, VStack } from '../Stack';
 import { Text } from '../Text';
@@ -64,6 +65,7 @@ export const AccordionItem = ({
 
     const handlePress = () => {
         if (currentIndexOpened.value === index) {
+            // eslint-disable-next-line react-hooks/immutability
             currentIndexOpened.value = null;
         } else {
             currentIndexOpened.value = index;
@@ -76,7 +78,7 @@ export const AccordionItem = ({
                 <HStack justifyContent="space-between" alignItems="center">
                     <HStack spacing="sp24" flex={1} alignItems="center">
                         {iconName && <Icon name={iconName} size="mediumLarge" />}
-                        <Text variant="callout">{title}</Text>
+                        <Text variant="body-sm-strong">{title}</Text>
                     </HStack>
                     <AnimatedBox style={animatedChevronStyle}>
                         <Icon name="caretDown" size="mediumLarge" />

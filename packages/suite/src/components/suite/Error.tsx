@@ -1,94 +1,58 @@
-import styled from 'styled-components';
-
-import { Button, H2, Paragraph, variables } from '@trezor/components';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectReloadAppDep } from '@suite-common/suite-types';
+import { Button, Column, Divider, H2, Paragraph, Row } from '@trezor/components';
+import { RepeatIcon } from '@trezor/icons';
 
 import { db } from 'src/storage';
-import { reloadApp } from 'src/utils/suite/reload';
-
-const Wrapper = styled.div`
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    flex: 1;
-    padding: 20px;
-`;
-
-const Buttons = styled.div`
-    display: flex;
-    justify-content: space-between;
-    width: 60%;
-    min-width: 320px;
-    max-width: 500px;
-
-    @media only screen and (max-width: ${variables.SCREEN_SIZE.MD}) {
-        width: 80%;
-    }
-`;
-
-const Separator = styled.div`
-    background: ${({ theme }) => theme.legacy.STROKE_GREY};
-    height: 1px;
-    margin: 30px 0;
-    width: 80%;
-    min-width: 320px;
-    max-width: 800px;
-
-    @media only screen and (max-width: ${variables.SCREEN_SIZE.MD}) {
-        width: 90%;
-    }
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledButton = styled(Button)`
-    margin: 6px 12px;
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const GenericMessage = styled(Paragraph)`
-    margin-bottom: 10px;
-    text-align: center;
-`;
-
-const ErrorMessage = styled.span`
-    text-align: center;
-    max-width: 600px;
-    font-family: Consolas, Menlo, Courier, monospace;
-    font-size: ${variables.FONT_SIZE.TINY};
-    color: ${({ theme }) => theme.legacy.TYPE_DARK_GREY};
-`;
 
 type ErrorProps = {
     error: string;
 };
 
-export const Error = ({ error }: ErrorProps) => (
-    <Wrapper>
-        <H2>Error occurred</H2>
-        <GenericMessage>It appears something is broken.</GenericMessage>
-        <ErrorMessage>{error}</ErrorMessage>
-        <Separator />
-        <Buttons>
-            <StyledButton
-                icon="repeat"
-                variant="tertiary"
-                onClick={() => {
-                    reloadApp();
-                }}
-            >
-                Reload window
-            </StyledButton>
+export const Error = ({ error }: ErrorProps) => {
+    const { reloadApp } = useServices(selectReloadAppDep);
 
-            <StyledButton
-                icon="repeat"
-                variant="tertiary"
-                onClick={() => {
-                    db.removeDatabase();
-                    reloadApp();
-                }}
-            >
-                Clear storage and reload
-            </StyledButton>
-        </Buttons>
-    </Wrapper>
-);
+    return (
+        <Column
+            flex="1"
+            alignItems="center"
+            justifyContent="center"
+            padding={20}
+            maxWidth="800px"
+            width="100%"
+        >
+            <H2>Error occurred</H2>
+            <Paragraph margin={{ bottom: 8 }} align="center">
+                It appears something is broken.
+            </Paragraph>
+            <Paragraph align="center" typographyStyle="body-xs" isMonospaced>
+                {error}
+            </Paragraph>
+            <Divider margin={{ vertical: 24 }} />
+            <Row width="100%" justifyContent="center" gap={16} flexWrap="wrap">
+                <Button
+                    iconLeft={RepeatIcon}
+                    intent="neutral"
+                    priority="secondary"
+                    onClick={() => {
+                        reloadApp();
+                    }}
+                >
+                    Reload window
+                </Button>
+
+                <Button
+                    iconLeft={RepeatIcon}
+                    intent="neutral"
+                    priority="secondary"
+                    onClick={() => {
+                        db.removeDatabase();
+                        reloadApp();
+                    }}
+                >
+                    Clear storage and reload
+                </Button>
+            </Row>
+        </Column>
+    );
+};

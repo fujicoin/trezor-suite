@@ -6,18 +6,20 @@
     "sideEffects": false,
     "main": "src/index",
     "scripts": {
-        "test:unit": "yarn g:jest -c ../../jest.config.base.js",
+        "test:unit": "yarn g:jest",
         "depcheck": "yarn g:depcheck",
-        "type-check": "yarn g:tsc --build"
+        "type-check": "yarn g:tsc --build",
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     },
     "dependencies": {
-        "@reduxjs/toolkit": "2.8.2",
-        "@suite-common/intl-types": "workspace:*",
+        "@reduxjs/toolkit": "2.12.0",
         "@suite-common/redux-utils": "workspace:*",
         "@suite-common/suite-constants": "workspace:*",
         "@suite-common/suite-types": "workspace:*",
         "@suite-common/test-utils": "workspace:*",
         "@suite-common/wallet-config": "workspace:*",
-        "@trezor/connect": "workspace:*"
+        "@suite-common/wallet-types": "workspace:*",
+        "@trezor/connect": "workspace:*",
+        "react": "19.2.3"
     }
 }

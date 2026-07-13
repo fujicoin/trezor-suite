@@ -1,16 +1,26 @@
 /**
  * Local web server for handling requests to app
  */
+import { captureMessage } from '@sentry/electron/main';
+
+import { isMacOs, isWindows } from '@trezor/env-utils';
 import { validateIpcMessage } from '@trezor/ipc-proxy';
+import { isArrayMember } from '@trezor/utils';
 
 import { restartApp } from '../libs/app-utils';
+import { initConnectPopupResponseHandler } from '../libs/connect-popup-messages';
 import { exposeConnectWs } from '../libs/connect-ws';
 import { createHttpReceiver } from '../libs/http-receiver';
 import { app, ipcMain } from '../typed-electron';
-
-import type { ModuleInitBackground } from './index';
+import { type ModuleInitBackground } from './module';
 
 export const SERVICE_NAME = 'http-receiver';
+
+export const TRADING_REDIRECT_PATHS = [
+    '/buy-redirect',
+    '/sell-redirect',
+    '/exchange-redirect',
+] as const;
 
 export const initBackground: ModuleInitBackground = ({
     mainWindowProxy,
@@ -24,8 +34,16 @@ export const initBackground: ModuleInitBackground = ({
         if (httpReceiver) {
             return httpReceiver.getInfo();
         }
-        // External request handler
-        const receiver = createHttpReceiver();
+        const connectPopupEnabled = () => !store.getConnectSettings().disableWs;
+
+        // External request handler.
+        // Note that if we override the `port` to something else than 21335, it might break google oauth
+        const receiver = createHttpReceiver({
+            getStatus: () => ({
+                appVersion: app.getVersion(),
+                connectPopupWsEnabled: connectPopupEnabled(),
+            }),
+        });
         httpReceiver = receiver;
 
         // wait for httpReceiver to start accepting connections then register event handlers
@@ -60,8 +78,15 @@ export const initBackground: ModuleInitBackground = ({
 
         // when httpReceiver was asked to provide current address for given pathname
         ipcMain.handle('server/request-address', (ipcEvent, pathname) => {
-            validateIpcMessage(ipcEvent);
+            validateIpcMessage({ ipcEvent });
             try {
+                // Use deeplink URLs for trading redirects on macOS/Windows only
+                if (isArrayMember(pathname, TRADING_REDIRECT_PATHS) && (isMacOs() || isWindows())) {
+                    receiver.activateRoute(pathname);
+
+                    return `trezorsuite:/${pathname}`;
+                }
+
                 const address = receiver.getRouteAddress(pathname);
                 if (address) {
                     receiver.activateRoute(pathname);
@@ -73,18 +98,22 @@ export const initBackground: ModuleInitBackground = ({
             }
         });
 
-        const connectPopupEnabled = () => !store.getConnectSettings().disableWs;
         ipcMain.handle('connect-popup/enabled', ipcEvent => {
-            validateIpcMessage(ipcEvent);
+            validateIpcMessage({ ipcEvent });
 
             return connectPopupEnabled();
         });
         ipcMain.handle('connect-popup/set-enabled', (ipcEvent, enabled: boolean) => {
-            validateIpcMessage(ipcEvent);
+            validateIpcMessage({ ipcEvent });
 
             store.setConnectSettings({ disableWs: !enabled });
             restartApp();
         });
+        // Initialize the shared connect-popup response handler. This must be called
+        // before any connect-popup calls are made, regardless of whether WS is enabled,
+        // so that MCP and other transports can also use the connect-popup flow.
+        initConnectPopupResponseHandler();
+
         if (connectPopupEnabled()) {
             exposeConnectWs({ mainThreadEmitter, httpReceiver: receiver, mainWindowProxy, store });
         }
@@ -97,6 +126,10 @@ export const initBackground: ModuleInitBackground = ({
             logger.error(
                 SERVICE_NAME,
                 `Failed to start server:  ${startResult.error}, error details: ${startResult.message}`,
+            );
+            captureMessage(
+                `http-receiver failed to start: ${startResult.error} (${startResult.message})`,
+                'warning',
             );
 
             return { url: null };

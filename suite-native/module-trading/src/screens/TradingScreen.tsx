@@ -3,52 +3,56 @@ import { useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
-import { EventType, analytics } from '@suite-native/analytics';
+import { useServices } from '@suite-common/dependency-injection';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { VStack } from '@suite-native/atoms';
 import { DeviceManagerScreenHeader } from '@suite-native/device-manager';
-import { Screen, TradingStackRoutes } from '@suite-native/navigation';
+import { RootStackRoutes, Screen } from '@suite-native/navigation';
+import { TradingEnvironmentWarning } from '@suite-native/trading-debug';
+import { Footer } from '@suite-native/trading-provider-utils';
+import {
+    selectHasActiveTradingType,
+    selectIsTradingEnabled,
+    selectTradeToBeOpened,
+} from '@suite-native/trading-state';
 
-import { Footer } from '../components/general/Footer';
 import { Header } from '../components/general/Header/Header';
-import { HistoryButton, NavigationProps } from '../components/general/HistoryButton';
+import { HistoryButton, type NavigationProps } from '../components/general/HistoryButton';
 import { LegalGatewayContextMessage } from '../components/general/LegalGatewayContextMessage';
 import { TradingTabContent } from '../components/general/TradingTabContent';
 import { TradingTypeAwareContextMessage } from '../components/general/TradingTypeAwareContextMessage';
 import { useActiveTradingTypeReaction } from '../hooks/general/useActiveTradingTypeReaction';
-import { useMountedRecentlyFlag } from '../hooks/general/useMountedRecentlyFlag';
-import {
-    selectActiveTradingType,
-    selectIsTradingEnabled,
-    selectTradeToBeOpened,
-} from '../selectors/commonSelectors';
 
 const TradingScreenContent = () => {
     const tradeToBeOpened = useSelector(selectTradeToBeOpened);
-    const activeTradingType = useSelector(selectActiveTradingType);
+    const hasActiveTradingType = useSelector(selectHasActiveTradingType);
     const navigation = useNavigation<NavigationProps>();
-    const isScreenMountedRecently = useMountedRecentlyFlag(activeTradingType);
     useActiveTradingTypeReaction();
+    const { analytics } = useServices(selectNativeAnalyticsDep);
 
     useEffect(() => {
         if (tradeToBeOpened) {
             analytics.report({
-                type: EventType.TradingSuccess,
+                type: events.tradingSuccessEvent.name,
                 payload: { type: tradeToBeOpened.tradeType },
             });
-            navigation.navigate(TradingStackRoutes.TradingHistory);
+            navigation.navigate(RootStackRoutes.TradingHistory);
         }
-    }, [tradeToBeOpened, navigation]);
+    }, [tradeToBeOpened, navigation, analytics]);
 
-    if (!activeTradingType) {
+    if (!hasActiveTradingType) {
         return null;
     }
 
     return (
-        <VStack spacing="sp16">
-            <Header isFormMountedRecently={isScreenMountedRecently} />
-            <TradingTabContent />
-            <Footer isFormMountedRecently={isScreenMountedRecently} />
-            <HistoryButton isFormMountedRecently={isScreenMountedRecently} />
+        <VStack spacing="sp16" flex={1}>
+            <TradingEnvironmentWarning />
+            <Header />
+            <VStack spacing="sp16" paddingHorizontal="sp16" flex={1}>
+                <TradingTabContent />
+                <HistoryButton />
+                <Footer />
+            </VStack>
         </VStack>
     );
 };
@@ -62,6 +66,7 @@ export const TradingScreen = () => {
 
     return (
         <Screen
+            noHorizontalPadding
             header={
                 <>
                     <DeviceManagerScreenHeader />
@@ -70,7 +75,7 @@ export const TradingScreen = () => {
             }
         >
             <TradingScreenContent />
-            <LegalGatewayContextMessage marginVertical="sp16" />
+            <LegalGatewayContextMessage marginVertical="sp16" paddingHorizontal="sp16" />
         </Screen>
     );
 };

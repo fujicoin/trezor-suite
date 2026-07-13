@@ -1,14 +1,15 @@
-import { CryptoId } from 'invity-api';
+import type { CryptoId } from 'invity-api';
 
 import {
-    PreloadedState,
+    type PreloadedStatePartial,
     StoreProviderForTests,
     renderHook,
     waitFor,
-} from '@suite-native/test-utils';
+} from '@suite-native/test-utils-store';
+import { adaAsset, btcAsset, usdcAsset } from '@suite-native/trading-fixtures';
+import { type TradeableAsset } from '@suite-native/trading-types';
 
-import { adaAsset, btcAsset, usdcAsset } from '../../../__fixtures__/tradeableAssets';
-import { TradeableAsset } from '../../../types/general';
+import { type TradingTestPreloadedState } from '../../../__tests__/tradingTestUtils';
 import { useFavouriteAssetsSectionList } from '../useFavouriteAssetsSectionList';
 
 describe('useFavouriteAssetsSectionList', () => {
@@ -21,15 +22,18 @@ describe('useFavouriteAssetsSectionList', () => {
         initialAssets: TradeableAsset[],
         favouriteAssets: Record<CryptoId, true>,
     ) => {
-        const preloadedState: Partial<PreloadedState> = {
+        const preloadedState: PreloadedStatePartial<TradingTestPreloadedState> = {
             wallet: {
-                tradingNew: {
+                trading: {
                     favouriteAssets,
                 },
             },
         };
 
-        const ret = renderHook(({ assets }) => useFavouriteAssetsSectionList(assets), {
+        const ret = renderHook<
+            ReturnType<typeof useFavouriteAssetsSectionList>,
+            { assets: TradeableAsset[] }
+        >(({ assets }) => useFavouriteAssetsSectionList(assets), {
             wrapper: ({ children }) => (
                 <StoreProviderForTests preloadedState={preloadedState}>
                     {children}

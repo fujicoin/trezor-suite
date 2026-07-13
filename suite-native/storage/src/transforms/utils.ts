@@ -1,6 +1,6 @@
 import { A, D, O } from '@mobily/ts-belt';
 
-import { DeviceRootState } from '@suite-common/wallet-core';
+import type { DeviceRootState } from '@suite-common/device';
 
 /**
  * Beware, if you want to persist some part of state outside device reducer,
@@ -8,7 +8,7 @@ import { DeviceRootState } from '@suite-common/wallet-core';
  */
 export const selectDeviceStatesNotRemembered = (state: DeviceRootState) =>
     A.filterMap(state.device.devices, device =>
-        device.remember || !device.state || !device.state.staticSessionId
+        device.remember || !device.state?.staticSessionId
             ? O.None
             : O.Some(
                   typeof device.state === 'string'

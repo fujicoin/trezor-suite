@@ -1,32 +1,17 @@
-import { CSSProperties, forwardRef, useRef } from 'react';
+import { type CSSProperties, forwardRef, useRef } from 'react';
 
 import styled from 'styled-components';
 
-import { BackupType } from '@suite-common/suite-types';
-import {
-    Banner,
-    CollapsibleBox,
-    Column,
-    Divider,
-    Text,
-    useElevation,
-    variables,
-} from '@trezor/components';
-import {
-    Elevation,
-    borders,
-    mapElevationToBackground,
-    spacings,
-    spacingsPx,
-    zIndices,
-} from '@trezor/theme';
+import { TrezorLink } from '@suite/external-links';
+import { Translation } from '@suite/intl';
+import { type BackupType } from '@suite-common/suite-types';
+import { Banner, CollapsibleBox, Column, Divider, Text, variables } from '@trezor/components';
+import { borders, spacings, spacingsPx, zIndices } from '@trezor/theme';
 import { HELP_CENTER_MULTI_SHARE_BACKUP_URL } from '@trezor/urls';
 
-import { Translation, TrezorLink } from 'src/components/suite';
-
 import { LegacyOptions } from './LegacyOptions';
-import { isShamirBackupType } from './SelectBackupType';
 import { ShamirOptions } from './ShamirOptions';
+import { isShamirBackupType } from '../utils';
 
 const OptionGroupHeading = styled.div`
     display: flex;
@@ -38,11 +23,11 @@ const OptionGroupHeading = styled.div`
     padding: ${spacingsPx.xs} 0;
 `;
 
-const FloatingSelectionsWrapper = styled.div<{ $elevation: Elevation }>`
+const FloatingSelectionsWrapper = styled.div`
     z-index: ${zIndices.modal};
     border-radius: ${borders.radii.sm};
-    box-shadow: ${({ theme }) => theme.boxShadowElevated};
-    background: ${mapElevationToBackground};
+    box-shadow: ${({ theme }) => theme.surfaceShadowModeless};
+    background: ${({ theme }) => theme.surfaceFillModeless};
     overflow-y: auto;
     padding: 0 ${spacingsPx.xxs};
 `;
@@ -81,40 +66,42 @@ const DividerWrapper = styled.div`
 `;
 
 const LegacyWarning = () => (
-    <Banner variant="info" icon>
-        <Column alignItems="start">
-            <Text typographyStyle="highlight" variant="info">
-                <Translation id="TR_THESE_WONT_ALLOW_YOU_UPGRADE_HEADER" />
-            </Text>
-            <Translation
-                id="TR_THESE_WONT_ALLOW_YOU_UPGRADE"
-                values={{
-                    a: chunks => (
-                        <TrezorLink
-                            typographyStyle="callout"
-                            href={HELP_CENTER_MULTI_SHARE_BACKUP_URL}
-                        >
-                            {chunks}
-                        </TrezorLink>
-                    ),
-                }}
-            />
-        </Column>
-    </Banner>
+    <Banner
+        intent="info"
+        icon
+        description={
+            <Column alignItems="start">
+                <Text typographyStyle="body-md-strong" intent="info">
+                    <Translation id="TR_THESE_WONT_ALLOW_YOU_UPGRADE_HEADER" />
+                </Text>
+                <Translation
+                    id="TR_THESE_WONT_ALLOW_YOU_UPGRADE"
+                    values={{
+                        a: chunks => (
+                            <TrezorLink
+                                typographyStyle="body-sm-strong"
+                                href={HELP_CENTER_MULTI_SHARE_BACKUP_URL}
+                            >
+                                {chunks}
+                            </TrezorLink>
+                        ),
+                    }}
+                />
+            </Column>
+        }
+    />
 );
 
 export const FloatingSelections = forwardRef<HTMLDivElement, FloatingSelectionsProps>(
     ({ selected, onSelect, style, defaultType }, ref) => {
-        const { elevation } = useElevation();
-
         const isShamirBackupDefault = isShamirBackupType(defaultType);
         const legacyOptionsRef = useRef<HTMLDivElement>(null);
 
         return (
-            <FloatingSelectionsWrapper $elevation={elevation} ref={ref} style={style}>
+            <FloatingSelectionsWrapper ref={ref} style={style}>
                 <InnerScrollableWrapper>
                     <OptionGroupHeading>
-                        <Text typographyStyle="hint" variant="tertiary">
+                        <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
                             <Translation id="TR_ONBOARDING_BACKUP_CATEGORY_20_WORD_BACKUPS" />
                         </Text>
                     </OptionGroupHeading>
@@ -133,7 +120,11 @@ export const FloatingSelections = forwardRef<HTMLDivElement, FloatingSelectionsP
                             margin={{ bottom: spacings.xs }}
                             fillType="none"
                             heading={
-                                <Text typographyStyle="hint" variant="tertiary">
+                                <Text
+                                    typographyStyle="body-sm"
+                                    intent="neutral"
+                                    priority="secondary"
+                                >
                                     <Translation id="TR_ONBOARDING_BACKUP_OLDER_BACKUP_TYPES_SHORT" />
                                 </Text>
                             }
@@ -161,7 +152,7 @@ export const FloatingSelections = forwardRef<HTMLDivElement, FloatingSelectionsP
                 ) : (
                     <LegacyOptionsMargin>
                         <OptionGroupHeading>
-                            <Text typographyStyle="hint" variant="tertiary">
+                            <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
                                 <Translation id="TR_ONBOARDING_BACKUP_OLDER_BACKUP_TYPES_SHORT" />
                             </Text>
                         </OptionGroupHeading>

@@ -1,95 +1,166 @@
-import { NetworkSymbol, NetworkType } from '@suite-common/wallet-config';
 import {
+    type NetworkSymbol,
+    type NetworkType,
+    STAKING_SYMBOLS,
+    STAKING_TYPES,
+    type StakingNetworkSymbol,
+    type StakingNetworkType,
+    getStakingProviderByCardanoPoolId,
+    getStakingProviderByEthereumPoolName,
+    getStakingProviderBySolanaVoterPubkey,
+    getStakingProviderByTronSrAddress,
+} from '@suite-common/wallet-config';
+import {
+    CARDANO_EPOCH_DAYS,
+    CARDANO_STAKING_REGISTRATION_DEPOSIT,
+    MAX_CARDANO_AMOUNT_FOR_STAKING,
     MAX_ETH_AMOUNT_FOR_STAKING,
-    MAX_SOL_AMOUNT_FOR_STAKING,
+    MAX_TRON_AMOUNT_FOR_STAKING,
+    MIN_CARDANO_AMOUNT_FOR_STAKING,
+    MIN_CARDANO_BALANCE_FOR_STAKING,
+    MIN_CARDANO_FOR_WITHDRAWALS,
     MIN_ETH_AMOUNT_FOR_STAKING,
+    MIN_ETH_BALANCE_FOR_FEE_BUFFER,
     MIN_ETH_BALANCE_FOR_STAKING,
     MIN_ETH_FOR_WITHDRAWALS,
+    MIN_TRON_AMOUNT_FOR_STAKING,
+    MIN_TRON_BALANCE_FOR_FEE_BUFFER,
+    MIN_TRON_BALANCE_FOR_STAKING,
+    MIN_TRON_FOR_WITHDRAWALS,
+    UNSTAKING_ETH_PERIOD,
+} from '@suite-common/wallet-constants';
+import {
+    type Account,
+    type PrecomposedLevels,
+    type StakingLimits,
+    type StakingPoolExtended,
+    type WalletAccountTransaction,
+} from '@suite-common/wallet-types';
+import {
+    MAX_SOL_AMOUNT_FOR_STAKING,
     MIN_SOL_AMOUNT_FOR_STAKING,
+    MIN_SOL_BALANCE_FOR_FEE_BUFFER,
     MIN_SOL_BALANCE_FOR_STAKING,
     MIN_SOL_FOR_WITHDRAWALS,
     SOLANA_EPOCH_DAYS,
-    UNSTAKING_ETH_PERIOD,
-} from '@suite-common/wallet-constants';
-import { Account, PrecomposedLevels, StakingPoolExtended } from '@suite-common/wallet-types';
+} from '@trezor/coins-solana/constants';
+import { exhaustive } from '@trezor/type-utils';
 import { BigNumber } from '@trezor/utils';
 
+import { asAmountSubunit } from './AmountTypes';
+import { subunitsToUnits } from './amountUtils';
+import {
+    getAdaAccountTotalStakingBalance,
+    isSupportedAdaStakingNetworkSymbol,
+    subtypeToStakeTypeMap,
+} from './cardanoStakingUtils';
 import {
     getAccountEverstakeStakingPool,
     getEthAccountTotalStakingBalance,
     isSupportedEthStakingNetworkSymbol,
+    signatureToStakeTypeMap,
 } from './ethereumStakingUtils';
 import {
     getSolAccountTotalStakingBalance,
     getSolStakingAccountsInfo,
     isSupportedSolStakingNetworkSymbol,
 } from './solanaStakingUtils';
+import {
+    getTronAccountTotalStakingBalance,
+    getTronStakingRewards,
+    getTronUnstakingBalance,
+    getTronVotes,
+    isSupportedTronStakingNetworkSymbol,
+} from './tronStakingUtils';
 
 export const secondsToDays = (seconds: number) => Math.round(seconds / 60 / 60 / 24);
 
-export const getAccountTotalStakingBalance = (account: Account) => {
-    if (!account) return null;
+export const isStakingNetworkType = (type: NetworkType): type is StakingNetworkType =>
+    (STAKING_TYPES as readonly string[]).includes(type);
 
-    switch (account.networkType) {
-        case 'ethereum':
-            return getEthAccountTotalStakingBalance(account);
-        case 'solana':
-            return getSolAccountTotalStakingBalance(account);
-        default:
-            return null;
-    }
-};
+export const isStakingSymbol = (symbol: NetworkSymbol): symbol is StakingNetworkSymbol =>
+    (STAKING_SYMBOLS as readonly string[]).includes(symbol);
+
+const STAKING_BALANCE_BY_TYPE = {
+    ethereum: getEthAccountTotalStakingBalance,
+    solana: getSolAccountTotalStakingBalance,
+    cardano: getAdaAccountTotalStakingBalance,
+    tron: getTronAccountTotalStakingBalance,
+} satisfies Record<StakingNetworkType, (a: Account) => string | null>;
+
+export const getAccountTotalStakingBalance = (account: Account) =>
+    isStakingNetworkType(account.networkType)
+        ? STAKING_BALANCE_BY_TYPE[account.networkType]?.(account)
+        : null;
 
 export const isSupportedStakingNetworkSymbol = (symbol: NetworkSymbol) =>
+    isSupportedEthStakingNetworkSymbol(symbol) ||
+    isSupportedSolStakingNetworkSymbol(symbol) ||
+    isSupportedAdaStakingNetworkSymbol(symbol) ||
+    isSupportedTronStakingNetworkSymbol(symbol);
+
+export const isSupportedNativeStakingManagementSymbol = (symbol: NetworkSymbol) =>
     isSupportedEthStakingNetworkSymbol(symbol) || isSupportedSolStakingNetworkSymbol(symbol);
 
-export const getStakingLimitsByNetworkSymbol = (symbol: NetworkSymbol) => {
+export const getStakingLimitsByNetworkSymbol = (
+    symbol: NetworkSymbol | undefined,
+): StakingLimits | null => {
+    if (!symbol || !isStakingSymbol(symbol)) return null;
+
     switch (symbol) {
+        case 'thod':
         case 'eth':
             return {
                 MIN_AMOUNT_FOR_STAKING: MIN_ETH_AMOUNT_FOR_STAKING,
+                MIN_AMOUNT_FOR_STAKING_DASHBOARD: MIN_ETH_AMOUNT_FOR_STAKING,
                 MAX_AMOUNT_FOR_STAKING: MAX_ETH_AMOUNT_FOR_STAKING,
                 MIN_FOR_WITHDRAWALS: MIN_ETH_FOR_WITHDRAWALS,
+                MIN_BALANCE_FOR_FEE_BUFFER: MIN_ETH_BALANCE_FOR_FEE_BUFFER,
                 MIN_BALANCE_FOR_STAKING: MIN_ETH_BALANCE_FOR_STAKING,
             };
-        case 'sol': {
-            return {
-                MIN_AMOUNT_FOR_STAKING: MIN_SOL_AMOUNT_FOR_STAKING,
-                MAX_AMOUNT_FOR_STAKING: MAX_SOL_AMOUNT_FOR_STAKING,
-                MIN_FOR_WITHDRAWALS: MIN_SOL_FOR_WITHDRAWALS,
-                MIN_BALANCE_FOR_STAKING: MIN_SOL_BALANCE_FOR_STAKING,
-            };
-        }
-        default:
-            throw new Error(`Unsupported network symbol: ${symbol}`);
-    }
-};
 
-export const getStakingLimitsByNetwork = (account: Account) => {
-    switch (account.networkType) {
-        case 'ethereum':
-            return {
-                MIN_AMOUNT_FOR_STAKING: MIN_ETH_AMOUNT_FOR_STAKING,
-                MAX_AMOUNT_FOR_STAKING: MAX_ETH_AMOUNT_FOR_STAKING,
-                MIN_FOR_WITHDRAWALS: MIN_ETH_FOR_WITHDRAWALS,
-                MIN_BALANCE_FOR_STAKING: MIN_ETH_BALANCE_FOR_STAKING,
-            };
-        case 'solana':
+        case 'dsol':
+        case 'sol':
             return {
                 MIN_AMOUNT_FOR_STAKING: MIN_SOL_AMOUNT_FOR_STAKING,
+                MIN_AMOUNT_FOR_STAKING_DASHBOARD: MIN_SOL_AMOUNT_FOR_STAKING,
                 MAX_AMOUNT_FOR_STAKING: MAX_SOL_AMOUNT_FOR_STAKING,
                 MIN_FOR_WITHDRAWALS: MIN_SOL_FOR_WITHDRAWALS,
+                MIN_BALANCE_FOR_FEE_BUFFER: MIN_SOL_BALANCE_FOR_FEE_BUFFER,
                 MIN_BALANCE_FOR_STAKING: MIN_SOL_BALANCE_FOR_STAKING,
             };
+
+        case 'ada':
+            return {
+                MIN_AMOUNT_FOR_STAKING: MIN_CARDANO_AMOUNT_FOR_STAKING,
+                MIN_AMOUNT_FOR_STAKING_DASHBOARD: MIN_CARDANO_AMOUNT_FOR_STAKING.plus(
+                    CARDANO_STAKING_REGISTRATION_DEPOSIT,
+                ),
+                MAX_AMOUNT_FOR_STAKING: MAX_CARDANO_AMOUNT_FOR_STAKING,
+                MIN_FOR_WITHDRAWALS: MIN_CARDANO_FOR_WITHDRAWALS,
+                MIN_BALANCE_FOR_FEE_BUFFER: MIN_ETH_BALANCE_FOR_FEE_BUFFER,
+                MIN_BALANCE_FOR_STAKING: MIN_CARDANO_BALANCE_FOR_STAKING,
+            };
+
+        case 'trx':
+            return {
+                MIN_AMOUNT_FOR_STAKING: MIN_TRON_AMOUNT_FOR_STAKING,
+                MIN_AMOUNT_FOR_STAKING_DASHBOARD: MIN_TRON_AMOUNT_FOR_STAKING,
+                MAX_AMOUNT_FOR_STAKING: MAX_TRON_AMOUNT_FOR_STAKING,
+                MIN_FOR_WITHDRAWALS: MIN_TRON_FOR_WITHDRAWALS,
+                MIN_BALANCE_FOR_FEE_BUFFER: MIN_TRON_BALANCE_FOR_FEE_BUFFER,
+                MIN_BALANCE_FOR_STAKING: MIN_TRON_BALANCE_FOR_STAKING,
+            };
+
         default:
-            throw new Error(`Unsupported network type: ${account.networkType}`);
+            return exhaustive(symbol);
     }
 };
 
 export const getStakingDataForNetwork = (
     account?: Account,
 ): Omit<StakingPoolExtended, 'contract' | 'name'> | undefined => {
-    if (!account) return;
+    if (!account || !isStakingNetworkType(account.networkType)) return;
 
     switch (account.networkType) {
         case 'ethereum':
@@ -101,47 +172,103 @@ export const getStakingDataForNetwork = (
                 solStakedBalance,
                 solPendingStakeBalance,
                 solPendingUnstakeBalance,
-            } = getSolStakingAccountsInfo(account) ?? {};
+            } = getSolStakingAccountsInfo(account);
+
+            //@ts-expect-error: indexing with noUncheckedIndexedAccess
+            const stakedBalance: string = solStakedBalance;
+            //@ts-expect-error: indexing with noUncheckedIndexedAccess
+            const claimableBalance: string = solClaimableBalance;
+            //@ts-expect-error: indexing with noUncheckedIndexedAccess
+            const pendingStakeBalance: string = solPendingStakeBalance;
+            //@ts-expect-error: indexing with noUncheckedIndexedAccess
+            const pendingUnstakeBalance: string = solPendingUnstakeBalance;
 
             return {
-                autocompoundBalance: solStakedBalance,
-                claimableAmount: solClaimableBalance,
-                depositedBalance: solStakedBalance,
+                autocompoundBalance: stakedBalance,
+                claimableAmount: claimableBalance,
+                depositedBalance: stakedBalance,
                 pendingBalance: '',
                 pendingDepositedBalance: '',
-                totalPendingStakeBalance: solPendingStakeBalance,
+                totalPendingStakeBalance: pendingStakeBalance,
                 restakedReward: '',
-                withdrawTotalAmount: solPendingUnstakeBalance,
+                withdrawTotalAmount: pendingUnstakeBalance,
                 canClaim: canClaimSol,
             };
         }
+
+        case 'cardano': {
+            const { isActive, rewards } = account.misc.staking;
+            const totalStakedBalance = isActive ? account.formattedBalance : '';
+
+            const formattedRewards = subunitsToUnits({
+                value: asAmountSubunit(new BigNumber(rewards)),
+                symbol: account.symbol,
+            }).toString();
+
+            const hasRewards = new BigNumber(rewards).isGreaterThan(0);
+            const totalPendingStakeBalance = !hasRewards ? account.formattedBalance : '';
+
+            return {
+                autocompoundBalance: totalStakedBalance,
+                claimableAmount: '',
+                depositedBalance: hasRewards ? totalStakedBalance : '',
+                pendingBalance: '',
+                pendingDepositedBalance: '',
+                totalPendingStakeBalance,
+                restakedReward: formattedRewards,
+                withdrawTotalAmount: '',
+                canClaim: false,
+            };
+        }
+
+        case 'tron': {
+            const stakedBalance = getTronAccountTotalStakingBalance(account) ?? '';
+
+            return {
+                autocompoundBalance: stakedBalance,
+                claimableAmount: '',
+                depositedBalance: stakedBalance,
+                pendingBalance: '',
+                pendingDepositedBalance: '',
+                totalPendingStakeBalance: '',
+                restakedReward: getTronStakingRewards(account),
+                withdrawTotalAmount: getTronUnstakingBalance(account),
+                canClaim: false,
+            };
+        }
+
         default:
-            return;
+            return exhaustive(account.networkType);
     }
 };
 
 interface GetUnstakingPeriodInDays {
-    networkType?: NetworkType;
-    validatorWithdrawTime?: number; // in seconds
-    validatorExitTime?: number; // in seconds
+    withdrawTime?: number | null; // in seconds
+    exitTime?: number | null; // in seconds
 }
 
-export const getUnstakingPeriodInDays = ({
-    networkType,
-    validatorWithdrawTime,
-    validatorExitTime,
-}: GetUnstakingPeriodInDays) => {
+export const getUnstakingPeriodInDays = (
+    networkType: NetworkType | undefined,
+    { withdrawTime, exitTime }: GetUnstakingPeriodInDays = {},
+) => {
     if (networkType === 'solana') {
         return SOLANA_EPOCH_DAYS;
     }
 
-    if (validatorWithdrawTime === undefined || validatorExitTime === undefined) {
+    if (networkType === 'cardano') {
+        return CARDANO_EPOCH_DAYS;
+    }
+
+    if (networkType === 'tron') {
+        // TODO: move to constants
+        return 14;
+    }
+
+    if (typeof withdrawTime !== 'number' || typeof exitTime !== 'number') {
         return UNSTAKING_ETH_PERIOD;
     }
 
-    const unstakingPeriodInSeconds = new BigNumber(validatorWithdrawTime)
-        .plus(validatorExitTime)
-        .toNumber();
+    const unstakingPeriodInSeconds = new BigNumber(withdrawTime).plus(exitTime).toNumber();
 
     return secondsToDays(unstakingPeriodInSeconds);
 };
@@ -152,13 +279,110 @@ export const getOutputTxAmount = (composedLevels?: PrecomposedLevels) => {
     const precomposedTx = composedLevels['normal'];
     if (precomposedTx?.type !== 'final') return null;
 
-    return precomposedTx.outputs[0].amount;
+    const { outputs } = precomposedTx;
+    // @ts-expect-error: indexing with noUncheckedIndexedAccess
+    const firstOutput: (typeof outputs)[number] = outputs[0];
+
+    return firstOutput.amount;
 };
 
-export const calculateYearlyRewards = (amount: string, apyPercent: number, days = 365) => {
+export const calculateRewards = (amount: string, apyPercent: number | null, days = 365) => {
+    if (apyPercent === null) return '0';
+
     const apy = apyPercent / 100;
     const factor = Math.pow(1 + apy, days / 365) - 1;
     const currentRewards = new BigNumber(amount).multipliedBy(factor).toString();
 
     return currentRewards;
+};
+
+export const getStakingProvidersForAnalytics = (accounts: Account[]): string[] => {
+    const providers = new Set<string>();
+
+    accounts.forEach(account => {
+        const stakingBalance = getAccountTotalStakingBalance(account);
+        if (!stakingBalance || new BigNumber(stakingBalance).lte(0)) {
+            return;
+        }
+
+        if (!isStakingNetworkType(account.networkType)) {
+            return;
+        }
+
+        switch (account.networkType) {
+            case 'ethereum':
+                account.misc?.stakingPools?.forEach(pool => {
+                    const provider = getStakingProviderByEthereumPoolName(pool.name);
+                    if (provider) {
+                        providers.add(provider.id);
+                    } else {
+                        // Account is staked but provider is unknown
+                        providers.add('unknown');
+                    }
+                });
+                break;
+            case 'solana':
+                [
+                    ...(account.misc?.solStakingAccounts ?? []),
+                    ...(account.misc?.solExternalStakingAccounts ?? []),
+                ].forEach(stakingAccount => {
+                    if (stakingAccount.voterPubkey) {
+                        const provider = getStakingProviderBySolanaVoterPubkey(
+                            stakingAccount.voterPubkey,
+                        );
+                        if (provider) {
+                            providers.add(provider.id);
+                        } else {
+                            // Account is staked but provider is unknown
+                            providers.add('unknown');
+                        }
+                    }
+                });
+                break;
+            case 'cardano': {
+                const poolId = account.misc?.staking?.poolId;
+                if (!poolId) break;
+
+                const provider = getStakingProviderByCardanoPoolId(poolId);
+                if (provider) {
+                    providers.add(provider.id);
+                } else {
+                    // Account is staked but provider is unknown
+                    providers.add('unknown');
+                }
+                break;
+            }
+            case 'tron':
+                getTronVotes(account).forEach(vote => {
+                    const provider = getStakingProviderByTronSrAddress(vote.address);
+                    if (provider) {
+                        providers.add(provider.id);
+                    } else {
+                        // Account is staked but provider is unknown
+                        providers.add('unknown');
+                    }
+                });
+                break;
+            default:
+                exhaustive(account.networkType);
+        }
+    });
+
+    return Array.from(providers);
+};
+
+export const getTxStakeType = (tx: WalletAccountTransaction) => {
+    const signature = tx?.ethereumSpecific?.parsedData?.methodId;
+
+    if (signature) {
+        return signatureToStakeTypeMap[signature];
+    }
+
+    if (tx?.solanaSpecific?.stakeOperation) {
+        return tx?.solanaSpecific.stakeOperation?.type;
+    }
+
+    if (tx?.cardanoSpecific?.subtype) {
+        return subtypeToStakeTypeMap[tx?.cardanoSpecific.subtype];
+    }
 };

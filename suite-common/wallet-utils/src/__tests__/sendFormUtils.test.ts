@@ -1,10 +1,13 @@
-import { testMocks } from '@suite-common/test-utils';
-import { networks } from '@suite-common/wallet-config';
-import { FeeLevel } from '@trezor/connect';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { networks, networksCollection } from '@suite-common/wallet-config';
+import {
+    mockWalletAccount,
+    networkSpecificDefaultRipple,
+    networkSpecificDefaultStellar,
+} from '@suite-common/wallet-types/mocks';
+import { type FeeLevel } from '@trezor/connect';
+import { BigNumber } from '@trezor/utils';
 
 import * as fixtures from '../__fixtures__/sendFormUtils';
-import { getUtxoOutpoint } from '../accountUtils';
 import {
     calculateMax,
     calculateTotal,
@@ -12,15 +15,14 @@ import {
     findComposeErrors,
     getAmountValidationResult,
     getBitcoinComposeOutputs,
-    getExcludedUtxos,
+    getCryptoAmountWithReserve,
+    getCryptoMaxAmountWithReserve,
     getExternalComposeOutput,
-    getInputState,
     getLowestFeeFromLevels,
+    isAmountWithinNetworkReserve,
     prepareEthereumTransaction,
     restoreOrigOutputsOrder,
 } from '../sendFormUtils';
-
-const { getUtxo, getWalletAccount } = testMocks;
 
 describe('sendForm utils', () => {
     fixtures.prepareEthereumTransaction.forEach(f => {
@@ -35,12 +37,6 @@ describe('sendForm utils', () => {
             const result = restoreOrigOutputsOrder(f.outputs, f.origOutputs, 'txid');
             expect(result).toEqual(f.result);
         });
-    });
-
-    it('getInputState', () => {
-        expect(getInputState(undefined)).toEqual(undefined);
-        expect(getInputState(undefined)).toEqual(undefined);
-        expect(getInputState({ type: 'validation' })).toEqual('error');
     });
 
     it('calculateTotal', () => {
@@ -241,10 +237,10 @@ describe('sendForm utils', () => {
             type: 'payment',
         };
 
-        const EthAccount = getWalletAccount({
+        const EthAccount = mockWalletAccount({
+            symbol: 'eth',
             tokens: [
                 {
-                    type: 'ERC20',
                     standard: 'ERC20',
                     contract: 'A',
                     symbol: 'A',
@@ -252,7 +248,6 @@ describe('sendForm utils', () => {
                     name: 'A',
                 },
                 {
-                    type: 'ERC20',
                     standard: 'ERC20',
                     contract: 'B',
                     symbol: 'B',
@@ -320,7 +315,7 @@ describe('sendForm utils', () => {
             ),
         ).toEqual({
             decimals: 18,
-            output: { type: 'send-max', address: 'A' },
+            output: { type: 'send-max', address: 'A', amount: '1000000000000000000' },
             tokenInfo: undefined,
         });
 
@@ -376,45 +371,9 @@ describe('sendForm utils', () => {
         expect(calculateTotalGasCost('1', '2')).toEqual('2');
     });
 
-    it('getExcludedUtxos', () => {
-        const dustUtxo = getUtxo({
-            address: 'two',
-            amount: '1',
-            vout: 1,
-        });
-        const lowAnonymityDustUtxo = getUtxo({
-            address: 'one',
-            amount: '100',
-            vout: 2,
-        });
-        const lowAnonymityUtxo = getUtxo({
-            address: 'one',
-            amount: '1000',
-            vout: 3,
-        });
-        const spendableUtxo = getUtxo({
-            address: 'two',
-            amount: '546',
-            vout: 4,
-        });
-
-        const excludedUtxos = getExcludedUtxos({
-            utxos: [dustUtxo, lowAnonymityDustUtxo, lowAnonymityUtxo, spendableUtxo],
-            anonymitySet: { one: 1, two: 2 },
-            targetAnonymity: 2,
-            dustLimit: 546,
-        });
-
-        expect(excludedUtxos[getUtxoOutpoint(dustUtxo)]).toBe('dust');
-        expect(excludedUtxos[getUtxoOutpoint(lowAnonymityDustUtxo)]).toBe('dust');
-        expect(excludedUtxos[getUtxoOutpoint(lowAnonymityUtxo)]).toBe('low-anonymity');
-        expect(excludedUtxos[getUtxoOutpoint(spendableUtxo)]).toBe(undefined);
-    });
-
     describe('getAmountValidationResult', () => {
         describe('should test bitcoin without tokens', () => {
-            const btcAccount = getWalletAccount({
-                networkType: 'bitcoin',
+            const btcAccount = mockWalletAccount({
                 symbol: 'btc',
                 tokens: undefined,
                 balance: '1000000000', // 10 BTC
@@ -439,14 +398,15 @@ describe('sendForm utils', () => {
         });
 
         describe('should test ripple (with reserve)', () => {
-            const rippleAccount = getWalletAccount({
-                networkType: 'ripple',
-                symbol: 'xrp',
-                tokens: undefined,
-                balance: '10000000', // 10 XRP
-                availableBalance: '9000000', // 9 XRP
-                misc: { reserve: '1000000', sequence: 0 },
-            });
+            const rippleAccount = mockWalletAccount(
+                {
+                    symbol: 'xrp',
+                    tokens: undefined,
+                    balance: '10000000', // 10 XRP
+                    availableBalance: '9000000', // 9 XRP
+                },
+                { ...networkSpecificDefaultRipple, misc: { reserve: '1000000', sequence: 0 } },
+            );
 
             it('returns reserve when amount is above available but below total balance', () => {
                 expect(
@@ -465,13 +425,17 @@ describe('sendForm utils', () => {
         });
 
         describe('should test stellar (with reserve)', () => {
-            const stellarAccount = getWalletAccount({
-                networkType: 'stellar',
-                symbol: 'xlm',
-                balance: '100000000', // 10 XLM
-                availableBalance: '95000000', // 9.5 XLM
-                misc: { reserve: '5000000', stellarSequence: '0' },
-            });
+            const stellarAccount = mockWalletAccount(
+                {
+                    symbol: 'xlm',
+                    balance: '100000000', // 10 XLM
+                    availableBalance: '95000000', // 9.5 XLM
+                },
+                {
+                    ...networkSpecificDefaultStellar,
+                    misc: { reserve: '5000000', baseReserve: '5000000', stellarSequence: '0' },
+                },
+            );
 
             it('returns reserve when amount exceeds available but below total', () => {
                 expect(
@@ -490,8 +454,7 @@ describe('sendForm utils', () => {
         });
 
         describe('should test token balances', () => {
-            const tokenAccount = getWalletAccount({
-                networkType: 'ethereum',
+            const tokenAccount = mockWalletAccount({
                 symbol: 'eth',
                 balance: '0',
                 availableBalance: '0',
@@ -500,7 +463,6 @@ describe('sendForm utils', () => {
                         contract: '0xabc',
                         balance: '200',
                         decimals: 18,
-                        type: 'ERC20',
                         standard: 'ERC20',
                     },
                 ],
@@ -539,6 +501,289 @@ describe('sendForm utils', () => {
         });
         it('should return NaN from empty fee levels', () => {
             expect(getLowestFeeFromLevels([])).toEqual(new BigNumber(NaN));
+        });
+    });
+
+    describe('getCryptoAmountWithReserve', () => {
+        const NETWORKS_WITH_RESERVE = networksCollection.filter(
+            network => !!network.nativeTokenReserve,
+        );
+        const NETWORKS_WITHOUT_RESERVE = networksCollection.filter(
+            network => !network.nativeTokenReserve,
+        );
+
+        it.each(NETWORKS_WITHOUT_RESERVE)(
+            'should return unchanged amount for %s (networks without reserve)',
+            network => {
+                const balance = '100';
+                const amount = '95';
+                const fee = '10';
+
+                const adjustedAmount = getCryptoAmountWithReserve({
+                    symbol: network.symbol,
+                    contractAddress: undefined,
+                    balance,
+                    amount,
+                    fee,
+                    isNetworkReserveEnabled: true,
+                });
+
+                expect(adjustedAmount).toBe(amount);
+            },
+        );
+
+        it.each(NETWORKS_WITH_RESERVE)(
+            'should return unchanged amount for %s when network reserve is not enabled',
+            network => {
+                const balance = '100';
+                const amount = '95';
+                const fee = '10';
+
+                const adjustedAmount = getCryptoAmountWithReserve({
+                    symbol: network.symbol,
+                    contractAddress: undefined,
+                    balance,
+                    amount,
+                    fee,
+                    isNetworkReserveEnabled: false,
+                });
+
+                expect(adjustedAmount).toBe(amount);
+            },
+        );
+
+        it.each(NETWORKS_WITH_RESERVE)(
+            'should return unchanged amount for %s (tokens)',
+            network => {
+                const balance = '100';
+                const amount = '95';
+                const fee = '10';
+
+                const adjustedAmount = getCryptoAmountWithReserve({
+                    symbol: network.symbol,
+                    contractAddress: '0x123',
+                    balance,
+                    amount,
+                    fee,
+                    isNetworkReserveEnabled: true,
+                });
+
+                expect(adjustedAmount).toBe(amount);
+            },
+        );
+
+        it.each(NETWORKS_WITH_RESERVE)(
+            'should return unchanged amount when amount is less than balance - reserve - fee',
+            network => {
+                const amount = '10';
+                const fee = '10';
+
+                const reserve = network.nativeTokenReserve;
+                expect(reserve).toBeDefined();
+
+                const balance = new BigNumber(amount)
+                    .plus(reserve ?? '0')
+                    .plus(fee)
+                    .plus('1')
+                    .toString();
+
+                const adjustedAmount = getCryptoAmountWithReserve({
+                    symbol: network.symbol,
+                    contractAddress: undefined,
+                    balance,
+                    amount,
+                    fee,
+                    isNetworkReserveEnabled: true,
+                });
+
+                expect(adjustedAmount).toBe(amount);
+            },
+        );
+
+        it.each(NETWORKS_WITH_RESERVE)(
+            'should return adjusted amount when amount is greater than balance - reserve - fee',
+            network => {
+                const balance = '100';
+                const fee = '10';
+
+                const reserve = network.nativeTokenReserve;
+                expect(reserve).toBeDefined();
+
+                const amount = new BigNumber(balance)
+                    .minus(reserve ?? '0')
+                    .minus(fee)
+                    .plus('1')
+                    .toString();
+
+                const adjustedAmount = getCryptoAmountWithReserve({
+                    symbol: network.symbol,
+                    contractAddress: undefined,
+                    balance,
+                    amount,
+                    fee,
+                    isNetworkReserveEnabled: true,
+                });
+
+                expect(adjustedAmount).toBe(
+                    new BigNumber(balance)
+                        .minus(reserve ?? '0')
+                        .minus(fee)
+                        .toString(),
+                );
+            },
+        );
+
+        it.each(NETWORKS_WITH_RESERVE)(
+            'should return zero when account balance is less than reserve + fee',
+            network => {
+                const balance = '10';
+                const amount = '5';
+
+                const reserve = network.nativeTokenReserve;
+                expect(reserve).toBeDefined();
+
+                const fee = new BigNumber(balance)
+                    .minus(reserve ?? '0')
+                    .plus('1')
+                    .toString();
+
+                const adjustedAmount = getCryptoAmountWithReserve({
+                    symbol: network.symbol,
+                    contractAddress: undefined,
+                    balance,
+                    amount,
+                    fee,
+                    isNetworkReserveEnabled: true,
+                });
+
+                expect(adjustedAmount).toBe('0');
+            },
+        );
+    });
+
+    describe('getCryptoMaxAmountWithReserve', () => {
+        const NETWORKS_WITH_RESERVE = networksCollection.filter(
+            network => !!network.nativeTokenReserve,
+        );
+        const NETWORKS_WITHOUT_RESERVE = networksCollection.filter(
+            network => !network.nativeTokenReserve,
+        );
+
+        it.each(NETWORKS_WITHOUT_RESERVE)(
+            'should return unchanged amount for %s (networks without reserve)',
+            network => {
+                const balance = '100';
+                const amount = '95';
+                const fee = '10';
+
+                const adjustedAmount = getCryptoMaxAmountWithReserve({
+                    symbol: network.symbol,
+                    contractAddress: undefined,
+                    balance,
+                    amount,
+                    fee,
+                    isNetworkReserveEnabled: true,
+                });
+
+                expect(adjustedAmount).toBe(amount);
+            },
+        );
+
+        it.each(NETWORKS_WITH_RESERVE)(
+            'should return unchanged amount when network reserve is not enabled',
+            network => {
+                const balance = '100';
+                const amount = '95';
+                const fee = '10';
+
+                const adjustedAmount = getCryptoMaxAmountWithReserve({
+                    symbol: network.symbol,
+                    contractAddress: undefined,
+                    balance,
+                    amount,
+                    fee,
+                    isNetworkReserveEnabled: false,
+                });
+
+                expect(adjustedAmount).toBe(amount);
+            },
+        );
+
+        it.each(NETWORKS_WITH_RESERVE)(
+            'should return unchanged amount for %s (tokens)',
+            network => {
+                const balance = '100';
+                const amount = '95';
+                const fee = '10';
+
+                const adjustedAmount = getCryptoMaxAmountWithReserve({
+                    symbol: network.symbol,
+                    contractAddress: '0x123',
+                    balance,
+                    amount,
+                    fee,
+                    isNetworkReserveEnabled: true,
+                });
+
+                expect(adjustedAmount).toBe(amount);
+            },
+        );
+
+        it.each(NETWORKS_WITH_RESERVE)(
+            'should return adjusted amount when amount is greater than balance - reserve - fee',
+            network => {
+                const balance = '100';
+                const fee = '10';
+
+                const reserve = network.nativeTokenReserve;
+                expect(reserve).toBeDefined();
+
+                const amount = new BigNumber(balance)
+                    .minus(reserve ?? '0')
+                    .minus(fee)
+                    .plus('1')
+                    .toString();
+
+                const adjustedAmount = getCryptoMaxAmountWithReserve({
+                    symbol: network.symbol,
+                    contractAddress: undefined,
+                    balance,
+                    amount,
+                    fee,
+                    isNetworkReserveEnabled: true,
+                });
+
+                expect(adjustedAmount).toBe(
+                    new BigNumber(balance)
+                        .minus(reserve ?? '0')
+                        .minus(fee)
+                        .toString(),
+                );
+            },
+        );
+    });
+
+    describe('isAmountWithinNetworkReserve', () => {
+        it('should treat empty amount as zero', () => {
+            expect(
+                isAmountWithinNetworkReserve({
+                    reserve: '1',
+                    balance: '10',
+                    fee: '2',
+                    amount: '',
+                }),
+            ).toBe(true);
+        });
+
+        it('should return false when amount exceeds maximum spendable amount', () => {
+            expect(
+                isAmountWithinNetworkReserve({
+                    reserve: '1',
+                    balance: '10',
+                    fee: '2',
+                    amount: '8.00000001',
+                }),
+            ).toBe(false);
         });
     });
 });

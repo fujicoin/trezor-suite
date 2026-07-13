@@ -1,0 +1,321 @@
+import { type JSX, useCallback, useEffect, useMemo, useState } from 'react';
+import { RefreshControl } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
+
+import { FlashList } from '@shopify/flash-list';
+
+import { getTxsPerPage } from '@suite-common/suite-utils';
+import {
+    type AccountsRootState,
+    type TransactionsRootState,
+    fetchAndUpdateAccountThunk,
+    fetchTransactionsPageThunk,
+    selectAreAllAccountTransactionsLoaded,
+    selectIsLoadingAccountTransactions,
+    selectIsPageAlreadyFetched,
+} from '@suite-common/wallet-core';
+import { type Account, type AccountKey, type TokenAddress } from '@suite-common/wallet-types';
+import { type MonthKey, groupTransactionsByDate, isPending } from '@suite-common/wallet-utils';
+import { Box } from '@suite-native/atoms';
+import { useScrollDivider } from '@suite-native/scrollview';
+import {
+    type TokensRootState,
+    type TypedTokenTransfer,
+    type WalletAccountTransaction,
+    selectAccountStakeTypeTransactionsWithTokenTransfers,
+    selectAccountTransactionsWithTokenTransfers,
+} from '@suite-native/tokens';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+import { arrayPartition } from '@trezor/utils';
+
+import { TokenTransferListItem } from './TokenTransferListItem';
+import { TransactionListGroupTitle } from './TransactionListGroupTitle';
+import { TransactionListItem } from './TransactionListItem';
+import { TransactionsEmptyState } from './TransactionsEmptyState';
+import { TransactionsListFooter } from './TransactionsListFooter';
+import { useFetchMissingTransactionFiatRates } from '../hooks/useFetchMissingTransactionFiatRates';
+
+type AccountTransactionProps = {
+    listHeaderComponent: JSX.Element;
+    account: Account;
+    tokenContract?: TokenAddress;
+    stakingOnly?: boolean;
+};
+
+type RenderSectionHeaderParams = {
+    section: {
+        monthKey: MonthKey;
+    };
+};
+
+type RenderTransactionItemParams = {
+    item: WalletAccountTransaction;
+    accountKey: AccountKey;
+
+    isFirst: boolean;
+    isLast: boolean;
+};
+
+type RenderTokenTransferItemParams = Omit<RenderTransactionItemParams, 'item'> & {
+    item: TypedTokenTransferWithTx;
+};
+
+type TypedTokenTransferWithTx = TypedTokenTransfer & {
+    originalTransaction: WalletAccountTransaction;
+};
+
+type TransactionListItem =
+    | (TypedTokenTransferWithTx | MonthKey)
+    | (WalletAccountTransaction | MonthKey);
+
+const sectionListContainerStyle = prepareNativeStyle(utils => ({
+    paddingTop: utils.spacings.sp8,
+}));
+
+const listFooterStyle = prepareNativeStyle(utils => ({
+    paddingBottom: utils.spacings.sp32,
+}));
+
+const sortKeysPendingFirst = (a: string, b: string) => {
+    if (a === 'pending' && b === 'pending') return 0;
+    if (a === 'pending') return -1;
+    if (b === 'pending') return 1;
+
+    const dateA = new Date(a);
+    const dateB = new Date(b);
+
+    return dateB.getTime() - dateA.getTime();
+};
+
+const sortPendingTransactions = (a: WalletAccountTransaction, b: WalletAccountTransaction) => {
+    if (a.blockTime === undefined && b.blockTime === undefined) return 0;
+    if (a.blockTime === undefined) return -1;
+    if (b.blockTime === undefined) return 1;
+
+    return a.blockTime - b.blockTime;
+};
+
+const renderTransactionItem = ({
+    item,
+    isFirst,
+    isLast,
+    accountKey,
+}: RenderTransactionItemParams) => (
+    <TransactionListItem
+        transaction={item}
+        isFirst={isFirst}
+        isLast={isLast}
+        accountKey={accountKey}
+    />
+);
+
+const renderTokenTransferItem = ({
+    item: tokenTransfer,
+    isLast,
+    isFirst,
+    accountKey,
+}: RenderTokenTransferItemParams) => (
+    <TokenTransferListItem
+        transaction={tokenTransfer.originalTransaction}
+        tokenTransfer={tokenTransfer}
+        accountKey={accountKey}
+        isFirst={isFirst}
+        isLast={isLast}
+    />
+);
+
+const renderSectionHeader = ({ section: { monthKey } }: RenderSectionHeaderParams) => (
+    <TransactionListGroupTitle key={monthKey} monthKey={monthKey} />
+);
+
+export const TransactionList = ({
+    listHeaderComponent,
+    account,
+    tokenContract,
+    stakingOnly = false,
+}: AccountTransactionProps) => {
+    const accountKey = account.key;
+    const dispatch = useDispatch();
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const {
+        applyStyle,
+        utils: { colors },
+    } = useNativeStyles();
+
+    const isLoadingTransactions = useSelector((state: TransactionsRootState) =>
+        selectIsLoadingAccountTransactions(state, accountKey),
+    );
+    const shouldDeferEmptyState = useSelector(
+        (state: TransactionsRootState & AccountsRootState) =>
+            stakingOnly && !selectAreAllAccountTransactionsLoaded(state, accountKey),
+    );
+
+    const transactions = useSelector((state: TransactionsRootState & TokensRootState) =>
+        stakingOnly
+            ? selectAccountStakeTypeTransactionsWithTokenTransfers(state, accountKey)
+            : selectAccountTransactionsWithTokenTransfers(state, accountKey),
+    );
+
+    const txnsPerPage = getTxsPerPage(account.networkType);
+
+    const isFirstPageAlreadyFetched = useSelector((state: TransactionsRootState) =>
+        selectIsPageAlreadyFetched(state, accountKey, 1, txnsPerPage),
+    );
+
+    const initialPageNumber = Math.ceil((transactions.length || 1) / txnsPerPage);
+    const [page, setPage] = useState(initialPageNumber);
+
+    const { scrollDivider, handleScroll } = useScrollDivider();
+
+    useEffect(() => {
+        // We need to check manually if the first page was already fetched, because fetchTransactionsPageThunk will
+        // always force refetch the first page, but we want to save resources and not do that if it's not necessary.
+        if (!isFirstPageAlreadyFetched) {
+            dispatch(fetchTransactionsPageThunk({ accountKey, page: 1, perPage: txnsPerPage }));
+        }
+    }, [dispatch, accountKey, isFirstPageAlreadyFetched, txnsPerPage]);
+
+    const handleOnLoadMore = useCallback(async () => {
+        try {
+            await dispatch(
+                fetchTransactionsPageThunk({ accountKey, page: page + 1, perPage: txnsPerPage }),
+            );
+            setPage((currentPage: number) => currentPage + 1);
+        } catch {
+            // TODO handle error state (show retry button or something
+        }
+    }, [dispatch, accountKey, page, txnsPerPage]);
+
+    const handleOnRefresh = useCallback(async () => {
+        try {
+            setIsRefreshing(true);
+            await Promise.allSettled([
+                dispatch(fetchAndUpdateAccountThunk({ accountKey })),
+                dispatch(
+                    fetchTransactionsPageThunk({
+                        accountKey,
+                        page: 1,
+                        perPage: txnsPerPage,
+                        forceRefetch: true,
+                    }),
+                ),
+            ]);
+        } catch {
+            // Do nothing
+        }
+        // It's usually too fast so loading indicator only flashes for a moment, which is not nice
+        setTimeout(() => setIsRefreshing(false), 1500);
+    }, [dispatch, accountKey, txnsPerPage]);
+
+    const data = useMemo((): TransactionListItem[] => {
+        // groupTransactionsByDate now sorts also pending transactions, if they have blockTime set.
+        // This is here to keep the original behavior of having pending transactions in one group
+        // at the beginning of the list.
+        const [pendingTxs, confirmedTxs] = arrayPartition(transactions, isPending);
+        const accountTransactionsByMonth = groupTransactionsByDate(confirmedTxs, 'month');
+        if (pendingTxs.length || accountTransactionsByMonth['no-blocktime']) {
+            accountTransactionsByMonth['pending'] = [
+                ...(accountTransactionsByMonth['no-blocktime'] ?? []),
+                ...pendingTxs.sort(sortPendingTransactions),
+            ];
+            delete accountTransactionsByMonth['no-blocktime'];
+        }
+
+        const transactionMonthKeys = Object.keys(accountTransactionsByMonth).sort(
+            sortKeysPendingFirst,
+        ) as MonthKey[];
+
+        if (tokenContract) {
+            return transactionMonthKeys.flatMap(monthKey => [
+                monthKey,
+                ...(accountTransactionsByMonth[monthKey] ?? []).flatMap(transaction =>
+                    transaction.tokens
+                        .filter(token => token.contract === tokenContract)
+                        .map(
+                            tokenTransfer =>
+                                ({
+                                    ...tokenTransfer,
+                                    originalTransaction: transaction,
+                                }) as TypedTokenTransferWithTx,
+                        ),
+                ),
+            ]);
+        }
+
+        return transactionMonthKeys.flatMap(monthKey => [
+            monthKey,
+            ...(accountTransactionsByMonth[monthKey] ?? []),
+        ]) as TransactionListItem[];
+    }, [transactions, tokenContract]);
+
+    useFetchMissingTransactionFiatRates({ accountKey, isEnabled: data.length > 0 });
+
+    const renderItem = useCallback(
+        ({ item, index }: { item: TransactionListItem; index: number }) => {
+            if (typeof item === 'string') {
+                // month with only month name and without token txn
+                const isEmptyMonth = typeof data.at(index + 1) === 'string' || !data.at(index + 1);
+
+                return isEmptyMonth ? null : renderSectionHeader({ section: { monthKey: item } });
+            }
+
+            const isFirstInSection = typeof data.at(index - 1) === 'string';
+            const isLastInSection =
+                typeof data.at(index + 1) === 'string' || index === data.length - 1;
+
+            const getIsTokenTransfer = (
+                itemForCheck: TransactionListItem,
+            ): itemForCheck is TypedTokenTransferWithTx => 'originalTransaction' in itemForCheck;
+
+            return getIsTokenTransfer(item)
+                ? renderTokenTransferItem({
+                      item,
+                      accountKey,
+                      isFirst: isFirstInSection,
+                      isLast: isLastInSection,
+                  })
+                : renderTransactionItem({
+                      item,
+                      accountKey,
+                      isFirst: isFirstInSection,
+                      isLast: isLastInSection,
+                  });
+        },
+        [data, accountKey],
+    );
+
+    return (
+        <Box flex={1}>
+            {scrollDivider}
+            <FlashList<TransactionListItem>
+                data={data}
+                renderItem={renderItem}
+                contentContainerStyle={applyStyle(sectionListContainerStyle)}
+                ListEmptyComponent={
+                    shouldDeferEmptyState ? null : (
+                        <TransactionsEmptyState accountKey={accountKey} />
+                    )
+                }
+                ListHeaderComponent={listHeaderComponent}
+                ListFooterComponent={
+                    <TransactionsListFooter
+                        accountKey={accountKey}
+                        isLoading={isLoadingTransactions}
+                        onButtonPress={handleOnLoadMore}
+                    />
+                }
+                ListFooterComponentStyle={applyStyle(listFooterStyle)}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleOnRefresh}
+                        colors={[colors.legacyBackgroundPrimaryDefault]}
+                    />
+                }
+                refreshing={isRefreshing}
+                onScroll={handleScroll}
+            />
+        </Box>
+    );
+};

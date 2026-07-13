@@ -1,52 +1,133 @@
-import { useSelector } from 'react-redux';
+import { useEffect, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 
-import { invariant } from '@suite-common/suite-utils';
+import type { ExchangeTrade } from 'invity-api';
+
 import {
-    TradingRootState,
-    cryptoIdToNetworkAndContractAddress,
+    type TradingRootState,
     selectTradingCoinSymbolByCryptoId,
     selectTradingExchangeSelectedQuote,
-    selectTradingProviderByNameAndTradeType,
+    tradingExchangeActions,
 } from '@suite-common/trading';
-import { isNetworkSymbol } from '@suite-common/wallet-config';
-import { TokenSymbol } from '@suite-common/wallet-types';
-import { asBaseCurrencyAmount } from '@suite-common/wallet-utils';
-import { Box, Button, Card, HStack, InlineAlertBox, Text, VStack } from '@suite-native/atoms';
-import {
-    BaseCurrencyAmountFormatter,
-    CryptoAmountFormatter,
-    TokenAmountFormatter,
-} from '@suite-native/formatters';
-import { CryptoIcon, Icon, NetworkIcon } from '@suite-native/icons';
+import { InlineAlertBox, VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
-import { DynamicScreenHeader, Screen } from '@suite-native/navigation';
-import { BigNumber } from '@trezor/utils';
+import {
+    DynamicScreenHeader,
+    type RootStackParamList,
+    type RootStackRoutes,
+    Screen,
+    ScreenHeader,
+    type StackProps,
+    useNavigationRemoveActionInterceptor,
+} from '@suite-native/navigation';
+import { useExchangeAnalyticsStepReport } from '@suite-native/trading-analytics';
 
-import { TradeInfoHeader } from '../components/TradeInfo/TradeInfoHeader';
-import { TradeInfoRow } from '../components/TradeInfo/TradeInfoRow';
-import { ProviderLogo } from '../components/general/ProviderLogo';
-import { selectExchangeSelectedSendAccount } from '../selectors/exchangeSelectors';
+import { ApprovalButton } from '../components/exchange/Approval/ApprovalButton';
+import { ExchangeRevokeDetails } from '../components/exchange/Approval/ExchangeRevokeDetails';
+import { TradingDeviceConnectionGuard } from '../components/general/TradingDeviceConnectionGuard';
+import { useApprovalFlow } from '../hooks/exchange/Approval/useApprovalFlow';
+import { useEvmApprovalFees } from '../hooks/exchange/Approval/useEvmApprovalFees';
 
-export const TradingExchangeRevokeScreen = () => {
+type TradingExchangeRevokeScreenProps = StackProps<
+    RootStackParamList,
+    RootStackRoutes.TradingExchangeRevoke
+>;
+
+const TradingExchangeRevokeScreenContent = ({
+    route: { params },
+    navigation,
+}: TradingExchangeRevokeScreenProps) => {
+    const { shouldIncreaseLimit } = params;
+    const dispatch = useDispatch();
+    const reportToAnalytics = useExchangeAnalyticsStepReport('revoke-preview');
+
     const quote = useSelector(selectTradingExchangeSelectedQuote);
 
-    invariant(quote, 'quote must be defined');
-
-    const account = useSelector(selectExchangeSelectedSendAccount);
-
-    const { network, contractAddress } = quote.send
-        ? cryptoIdToNetworkAndContractAddress(quote.send)
-        : {};
-
-    const providerInfo = useSelector((state: TradingRootState) =>
-        selectTradingProviderByNameAndTradeType(state, quote.exchange, 'exchange'),
-    );
+    const { isReady, isConfirming, error: confirmError, confirmApproval } = useApprovalFlow();
 
     const coinSymbol = useSelector((state: TradingRootState) =>
         selectTradingCoinSymbolByCryptoId(state, quote?.send),
     );
 
-    const fee = '4.76'; // TODO
+    const {
+        fee,
+        isLoading: isComposingFees,
+        error: feeError,
+    } = useEvmApprovalFees({
+        approvalTypeOverride: 'ZERO',
+    });
+
+    const isLoading = isConfirming || isComposingFees;
+    const error = confirmError || feeError;
+    const isRevokeReady = !isLoading && !error && fee !== undefined;
+
+    const hasConfirmedRef = useRef(false);
+
+    useEffect(() => {
+        if (hasConfirmedRef.current) {
+            return;
+        }
+
+        if (!quote) {
+            console.error('No quote to revoke approval');
+
+            return;
+        }
+
+        if (!isReady) {
+            return;
+        }
+
+        hasConfirmedRef.current = true;
+
+        const quoteWithType =
+            quote.approvalType === 'ZERO'
+                ? quote
+                : ({ ...quote, approvalType: 'ZERO' } satisfies ExchangeTrade);
+
+        if (quote.approvalType !== 'ZERO') {
+            dispatch(tradingExchangeActions.saveSelectedQuote(quoteWithType));
+        }
+
+        let isActive = true;
+
+        confirmApproval(quoteWithType).then(response => {
+            if (!isActive) {
+                return;
+            }
+
+            if (response === undefined) {
+                hasConfirmedRef.current = false;
+            }
+        });
+
+        reportToAnalytics('visit');
+
+        return () => {
+            isActive = false;
+        };
+    }, [quote, isReady, dispatch, confirmApproval, reportToAnalytics]);
+
+    useNavigationRemoveActionInterceptor({
+        onInterceptedAction: action => {
+            dispatch(tradingExchangeActions.saveSelectedQuote(undefined));
+            reportToAnalytics('cancel');
+            navigation.dispatch(action);
+        },
+    });
+
+    if (!quote) {
+        return (
+            <Screen header={<ScreenHeader closeActionType="back" />}>
+                <InlineAlertBox
+                    title={
+                        <Translation id="moduleTrading.tradingExchangeRevokeScreen.revokeErrorAlert" />
+                    }
+                    intent="critical"
+                />
+            </Screen>
+        );
+    }
 
     return (
         <Screen
@@ -54,145 +135,47 @@ export const TradingExchangeRevokeScreen = () => {
                 <DynamicScreenHeader
                     title={
                         <Translation
-                            id="moduleTrading.tradingExchangeRevokeScreen.title"
+                            id="moduleTrading.tradingExchangeRevokeScreen.revokeTitle"
                             values={{ symbol: coinSymbol }}
                         />
                     }
                     subtitle={
-                        <Translation
-                            id="moduleTrading.tradingExchangeRevokeScreen.subtitle"
-                            values={{ symbol: coinSymbol }}
-                        />
+                        shouldIncreaseLimit ? undefined : (
+                            <Translation
+                                id="moduleTrading.tradingExchangeRevokeScreen.revokeSubtitle"
+                                values={{ symbol: coinSymbol }}
+                            />
+                        )
                     }
                     closeActionType="back"
                 />
             }
-        >
-            <VStack spacing="sp16">
-                <InlineAlertBox
-                    title={<Translation id="moduleTrading.tradingExchangeRevokeScreen.infoAlert" />}
-                    variant="warning"
+            footer={
+                <ApprovalButton
+                    isReady={isRevokeReady}
+                    isDisabled={!!error}
+                    flowType={shouldIncreaseLimit ? 'revoke-and-approve' : 'revoke'}
                 />
-
-                <Card noPadding>
-                    <TradeInfoHeader
-                        title={<Translation id="moduleTrading.tradingExchangeRevokeScreen.from" />}
-                        rightContent={
-                            !!network?.symbol && (
-                                <HStack alignItems="center">
-                                    <NetworkIcon symbol={network.symbol} size="extraLarge" />
-                                    <Text variant="hint">{network.name}</Text>
-                                </HStack>
-                            )
-                        }
-                    />
-                    <TradeInfoRow>
-                        <VStack spacing="sp4">
-                            <Text variant="hint">
-                                <Translation id="moduleTrading.exchangeTradePreviewCard.account" />
-                            </Text>
-                            <Text variant="hint" color="textSubdued">
-                                {account?.accountLabel}
-                            </Text>
-                        </VStack>
-                    </TradeInfoRow>
-                </Card>
-
-                <Card noPadding>
-                    <TradeInfoHeader
+            }
+        >
+            <VStack spacing="sp12">
+                {!!shouldIncreaseLimit && (
+                    <InlineAlertBox
+                        intent="info"
                         title={
-                            <Translation id="moduleTrading.tradingExchangeRevokeScreen.details" />
+                            <Translation id="moduleTrading.tradingExchangeRevokeScreen.lowLimitInfoAlert" />
                         }
                     />
-                    <TradeInfoRow>
-                        <Text variant="hint">
-                            <Translation id="moduleTrading.tradingScreen.provider" />
-                        </Text>
-                        <HStack alignItems="center">
-                            {!!providerInfo?.logo && (
-                                <ProviderLogo logo={providerInfo.logo} size="hint" />
-                            )}
-                            <Text variant="hint" color="textSubdued">
-                                {providerInfo?.companyName}
-                            </Text>
-                        </HStack>
-                    </TradeInfoRow>
-                    <TradeInfoRow>
-                        <Text variant="hint">
-                            <Translation id="moduleTrading.tradingExchangeRevokeScreen.currentLimit" />
-                        </Text>
-                        <HStack alignItems="center">
-                            {!!network?.symbol && (
-                                <CryptoIcon
-                                    symbol={network.symbol}
-                                    contractAddress={contractAddress}
-                                    size="extraSmall"
-                                />
-                            )}
-                            <Text variant="hint" color="textSubdued">
-                                <Translation id="moduleTrading.tradingExchangeRevokeScreen.unlimited" />
-                            </Text>
-                        </HStack>
-                    </TradeInfoRow>
-                    <TradeInfoRow>
-                        <Text variant="hint">
-                            <Translation id="moduleTrading.tradingExchangeRevokeScreen.newLimit" />
-                        </Text>
-                        <HStack alignItems="center">
-                            {!!network?.symbol && (
-                                <CryptoIcon
-                                    symbol={network.symbol}
-                                    contractAddress={contractAddress}
-                                    size="extraSmall"
-                                />
-                            )}
-                            {!!coinSymbol &&
-                                (isNetworkSymbol(coinSymbol) ? (
-                                    <CryptoAmountFormatter
-                                        value={0}
-                                        symbol={coinSymbol}
-                                        isBalance={false}
-                                        variant="hint"
-                                        color="textSubdued"
-                                    />
-                                ) : (
-                                    <TokenAmountFormatter
-                                        value={0}
-                                        tokenSymbol={coinSymbol as TokenSymbol}
-                                        variant="hint"
-                                        color="textSubdued"
-                                    />
-                                ))}
-                        </HStack>
-                    </TradeInfoRow>
-                    <TradeInfoRow>
-                        <Text variant="hint">
-                            <Translation id="transactions.detail.feeLabel" />
-                        </Text>
-                        <HStack alignItems="center" spacing="sp8">
-                            <Text variant="hint" color="textSubdued">
-                                ≈
-                            </Text>
-                            <BaseCurrencyAmountFormatter
-                                value={asBaseCurrencyAmount(new BigNumber(fee))}
-                                variant="hint"
-                                color="textSubdued"
-                            />
-                            <Icon name="caretDown" size="medium" />
-                        </HStack>
-                    </TradeInfoRow>
-                </Card>
-            </VStack>
+                )}
 
-            <Box paddingTop="sp20">
-                <Button
-                    onPress={() => {
-                        // TODO
-                    }}
-                >
-                    <Translation id="generic.buttons.continue" />
-                </Button>
-            </Box>
+                <ExchangeRevokeDetails exchange={quote.exchange} />
+            </VStack>
         </Screen>
     );
 };
+
+export const TradingExchangeRevokeScreen = (props: TradingExchangeRevokeScreenProps) => (
+    <TradingDeviceConnectionGuard>
+        <TradingExchangeRevokeScreenContent {...props} />
+    </TradingDeviceConnectionGuard>
+);

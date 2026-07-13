@@ -1,50 +1,47 @@
 import { useMemo } from 'react';
 
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { selectFlags, setFlag } from '@suite/flags';
+import { Translation } from '@suite/intl';
+import { goto } from '@suite/router';
+import { useServices } from '@suite-common/dependency-injection';
 import { useFormatters } from '@suite-common/formatters';
-import { NetworkType, getDisplaySymbol } from '@suite-common/wallet-config';
+import { getNetworkAdjustedStakingBalance } from '@suite-common/staking';
+import { type NetworkType, getDisplaySymbol } from '@suite-common/wallet-config';
+import { selectAccountIsStakingActive } from '@suite-common/wallet-core';
+import { type Account } from '@suite-common/wallet-types';
 import {
-    MIN_ETH_AMOUNT_FOR_STAKING,
-    MIN_SOL_AMOUNT_FOR_STAKING,
-} from '@suite-common/wallet-constants';
-import { selectPoolStatsApyData } from '@suite-common/wallet-core';
-import { Account } from '@suite-common/wallet-types';
-import {
+    calculateRewards,
     getStakingDataForNetwork,
-    isSupportedEthStakingNetworkSymbol,
-    isSupportedSolStakingNetworkSymbol,
+    getStakingLimitsByNetworkSymbol,
+    isSupportedStakingNetworkSymbol,
 } from '@suite-common/wallet-utils';
-import {
-    Button,
-    Card,
-    Column,
-    Grid,
-    H4,
-    IconButton,
-    IconCircle,
-    Paragraph,
-    Row,
-} from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
-import { spacings } from '@trezor/theme';
+import { Banner } from '@trezor/components';
+import { PiggyBankIcon, XIcon } from '@trezor/icons';
+import { exhaustive } from '@trezor/type-utils';
 import { BigNumber } from '@trezor/utils';
 
-import { goto } from 'src/actions/suite/routerActions';
-import { setFlag } from 'src/actions/suite/suiteActions';
-import { Translation } from 'src/components/suite';
-import { useDispatch, useLayoutSize, useSelector } from 'src/hooks/suite';
-import { selectSuiteFlags } from 'src/selectors/suite/suiteSelectors';
+import { formatApyValue } from 'src/components/earn/utils/earnApyUtils';
+import { useStakingRate } from 'src/hooks/earn/useStakingRate';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 
-interface StakingBannerProps {
+type StakingBannerProps = {
     account: Account;
-}
+};
 
 export const StakingBanner = ({ account }: StakingBannerProps) => {
-    const { isBelowLaptop } = useLayoutSize();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const dispatch = useDispatch();
     const { CryptoAmountFormatter } = useFormatters();
-    const { stakeEthBannerClosed, stakeSolBannerClosed } = useSelector(selectSuiteFlags);
+    const {
+        stakeEthBannerClosed,
+        stakeSolBannerClosed,
+        stakeCardanoBannerClosed,
+        stakeTronBannerClosed,
+    } = useSelector(selectFlags);
     const { route } = useSelector(state => state.router);
-    const apy = useSelector(state => selectPoolStatsApyData(state, account.symbol));
+    const { rate } = useStakingRate({ symbol: account.symbol, accountKey: account.key });
+    const isStakingActive = useSelector(state => selectAccountIsStakingActive(state, account.key));
 
     const displaySymbol = getDisplaySymbol(account.symbol);
     const stakingData = getStakingDataForNetwork(account);
@@ -52,33 +49,47 @@ export const StakingBanner = ({ account }: StakingBannerProps) => {
     const accountBalance = account.formattedBalance;
     const stakingBalance = stakingData?.depositedBalance ?? '0';
 
-    const isAccountEmpty = new BigNumber(accountBalance).eq(0);
-
     const potentialRewards = useMemo(() => {
-        const totalBalance = new BigNumber(stakingBalance).plus(accountBalance).toString();
-        const amount = new BigNumber(totalBalance).multipliedBy(apy / 100);
+        const totalBalance = new BigNumber(stakingBalance || '0').plus(accountBalance).toString();
+        const amount = calculateRewards(
+            getNetworkAdjustedStakingBalance(totalBalance, account),
+            rate,
+        );
 
-        return CryptoAmountFormatter.format(amount.toString(), {
+        return CryptoAmountFormatter.format(amount, {
             symbol: account.symbol,
             isBalance: true,
             withSymbol: false,
-            maxDisplayedDecimals: 8,
             isEllipsisAppended: false,
+            maxDisplayedDecimals: 8,
         });
-    }, [accountBalance, stakingBalance, apy, account, CryptoAmountFormatter]);
+    }, [accountBalance, stakingBalance, rate, account, CryptoAmountFormatter]);
 
     const closeBanner = () => {
         switch (account.networkType) {
             case 'ethereum':
-                dispatch(setFlag('stakeEthBannerClosed', true));
+                dispatch(setFlag({ key: 'stakeEthBannerClosed', value: true }));
                 break;
             case 'solana':
-                dispatch(setFlag('stakeSolBannerClosed', true));
+                dispatch(setFlag({ key: 'stakeSolBannerClosed', value: true }));
                 break;
+            case 'cardano':
+                dispatch(setFlag({ key: 'stakeCardanoBannerClosed', value: true }));
+                break;
+            case 'tron':
+                dispatch(setFlag({ key: 'stakeTronBannerClosed', value: true }));
+                break;
+            default:
+                if (isSupportedStakingNetworkSymbol(account.symbol)) {
+                    exhaustive(
+                        account.networkType as never,
+                        `Add missing case for ${account.symbol} network type`,
+                    );
+                }
         }
 
         analytics.report({
-            type: EventType.StakingNavigate,
+            type: events.stakingNavigateEvent.name,
             payload: {
                 action: 'cancel',
                 from: 'account/banner',
@@ -88,10 +99,10 @@ export const StakingBanner = ({ account }: StakingBannerProps) => {
     };
 
     const goToStakingTab = () => {
-        dispatch(goto('wallet-staking', { preserveParams: true }));
+        dispatch(goto({ routeName: 'wallet-staking', preserveParams: true }));
 
         analytics.report({
-            type: EventType.StakingNavigate,
+            type: events.stakingNavigateEvent.name,
             payload: {
                 action: 'navigate',
                 from: 'account/banner',
@@ -100,83 +111,82 @@ export const StakingBanner = ({ account }: StakingBannerProps) => {
         });
     };
 
-    const getNetworkDetails = (networkType: NetworkType) => {
+    const isStakingBannerClosed = (networkType: NetworkType) => {
         switch (networkType) {
             case 'ethereum':
-                return {
-                    isStakingBannerClosed: stakeEthBannerClosed,
-                    minStakingAmount: MIN_ETH_AMOUNT_FOR_STAKING,
-                    isSupportedStakingNetworkSymbol: isSupportedEthStakingNetworkSymbol(
-                        account.symbol,
-                    ),
-                };
+                return stakeEthBannerClosed;
             case 'solana':
-                return {
-                    isStakingBannerClosed: stakeSolBannerClosed,
-                    minStakingAmount: MIN_SOL_AMOUNT_FOR_STAKING,
-                    isSupportedStakingNetworkSymbol: isSupportedSolStakingNetworkSymbol(
-                        account.symbol,
-                    ),
-                };
+                return stakeSolBannerClosed;
+            case 'cardano':
+                return stakeCardanoBannerClosed;
+            case 'tron':
+                return stakeTronBannerClosed;
             default:
-                return {
-                    isStakingBannerClosed: true,
-                    minStakingAmount: undefined,
-                    isSupportedStakingNetworkSymbol: false,
-                };
+                if (isSupportedStakingNetworkSymbol(account.symbol)) {
+                    exhaustive(
+                        account.networkType as never,
+                        `Add missing case for ${account.symbol} network type`,
+                    );
+                }
+
+                return true;
         }
     };
 
-    const { isStakingBannerClosed, isSupportedStakingNetworkSymbol } =
-        getNetworkDetails(account.networkType) ?? {};
+    const stakingLimits = getStakingLimitsByNetworkSymbol(account.symbol);
 
     if (
         route?.name !== 'wallet-index' ||
-        isStakingBannerClosed ||
+        isStakingBannerClosed(account.networkType) ||
         !account ||
-        !isSupportedStakingNetworkSymbol
+        isStakingActive ||
+        !stakingLimits
     ) {
         return null;
     }
 
+    const hasEnoughBalanceForStaking = new BigNumber(accountBalance).gte(
+        stakingLimits.MIN_AMOUNT_FOR_STAKING,
+    );
+    const hasPotentialRewards = new BigNumber(potentialRewards).gt(0);
+
     return (
-        <Card>
-            <Grid columns={isBelowLaptop ? '1fr' : '1fr auto'} gap={spacings.lg}>
-                <Row gap={spacings.md}>
-                    <Column>
-                        <IconCircle name="piggyBank" variant="primary" size={50} />
-                    </Column>
-                    <Column gap={spacings.xxxs}>
-                        <H4>
-                            <Translation
-                                id="TR_STAKING_BANNER_DETAIL_TITLE"
-                                values={{ apy, displaySymbol }}
-                            />
-                        </H4>
-
-                        <Paragraph variant="tertiary" typographyStyle="hint">
-                            {isAccountEmpty ? (
-                                <Translation
-                                    id="TR_STAKING_BANNER_DETAIL_TEXT_EMPTY"
-                                    values={{ displaySymbol }}
-                                />
-                            ) : (
-                                <Translation
-                                    id="TR_STAKING_BANNER_DETAIL_TEXT"
-                                    values={{ potentialRewards, displaySymbol }}
-                                />
-                            )}
-                        </Paragraph>
-                    </Column>
-                </Row>
-
-                <Row gap={spacings.sm}>
-                    <Button size="small" onClick={goToStakingTab}>
+        <Banner
+            icon={PiggyBankIcon}
+            intent="brand"
+            title={
+                <Translation
+                    id="TR_STAKING_BANNER_DETAIL_TITLE"
+                    values={{ apy: formatApyValue(rate), displaySymbol }}
+                />
+            }
+            description={
+                !hasEnoughBalanceForStaking || !hasPotentialRewards ? (
+                    <Translation
+                        id="TR_STAKING_BANNER_DETAIL_TEXT_EMPTY"
+                        values={{ displaySymbol }}
+                    />
+                ) : (
+                    <Translation
+                        id="TR_STAKING_BANNER_DETAIL_TEXT"
+                        values={{ potentialRewards, displaySymbol }}
+                    />
+                )
+            }
+            rightContent={
+                <>
+                    <Banner.Button onClick={goToStakingTab}>
                         <Translation id="TR_STAKING_BANNER_DETAIL_EXPLORE_STAKING" />
-                    </Button>
-                    <IconButton size="small" variant="tertiary" icon="x" onClick={closeBanner} />
-                </Row>
-            </Grid>
-        </Card>
+                    </Banner.Button>
+                    <Banner.IconButton
+                        intent="neutral"
+                        priority="secondary"
+                        icon={XIcon}
+                        onClick={closeBanner}
+                        tooltip={{ content: <Translation id="TR_DISMISS" /> }}
+                    />
+                </>
+            }
+        />
     );
 };

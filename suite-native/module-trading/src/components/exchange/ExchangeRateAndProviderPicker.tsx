@@ -1,20 +1,21 @@
 import { useSelector } from 'react-redux';
 
-import { ExchangeTrade } from 'invity-api';
+import type { ExchangeTrade } from 'invity-api';
 
+import { useServices } from '@suite-common/dependency-injection';
 import { selectTradingExchangeIsLoading } from '@suite-common/trading';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
+import { selectGroupedExchangeQuotes } from '@suite-native/trading-state';
 
 import { ExchangeProviderPicker } from './ExchangeProviderPicker';
-import { ExchangeRatePicker } from './ExchangeRatePicker';
 import { useExchangeFormContext } from '../../hooks/exchange/useExchangeFormContext';
 import { useSheetControls } from '../../hooks/general/useSheetControls';
-import { selectGroupedExchangeQuotes } from '../../selectors/exchangeSelectors';
 import { ProviderSheet } from '../general/ProviderSheet/ProviderSheet';
 
 export const ExchangeRateAndProviderPicker = () => {
     const isLoading = useSelector(selectTradingExchangeIsLoading);
     const quotes = useSelector(selectGroupedExchangeQuotes);
-
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const form = useExchangeFormContext();
 
     const { isSheetVisible, hideSheet, showSheet, setSelectedValue, selectedValue } =
@@ -25,23 +26,37 @@ export const ExchangeRateAndProviderPicker = () => {
     }
 
     const handleItemPress = () => {
-        if (!isLoading) {
-            showSheet();
+        if (isLoading) {
+            return;
         }
+
+        showSheet();
+        analytics.report({
+            type: events.tradingCompareOffersEvent.name,
+            payload: {
+                type: 'exchange',
+            },
+        });
     };
 
     const handleQuoteSelect = (quote: ExchangeTrade) => {
         setSelectedValue(quote);
-        // TODO analytics
+
+        if (selectedValue?.exchange === quote.exchange && selectedValue?.isDex === quote.isDex) {
+            return;
+        }
+
+        analytics.report({
+            type: events.tradingParameterChangedEvent.name,
+            payload: {
+                type: 'exchange',
+                parameter: 'provider',
+            },
+        });
     };
 
     return (
         <>
-            <ExchangeRatePicker
-                isLoading={isLoading}
-                selectedValue={selectedValue}
-                handleRatePress={handleItemPress}
-            />
             <ExchangeProviderPicker
                 isLoading={isLoading}
                 selectedValue={selectedValue}

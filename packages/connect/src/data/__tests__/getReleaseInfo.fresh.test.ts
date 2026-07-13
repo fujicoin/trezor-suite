@@ -1,17 +1,18 @@
-import {
-    DeviceModelInternal,
-    FirmwareRelease,
-    FirmwareType,
-    VersionArray,
-} from '@trezor/device-utils';
+import type { FirmwareRelease } from '@trezor/device-utils';
+import { DeviceModelInternal, FirmwareType } from '@trezor/device-utils';
+import type { VersionArray } from '@trezor/utils/src/versionUtils';
 
 import { getReleaseInfo } from '../firmwareInfo';
 
-const { getReleaseData, getDeviceFeatures } = global.JestMocks;
+const { getDeviceFeatures, releasesT2T1 } = global.JestMocks;
+
+// @ts-expect-error: indexing with noUncheckedIndexedAccess
+const [latestT2T1]: [FirmwareRelease] = releasesT2T1;
 
 const fixtures = [
     {
         desc: 'it should respect bootloader and offer intermediary',
+        releasesOfDevice: releasesT2T1,
         features: getDeviceFeatures({
             bootloader_mode: true,
             major_version: 1,
@@ -20,7 +21,7 @@ const fixtures = [
             internal_model: DeviceModelInternal.T1B1,
             firmware_present: false,
         }),
-        release: getReleaseData(),
+        release: latestT2T1,
         conditions: {
             environment: { min_suite_version: '25.2.1', min_suite_native_version: '25.2.1' },
             rollout_probability: 100,
@@ -30,8 +31,6 @@ const fixtures = [
         intermediary: {
             min_firmware_version: [1, 6, 2] as VersionArray,
             min_bootloader_version: [1, 8, 0] as VersionArray,
-            firmware_revision: '592590cf66a9b62dfeee7e4d2afb6e01005e5b2c',
-            url: '/some/path.bin',
             version: 1,
         },
         result: {
@@ -40,17 +39,15 @@ const fixtures = [
                 rollout_probability: 100,
                 shouldBeOffered: true,
             },
-            release: getReleaseData(),
+            release: latestT2T1,
             intermediary: {
                 min_firmware_version: [1, 6, 2] as VersionArray,
                 min_bootloader_version: [1, 8, 0] as VersionArray,
-                firmware_revision: '592590cf66a9b62dfeee7e4d2afb6e01005e5b2c',
-                url: '/some/path.bin',
                 version: 1,
             },
-            isRequired: false,
+            isRequired: true,
             isNewer: true,
-            translations: getReleaseData().translations,
+            translations: latestT2T1.translations,
         },
     },
 ];
@@ -65,6 +62,7 @@ describe('getReleaseInfo() for fresh device', () => {
                 intermediary: f.intermediary,
                 firmwareType: f.firmwareType,
                 isBitcoinOnlyAvailable: f.isBitcoinOnlyAvailable,
+                releasesOfDevice: f.releasesOfDevice,
             });
             if (f.result) {
                 expect(result).toMatchObject(f.result);

@@ -1,19 +1,19 @@
-export type {
-    ThpDeviceProperties,
+export {
     ThpPairingMethod,
-    ThpCredentials,
+    type ThpDeviceProperties,
+    type ThpCredentials,
 } from './protocol-thp/messages';
-export type { ThpState, ThpStateSerialized } from './protocol-thp/ThpState';
+export type { ThpState, ThpStateSerialized, ThpChannelState } from './protocol-thp/ThpState';
 
 export type TransportProtocolDecode = (bytes: Buffer) => {
     header: Buffer;
     length: number;
-    messageType: number | string;
+    messageType: number;
     payload: Buffer;
 };
 
 export interface TransportProtocolEncodeOptions {
-    messageType: number | string;
+    messageType: number;
     header?: Buffer;
 }
 
@@ -28,3 +28,9 @@ export interface TransportProtocol {
     decode: TransportProtocolDecode;
     getHeaders: (data: Buffer) => [header: Buffer, chunkHeader: Buffer];
 }
+
+export {
+    TrezorPushNotificationType,
+    TrezorPushNotificationMode,
+    type DecodedTrezorPushNotification,
+} from './protocol-tpn/index';

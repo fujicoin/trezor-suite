@@ -1,19 +1,21 @@
+import '@suite-common/test-utils/src/globalOverrides';
+
 import { screen } from '@testing-library/react';
 
 import { configureMockStore, initPreloadedState } from '@suite-common/test-utils';
-import { SelectedAccountLoaded } from '@suite-common/wallet-types';
-import { ServerInfo } from '@trezor/blockchain-link-types';
+import { type SelectedAccountLoaded } from '@suite-common/wallet-types';
+import { type ServerInfo } from '@trezor/blockchain-link-types';
 import TrezorConnect from '@trezor/connect';
 
-// eslint-disable-next-line import/order
+import { ChangeFee } from 'src/components/suite/modals/ReduxModal/UserContextModal/TxDetailModal/ChangeFee/ChangeFee';
+import { ReplaceTxButton } from 'src/components/suite/modals/ReduxModal/UserContextModal/TxDetailModal/ChangeFee/ReplaceTxButton';
+import { extraDependenciesDesktopMock } from 'src/support/tests/extraDependenciesDesktop.mock';
 import {
     actionSequence,
     findByTestId,
     renderWithProviders,
     waitForLoader,
 } from 'src/support/tests/hooksHelper';
-import { ChangeFee } from 'src/components/suite/modals/ReduxModal/UserContextModal/TxDetailModal/ChangeFee/ChangeFee';
-import { ReplaceTxButton } from 'src/components/suite/modals/ReduxModal/UserContextModal/TxDetailModal/ChangeFee/ReplaceTxButton';
 
 import * as fixtures from '../__fixtures__/useRbfForm';
 import { RbfContext, useRbf, useRbfContext } from '../useRbfForm';
@@ -27,12 +29,19 @@ global.ResizeObserver = class MockedResizeObserver {
 // do not mock
 jest.unmock('@trezor/connect');
 
-jest.mock('src/actions/suite/routerActions', () => ({
+jest.mock('@suite/router', () => ({
+    ...jest.requireActual('@suite/router'),
     goto: () => ({ type: 'mock-redirect' }),
 }));
 
-// render only Translation['id']
-jest.mock('src/components/suite/Translation', () => ({ Translation: ({ id }: any) => id }));
+// !!! Must be a stable reference, else it will break some hooks / memoization and causes inf. re-renders
+const translationStringMock = (id: string) => id;
+
+jest.mock('@suite/intl', () => ({
+    ...jest.requireActual('@suite/intl'),
+    Translation: ({ id }: any) => id,
+    useTranslation: () => ({ translationString: translationStringMock }),
+}));
 
 // since we are NOT(!) mocking @trezor/connect it fetch real bridge at init
 jest.mock('cross-fetch', () => ({
@@ -44,9 +53,8 @@ jest.mock('@suite-common/tx-simulation', () => ({}));
 
 // TrezorConnect.composeTransaction is trying to connect to blockchain, to get current block height.
 // Mock whole module to avoid internet connection.
-jest.mock('@trezor/blockchain-link', () => ({
-    __esModule: true,
-    default: class BlockchainLink {
+jest.mock('@trezor/blockchain-link', () => {
+    class BlockchainLink {
         name = 'jest-mocked-module';
         listeners: Record<string, () => void> = {};
 
@@ -91,8 +99,13 @@ jest.mock('@trezor/blockchain-link', () => ({
         estimateFee(params: { blocks: number[] }) {
             return params.blocks.map(() => ({ feePerUnit: '-1' }));
         }
-    },
-}));
+    }
+
+    return {
+        __esModule: true,
+        BlockchainLink,
+    };
+});
 
 type RootReducerState = ReturnType<ReturnType<typeof fixtures.getRootReducer>>;
 
@@ -126,6 +139,7 @@ interface TestCallback {
 // getContextValues returns actual state of SendFormContext
 const Component = ({ callback }: { callback: TestCallback }) => {
     const values = useRbfContext();
+    // eslint-disable-next-line react-hooks/immutability
     callback.getContextValues = () => values;
 
     return values.isLoading ? <div>Loading</div> : null;
@@ -157,15 +171,16 @@ describe('useRbfForm hook', () => {
             const callback: TestCallback = {};
 
             const TestComponent = () => {
+                const selectedAccount = f.store.selectedAccount as SelectedAccountLoaded;
                 const contextValues = useRbf({
                     rbfParams: f.tx.rbfParams,
                     chainedTxs: f.chainedTxs,
-                    selectedAccount: f.store.selectedAccount as SelectedAccountLoaded,
+                    account: selectedAccount.account,
                 });
 
                 return (
                     <RbfContext.Provider value={contextValues}>
-                        <ChangeFee tx={f.tx} chainedTxs={f.chainedTxs} showChained={() => {}}>
+                        <ChangeFee tx={f.tx} showChained={() => {}}>
                             <Component callback={callback} />
                             <ReplaceTxButton />
                         </ChangeFee>
@@ -173,7 +188,11 @@ describe('useRbfForm hook', () => {
                 );
             };
 
-            const { unmount } = renderWithProviders(store, <TestComponent />);
+            const { unmount } = renderWithProviders(
+                store,
+                extraDependenciesDesktopMock.services,
+                <TestComponent />,
+            );
 
             const composeTransactionSpy = jest.spyOn(TrezorConnect, 'composeTransaction');
 
@@ -184,7 +203,7 @@ describe('useRbfForm hook', () => {
                 .mockImplementation(() =>
                     Promise.resolve({
                         success: false,
-                        payload: { error: 'error' },
+                        error: { message: 'error', code: 'Failure_UnknownCode' },
                     }),
                 );
 
@@ -224,7 +243,7 @@ describe('useRbfForm hook', () => {
                 // send and check signTransaction params
                 await sendAction();
                 expect(signTransactionMock).toHaveBeenCalledTimes(1);
-                const params = signTransactionMock.mock.calls[0][0];
+                const params = signTransactionMock.mock.calls[0]?.[0];
                 expect(params).toMatchObject(f.signedTx);
             } else {
                 await expect(sendAction()).rejects.toThrow('Unable to perform pointer interaction'); // button `pointer-events: none`

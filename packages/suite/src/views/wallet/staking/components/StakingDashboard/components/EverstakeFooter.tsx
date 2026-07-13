@@ -2,14 +2,15 @@ import { useMemo } from 'react';
 
 import styled from 'styled-components';
 
-import { Icon } from '@trezor/components';
+import { selectSelectedAccount } from '@suite/account';
+import { Translation } from '@suite/intl';
+import { Button } from '@trezor/components';
 import { spacingsPx } from '@trezor/theme';
-import { HELP_CENTER_ETH_STAKING, HELP_CENTER_SOL_STAKING } from '@trezor/urls';
 
-import { Translation } from 'src/components/suite';
-import { LearnMoreButton } from 'src/components/suite/LearnMoreButton';
+import { PoweredByBadge } from 'src/components/earn';
+import { getStakingGuideLink } from 'src/components/earn/utils/getStakingGuideLink';
+import { useGuideOpenNode } from 'src/hooks/guide';
 import { useSelector } from 'src/hooks/suite';
-import { selectSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
 
 const Wrapper = styled.div`
     display: flex;
@@ -17,39 +18,33 @@ const Wrapper = styled.div`
     flex-wrap: wrap;
     gap: ${spacingsPx.md};
     justify-content: space-between;
-    padding-top: ${spacingsPx.xl};
-    border-top: 1px solid ${({ theme }) => theme.borderElevation2};
+    border-top: 1px solid ${({ theme }) => theme.surfaceBorderRaised};
     margin-top: ${spacingsPx.xxl};
-`;
-
-const Left = styled.div`
-    display: flex;
-    align-items: center;
-    color: ${({ theme }) => theme.textSubdued};
-    gap: ${spacingsPx.xs};
 `;
 
 export const EverstakeFooter = () => {
     const account = useSelector(selectSelectedAccount);
+    const { openNodeById } = useGuideOpenNode();
 
-    const learnMoreLink = useMemo(() => {
-        switch (account?.networkType) {
-            case 'ethereum':
-                return HELP_CENTER_ETH_STAKING;
-            case 'solana':
-                return HELP_CENTER_SOL_STAKING;
-            default:
-                return undefined;
-        }
-    }, [account]);
+    const moreInfoLink = useMemo(
+        () => getStakingGuideLink(account?.networkType),
+        [account?.networkType],
+    );
 
     return (
         <Wrapper>
-            <Left>
-                <Translation id="TR_STAKE_PROVIDED_BY" />{' '}
-                <Icon size={100} name="everstakeLogoText" variant="default" />
-            </Left>
-            {learnMoreLink && <LearnMoreButton url={learnMoreLink} />}
+            <PoweredByBadge provider="everstake" />
+
+            {moreInfoLink && (
+                <Button
+                    onClick={() => openNodeById(moreInfoLink)}
+                    intent="neutral"
+                    priority="secondary"
+                    size="small"
+                >
+                    <Translation id="TR_LEARN_MORE" />
+                </Button>
+            )}
         </Wrapper>
     );
 };

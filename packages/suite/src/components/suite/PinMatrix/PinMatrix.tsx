@@ -1,5 +1,7 @@
 import { useCallback, useEffect } from 'react';
 
+import { useExternalLink } from '@suite/external-links';
+import { Translation } from '@suite/intl';
 import { formInputsMaxLength } from '@suite-common/validators';
 import {
     Banner,
@@ -7,17 +9,15 @@ import {
     Card,
     Column,
     Grid,
+    H4,
+    IconButton,
     Input,
     KEYBOARD_CODE,
     Paragraph,
-    PinButton,
     Row,
 } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { CaretLeftIcon, DotOutlineFilledIcon, PasswordIcon } from '@trezor/icons';
 import { HELP_CENTER_PIN_URL } from '@trezor/urls';
-
-import { Translation } from 'src/components/suite';
-import { useExternalLink } from 'src/hooks/suite';
 
 type PinMatrixProps = {
     pin: string;
@@ -112,53 +112,64 @@ export const PinMatrix = ({
     }, [onPinAdd, onPinBackspace, onSubmit]);
 
     return (
-        <Column gap={spacings.md}>
+        <Column gap={16} maxWidth={380}>
             {showExplanation && (
                 <Banner
-                    variant="info"
-                    icon="password"
+                    intent="info"
+                    icon={PasswordIcon}
                     rightContent={
-                        <Banner.Button
-                            href={learnMoreUrl}
-                            icon="arrowUpRight"
-                            iconAlignment="end"
-                            size="tiny"
-                        >
+                        <Banner.Button href={learnMoreUrl} size="small">
                             <Translation id="TR_LEARN_MORE" />
                         </Banner.Button>
                     }
-                >
-                    <Paragraph typographyStyle="hint">
-                        <Translation id="TR_MAXIMUM_PIN_LENGTH" />
-                    </Paragraph>
-                </Banner>
+                    description={
+                        <Paragraph typographyStyle="body-sm">
+                            <Translation id="TR_MAXIMUM_PIN_LENGTH" />
+                        </Paragraph>
+                    }
+                />
             )}
-            <Card label={showLabel ? <Translation id="TR_ENTER_PIN" /> : undefined}>
-                <Column gap={spacings.xl} padding={spacings.md} data-testid="@pin">
-                    <Grid columns={3} gap={spacings.lg} width="100%">
+            <Card
+                header={
+                    showLabel ? (
+                        <H4>
+                            <Translation id="TR_ENTER_PIN" />
+                        </H4>
+                    ) : undefined
+                }
+            >
+                <Column gap={40} padding={16} data-testid="@pin" alignItems="center">
+                    <Grid columns={3} gap={20}>
                         {
-                            // prettier-ignore
                             // Order follows standard numeric keypad layout
-                            ['7', '8', '9',
-                             '4', '5', '6',
-                             '1', '2', '3'].map(value => (
-                                <PinButton
+                            ['7', '8', '9', '4', '5', '6', '1', '2', '3'].map(value => (
+                                <IconButton
+                                    size="large"
                                     key={value}
                                     data-value={value}
+                                    icon={DotOutlineFilledIcon}
+                                    intent="neutral"
+                                    priority="secondary"
                                     onClick={() => onPinAdd(value)}
+                                    isDisabled={isDisabled}
                                     data-testid={`@pin/input/${value}`}
-                                    disabled={isDisabled}
+                                    tooltip={{ isActive: false }}
                                 />
                             ))
                         }
                     </Grid>
-                    <Row gap={spacings.md}>
-                        <Input disabled value={pin.replace(/[0-9]/g, '●')} size="small" />
-                        <Button
-                            variant="tertiary"
-                            onClick={onPinBackspace}
+                    <Row gap={16} width="100%">
+                        <Input
+                            width="100%"
+                            disabled
+                            value={pin.replace(/[0-9]/g, '●')}
                             size="small"
-                            icon="caretLeft"
+                        />
+                        <Button
+                            intent="neutral"
+                            priority="secondary"
+                            onClick={onPinBackspace}
+                            iconLeft={CaretLeftIcon}
                             isDisabled={isDisabled}
                         >
                             <Translation id="TR_BACKSPACE" />

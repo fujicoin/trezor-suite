@@ -1,34 +1,28 @@
-import * as messages from '@trezor/protobuf/messages.json';
-import { BridgeTransport, Descriptor } from '@trezor/transport';
-import { Session } from '@trezor/transport/src/types';
+import { BridgeTransport } from '@trezor/transport';
+import { type Descriptor, Session } from '@trezor/transport-common';
+import { Model } from '@trezor/trezor-user-env-link';
 
 import { controller as TrezorUserEnvLink, env } from './controller';
 import { errorCase1, descriptor as fixtureDescriptor } from './expect';
 
-const wait = (ms = 1000) =>
-    new Promise(resolve => {
-        setTimeout(() => {
-            resolve(undefined);
-        }, ms);
-    });
+const wait = (ms = 1000) => new Promise(resolve => setTimeout(resolve, ms));
 
 const getDescriptor = (descriptor: Partial<Descriptor>): Descriptor => {
     const d = {
         ...fixtureDescriptor,
         session: Session('1'),
+        model: expect.toBeOneOf([expect.any(Number), undefined]),
         ...descriptor,
     };
 
-    if (env.USE_NODE_BRIDGE && d.session && !d.sessionOwner) {
+    if (d.session && !d.sessionOwner) {
         d.sessionOwner = 'app A';
-    } else if (!env.USE_NODE_BRIDGE) {
-        d.sessionOwner = undefined;
     }
 
     return d;
 };
 
-const emulatorStartOpts = { model: 'T2T1', version: '2-latest', wipe: true } as const;
+const emulatorStartOpts = { model: Model.T2T1, version: '2-latest', wipe: true } as const;
 
 describe('bridge', () => {
     let bridge1: BridgeTransport;
@@ -47,11 +41,7 @@ describe('bridge', () => {
             descriptors = result.payload;
         }
 
-        expect(descriptors).toEqual([
-            getDescriptor({
-                session: null,
-            }),
-        ]);
+        expect(descriptors).toEqual([getDescriptor({ session: null })]);
 
         bridge1.handleDescriptorsChange(descriptors);
         bridge2.handleDescriptorsChange(descriptors);
@@ -74,8 +64,8 @@ describe('bridge', () => {
         await TrezorUserEnvLink.startEmu(emulatorStartOpts);
         await TrezorUserEnvLink.startBridge();
 
-        bridge1 = new BridgeTransport({ messages, id: 'app A' });
-        bridge2 = new BridgeTransport({ messages, id: 'app B' });
+        bridge1 = new BridgeTransport({ id: 'app A' });
+        bridge2 = new BridgeTransport({ id: 'app B' });
 
         await bridge1.init();
         await bridge2.init();
@@ -84,11 +74,16 @@ describe('bridge', () => {
     test('2 clients. one acquires and releases, the other one is watching', async () => {
         await enumerateAndListen();
 
+        const firstDescriptor = descriptors[0];
+        if (!firstDescriptor) {
+            throw new Error('Expected at least one descriptor');
+        }
+
         const bride1spy = jest.spyOn(bridge1.deviceEvents, 'emit');
         const bride2spy = jest.spyOn(bridge2.deviceEvents, 'emit');
 
         const session1 = await bridge1.acquire({
-            input: { previous: null, path: descriptors[0].path },
+            input: { previous: null, path: firstDescriptor.path },
         });
         expect(session1).toEqual({
             success: true,
@@ -99,7 +94,7 @@ describe('bridge', () => {
         await wait();
 
         const expectedDescriptor1 = getDescriptor({
-            path: descriptors[0].path,
+            path: firstDescriptor.path,
             session: Session('1'),
         });
 
@@ -117,12 +112,12 @@ describe('bridge', () => {
             return;
         }
 
-        await bridge1.release({ path: descriptors[0].path, session: session1.payload });
+        await bridge1.release({ path: firstDescriptor.path, session: session1.payload });
 
         await wait();
 
         const expectedDescriptor2 = getDescriptor({
-            path: descriptors[0].path,
+            path: firstDescriptor.path,
             session: null,
         });
 
@@ -137,7 +132,7 @@ describe('bridge', () => {
         });
 
         const session2 = await bridge2.acquire({
-            input: { previous: null, path: descriptors[0].path },
+            input: { previous: null, path: firstDescriptor.path },
         });
         expect(session2).toEqual({ success: true, payload: '2' });
     });
@@ -145,11 +140,16 @@ describe('bridge', () => {
     test('session can be "stolen" by another client', async () => {
         await enumerateAndListen();
 
+        const firstDescriptor = descriptors[0];
+        if (!firstDescriptor) {
+            throw new Error('Expected at least one descriptor');
+        }
+
         const bride1spy = jest.spyOn(bridge1.deviceEvents, 'emit');
         const bride2spy = jest.spyOn(bridge2.deviceEvents, 'emit');
 
         const session1 = await bridge1.acquire({
-            input: { previous: null, path: descriptors[0].path },
+            input: { previous: null, path: firstDescriptor.path },
         });
 
         expect(session1).toEqual({ success: true, payload: '1' });
@@ -161,13 +161,13 @@ describe('bridge', () => {
 
         // bridge 2 steals session
         const session2 = await bridge2.acquire({
-            input: { previous: session1.payload, path: descriptors[0].path },
+            input: { previous: session1.payload, path: firstDescriptor.path },
         });
 
         expect(session2).toEqual({ success: true, payload: '2' });
 
         const expectedDescriptor = getDescriptor({
-            path: descriptors[0].path,
+            path: firstDescriptor.path,
             session: Session('2'),
             sessionOwner: 'app B',
         });
@@ -186,11 +186,15 @@ describe('bridge', () => {
     });
 
     // todo: udp not implemented correctly yet in new bridge
-    if (!env.USE_NODE_BRIDGE || env.USE_HW) {
+    if (env.USE_HW) {
         test('client 1 (acquire - read), client 2 (acquire - send - read)', async () => {
             await enumerateAndListen();
 
-            const { path } = descriptors[0];
+            const firstDescriptor = descriptors[0];
+            if (!firstDescriptor) {
+                throw new Error('Expected at least one descriptor');
+            }
+            const { path } = firstDescriptor;
             const session1 = await bridge1.acquire({
                 input: { previous: null, path },
             });
@@ -212,7 +216,7 @@ describe('bridge', () => {
             await expect(receive1res).resolves.toMatchObject({
                 success: false,
                 // todo: this error is expected, fix errors. also emu error is weird
-                error: errorCase1,
+                error: { code: errorCase1 },
             });
 
             if (!session2.success) {
@@ -223,28 +227,19 @@ describe('bridge', () => {
             // send ping
             await bridge2.send({ session: session2.payload, name: 'GetFeatures', data: {} });
 
-            // on old bridge, it appears to hang here time to time.
             return Promise.race([
                 bridge2.receive({ session: session2.payload }),
                 wait(5000).then(() => {
                     throw new Error('hanged on receive');
                 }),
-            ])
-                .then(receive2Res => {
-                    expect(receive2Res).toMatchObject({
-                        success: true,
-                        payload: {
-                            type: 'Features',
-                        },
-                    });
-                })
-                .catch(err => {
-                    if (env.USE_NODE_BRIDGE) {
-                        throw err;
-                    }
-
-                    console.log('failed using old bridge');
+            ]).then(receive2Res => {
+                expect(receive2Res).toMatchObject({
+                    success: true,
+                    payload: {
+                        type: 'Features',
+                    },
                 });
+            });
         });
     }
 

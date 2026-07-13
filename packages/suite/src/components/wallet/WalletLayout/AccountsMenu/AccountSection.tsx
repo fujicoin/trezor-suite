@@ -1,10 +1,10 @@
 import { selectCoinDefinitions } from '@suite-common/token-definitions';
 import { selectAccountIsStakingActive } from '@suite-common/wallet-core';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
+import { hasNetworkFeatures } from '@suite-common/wallet-utils';
 
 import { useSelector } from 'src/hooks/suite';
-import { selectIsDebugModeActive } from 'src/selectors/suite/suiteSelectors';
-import { AccountItemType } from 'src/types/wallet';
+import { type AccountItemType } from 'src/types/wallet';
 import { getTokens } from 'src/utils/wallet/tokenUtils';
 
 import { AccountItem } from './AccountItem/AccountItem';
@@ -29,7 +29,6 @@ export const AccountSection = ({
         symbol,
         accountType,
         index,
-        networkType,
         descriptor,
         formattedBalance,
         tokens: accountTokens = [],
@@ -37,13 +36,7 @@ export const AccountSection = ({
 
     const coinDefinitions = useSelector(state => selectCoinDefinitions(state, symbol));
 
-    const isDebugModeActive = useSelector(selectIsDebugModeActive);
-    const showGroup = [
-        'ethereum',
-        'solana',
-        'cardano',
-        ...(isDebugModeActive ? ['stellar'] : []),
-    ].includes(networkType);
+    const showGroup = hasNetworkFeatures(account, 'tokens');
 
     const isStakeShownStored = useSelector(state =>
         selectAccountIsStakingActive(state, account.key),
@@ -62,10 +55,7 @@ export const AccountSection = ({
         <AccountItemsGroup
             key={`${descriptor}-${symbol}`}
             forceOnlyItemClick={forceOnlyItemClick}
-            account={{
-                ...account,
-                accountLabel: account.accountLabel,
-            }}
+            account={account}
             selected={selected}
             showStaking={isStakeShown}
             tokens={tokens.shownWithBalance}
@@ -77,10 +67,7 @@ export const AccountSection = ({
             type="coin"
             key={`${descriptor}-${symbol}`}
             forceOnlyItemClick={forceOnlyItemClick}
-            account={{
-                ...account,
-                accountLabel: account.accountLabel,
-            }}
+            account={account}
             isSelected={selected}
             onClick={onItemClick}
             formattedBalance={formattedBalance}

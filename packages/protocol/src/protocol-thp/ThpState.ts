@@ -1,20 +1,27 @@
 import {
-    ThpCredentials,
-    ThpDeviceProperties,
-    ThpHandshakeCredentials,
-    ThpMessageSyncBit,
+    type ThpCredentials,
+    type ThpDeviceProperties,
+    type ThpHandshakeCredentials,
+    type ThpMessageSyncBit,
     ThpPairingMethod,
 } from './messages';
 
 export type ThpStateSerialized = {
     properties?: ThpDeviceProperties;
     credentials: ThpCredentials[];
+} & ThpChannelState;
+
+export type ThpChannelState = {
     channel: string; // 2 bytes as hex
     sendBit: ThpMessageSyncBit; // host synchronization bit
     recvBit: ThpMessageSyncBit; // device synchronization bit
+    sendAckBit: ThpMessageSyncBit; // host ack bit
+    recvAckBit: ThpMessageSyncBit; // device ack bit
     sendNonce: number; // host nonce
     recvNonce: number; // device nonce
     expectedResponses: number[]; // expected responses from the device
+    recentMessage: string;
+    piggybackAckEnabled?: boolean;
 };
 
 export type ThpPhase = 'handshake' | 'pairing' | 'paired';
@@ -29,14 +36,27 @@ export class ThpState {
     private _handshakeCredentials?: ThpHandshakeCredentials;
     private _channel: Buffer = Buffer.alloc(0);
     private _sendBit: ThpMessageSyncBit = 0;
+    private _sendAckBit: ThpMessageSyncBit = 0;
     private _sendNonce: number = 0;
     private _recvBit: ThpMessageSyncBit = 0;
+    private _recvAckBit: ThpMessageSyncBit = 0;
     private _recvNonce: number = 1;
     private _expectedResponses: number[] = [];
     private _selectedMethod?: ThpPairingMethod;
     private _nfcSecret?: Buffer;
     private _sessionId: Buffer = Buffer.alloc(1);
     private _sessionIdCounter: number = 0;
+    private _piggybackAckAvailable: boolean = false;
+    private _piggybackAckEnabled: boolean = false;
+    private _recentMessage: Buffer = Buffer.alloc(0);
+
+    get recentMessage() {
+        return this._recentMessage;
+    }
+
+    setRecentMessage(msg: Buffer) {
+        this._recentMessage = msg;
+    }
 
     get pairingTagPromise() {
         return this._pairingTagPromise;
@@ -60,6 +80,8 @@ export class ThpState {
 
     setThpProperties(props: ThpDeviceProperties) {
         this._properties = props;
+        // available since THP 2.1 https://github.com/trezor/trezor-firmware/pull/6202
+        this._piggybackAckAvailable = props.protocol_version_minor > 0;
     }
 
     get phase() {
@@ -102,6 +124,11 @@ export class ThpState {
         }
     }
 
+    removePairingCredential({ credential }: ThpCredentials) {
+        const index = this._pairingCredentials.findIndex(c => c.credential === credential);
+        if (index >= 0) this._pairingCredentials.splice(index, 1);
+    }
+
     setNfcSecret(secret: Buffer) {
         this._nfcSecret = secret;
     }
@@ -131,6 +158,10 @@ export class ThpState {
         return this._sendBit;
     }
 
+    get sendAckBit() {
+        return this._sendAckBit;
+    }
+
     get sendNonce() {
         return this._sendNonce;
     }
@@ -139,8 +170,20 @@ export class ThpState {
         return this._recvBit;
     }
 
+    get recvAckBit() {
+        return this._recvAckBit;
+    }
+
     get recvNonce() {
         return this._recvNonce;
+    }
+
+    updateAckBit(type: 'send' | 'recv') {
+        if (type === 'send') {
+            this._sendAckBit = this._sendAckBit > 0 ? 0 : 1;
+        } else {
+            this._recvAckBit = this._recvAckBit > 0 ? 0 : 1;
+        }
     }
 
     updateSyncBit(type: 'send' | 'recv') {
@@ -161,10 +204,13 @@ export class ThpState {
 
     sync(type: 'send' | 'recv', messageType: string) {
         // check if syncBit should be updated
-        const updateSyncBit = !['ThpCreateChannelRequest', 'ThpCreateChannelResponse'].includes(
-            messageType,
-        );
+        const updateSyncBit = ![
+            'ThpAck',
+            'ThpCreateChannelRequest',
+            'ThpCreateChannelResponse',
+        ].includes(messageType);
         if (updateSyncBit) {
+            this.updateAckBit(type);
             this.updateSyncBit(type);
         }
 
@@ -237,14 +283,18 @@ export class ThpState {
             channel: this.channel.toString('hex'),
             sendBit: this.sendBit,
             recvBit: this.recvBit,
+            sendAckBit: this.sendAckBit,
+            recvAckBit: this.recvAckBit,
             sendNonce: this.sendNonce,
             recvNonce: this.recvNonce,
             expectedResponses: this._expectedResponses.slice(0),
             credentials: this._pairingCredentials.slice(0),
+            recentMessage: this._recentMessage.toString('hex'),
+            piggybackAckEnabled: this._piggybackAckEnabled,
         };
     }
 
-    deserialize(json: ReturnType<(typeof this)['serialize']>) {
+    deserialize(json: ThpChannelState) {
         // simple fields validation
         const error = new Error('ThpState.deserialize invalid state');
         if (!json || typeof json !== 'object') {
@@ -256,9 +306,14 @@ export class ThpState {
         if (typeof json.channel !== 'string') {
             throw error;
         }
+        if (typeof json.recentMessage !== 'string') {
+            throw error;
+        }
         [
             json.sendBit,
             json.recvBit,
+            json.sendAckBit,
+            json.recvAckBit,
             json.sendNonce,
             json.recvNonce,
             ...json.expectedResponses,
@@ -272,8 +327,13 @@ export class ThpState {
         this._expectedResponses = json.expectedResponses;
         this._sendBit = json.sendBit;
         this._recvBit = json.recvBit;
+        this._sendAckBit = json.sendAckBit;
+        this._recvAckBit = json.recvAckBit;
         this._sendNonce = json.sendNonce;
         this._recvNonce = json.recvNonce;
+        this._recentMessage = Buffer.from(json.recentMessage, 'hex');
+        this._piggybackAckEnabled =
+            typeof json.piggybackAckEnabled === 'boolean' ? json.piggybackAckEnabled : false;
     }
 
     get expectedResponses() {
@@ -284,6 +344,18 @@ export class ThpState {
         this._expectedResponses = expected;
     }
 
+    get isPiggybackAckAvailable() {
+        return this._piggybackAckAvailable;
+    }
+
+    enablePiggybackAck(enabled: boolean) {
+        this._piggybackAckEnabled = this._piggybackAckAvailable && enabled;
+    }
+
+    get isPiggybackAckEnabled() {
+        return this._piggybackAckEnabled;
+    }
+
     resetState() {
         this._phase = 'handshake';
         this._isPaired = false;
@@ -292,8 +364,10 @@ export class ThpState {
         this._handshakeCredentials = undefined;
         this._channel = Buffer.alloc(0);
         this._sendBit = 0;
+        this._sendAckBit = 0;
         this._sendNonce = 0;
         this._recvBit = 0;
+        this._recvAckBit = 0;
         this._recvNonce = 1;
         this._expectedResponses = [];
         this._pairingCredentials = [];
@@ -301,6 +375,7 @@ export class ThpState {
         this._nfcSecret = undefined;
         this._sessionId = Buffer.alloc(1);
         this._sessionIdCounter = 0;
+        this._piggybackAckEnabled = false;
     }
 
     toString() {

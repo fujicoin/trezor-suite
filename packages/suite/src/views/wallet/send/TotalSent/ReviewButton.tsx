@@ -2,13 +2,15 @@ import { useWatch } from 'react-hook-form';
 
 import styled from 'styled-components';
 
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
 import { selectAreFeesLoading } from '@suite-common/wallet-core';
 import { isLowAnonymityWarning } from '@suite-common/wallet-utils';
-import { Banner, Button, Checkbox, Tooltip, variables } from '@trezor/components';
-import { spacingsPx } from '@trezor/theme';
+import { Banner, Button, Checkbox, Column, Paragraph, Tooltip } from '@trezor/components';
+import { paletteV2, spacingsPx } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite/Translation';
-import { useDevice, useSelector } from 'src/hooks/suite';
+import { setConnectionModal, setConnectionMode } from 'src/actions/device/deviceSlice';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 import { useSendFormContext } from 'src/hooks/wallet';
 
 const Container = styled.div`
@@ -17,28 +19,6 @@ const Container = styled.div`
     grid-column: 1 / 3;
     gap: ${spacingsPx.md};
 `;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledWarning = styled(Banner)`
-    justify-content: flex-start;
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const ButtonReview = styled(Button)<{ $isRed: boolean }>`
-    background: ${({ $isRed, theme }) => $isRed && theme.legacy.BUTTON_RED};
-    display: flex;
-    flex-direction: column;
-    min-width: 200px;
-
-    &:disabled {
-        background: ${({ theme }) => theme.legacy.STROKE_GREY};
-    }
-
-    &:hover {
-        background: ${({ $isRed, theme }) => $isRed && theme.legacy.BUTTON_RED_HOVER};
-    }
-`;
-
 const TooltipHeading = styled.p`
     opacity: 0.6;
 `;
@@ -51,19 +31,15 @@ const List = styled.ul`
 const TextButton = styled.button`
     background: none;
     border: none;
-    color: ${({ theme }) => theme.legacy.TYPE_WHITE};
+    color: ${paletteV2.globalWhiteAlpha1000};
     cursor: pointer;
     padding: 0;
     text-decoration: underline;
 `;
 
-const SecondLine = styled.p`
-    font-size: ${variables.FONT_SIZE.TINY};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-`;
-
 export const ReviewButton = () => {
     const { device, isLocked } = useDevice();
+    const dispatch = useDispatch();
     const {
         account: { networkType, symbol },
         control,
@@ -85,6 +61,8 @@ export const ReviewButton = () => {
     const areFeesLoading = useSelector(state => selectAreFeesLoading(state, symbol));
     const isLoading = isSendFormLoading || areFeesLoading;
 
+    const isDeviceConnected = device?.connected && device?.available;
+
     const options = useWatch({
         name: 'options',
         defaultValue: getDefaultValue('options', []),
@@ -99,17 +77,17 @@ export const ReviewButton = () => {
         options.includes('destinationTag') &&
         values.destinationTag === '';
 
-    const isDeviceConnected = device?.connected && device?.available;
     const composedTx = composedLevels ? composedLevels[values.selectedFee || 'normal'] : undefined;
     const isLowAnonymity =
         Array.isArray(errors.outputs) &&
         errors.outputs.some(output => isLowAnonymityWarning(output));
     const possibleToSubmit =
         composedTx?.type === 'final' &&
-        !isLocked() &&
-        device?.available &&
         online &&
-        !isLowAnonymity;
+        !isLowAnonymity &&
+        !errors.feeLimit &&
+        (isDeviceConnected ? !isLocked() : true);
+
     const confirmationRequired =
         possibleToSubmit && isLowAnonymityUtxoSelected && !anonymityWarningChecked;
     const isDisabled = requireDestinationTag || !possibleToSubmit || confirmationRequired;
@@ -121,10 +99,6 @@ export const ReviewButton = () => {
 
     const toggleUtxoSelection = () => toggleOption('utxoSelection');
     const getPrimaryText = () => {
-        if (!isDeviceConnected) {
-            return 'TR_CONNECT_TREZOR_TO_SEND_BUTTON';
-        }
-
         if (showCoinControlWarning) {
             return broadcastEnabled
                 ? 'TR_SEND_NOT_ANONYMIZED_COINS'
@@ -132,6 +106,18 @@ export const ReviewButton = () => {
         }
 
         return broadcastEnabled ? 'REVIEW_AND_SEND_TRANSACTION' : 'SIGN_TRANSACTION';
+    };
+
+    const handleButtonReviewClick = () => {
+        if (!isDeviceConnected) {
+            if (device?.descriptor?.apiType === 'bluetooth') {
+                dispatch(setConnectionMode('bluetooth'));
+            }
+            dispatch(setConnectionModal(true));
+
+            return;
+        }
+        signTransaction();
     };
 
     const tooltipContent =
@@ -169,31 +155,37 @@ export const ReviewButton = () => {
     return (
         <Container>
             {showCoinControlWarning && (
-                <StyledWarning variant="destructive">
-                    <Checkbox
-                        variant="destructive"
-                        isChecked={anonymityWarningChecked}
-                        onClick={toggleAnonymityWarning}
-                    >
-                        <Translation id="TR_BREAKING_ANONYMITY_CHECKBOX" />
-                    </Checkbox>
-                </StyledWarning>
+                <Banner
+                    intent="critical"
+                    description={
+                        <Checkbox
+                            isChecked={anonymityWarningChecked}
+                            onChange={toggleAnonymityWarning}
+                        >
+                            <Translation id="TR_BREAKING_ANONYMITY_CHECKBOX" />
+                        </Checkbox>
+                    }
+                />
             )}
 
             <Tooltip content={tooltipContent}>
-                <ButtonReview
-                    $isRed={anonymityWarningChecked}
+                <Button
+                    intent={anonymityWarningChecked ? 'critical' : 'brand'}
                     data-testid="@send/review-button"
                     isDisabled={isDisabled || isLoading}
-                    onClick={signTransaction}
+                    onClick={handleButtonReviewClick}
+                    minWidth={200}
+                    size="large"
                 >
-                    <Translation id={getPrimaryText()} />
-                    {buttonHasTwoLines && (
-                        <SecondLine>
-                            <Translation id={secondaryText} />
-                        </SecondLine>
-                    )}
-                </ButtonReview>
+                    <Column alignItems="center" gap={4}>
+                        <Translation id={getPrimaryText()} />
+                        {buttonHasTwoLines && (
+                            <Paragraph typographyStyle="body-xs">
+                                <Translation id={secondaryText} />
+                            </Paragraph>
+                        )}
+                    </Column>
+                </Button>
             </Tooltip>
         </Container>
     );

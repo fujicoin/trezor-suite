@@ -1,38 +1,29 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import type { UseFormSetValue } from 'react-hook-form';
-
-import { ExchangeTrade } from 'invity-api';
 
 import {
     TRADING_EXCHANGE_FORM,
     TRADING_EXCHANGE_FORM_CEX,
     TRADING_EXCHANGE_FORM_DEX,
-    TradingExchangeFormProps,
-    TradingExchangeFormType,
-    TradingExchangeRateType,
-    exchangeUtils,
+    type TradingExchangeFormProps,
+    type TradingExchangeFormType,
+    selectTradingExchangeCexQuotes,
+    selectTradingExchangeDexQuotes,
 } from '@suite-common/trading';
 
+import { useSelector } from 'src/hooks/suite';
+
 interface TradingExchangeQuotesFilterProps {
-    quotes: ExchangeTrade[];
     exchangeType: TradingExchangeFormType;
-    rateType: TradingExchangeRateType;
-    exchangeInfo: any;
     setValue: UseFormSetValue<TradingExchangeFormProps>;
 }
 
 export const useTradingExchangeQuotesFilter = ({
     exchangeType,
-    rateType,
-    quotes,
-    exchangeInfo,
     setValue,
 }: TradingExchangeQuotesFilterProps) => {
-    const dexQuotes = useMemo(() => quotes.filter(quote => quote.isDex), [quotes]);
-    const cexQuotes = useMemo(
-        () => exchangeUtils.getCexQuotesByRateType(rateType, quotes, exchangeInfo),
-        [rateType, quotes, exchangeInfo],
-    );
+    const dexQuotes = useSelector(selectTradingExchangeDexQuotes);
+    const cexQuotes = useSelector(selectTradingExchangeCexQuotes);
 
     // handle edge case when there are no longer quotes of selected exchange type
     useEffect(() => {

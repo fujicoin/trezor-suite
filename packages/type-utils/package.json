@@ -1,9 +1,9 @@
 {
     "name": "@trezor/type-utils",
-    "version": "1.1.8",
+    "version": "10.0.0-alpha.1",
+    "type": "module",
     "homepage": "https://github.com/trezor/trezor-suite/tree/develop/packages/type-utils",
-    "npmPublishAccess": "public",
-    "license": "See LICENSE.md in repo root",
+    "license": "MIT",
     "repository": {
         "type": "git",
         "url": "git://github.com/trezor/trezor-suite.git"
@@ -14,20 +14,23 @@
     "sideEffects": false,
     "main": "src/index",
     "publishConfig": {
-        "main": "lib/index.js"
+        "main": "./lib/index.mjs",
+        "types": "./lib/index.d.mts",
+        "exports": {
+            ".": {
+                "types": "./lib/index.d.mts",
+                "default": "./lib/index.mjs"
+            }
+        }
     },
     "files": [
         "lib/",
-        "!**/*.map"
+        "CHANGELOG.md"
     ],
     "scripts": {
-        "build:lib": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/replace-imports.sh ./lib",
+        "build:lib": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/publish/replace-imports.sh ./lib",
         "depcheck": "yarn g:depcheck",
         "type-check": "yarn g:tsc --build",
-        "prepublishOnly": "yarn tsx ../../scripts/prepublishNPM.js",
-        "prepublish": "yarn tsx ../../scripts/prepublish.js"
-    },
-    "devDependencies": {
-        "tsx": "^4.20.3"
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     }
 }

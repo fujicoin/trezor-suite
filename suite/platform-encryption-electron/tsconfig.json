@@ -1,0 +1,13 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": { "outDir": "libDev" },
+    "references": [
+        {
+            "path": "../../suite-common/platform-encryption"
+        },
+        {
+            "path": "../../packages/suite-desktop-api"
+        },
+        { "path": "../../packages/type-utils" }
+    ]
+}

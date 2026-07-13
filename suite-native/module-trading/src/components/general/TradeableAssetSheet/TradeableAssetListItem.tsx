@@ -1,12 +1,15 @@
 import { useDispatch, useSelector } from 'react-redux';
 
 import { invariant } from '@suite-common/suite-utils';
-import { cryptoIdToSymbol } from '@suite-common/trading';
+import {
+    cryptoIdToSymbol,
+    selectIsTradingFavouriteAssetByCryptoId,
+    tradingActions,
+} from '@suite-common/trading';
+import { type TradingRootState } from '@suite-native/trading-state';
+import { type TradeableAsset } from '@suite-native/trading-types';
 
-import { TradingRootState, tradingActions } from '../../../reducers';
-import { selectIsTradingFavouriteAsset } from '../../../selectors/favouritesSelectors';
-import { TradeableAsset } from '../../../types/general';
-import { ASSET_ITEM_HEIGHT, AssetListItem } from '../AssetListItem';
+import { AssetListItem } from '../AssetListItem';
 import { FavouriteIcon } from './FavouriteIcon';
 
 export type TradeableAssetListItemProps = {
@@ -14,13 +17,11 @@ export type TradeableAssetListItemProps = {
     onPress: () => void;
 };
 
-export { ASSET_ITEM_HEIGHT };
-
 export const TradeableAssetListItem = ({ asset, onPress }: TradeableAssetListItemProps) => {
     const dispatch = useDispatch();
 
     const isFavourite = useSelector((state: TradingRootState) =>
-        selectIsTradingFavouriteAsset(state, asset),
+        selectIsTradingFavouriteAssetByCryptoId(state, asset.cryptoId),
     );
     const { symbol, name, contractAddress, cryptoId } = asset;
 

@@ -4,15 +4,20 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
-import { acquireDevice, selectIsDeviceThpRequired } from '@suite-common/wallet-core';
-import { FeatureFlag, useFeatureFlag } from '@suite-native/feature-flags';
+import { bluetoothActions } from '@suite-common/bluetooth';
+import {
+    selectIsAnyPhysicalDeviceConnectedViaUsb,
+    selectIsDeviceAuthorized,
+    selectIsDeviceThpLocked,
+} from '@suite-common/device';
+import { acquireDevice } from '@suite-common/wallet-core';
 import {
     AuthorizeDeviceStackRoutes,
-    HomeStackParamList,
-    HomeStackRoutes,
-    RootStackParamList,
+    type HomeStackParamList,
+    type HomeStackRoutes,
+    type RootStackParamList,
     RootStackRoutes,
-    StackToStackCompositeNavigationProps,
+    type StackToStackCompositeNavigationProps,
 } from '@suite-native/navigation';
 
 type NavigationProps = StackToStackCompositeNavigationProps<
@@ -23,26 +28,35 @@ type NavigationProps = StackToStackCompositeNavigationProps<
 
 export const useConnectDeviceHandler = () => {
     const dispatch = useDispatch();
-
     const navigation = useNavigation<NavigationProps>();
 
-    const isBluetoothEnabled = useFeatureFlag(FeatureFlag.IsBluetoothEnabled);
-
-    const isDeviceThpRequired = useSelector(selectIsDeviceThpRequired);
-
-    const isIosWithBluetoothEnabled = Platform.OS === 'ios' && isBluetoothEnabled;
+    const isDeviceAuthorized = useSelector(selectIsDeviceAuthorized);
+    const isDeviceThpLocked = useSelector(selectIsDeviceThpLocked);
+    const isAnyPhysicalDeviceConnectedViaUsb = useSelector(
+        selectIsAnyPhysicalDeviceConnectedViaUsb,
+    );
 
     const onConnectDevicePress = useCallback(() => {
-        if (isDeviceThpRequired) {
+        if (!isDeviceAuthorized || isDeviceThpLocked) {
             dispatch(acquireDevice({}));
+        } else if (isAnyPhysicalDeviceConnectedViaUsb || Platform.OS === 'ios') {
+            // Make sure auto-connect is enabled in case some device was manually disconnected.
+            dispatch(bluetoothActions.enableAutoConnect());
+            navigation.navigate(RootStackRoutes.AuthorizeDeviceStack, {
+                screen: AuthorizeDeviceStackRoutes.TurnOnAndUnlockDevice,
+            });
         } else {
             navigation.navigate(RootStackRoutes.AuthorizeDeviceStack, {
-                screen: isIosWithBluetoothEnabled
-                    ? AuthorizeDeviceStackRoutes.TurnOnAndUnlockDevice
-                    : AuthorizeDeviceStackRoutes.ConnectAndUnlockDevice,
+                screen: AuthorizeDeviceStackRoutes.ConnectDeviceCrossroads,
             });
         }
-    }, [dispatch, isDeviceThpRequired, isIosWithBluetoothEnabled, navigation]);
+    }, [
+        dispatch,
+        isDeviceAuthorized,
+        isDeviceThpLocked,
+        isAnyPhysicalDeviceConnectedViaUsb,
+        navigation,
+    ]);
 
     return { onConnectDevicePress };
 };

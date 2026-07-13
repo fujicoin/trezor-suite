@@ -1,14 +1,18 @@
 /* WARNING! This file should be imported ONLY in tests! */
 
-import { DeviceModelInternal, FirmwareRelease } from '@trezor/device-utils';
-import { AbstractApiTransport, UsbApi } from '@trezor/transport';
+import type { Features } from '@trezor/connect-common';
+import { parseConnectSettings } from '@trezor/connect-common/src/data/connectSettings';
+import { firmwareAssets } from '@trezor/connect-data';
+import { DeviceModelInternal } from '@trezor/device-utils';
+import type { FirmwareRelease } from '@trezor/device-utils';
+import { AbstractApiTransport, type UsbApi } from '@trezor/transport-common';
+import { versionUtils } from '@trezor/utils';
 
-import { type Features } from './src/types';
+import * as settingsStore from './src/data/settingsStore';
 
-class TestTransport extends AbstractApiTransport {
-    name = 'TestTransport' as any;
-    apiType = 'usb' as const;
-}
+// Initialize settings store so tests reaching settingsStore.get() (via
+// BackendManager, firmwareInfo, etc.) don't trip the pre-set() throw.
+settingsStore.set(parseConnectSettings({}));
 
 // mock of navigator.usb
 const createTransportApi = (override = {}) =>
@@ -17,6 +21,7 @@ const createTransportApi = (override = {}) =>
         enumerate: () => Promise.resolve({ success: true, payload: [{ path: '1' }] }),
         on: () => {},
         off: () => {},
+        once: () => {},
         openDevice: (path: string) => Promise.resolve({ success: true, payload: [{ path }] }),
         closeDevice: () => Promise.resolve({ success: true }),
         write: () => Promise.resolve({ success: true }),
@@ -28,15 +33,21 @@ const createTransportApi = (override = {}) =>
             }),
         listen: () => {},
         dispose: () => {},
+        type: 'usb',
         ...override,
     }) as unknown as UsbApi;
 
-export const createTestTransport = (apiMethods = {}) =>
-    new TestTransport({
-        api: createTransportApi(apiMethods),
-        id: 'foo-bar-id',
-        messages: {},
-    });
+export const createTestTransportClass = (apiMethods = {}): any =>
+    class TestTransport extends AbstractApiTransport {
+        name = 'TestTransport' as any;
+
+        constructor(params: ConstructorParameters<typeof AbstractApiTransport>[0]) {
+            super({ ...params, api: createTransportApi(apiMethods) });
+        }
+    };
+
+export const createTestTransport = (apiMethods = {}): any =>
+    new (createTestTransportClass(apiMethods))({ id: 'foo-bar-id', messages: {} });
 
 export const getDeviceFeatures = (feat?: Partial<Features>): Features => ({
     vendor: 'trezor.io',
@@ -80,39 +91,13 @@ export const getDeviceFeatures = (feat?: Partial<Features>): Features => ({
     ...feat,
 });
 
-const commonReleaseData: FirmwareRelease = {
-    required: false,
-    url: '/some/path/to/firmware.bin',
-    version: [2, 8, 9],
-    min_bootloader_version: [2, 1, 6],
-    min_firmware_version: [2, 7, 2],
-    bootloader_version: [2, 1, 8],
-    translations: {
-        'cs-CZ': 'firmware/translations/t2t1/translation-T2T1-cs-CZ-2.8.9.bin',
-        'de-DE': 'firmware/translations/t2t1/translation-T2T1-de-DE-2.8.9.bin',
-        'es-ES': 'firmware/translations/t2t1/translation-T2T1-es-ES-2.8.9.bin',
-        'fr-FR': 'firmware/translations/t2t1/translation-T2T1-fr-FR-2.8.9.bin',
-        'it-IT': 'firmware/translations/t2t1/translation-T2T1-it-IT-2.8.9.bin',
-        'pt-BR': 'firmware/translations/t2t1/translation-T2T1-pt-BR-2.8.9.bin',
-    },
-    firmware_revision: 'fad9682201cf9289bba2adb66e6e07ed1cf78936',
-    fingerprint: 'ac995c394f7a7b3ea4cbd9c04977621d6d2fbef30bba856f707f585f34866ac4',
-    changelog:
-        '* Ability to cancel recovery flow on word count selection screen.\n' +
-        '* New UI for confirming long messages.\n' +
-        '* Changed "swipe to continue" to "tap to continue". Screens still respond to swipe-up, but the preferred interaction method is now tapping the lower part of the screen.',
-};
-
-const getReleaseData = (releaseInfo: Partial<FirmwareRelease> = {}): FirmwareRelease => ({
-    ...commonReleaseData,
-    ...releaseInfo,
-});
-
 declare global {
     var JestMocks: {
         getDeviceFeatures: typeof getDeviceFeatures;
         createTestTransport: typeof createTestTransport;
-        getReleaseData: typeof getReleaseData;
+        createTestTransportClass: typeof createTestTransportClass;
+        releasesT1B1: FirmwareRelease[];
+        releasesT2T1: FirmwareRelease[];
     };
 
     type TestFixtures<TestedMethod extends (...args: any) => any> = {
@@ -122,8 +107,24 @@ declare global {
     }[];
 }
 
+// T1B1
+// @ts-expect-error: indexing with noUncheckedIndexedAccess
+const t1b1Assets: { [file: string]: FirmwareRelease } = firmwareAssets.t1b1.universal;
+const releasesT1B1 = Object.values(t1b1Assets).sort((a, b) =>
+    versionUtils.isNewer(b.version, a.version) ? 1 : -1,
+);
+
+// T2T1
+// @ts-expect-error: indexing with noUncheckedIndexedAccess
+const t2t1Assets: { [file: string]: FirmwareRelease } = firmwareAssets.t2t1.universal;
+const releasesT2T1 = Object.values(t2t1Assets).sort((a, b) =>
+    versionUtils.isNewer(b.version, a.version) ? 1 : -1,
+);
+
 global.JestMocks = {
     getDeviceFeatures,
     createTestTransport,
-    getReleaseData,
+    createTestTransportClass,
+    releasesT1B1,
+    releasesT2T1,
 };

@@ -1,66 +1,90 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 
-import { TradingType } from '@suite-common/trading';
-import { Account } from '@suite-common/wallet-types';
-import { Translation } from '@suite-native/intl';
-
-import { BottomSheetSectionList } from '../BottomSheetSectionList';
-import { MyAssetListEmptyComponent } from './MyAssetListEmptyComponent';
-import { ASSET_ITEM_HEIGHT, MyAssetListItem, MyAssetListItemProps } from './MyAssetListItem';
-import { MyAssetListSectionHeader } from './MyAssetListSectionHeader';
+import { type TradingType } from '@suite-common/trading';
+import { type Account } from '@suite-common/wallet-types';
+import { type BottomSheetFlashListHandleProps } from '@suite-native/atoms';
+import { BottomSheetSectionList } from '@suite-native/trading-atoms';
 import {
-    CombinedSelectorsRootState,
-    selectAccountsWithTokensToSellSectionListByTradingType,
-} from '../../../selectors/commonSelectors';
-import { MyAsset, TradeableAsset } from '../../../types/general';
-import { SimpleSheetHeader } from '../SimpleSheetHeader';
+    type CombinedSelectorsRootState,
+    selectAccountsWithTokensToSellSectionCondensedListByTradingType,
+} from '@suite-native/trading-state';
+import { type MyAssetRow, type TradeableAsset } from '@suite-native/trading-types';
+
+import { MyAssetListEmptyComponent } from './MyAssetListEmptyComponent';
+import { MyAssetListItem, type MyAssetListItemProps } from './MyAssetListItem';
+import { MyAssetListSectionHeader } from './MyAssetListSectionHeader';
+import { MyAssetSheetHeader } from './MyAssetSheetHeader';
+import { MyAssetsDisabledListItem } from './MyAssetsDisabledListItem';
+import { useMyAssetsFilteredData } from '../../../hooks/general/useMyAssetsFilteredData';
 
 export type MyAssetSheetProps = {
     tradingType: TradingType;
     isVisible: boolean;
-    onClose: () => void;
+    onClose: (shouldHideKeyboard?: boolean) => void;
     onAssetSelect: MyAssetListItemProps['onPress'];
+    testID?: string;
 };
 
-const keyExtractor = (asset: MyAsset, sectionData: Account) => `${sectionData.key}_${asset.name}`;
+const keyExtractor = (asset: MyAssetRow, sectionData: Account) =>
+    `${sectionData.key}_${asset.name}`;
 
 const renderItem = (
-    asset: MyAsset,
+    asset: MyAssetRow,
     { sectionData }: { sectionData: Account },
     onAssetSelect: MyAssetListItemProps['onPress'],
-) => <MyAssetListItem asset={asset} account={sectionData} onPress={onAssetSelect} />;
+) =>
+    asset.isEnabled ? (
+        <MyAssetListItem asset={asset} account={sectionData} onPress={onAssetSelect} />
+    ) : (
+        <MyAssetsDisabledListItem count={asset.count} />
+    );
 
 export const MyAssetSheet = memo(
-    ({ tradingType, isVisible, onClose, onAssetSelect }: MyAssetSheetProps) => {
-        const onAssetSelectCallback = (asset: TradeableAsset, account: Account) => {
-            onAssetSelect(asset, account);
-            onClose();
-        };
-
+    ({ tradingType, isVisible, onClose, onAssetSelect, testID }: MyAssetSheetProps) => {
         const myAssets = useSelector((state: CombinedSelectorsRootState) =>
-            selectAccountsWithTokensToSellSectionListByTradingType(state, tradingType),
+            selectAccountsWithTokensToSellSectionCondensedListByTradingType(state, tradingType),
         );
 
-        const renderHandle = () => (
-            <SimpleSheetHeader
-                onClose={onClose}
-                title={<Translation id="moduleTrading.myAssetSheet.title" />}
-            />
+        const {
+            filteredSections,
+            setFilterValue,
+            setFilterSymbol,
+            availableNetworks,
+            filterValue,
+        } = useMyAssetsFilteredData(myAssets);
+
+        const headerTestID = testID ? `${testID}/header` : undefined;
+
+        const renderHandle = useCallback(
+            ({ closeSheet }: BottomSheetFlashListHandleProps) => (
+                <MyAssetSheetHeader
+                    onClose={closeSheet}
+                    onFilterChange={setFilterValue}
+                    onSelectedNetworkFilter={setFilterSymbol}
+                    availableNetworks={availableNetworks}
+                    testID={headerTestID}
+                />
+            ),
+            [setFilterValue, setFilterSymbol, availableNetworks, headerTestID],
         );
 
         return (
-            <BottomSheetSectionList<MyAsset, Account>
+            <BottomSheetSectionList<MyAssetRow, Account>
                 isVisible={isVisible}
                 onClose={onClose}
                 ListEmptyComponent={<MyAssetListEmptyComponent />}
                 handleComponent={renderHandle}
-                data={myAssets}
+                data={filteredSections}
                 keyExtractor={keyExtractor}
-                estimatedItemSize={ASSET_ITEM_HEIGHT}
-                renderItem={(asset, config) => renderItem(asset, config, onAssetSelectCallback)}
+                renderItem={(asset, config, { closeSheet }) =>
+                    renderItem(asset, config, (selectedAsset: TradeableAsset, account: Account) => {
+                        onAssetSelect(selectedAsset, account);
+                        closeSheet();
+                    })
+                }
                 renderSectionHeader={(_label, config) => {
-                    const sectionIndex = myAssets.findIndex(
+                    const sectionIndex = filteredSections.findIndex(
                         section => section.sectionData.key === config.sectionData.key,
                     );
 
@@ -71,6 +95,7 @@ export const MyAssetSheet = memo(
                         />
                     );
                 }}
+                flashListKey={filterValue}
             />
         );
     },

@@ -3,6 +3,7 @@ import type { ComponentProps, HTMLProps, PropsWithChildren, ReactElement, ReactN
 import { Children, cloneElement, useEffect, useRef, useState } from 'react';
 
 import cn from 'clsx';
+import type { FrontMatter } from 'nextra';
 import { Code, Pre, Table, Td, Th, Tr } from 'nextra/components';
 import type { Components } from 'nextra/mdx';
 
@@ -10,9 +11,9 @@ import { Card } from '@trezor/components';
 
 import { Anchor, Collapse } from './components';
 import type { AnchorProps } from './components/anchor';
-import type { DocsThemeConfig } from './constants';
-import { DetailsProvider, useDetails, useSetActiveAnchor } from './contexts';
-import { useIntersectionObserver, useSlugs } from './contexts/active-anchor';
+import { useIntersectionObserver, useSetActiveAnchor, useSlugs } from './contexts/active-anchor';
+import { DetailsProvider, useDetails } from './contexts/details';
+import type { DocsThemeConfig } from './schema';
 
 // Anchor links
 function HeadingLink({
@@ -31,6 +32,7 @@ function HeadingLink({
     const observer = useIntersectionObserver();
     const obRef = useRef<HTMLAnchorElement>(null);
 
+    /* eslint-disable react-hooks/immutability */
     useEffect(() => {
         if (!id) return;
         const heading = obRef.current;
@@ -49,6 +51,7 @@ function HeadingLink({
             });
         };
     }, [id, context, slugs, observer, setActiveAnchor]);
+    /* eslint-enable react-hooks/immutability */
 
     return (
         <Tag
@@ -184,7 +187,7 @@ export const getComponents = ({
     isRawLayout,
     components,
 }: {
-    frontMatter: any;
+    frontMatter: FrontMatter;
     isRawLayout?: boolean;
     components?: DocsThemeConfig['components'];
 }): Components => {

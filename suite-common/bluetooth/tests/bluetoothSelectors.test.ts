@@ -1,9 +1,13 @@
+import { asBluetoothDeviceId } from '@trezor/connect';
 import { DeviceModelInternal } from '@trezor/device-utils';
 
-import { BluetoothManufacturerData, prepareSelectAllDevices } from '../src';
-import { BluetoothState } from '../src/bluetoothReducer';
-import { WithBluetoothState } from '../src/bluetoothSelectors';
-import { BluetoothDeviceCommon } from '../src/types';
+import {
+    type BluetoothManufacturerData,
+    prepareInitialState,
+    prepareSelectAllDevices,
+} from '../src';
+import type { WithBluetoothState } from '../src/bluetoothSelectors';
+import type { BluetoothDeviceCommon } from '../src/types';
 
 const manufacturerData: BluetoothManufacturerData = {
     deviceModel: DeviceModelInternal.T3W1,
@@ -11,15 +15,8 @@ const manufacturerData: BluetoothManufacturerData = {
     filterPolicy: undefined,
 };
 
-const initialState: BluetoothState<BluetoothDeviceCommon> = {
-    adapterStatus: 'unknown',
-    scanStatus: 'idle',
-    nearbyDevices: [],
-    knownDevices: [],
-};
-
 const pairingDeviceStateA: BluetoothDeviceCommon = {
-    id: 'A',
+    id: asBluetoothDeviceId('A'),
     manufacturerData,
     name: 'Trezor A',
     lastUpdatedTimestamp: 1,
@@ -27,7 +24,7 @@ const pairingDeviceStateA: BluetoothDeviceCommon = {
 };
 
 const disconnectedDeviceB: BluetoothDeviceCommon = {
-    id: 'B',
+    id: asBluetoothDeviceId('B'),
     manufacturerData,
     name: 'Trezor B',
     lastUpdatedTimestamp: 2,
@@ -35,7 +32,7 @@ const disconnectedDeviceB: BluetoothDeviceCommon = {
 };
 
 const pairingDeviceStateC: BluetoothDeviceCommon = {
-    id: 'C',
+    id: asBluetoothDeviceId('C'),
     manufacturerData,
     name: 'Trezor C',
     lastUpdatedTimestamp: 3,
@@ -48,7 +45,7 @@ describe('bluetoothSelectors', () => {
 
         const state: WithBluetoothState<BluetoothDeviceCommon> = {
             bluetooth: {
-                ...initialState,
+                ...prepareInitialState(),
                 knownDevices: [pairingDeviceStateA, disconnectedDeviceB],
                 nearbyDevices: [
                     {

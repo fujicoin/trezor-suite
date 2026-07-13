@@ -76,6 +76,10 @@ export class BluetoothIpc extends TypedEmitter<BluetoothIpcEvents> implements Bl
             }
         });
 
+        this.api.on('open_bluetooth_settings', event => {
+            this.emit('open-bluetooth-settings', event);
+        });
+
         return this.result();
     }
 
@@ -91,7 +95,23 @@ export class BluetoothIpc extends TypedEmitter<BluetoothIpcEvents> implements Bl
                     devices: this.state.knownDevices,
                 });
 
-                const scanResult = await this.api.send('start_scan');
+                const { devices: scanResult } = await this.api
+                    .send('start_scan')
+                    .then(res => res)
+                    // todo: bluetooth-ipc-main.init is called in inInitBluetoothThunk. If it returns an error there, thunk does not proceed and listeners are not registered.
+                    // This is a hotfix, I believe, that initBluetoothThunks call to bluetoothIpc.init should only check that ipc channel is established, nothing more.
+                    .catch(error => {
+                        console.warn('Initial start_scan error', error);
+                        if (
+                            error.message.includes('Adapter disabled') || // <-- when bluetooth is off
+                            error.message.includes('Adapter missing') // <-- when app permissions removed
+                        ) {
+                            this.emit('adapter-event', 'disabled');
+
+                            return { devices: [] };
+                        }
+                        throw error;
+                    });
                 if (scanResult.length === 0) {
                     // wait. devices may not be returned immediately
                     await resolveAfter(1000);
@@ -102,6 +122,17 @@ export class BluetoothIpc extends TypedEmitter<BluetoothIpcEvents> implements Bl
         }
 
         return this.result();
+    }
+
+    async getInfo() {
+        try {
+            await this.connectApi();
+            const info = await this.api.send('get_info');
+
+            return { success: true as const, payload: info };
+        } catch (error) {
+            return { success: false as const, error };
+        }
     }
 
     dispose() {
@@ -116,7 +147,7 @@ export class BluetoothIpc extends TypedEmitter<BluetoothIpcEvents> implements Bl
         }
 
         try {
-            const devices = await this.api.send('start_scan');
+            const { devices } = await this.api.send('start_scan');
             this.isScanning = true;
             this.emit('device-list-update', this.filterConnectableDevices(devices));
         } catch (error) {
@@ -141,6 +172,8 @@ export class BluetoothIpc extends TypedEmitter<BluetoothIpcEvents> implements Bl
     }
 
     async connectDevice(id: string) {
+        const timeout = 30000;
+
         try {
             await this.connectApi();
         } catch (error) {
@@ -149,10 +182,11 @@ export class BluetoothIpc extends TypedEmitter<BluetoothIpcEvents> implements Bl
 
         // this is intentionally not wrapped in try/catch
         // we want to remove event listeners before error is returned
-        const emitDeviceUpdate = (device: BluetoothDevice) => this.emit('device-update', device);
+        const emitDeviceUpdate = ({ device }: { device: BluetoothDevice }) =>
+            this.emit('device-update', device);
         this.api.on('device_connection_status', emitDeviceUpdate);
         const result = await this.api
-            .send('connect_device', { id, timeout: 30000 })
+            .send('connect_device', { id, timeout })
             .then(() => this.result())
             .catch(error => this.result(error.message));
         this.api.off('device_connection_status', emitDeviceUpdate);
@@ -163,7 +197,7 @@ export class BluetoothIpc extends TypedEmitter<BluetoothIpcEvents> implements Bl
     async disconnectDevice(id: string) {
         try {
             await this.connectApi();
-            await this.api.send('disconnect_device', id);
+            await this.api.send('disconnect_device', { id });
         } catch (error) {
             return this.result(error.message);
         }
@@ -174,11 +208,22 @@ export class BluetoothIpc extends TypedEmitter<BluetoothIpcEvents> implements Bl
     async forgetDevice(id: string) {
         try {
             await this.connectApi();
-            await this.api.send('forget_device', id);
+            await this.api.send('forget_device', { id });
         } catch (error) {
             return this.result(error.message);
         }
 
         return this.result();
+    }
+
+    async enumerateDevices() {
+        try {
+            await this.connectApi();
+            const { devices } = await this.api.send('enumerate');
+
+            return this.filterConnectableDevices(devices);
+        } catch {
+            return [];
+        }
     }
 }

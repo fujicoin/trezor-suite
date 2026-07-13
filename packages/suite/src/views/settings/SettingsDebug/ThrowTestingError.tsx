@@ -1,4 +1,4 @@
-import { ActionButton, ActionColumn, SectionItem, TextColumn } from 'src/components/suite';
+import { ActionButton, ActionColumn, SectionItem, TextColumn } from '@trezor/product-components';
 
 // TODO add possibility to throw testing error from Electron main process
 
@@ -10,7 +10,7 @@ export const ThrowTestingError = () => (
         />
         <ActionColumn>
             <ActionButton
-                variant="destructive"
+                intent="critical"
                 onClick={() => {
                     throw new Error(`TESTING ERROR ${Date.now()}`);
                 }}

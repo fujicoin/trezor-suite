@@ -1,48 +1,32 @@
-import { useMemo } from 'react';
+import { useCallback } from 'react';
 
-import { TradingExchangeType } from '@suite-common/trading';
-
-import { getTradingCryptoInfo } from 'src/utils/wallet/trading/tradingUtils';
+import { type TradingExchangeType } from '@suite-common/trading';
 
 import { useTradingFormContext } from './useTradingCommonForm';
 
 export const useTradingExchangeCryptoAndProviderInfo = () => {
-    const { selectedQuote, preselectedQuote, exchangeInfo, getValues } =
-        useTradingFormContext<TradingExchangeType>();
-    const { sendCryptoSelect, receiveCryptoSelect, selectedFee } = getValues();
+    const { selectedQuote, exchangeInfo, getValues } = useTradingFormContext<TradingExchangeType>();
 
-    const cryptoInfo = useMemo(() => {
-        const {
-            label: sendCryptoLabel,
-            networkSymbol: sendCryptoNetworkSymbol,
-            contractAddress: sendCryptoContractAddress,
-        } = getTradingCryptoInfo(sendCryptoSelect);
+    const getCryptoInfo = useCallback(() => {
+        const { sendCryptoSelect, receiveCryptoSelect, selectedFee } = getValues();
 
-        const {
-            label: receiveCryptoLabel,
-            networkSymbol: receiveCryptoNetworkSymbol,
-            contractAddress: receiveCryptoContractAddress,
-        } = getTradingCryptoInfo(receiveCryptoSelect);
+        const quoteExchange = selectedQuote?.exchange;
+        const quoteProviderName =
+            quoteExchange && exchangeInfo?.providerInfos[quoteExchange]?.companyName;
 
         return {
-            sendCryptoLabel,
-            sendCryptoNetworkSymbol,
-            sendCryptoContractAddress,
-            receiveCryptoLabel,
-            receiveCryptoNetworkSymbol,
-            receiveCryptoContractAddress,
+            sendCryptoLabel: sendCryptoSelect?.displaySymbol,
+            sendCryptoNetworkSymbol: sendCryptoSelect?.networkSymbol,
+            sendCryptoContractAddress: sendCryptoSelect?.contractAddress ?? undefined,
+
+            receiveCryptoLabel: receiveCryptoSelect?.displaySymbol,
+            receiveCryptoNetworkSymbol: receiveCryptoSelect?.networkSymbol,
+            receiveCryptoContractAddress: receiveCryptoSelect?.contractAddress ?? undefined,
+
+            exchangeName: quoteProviderName,
+            selectedFee,
         };
-    }, [sendCryptoSelect, receiveCryptoSelect]);
+    }, [getValues, selectedQuote?.exchange, exchangeInfo?.providerInfos]);
 
-    const providerName = useMemo(() => {
-        const quoteExchange = preselectedQuote?.exchange ?? selectedQuote?.exchange;
-
-        return quoteExchange && exchangeInfo?.providerInfos[quoteExchange]?.companyName;
-    }, [selectedQuote, preselectedQuote, exchangeInfo]);
-
-    return {
-        ...cryptoInfo,
-        providerName,
-        selectedFee,
-    };
+    return getCryptoInfo;
 };

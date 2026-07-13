@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { Freeze } from 'react-freeze';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -9,20 +10,28 @@ import * as Sentry from '@sentry/react-native';
 import * as SplashScreen from 'expo-splash-screen';
 
 import { FormatterProvider } from '@suite-common/formatters';
+import { ReactNativeQueryProvider } from '@suite-common/react-query/src/components/ReactNativeQueryProvider';
+import { applicationInit } from '@suite-native/app-init';
+import { selectShouldUserBeAuthenticated } from '@suite-native/biometrics';
+import { launchArguments } from '@suite-native/config';
 import { configureNetInfo } from '@suite-native/connection-status';
-import { useFormattersConfig } from '@suite-native/formatters';
+import { useFormattersConfig } from '@suite-native/formatters-config';
 import { IntlProvider } from '@suite-native/intl';
 import { KillswitchMessageScreen } from '@suite-native/message-system';
 import { NavigationContainerWithAnalytics } from '@suite-native/navigation';
 import { initSentry } from '@suite-native/sentry';
-import { selectIsOnboardingFinished } from '@suite-native/settings';
-import { StoreProvider, selectIsAppReady } from '@suite-native/state';
+import {
+    type PreloadedState,
+    StoreProvider,
+    initStore,
+    selectIsAppReady,
+} from '@suite-native/state';
 
 import { BannersRenderer } from './BannersRenderer';
 import { ModalsRenderer } from './ModalsRenderer';
 import { StylesProvider } from './StylesProvider';
+import { InitRosenitePlugin } from './devtools/InitRoseniteDevTools';
 import { useReportAppInitToAnalytics } from './hooks/useReportAppInitToAnalytics';
-import { applicationInit, postOnboardingInit } from './initActions';
 import { RootStackNavigator } from './navigation/RootStackNavigator';
 import { disableRTL } from './rtl';
 
@@ -48,21 +57,23 @@ SplashScreen.preventAutoHideAsync();
 // https://github.com/react-native-netinfo/react-native-netinfo?tab=readme-ov-file#configure
 configureNetInfo();
 
-let isApplicationInitDispatched = false;
-let isPostOnboardingInitDispatched = false;
+// preloadedState has to be cast to PreloadedState type because it is passed from Detox as `string` (serialized object)
+// but the `react-native-launch-arguments` library does converts it to JavaScript object in the background.
+const store = initStore(launchArguments.preloadedState as PreloadedState);
 
 const AppComponent = () => {
     const dispatch = useDispatch();
     const formattersConfig = useFormattersConfig();
+    const isApplicationInitDispatchedRef = useRef(false);
     const isAppReady = useSelector(selectIsAppReady);
-    const isOnboardingFinished = useSelector(selectIsOnboardingFinished);
+    const shouldUserBeAuthenticated = useSelector(selectShouldUserBeAuthenticated);
 
     useReportAppInitToAnalytics(APP_STARTED_TIMESTAMP);
 
     useEffect(() => {
-        if (!isApplicationInitDispatched) {
+        if (!isApplicationInitDispatchedRef.current) {
             dispatch(applicationInit());
-            isApplicationInitDispatched = true;
+            isApplicationInitDispatchedRef.current = true;
         }
     }, [dispatch]);
 
@@ -72,20 +83,16 @@ const AppComponent = () => {
         }
     }, [isAppReady]);
 
-    useEffect(() => {
-        if (isAppReady && isOnboardingFinished && !isPostOnboardingInitDispatched) {
-            dispatch(postOnboardingInit());
-            isPostOnboardingInitDispatched = true;
-        }
-    }, [isAppReady, isOnboardingFinished, dispatch]);
-
     if (!isAppReady) return null;
 
     return (
         <FormatterProvider config={formattersConfig}>
+            {__DEV__ && <InitRosenitePlugin />}
             <BannersRenderer />
             <BottomSheetModalProvider>
-                <RootStackNavigator />
+                <Freeze freeze={shouldUserBeAuthenticated}>
+                    <RootStackNavigator />
+                </Freeze>
             </BottomSheetModalProvider>
             <ModalsRenderer />
             {/* NOTE: Rendered as last item so that it covers the whole app screen */}
@@ -96,19 +103,21 @@ const AppComponent = () => {
 
 const PureApp = () => (
     <GestureHandlerRootView style={{ flex: 1 }}>
-        <IntlProvider>
-            <StoreProvider>
-                <KeyboardProvider>
-                    <SafeAreaProvider>
-                        <StylesProvider>
-                            <NavigationContainerWithAnalytics>
-                                <AppComponent />
-                            </NavigationContainerWithAnalytics>
-                        </StylesProvider>
-                    </SafeAreaProvider>
-                </KeyboardProvider>
-            </StoreProvider>
-        </IntlProvider>
+        <StoreProvider store={store}>
+            <ReactNativeQueryProvider>
+                <IntlProvider>
+                    <KeyboardProvider>
+                        <SafeAreaProvider>
+                            <StylesProvider>
+                                <NavigationContainerWithAnalytics>
+                                    <AppComponent />
+                                </NavigationContainerWithAnalytics>
+                            </StylesProvider>
+                        </SafeAreaProvider>
+                    </KeyboardProvider>
+                </IntlProvider>
+            </ReactNativeQueryProvider>
+        </StoreProvider>
     </GestureHandlerRootView>
 );
 

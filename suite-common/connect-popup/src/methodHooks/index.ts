@@ -1,39 +1,22 @@
-import { Dispatch } from '@reduxjs/toolkit/react';
-
-import { PrecomposedTransactionFinal } from '@suite-common/wallet-types';
-import {
-    CallMethodParams,
-    CallMethodResponse,
-    Success,
-    TrezorConnect,
-    Unsuccessful,
-} from '@trezor/connect';
+import { type CallMethodKeys } from '@trezor/connect';
 
 import { addressConfirmationModalHooks } from './addressConfirmation';
 import { bitcoinSignTransaction } from './bitcoinSignTransaction';
 import { ethereumSignTransaction } from './ethereumSignTransaction';
+import { requestLoginHooks } from './requestLogin';
+import { selectAccountHooks } from './selectAccount';
 import { solanaSignTransaction } from './solanaSignTransaction';
-import { ConnectCallSource } from '../connectPopupTypes';
+import { type PostCallHookParams, type PreCallHookParams } from './types';
 
-export type PreCallHookParams<M extends keyof TrezorConnect> = {
-    method: M;
-    payload: Omit<CallMethodParams<M>, 'method'>;
-    dispatch: Dispatch;
-    getState: () => any;
-    txSigningPrecomposed?: PrecomposedTransactionFinal;
-    source: ConnectCallSource;
-};
-export type PostCallHookParams<M extends keyof TrezorConnect> = PreCallHookParams<M> & {
-    originalPayload: Omit<CallMethodParams<M>, 'method'>;
-    response: Success<CallMethodResponse<M>> | Unsuccessful;
-};
-
-export const preCallHooks = async <M extends keyof TrezorConnect>(params: PreCallHookParams<M>) => {
+export const preCallHooks = async <M extends CallMethodKeys>(params: PreCallHookParams<M>) => {
     await bitcoinSignTransaction.preCallHook(params);
     await solanaSignTransaction.preCallHook(params);
 
     const ethereumPayload = await ethereumSignTransaction.preCallHook(params);
     if (ethereumPayload) return ethereumPayload;
+
+    const requestLoginPayload = requestLoginHooks.preCallHook(params);
+    if (requestLoginPayload) return requestLoginPayload;
 
     const addressConfirmPayload = await addressConfirmationModalHooks.preCallHook(params);
     if (addressConfirmPayload) return addressConfirmPayload;
@@ -41,12 +24,13 @@ export const preCallHooks = async <M extends keyof TrezorConnect>(params: PreCal
     return params.payload;
 };
 
-export async function postCallHooks<M extends keyof TrezorConnect>(params: PostCallHookParams<M>) {
+export async function postCallHooks<M extends CallMethodKeys>(params: PostCallHookParams<M>) {
     const hooks = [
         await bitcoinSignTransaction.postCallHook(params),
         await ethereumSignTransaction.postCallHook(params),
         await solanaSignTransaction.postCallHook(params),
         await addressConfirmationModalHooks.postCallHook(params),
+        await selectAccountHooks.postCallHook(params),
     ];
 
     return hooks.some(Boolean);

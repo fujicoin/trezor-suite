@@ -1,6 +1,8 @@
-import { FunctionComponent } from 'react';
+import { type FunctionComponent } from 'react';
 
-import { closeModalApp } from 'src/actions/suite/routerActions';
+import { CreateWalletBackupModal } from '@suite/backup';
+import { closeModalApp } from '@suite/router';
+
 import { useDispatch } from 'src/hooks/suite';
 import type { ForegroundAppRoute } from 'src/types/suite';
 import { Backup } from 'src/views/backup/Backup';
@@ -16,7 +18,7 @@ import { Version } from 'src/views/suite/version';
 import { MultiShareBackupModal } from '../ReduxModal/UserContextModal/MultiShareBackupModal/MultiShareBackupModal';
 
 // would not work if defined directly in the switch
-const FirmwareType = () => <FirmwareUpdate shouldSwitchFirmwareType />;
+const FirmwareType = () => <FirmwareUpdate />;
 
 const getForegroundApp = (app: ForegroundAppRoute['app']) => {
     const map: Record<ForegroundAppRoute['app'], FunctionComponent<any> | null> = {
@@ -28,10 +30,11 @@ const getForegroundApp = (app: ForegroundAppRoute['app']) => {
         'bridge-requested': BridgeRequested,
         'bridge-deprecated': BridgeDeprecated,
         udev: UdevRules,
-        'switch-device': null, // extracted to PassphraseFlow.tsx
+        'switch-device': null, // extracted to SwitchDeviceLayer.tsx
         recovery: Recovery,
         backup: Backup,
         'create-multi-share-backup': MultiShareBackupModal,
+        'create-wallet-backup': CreateWalletBackupModal,
     };
 
     return map[app];

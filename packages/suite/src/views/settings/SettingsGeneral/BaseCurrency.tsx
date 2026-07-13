@@ -1,35 +1,33 @@
 import { useMemo } from 'react';
 
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation, useTranslation } from '@suite/intl';
+import { Anchor, SettingsAnchor } from '@suite/router';
+import { useServices } from '@suite-common/dependency-injection';
 import { selectBaseCurrency, setBaseCurrency } from '@suite-common/wallet-core';
+import { buildCurrencyLongOption, buildCurrencyShortOption } from '@suite-common/wallet-utils';
 import {
-    BaseCurrencyCode,
+    type BaseCurrencyCode,
     fiatBaseCurrencies,
     valuablesBaseCurrencies,
 } from '@trezor/blockchain-link-types';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { ActionColumn, ActionSelect, SectionItem, TextColumn } from '@trezor/product-components';
 import { typedObjectKeys } from '@trezor/utils';
 
-import { SettingsSectionItem } from 'src/components/settings';
-import { ActionColumn, ActionSelect, TextColumn, Translation } from 'src/components/suite';
-import { SettingsAnchor } from 'src/constants/suite/anchors';
-import { useDispatch, useSelector, useTranslation } from 'src/hooks/suite';
-
-const buildCurrencyOption = (currency: BaseCurrencyCode) => ({
-    value: currency,
-    label: currency.toUpperCase(),
-});
+import { useDispatch, useSelector } from 'src/hooks/suite';
 
 export const BaseCurrency = () => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const { translationString } = useTranslation();
     const baseCurrencyCode = useSelector(selectBaseCurrency);
     const dispatch = useDispatch();
 
-    const value = buildCurrencyOption(baseCurrencyCode);
+    const value = buildCurrencyShortOption({ currency: baseCurrencyCode, areSatsDisplayed: false });
 
     const handleChange = (option: { value: BaseCurrencyCode; label: string }) => {
         dispatch(setBaseCurrency(option.value));
         analytics.report({
-            type: EventType.SettingsGeneralChangeFiat,
+            type: events.settingsGeneralChangeFiatEvent.name,
             payload: {
                 fiat: option.value,
             },
@@ -40,28 +38,40 @@ export const BaseCurrency = () => {
         () => [
             {
                 label: translationString('TR_BASE_CURRENCY_FIAT'),
-                options: typedObjectKeys(fiatBaseCurrencies).map(buildCurrencyOption),
+                options: typedObjectKeys(fiatBaseCurrencies).map(currency =>
+                    buildCurrencyLongOption({ currency, areSatsDisplayed: false }),
+                ),
             },
             {
                 label: translationString('TR_BASE_CURRENCY_VALUABLES'),
-                options: typedObjectKeys(valuablesBaseCurrencies).map(buildCurrencyOption),
+                options: typedObjectKeys(valuablesBaseCurrencies).map(currency =>
+                    buildCurrencyLongOption({ currency, areSatsDisplayed: false }),
+                ),
             },
         ],
         [translationString],
     );
 
     return (
-        <SettingsSectionItem anchorId={SettingsAnchor.Fiat}>
-            <TextColumn title={<Translation id="TR_BASE_CURRENCY" />} />
-            <ActionColumn>
-                <ActionSelect
-                    useKeyPressScroll
-                    onChange={handleChange}
-                    value={value}
-                    options={options}
-                    data-testid="@settings/fiat-select"
-                />
-            </ActionColumn>
-        </SettingsSectionItem>
+        <Anchor anchorId={SettingsAnchor.Fiat}>
+            {({ anchorId, anchorRef, shouldHighlight }) => (
+                <SectionItem
+                    data-testid={anchorId}
+                    ref={anchorRef}
+                    shouldHighlight={shouldHighlight}
+                >
+                    <TextColumn title={<Translation id="TR_BASE_CURRENCY" />} />
+                    <ActionColumn>
+                        <ActionSelect
+                            isSearchable
+                            onChange={handleChange}
+                            value={value}
+                            options={options}
+                            data-testid="@settings/fiat-select"
+                        />
+                    </ActionColumn>
+                </SectionItem>
+            )}
+        </Anchor>
     );
 };

@@ -1,12 +1,14 @@
 import { IntlProvider } from 'react-intl';
 
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 
-import { FractionButton as FractionButtonComponent, FractionButtonProps } from './FractionButton';
-import { buttonVariants } from '../../buttons/buttonStyleUtils';
+import {
+    FractionButton as FractionButtonComponent,
+    type FractionButtonProps,
+} from './FractionButton';
 
-const meta: Meta = {
-    title: 'Form',
+const meta: Meta<typeof FractionButtonComponent> = {
+    title: '✏️ Form',
     decorators: [
         (Story: React.FC) => (
             <IntlProvider locale="en">
@@ -15,7 +17,7 @@ const meta: Meta = {
         ),
     ],
     component: FractionButtonComponent,
-} as Meta;
+};
 export default meta;
 
 export const FractionButton: StoryObj<FractionButtonProps> = {
@@ -24,12 +26,10 @@ export const FractionButton: StoryObj<FractionButtonProps> = {
         id: 'TR_FRACTION_BUTTONS_REWARDS',
         children: 'Rewards',
         tooltip: 'Tooltip',
-        variant: 'primary',
         isDisabled: false,
         onClick: () => console.log('Rewards'),
     },
     argTypes: {
-        variant: { control: 'radio', options: buttonVariants },
         isDisabled: { control: 'boolean' },
     },
 };

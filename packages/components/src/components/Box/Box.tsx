@@ -1,21 +1,20 @@
+import { type HTMLProps } from 'react';
+
 import styled, { css } from 'styled-components';
 
-import {
-    BorderWidths,
-    CSSColor,
-    Elevation,
-    mapElevationToBackground,
-    mapElevationToBorder,
-} from '@trezor/theme';
+import { type BorderWidths, type BoxShadow, type Color } from '@trezor/theme';
 
 import {
-    FrameProps,
-    FramePropsKeys,
+    type FrameProps,
+    type FramePropsKeys,
     pickAndPrepareFrameProps,
     withFrameProps,
 } from '../../utils/frameProps';
-import { TransientProps } from '../../utils/transientProps';
-import { useElevation } from '../ElevationContext/ElevationContext';
+import { type TransientProps } from '../../utils/transientProps';
+import { commonFocusStyles } from '../../utils/utils';
+
+const getValueWithUnit = (value: string | number) =>
+    typeof value === 'number' ? `${value}px` : value;
 
 export const allowedBoxFrameProps = [
     'margin',
@@ -35,44 +34,67 @@ export const allowedBoxFrameProps = [
     'aspectRatio',
     'opacity',
     'userSelect',
+    'pointerEvents',
+    'display',
 ] as const satisfies FramePropsKeys[];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedBoxFrameProps)[number]>;
 
 const Container = styled.div<
     TransientProps<AllowedFrameProps> & {
         $borderWidth?: BorderWidth;
-        $elevation: Elevation;
-        $hasBackground?: boolean;
-        $backgroundColor?: CSSColor;
+        $backgroundColor?: Color;
+        $backgroundColorOnInteraction?: Color;
+        $borderColor?: Color;
+        $shadow?: BoxShadow;
     }
 >`
-    border: 0 solid ${mapElevationToBorder};
-    transition: background 0.2s ease;
+    background: unset;
+    box-shadow: unset;
+    border-width: 0;
+    border-style: solid;
+    border-color: ${({ $borderColor, theme }) => theme[$borderColor ?? 'borderNeutral']};
+    transition: 0.2s ease-in-out;
 
-    ${({ $borderWidth }) =>
-        $borderWidth &&
-        (typeof $borderWidth === 'object'
-            ? css`
-                  border-width: ${$borderWidth.top ?? $borderWidth.vertical ?? 0}
-                      ${$borderWidth.right ?? $borderWidth.horizontal ?? 0}
-                      ${$borderWidth.bottom ?? $borderWidth.vertical ?? 0}
-                      ${$borderWidth.left ?? $borderWidth.horizontal ?? 0};
-              `
-            : css`
-                  border-width: ${$borderWidth};
-              `)}
+    ${({ $borderWidth }) => {
+        if ($borderWidth == null || $borderWidth === 0) return null;
+        if (typeof $borderWidth === 'object') {
+            return css`
+                border-width: ${getValueWithUnit($borderWidth.top ?? $borderWidth.vertical ?? 0)}
+                    ${getValueWithUnit($borderWidth.right ?? $borderWidth.horizontal ?? 0)}
+                    ${getValueWithUnit($borderWidth.bottom ?? $borderWidth.vertical ?? 0)}
+                    ${getValueWithUnit($borderWidth.left ?? $borderWidth.horizontal ?? 0)};
+            `;
+        }
 
-    ${({ $hasBackground, $elevation, theme }) =>
-        $hasBackground &&
-        css`
-            background: ${mapElevationToBackground({ theme, $elevation })};
-        `}
+        return css`
+            border-width: ${getValueWithUnit($borderWidth)};
+        `;
+    }}
 
-    ${({ $backgroundColor }) =>
+    ${({ $backgroundColor, theme }) =>
         $backgroundColor &&
         css`
-            background: ${$backgroundColor};
-        `} 
+            background: ${theme[$backgroundColor]};
+        `}
+
+    ${({ $backgroundColorOnInteraction, theme }) =>
+        $backgroundColorOnInteraction &&
+        css`
+            &:hover,
+            &:focus {
+                background: ${theme[$backgroundColorOnInteraction]};
+            }
+        `}
+
+    ${({ $shadow }) =>
+        $shadow &&
+        css`
+            box-shadow: ${({ theme }) => theme[$shadow]};
+        `}
+
+    &:focus-visible {
+        ${commonFocusStyles}
+    }
 
     ${withFrameProps};
 `;
@@ -88,33 +110,40 @@ type BorderWidth =
       }
     | BorderWidths;
 
-export type BoxProps = AllowedFrameProps & {
-    children: React.ReactNode;
-    borderWidth?: BorderWidth;
-    hasBackground?: boolean;
-    backgroundColor?: CSSColor;
-    'data-testid'?: string;
-    'aria-hidden'?: boolean;
-    as?: React.ElementType;
-    onClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
-    onMouseEnter?: () => void;
-    onMouseLeave?: () => void;
-};
+export type BoxProps = Pick<
+    HTMLProps<HTMLElement>,
+    'onClick' | 'onMouseEnter' | 'onMouseLeave' | 'tabIndex'
+> &
+    AllowedFrameProps & {
+        children?: React.ReactNode;
+        borderWidth?: BorderWidth;
+        backgroundColor?: Color;
+        backgroundColorOnInteraction?: Color;
+        borderColor?: Color;
+        shadow?: BoxShadow;
+        'data-testid'?: string;
+        'aria-hidden'?: boolean;
+        as?: React.ElementType;
+        ref?: React.RefObject<HTMLElement | null>;
+    };
 
 export const Box = ({
     children,
     borderWidth,
-    hasBackground,
     backgroundColor,
+    backgroundColorOnInteraction,
+    borderColor,
+    shadow,
     'data-testid': dataTestId,
     'aria-hidden': ariaHidden,
     as = 'div',
     onClick,
     onMouseEnter,
     onMouseLeave,
+    tabIndex,
+    ref,
     ...rest
 }: BoxProps) => {
-    const { elevation } = useElevation();
     const frameProps = pickAndPrepareFrameProps(rest, allowedBoxFrameProps);
 
     return (
@@ -124,11 +153,14 @@ export const Box = ({
             aria-hidden={ariaHidden}
             $borderWidth={borderWidth}
             $backgroundColor={backgroundColor}
-            $hasBackground={hasBackground}
-            $elevation={elevation}
+            $backgroundColorOnInteraction={backgroundColorOnInteraction}
+            $borderColor={borderColor}
             onClick={onClick}
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
+            $shadow={shadow}
+            tabIndex={tabIndex}
+            ref={ref}
             {...frameProps}
         >
             {children}

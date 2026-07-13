@@ -1,12 +1,12 @@
-import { getCheckBackupUrl, isDeviceWithButtons } from '@suite-common/suite-utils';
-import { BulletList, Card, Paragraph } from '@trezor/components';
-import { DeviceModelInternal, getNarrowedDeviceModelInternal } from '@trezor/device-utils';
+import { useDevice } from '@suite/device';
+import { LearnMoreButton } from '@suite/external-links';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { getCheckBackupUrl } from '@suite-common/suite-utils';
+import { Card, Paragraph, StepList } from '@trezor/components';
+import { DeviceModelInternal } from '@trezor/device-utils';
 import { spacings } from '@trezor/theme';
 
-import { CheckItem, Translation } from 'src/components/suite';
-import { LearnMoreButton } from 'src/components/suite/LearnMoreButton';
-import { TranslationKey } from 'src/components/suite/Translation';
-import { useDevice } from 'src/hooks/suite/useDevice';
+import { CheckItem } from 'src/components/suite';
 
 const enterSeedInstructionsMap: Record<DeviceModelInternal, TranslationKey> = {
     [DeviceModelInternal.T1B1]: 'TR_SEED_WORDS_ENTER_COMPUTER',
@@ -16,6 +16,16 @@ const enterSeedInstructionsMap: Record<DeviceModelInternal, TranslationKey> = {
     [DeviceModelInternal.T3T1]: 'TR_SEED_WORDS_ENTER_TOUCHSCREEN',
     [DeviceModelInternal.T3W1]: 'TR_SEED_WORDS_ENTER_TOUCHSCREEN',
     [DeviceModelInternal.UNKNOWN]: 'TR_SEED_WORDS_ENTER_TOUCHSCREEN',
+};
+
+const checkRecoverySeedMap: Record<DeviceModelInternal, TranslationKey> = {
+    T1B1: 'TR_CHECK_RECOVERY_SEED_DESC_T1B1',
+    T2B1: 'TR_CHECK_RECOVERY_SEED_DESC_T3B1', // same as T3B1, same model, just different chip
+    T2T1: 'TR_CHECK_RECOVERY_SEED_DESC_TOUCHSCREEN',
+    T3B1: 'TR_CHECK_RECOVERY_SEED_DESC_T3B1',
+    T3T1: 'TR_CHECK_RECOVERY_SEED_DESC_TOUCHSCREEN',
+    T3W1: 'TR_CHECK_RECOVERY_SEED_DESC_TOUCHSCREEN',
+    UNKNOWN: 'TR_CHECK_RECOVERY_SEED_DESC_TOUCHSCREEN',
 };
 
 type InitialStepProps = {
@@ -33,23 +43,21 @@ export const InitialStep = ({ isUnderstood, setIsUnderstood }: InitialStepProps)
 
     const isShamirBackupAvailable = device?.features?.capabilities?.includes('Capability_Shamir');
     const learnMoreUrl = getCheckBackupUrl(device);
-    const descriptionSuffix = isDeviceWithButtons(deviceModelInternal)
-        ? getNarrowedDeviceModelInternal(deviceModelInternal)
-        : 'TOUCHSCREEN';
 
     return (
         <>
-            <BulletList gap={spacings.xl} titleGap={spacings.xxxs} bulletGap={spacings.lg}>
-                <BulletList.Item
+            <StepList gap={spacings.xl} titleGap={spacings.xxxs} bulletGap={spacings.lg}>
+                <StepList.Item
                     title={
-                        <Paragraph typographyStyle="hint" textWrap="pretty">
-                            <Translation id={`TR_CHECK_RECOVERY_SEED_DESC_${descriptionSuffix}`} />
+                        <Paragraph typographyStyle="body-sm" textWrap="pretty">
+                            <Translation id={checkRecoverySeedMap[deviceModelInternal]} />
                         </Paragraph>
                     }
                 >
                     <Paragraph
-                        typographyStyle="label"
-                        variant="tertiary"
+                        typographyStyle="body-xs"
+                        intent="neutral"
+                        priority="secondary"
                         margin={{ top: spacings.xxs }}
                     >
                         <Translation
@@ -60,23 +68,24 @@ export const InitialStep = ({ isUnderstood, setIsUnderstood }: InitialStepProps)
                             }
                         />
                     </Paragraph>
-                </BulletList.Item>
-                <BulletList.Item
+                </StepList.Item>
+                <StepList.Item
                     title={
-                        <Paragraph typographyStyle="hint" textWrap="pretty">
+                        <Paragraph typographyStyle="body-sm" textWrap="pretty">
                             <Translation id={enterSeedInstructionsMap[deviceModelInternal]} />
                         </Paragraph>
                     }
                 >
                     <Paragraph
-                        typographyStyle="label"
-                        variant="tertiary"
+                        typographyStyle="body-xs"
+                        intent="neutral"
+                        priority="secondary"
                         margin={{ top: spacings.xxs }}
                     >
                         <Translation id="TR_ENTER_ALL_WORDS_IN_CORRECT" />
                     </Paragraph>
-                </BulletList.Item>
-            </BulletList>
+                </StepList.Item>
+            </StepList>
             <Card margin={{ top: spacings.xxl }}>
                 <CheckItem
                     data-testid="@recovery/user-understands-checkbox"

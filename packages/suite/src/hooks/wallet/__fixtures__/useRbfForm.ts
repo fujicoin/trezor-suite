@@ -1,14 +1,14 @@
+import { type CoinjoinState } from '@suite/coinjoin';
 import {
-    ChainedTransactions,
-    FeesState,
-    SelectedAccountLoaded,
-    WalletAccountTransaction,
-    WalletAccountTransactionWithRequiredRbfParams,
+    type ChainedTransactions,
+    type FeesState,
+    type SelectedAccountLoaded,
+    type WalletAccountTransaction,
+    type WalletAccountTransactionWithRequiredRbfParams,
+    asAccountDescriptor,
 } from '@suite-common/wallet-types';
-import { AccountUtxo } from '@trezor/connect';
-import { DeepPartial } from '@trezor/type-utils';
-
-import { CoinjoinState } from '../../../reducers/wallet/coinjoinReducer';
+import { type AccountUtxo } from '@trezor/connect';
+import { type DeepPartial } from '@trezor/type-utils';
 
 export { getRootReducer } from './useSendForm';
 
@@ -84,7 +84,7 @@ const BTC_CJ_ACCOUNT: DeepPartial<SelectedAccountLoaded> = {
 
 const txDummyData = {
     deviceState: 'A@B:1',
-    descriptor: '',
+    descriptor: asAccountDescriptor(''),
     type: 'sent',
     txid: '',
     amount: '',

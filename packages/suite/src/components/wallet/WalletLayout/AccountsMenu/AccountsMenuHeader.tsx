@@ -1,33 +1,26 @@
 import styled from 'styled-components';
 
-import { selectAllAccountsToList, selectSelectedDevice } from '@suite-common/wallet-core';
-import {
-    Box,
-    Column,
-    Divider,
-    Row,
-    SkeletonRectangle,
-    TextButton,
-    Tooltip,
-} from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { Translation } from '@suite/intl';
+import { selectIsCoinsFilterVisible, suiteSettingsActions } from '@suite/settings';
+import { selectSelectedDevice } from '@suite-common/device';
+import { selectAllAccountsToList, selectHasRunningDiscovery } from '@suite-common/wallet-core';
+import { Box, Column, Divider, Icon, Row, Skeleton, Tooltip } from '@trezor/components';
+import { FunnelSimpleIcon } from '@trezor/icons';
+
+import { CollapsedSidebarOnly } from 'src/components/suite/layouts/SuiteLayout/Sidebar/CollapsedSidebarOnly';
+import { ExpandedSidebarOnly } from 'src/components/suite/layouts/SuiteLayout/Sidebar/ExpandedSidebarOnly';
+import { useAccountSearch, useDispatch, useSelector } from 'src/hooks/suite';
 
 import { AccountSearchBox } from './AccountSearchBox';
 import { AddAccountButton } from './AddAccountButton';
 import { CoinsFilter } from './CoinsFilter';
 import { useAvailableNetworkSymbols } from './useAvailableNetworkSymbols';
-import { setIsCoinsFilterVisible } from '../../../../actions/suite/suiteActions';
-import { useAccountSearch, useDiscovery, useDispatch, useSelector } from '../../../../hooks/suite';
-import { Translation } from '../../../suite';
-import { CollapsedSidebarOnly } from '../../../suite/layouts/SuiteLayout/Sidebar/CollapsedSidebarOnly';
-import { ExpandedSidebarOnly } from '../../../suite/layouts/SuiteLayout/Sidebar/ExpandedSidebarOnly';
 
 const Indicator = styled.div`
-    width: 11px;
-    height: 11px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
-    border: 3px solid ${({ theme }) => theme.borderElevation2};
-    background-color: ${({ theme }) => theme.iconPrimaryDefault};
+    background-color: ${({ theme }) => theme.contentBrand};
     position: absolute;
     top: 0;
     right: 0;
@@ -43,31 +36,26 @@ export const AccountsMenuHeader = () => {
 
     const device = useSelector(selectSelectedDevice);
     const accounts = useSelector(selectAllAccountsToList);
-    const { discovery } = useDiscovery();
 
     const isEmpty = accounts.length === 0;
 
-    const isDiscoveryRunning = discovery?.status === 'progress';
-    const isCoinsFilterVisible = useSelector(state => state.suite.settings.isCoinsFilterVisible);
+    const isDiscoveryRunning = useSelector(selectHasRunningDiscovery);
+    const isCoinsFilterVisible = useSelector(selectIsCoinsFilterVisible);
     const dispatch = useDispatch();
     const availableNetworksSymbols = useAvailableNetworkSymbols();
 
     const toggleCoinsFilter = () =>
-        dispatch(
-            setIsCoinsFilterVisible({
-                isCoinsFilterVisible: !isCoinsFilterVisible,
-            }),
-        );
+        dispatch(suiteSettingsActions.setIsCoinsFilterVisible(!isCoinsFilterVisible));
     const showCoinFilter = availableNetworksSymbols.length > 1;
 
     return (
         <>
-            <Divider margin={{ top: 0, bottom: spacings.sm }} />
-            <Box margin={{ horizontal: spacings.xs }}>
+            <Divider margin={{ top: 0, bottom: 12 }} />
+            <Box margin={{ horizontal: 8 }}>
                 <ExpandedSidebarOnly>
-                    <Row justifyContent="space-between" gap={spacings.xs}>
+                    <Row gap={12} padding={{ right: !isEmpty ? 10 : 0 }}>
                         {isDiscoveryRunning ? (
-                            <SkeletonRectangle animate width="100%" height={38} />
+                            <Skeleton animate width="100%" height={20} margin={{ left: 4 }} />
                         ) : (
                             <>
                                 {!isEmpty && <AccountSearchBox />}
@@ -84,13 +72,14 @@ export const AccountsMenuHeader = () => {
                                         }
                                     >
                                         <RelativeWrapper>
-                                            {coinFilter && <Indicator />}
-                                            <TextButton
-                                                size="small"
-                                                variant={
-                                                    isCoinsFilterVisible ? 'primary' : 'tertiary'
+                                            {coinFilter.length > 0 && <Indicator />}
+                                            <Icon
+                                                size={16}
+                                                intent={isCoinsFilterVisible ? 'brand' : 'neutral'}
+                                                priority={
+                                                    isCoinsFilterVisible ? 'primary' : 'secondary'
                                                 }
-                                                icon="funnelSimple"
+                                                as={FunnelSimpleIcon}
                                                 onClick={toggleCoinsFilter}
                                                 data-testid="@account-menu/filter-accounts"
                                             />
@@ -98,25 +87,15 @@ export const AccountsMenuHeader = () => {
                                     </Tooltip>
                                 )}
 
-                                <AddAccountButton
-                                    isFullWidth={isEmpty}
-                                    isIconOnly={!isEmpty}
-                                    data-testid="@account-menu/add-account"
-                                    device={device}
-                                />
+                                {!isEmpty && <AddAccountButton device={device} />}
                             </>
                         )}
                     </Row>
-                    {isCoinsFilterVisible && showCoinFilter && <CoinsFilter />}
+                    {isCoinsFilterVisible && showCoinFilter && !isEmpty && <CoinsFilter />}
                 </ExpandedSidebarOnly>
                 <CollapsedSidebarOnly>
-                    <Column alignItems="center" margin={{ bottom: spacings.sm }}>
-                        <AddAccountButton
-                            isFullWidth={false}
-                            isIconOnly={true}
-                            data-testid="@account-menu/add-account"
-                            device={device}
-                        />
+                    <Column alignItems="center" margin={{ bottom: 12 }}>
+                        {!isEmpty && <AddAccountButton device={device} />}
                     </Column>
                 </CollapsedSidebarOnly>
             </Box>

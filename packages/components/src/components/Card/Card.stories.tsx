@@ -1,19 +1,19 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 
 import { Card as CardComponent, allowedCardFrameProps } from './Card';
-import { cardVariants, fillTypes, paddingTypes } from './types';
+import { cardTypes, paddingTypes } from './types';
 import { getFramePropsStory } from '../../utils/frameProps';
 
-const meta: Meta = {
+const meta: Meta<typeof CardComponent> = {
     title: 'Card',
     component: CardComponent,
-} as Meta;
+};
 export default meta;
 
-export const Card: StoryObj = {
+export const Card: StoryObj<typeof meta> = {
     args: {
         paddingType: 'normal',
-        fillType: 'default',
+        type: 'raised',
         ...getFramePropsStory(allowedCardFrameProps).args,
         children: (
             <p>
@@ -38,11 +38,8 @@ export const Card: StoryObj = {
         paddingType: {
             options: paddingTypes,
             control: {
-                type: 'radio',
+                type: 'select',
             },
-        },
-        label: {
-            control: 'text',
         },
         header: {
             control: 'text',
@@ -50,17 +47,14 @@ export const Card: StoryObj = {
         footer: {
             control: 'text',
         },
-        fillType: {
-            options: fillTypes,
-            control: {
-                type: 'radio',
-            },
-        },
-        variant: {
-            options: [...cardVariants, undefined],
+        type: {
+            options: cardTypes,
             control: {
                 type: 'select',
             },
+        },
+        isSelected: {
+            control: 'boolean',
         },
         ...getFramePropsStory(allowedCardFrameProps).argTypes,
     },

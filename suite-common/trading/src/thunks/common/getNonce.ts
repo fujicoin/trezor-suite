@@ -1,9 +1,9 @@
+import { selectSelectedDevice } from '@suite-common/device';
 import { createThunk } from '@suite-common/redux-utils';
-import { selectSelectedDevice } from '@suite-common/wallet-core';
 import TrezorConnect from '@trezor/connect';
 
 import { TRADING_THUNK_PREFIX } from '../../constants';
-import { TradingSendRejectedProps } from '../../types';
+import { type TradingSendRejectedProps } from '../../types';
 
 export const getNonce = createThunk<string, void, { rejectValue: TradingSendRejectedProps }>(
     `${TRADING_THUNK_PREFIX}/getNonce`,
@@ -19,12 +19,7 @@ export const getNonce = createThunk<string, void, { rejectValue: TradingSendReje
             });
         }
 
-        const nonceResponse = await TrezorConnect.getNonce({
-            device,
-            useEmptyPassphrase: true,
-            keepSession: true,
-            skipFinalReload: true,
-        });
+        const nonceResponse = await TrezorConnect.getNonce({ device, keepSession: true });
 
         if (!nonceResponse.success) {
             return rejectWithValue({

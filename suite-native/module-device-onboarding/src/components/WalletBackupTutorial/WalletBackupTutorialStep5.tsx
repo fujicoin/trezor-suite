@@ -1,9 +1,6 @@
-import { useSelector } from 'react-redux';
-
 import * as Haptics from 'expo-haptics';
 
-import { BackupType } from '@suite-common/suite-types';
-import { selectIsDeviceInitialized } from '@suite-common/wallet-core';
+import { type BackupType } from '@suite-common/suite-types';
 import {
     Box,
     Button,
@@ -13,14 +10,13 @@ import {
     TitleHeader,
     useBottomSheetModal,
 } from '@suite-native/atoms';
-import { Icon } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
 import { useOpenLink } from '@suite-native/link';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 import { HELP_CENTER_MULTI_SHARE_BACKUP_URL } from '@trezor/urls';
 
 import { WalletBackupTutorialStep } from './WalletBackupTutorialStep';
-import { WalletBackupTutorialNumberedStepProps } from './WalletBackupTutorialStep1';
+import { type WalletBackupTutorialNumberedStepProps } from './WalletBackupTutorialStep1';
 import { walletBackupTutorialCopyByType } from './presets';
 import { WalletBackupSheet } from '../WalletBackupSheet/WalletBackupSheet';
 
@@ -29,7 +25,7 @@ const cardStyle = prepareNativeStyle<{ isCalloutButtonShown: boolean }>(
         padding: utils.spacings.sp16,
         paddingBottom: isCalloutButtonShown ? utils.spacings.sp16 : 0,
         borderWidth: utils.borders.widths.small,
-        borderColor: utils.colors.borderOnElevation1,
+        borderColor: utils.colors.borderNeutral,
     }),
 );
 
@@ -57,7 +53,6 @@ export const WalletBackupTutorialStep5 = ({
     selectedType,
     onSelectType,
 }: WalletBackupTutorialStep5Props) => {
-    const isDeviceInitialized = useSelector(selectIsDeviceInitialized);
     const { bottomSheetRef, openModal, closeModal } = useBottomSheetModal();
 
     const { applyStyle } = useNativeStyles();
@@ -93,8 +88,8 @@ export const WalletBackupTutorialStep5 = ({
                         }
                     />
                     <Text
-                        color="textSubdued"
-                        variant="hint"
+                        color="contentSecondary"
+                        variant="body-sm"
                         style={applyStyle(descriptionStyle)}
                         testID={`onboarding/WalletBackupTutorialStep5/selectedType=${selectedType}`}
                     >
@@ -104,7 +99,7 @@ export const WalletBackupTutorialStep5 = ({
                     </Text>
                     {isCalloutButtonShown && (
                         <InlineAlertBox
-                            variant={selectedType === 'shamir-advanced' ? 'warning' : 'success'}
+                            intent={selectedType === 'shamir-advanced' ? 'warning' : 'brand'}
                             buttonLabel={
                                 selectedType === 'shamir-advanced' ? (
                                     <Translation id="moduleDeviceOnboarding.walletBackupTutorialScreen.step5.backupOptions.shamir-advanced.calloutActionLabel" />
@@ -116,23 +111,22 @@ export const WalletBackupTutorialStep5 = ({
                                 />
                             }
                             buttonProps={{
-                                viewLeft: 'arrowSquareOut',
+                                iconLeft: 'arrowSquareOut',
                             }}
                             onButtonPress={handleLearnMorePress}
                         />
                     )}
                 </Card>
-                {!isDeviceInitialized && (
-                    <Button
-                        viewLeft={<Icon name="caretDown" size="medium" />}
-                        colorScheme="tertiaryElevation0"
-                        size="small"
-                        style={applyStyle(moreOptionsStyle)}
-                        onPress={openBackupSelection}
-                    >
-                        <Translation id="moduleDeviceOnboarding.walletBackupTutorialScreen.step5.moreOptionsButton" />
-                    </Button>
-                )}
+                <Button
+                    iconLeft="caretDown"
+                    intent="neutral"
+                    priority="secondary"
+                    size="medium"
+                    style={applyStyle(moreOptionsStyle)}
+                    onPress={openBackupSelection}
+                >
+                    <Translation id="moduleDeviceOnboarding.walletBackupTutorialScreen.step5.moreOptionsButton" />
+                </Button>
             </Box>
             <WalletBackupSheet
                 ref={bottomSheetRef}

@@ -1,11 +1,11 @@
 {
     "name": "@trezor/connect-webextension",
-    "version": "9.6.2",
+    "version": "10.0.0-alpha.1",
+    "type": "module",
     "author": "Trezor <info@trezor.io>",
     "homepage": "https://github.com/trezor/trezor-suite/tree/develop/packages/connect-webextension",
     "description": "High-level javascript interface for Trezor hardware wallet in webextension serviceworker environment.",
-    "npmPublishAccess": "public",
-    "license": "SEE LICENSE IN LICENSE.md",
+    "license": "MIT",
     "repository": {
         "type": "git",
         "url": "git://github.com/trezor/trezor-suite.git"
@@ -20,40 +20,41 @@
         "serviceworker",
         "webextension"
     ],
-    "main": "build/trezor-connect-webextension.js",
-    "types": "src/index.ts",
+    "main": "src/index.ts",
+    "publishConfig": {
+        "main": "./lib/index.mjs",
+        "types": "./lib/index.d.mts",
+        "exports": {
+            ".": {
+                "types": "./lib/index.d.mts",
+                "default": "./lib/index.mjs"
+            }
+        }
+    },
     "files": [
-        "build/trezor-connect-webextension.js",
-        "build/trezor-connect-webextension.min.js",
-        "build/content-script.js",
         "lib/",
+        "CHANGELOG.md",
         "!lib/proxy"
     ],
+    "types": "src/index.ts",
     "scripts": {
-        "build:lib": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/replace-imports.sh ./lib",
-        "build:content-script": "TS_NODE_PROJECT=\"tsconfig.lib.json\" webpack --config ./webpack/content-script.webpack.config.ts",
-        "build:inline": "TS_NODE_PROJECT=\"tsconfig.lib.json\" webpack --config ./webpack/inline.webpack.config.ts",
-        "build": "yarn g:rimraf build && yarn build:content-script && yarn build:inline && node ./webpack/inline-content-script.js",
-        "prepublish": "yarn build",
+        "build:lib": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/publish/replace-imports.sh ./lib && DTS_OUT_DIR=lib yarn build:dts:inline",
+        "build:dts:inline": "node ../../scripts/inline-devdep-types.mjs",
         "depcheck": "yarn g:depcheck",
-        "type-check": "yarn g:tsc --build"
+        "type-check": "yarn g:tsc --build",
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     },
     "dependencies": {
-        "@trezor/connect": "workspace:*",
+        "@trezor/connect-common": "workspace:*",
         "@trezor/connect-web": "workspace:*"
     },
     "devDependencies": {
-        "@babel/preset-typescript": "^7.27.1",
+        "@babel/preset-typescript": "^7.29.7",
         "@trezor/eslint": "workspace:*",
-        "@types/chrome": "^0.0.299",
-        "babel-loader": "^10.0.0",
-        "copy-webpack-plugin": "^13.0.1",
-        "rimraf": "^6.0.1",
-        "terser-webpack-plugin": "^5.3.14",
-        "webpack": "5.100.0",
-        "webpack-cli": "^6.0.1",
-        "webpack-merge": "^6.0.1",
-        "webpack-plugin-serve": "^1.6.0",
+        "@types/chrome": "^0.1.40",
+        "@types/w3c-web-usb": "^1.0.14",
+        "babel-loader": "^10.1.1",
+        "rimraf": "^6.1.2",
         "worker-loader": "^3.0.8"
     },
     "peerDependencies": {

@@ -1,43 +1,49 @@
 import { useState } from 'react';
 
+import { Address, copyAddressToClipboard, showCopyAddressModal } from '@suite/address';
+import { RedactNumericalValue } from '@suite/discreet-mode';
+import { selectIsCopyAddressModalShown } from '@suite/flags';
+import { Translation } from '@suite/intl';
+import { goto } from '@suite/router';
 import {
     DefinitionType,
-    EnhancedTokenInfo,
+    type EnhancedTokenInfo,
     TokenManagementAction,
     tokenDefinitionsActions,
 } from '@suite-common/token-definitions';
-import { Explorer, Network } from '@suite-common/wallet-config';
+import { type Explorer, type Network } from '@suite-common/wallet-config';
 import { selectExplorer } from '@suite-common/wallet-core';
-import { SelectedAccountStatus } from '@suite-common/wallet-types';
-import { getNftContractExplorerUrl, getNftExplorerUrl } from '@suite-common/wallet-utils';
+import { type SelectedAccountStatus } from '@suite-common/wallet-types';
+import {
+    NFT_MULTITOKEN_STANDARDS,
+    NFT_SINGLETOKEN_STANDARDS,
+    getNftContractExplorerUrl,
+    getNftExplorerUrl,
+} from '@suite-common/wallet-utils';
 import {
     Badge,
     Button,
     Card,
     Column,
     Dropdown,
-    Icon,
-    IconButton,
     IconCircle,
     InfoItem,
+    Link,
     Row,
     Table,
     Text,
 } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import {
+    ArrowUpRightIcon,
+    EyeIcon,
+    EyeSlashIcon,
+    NewspaperIcon,
+    PictureFrameIcon,
+} from '@trezor/icons';
 
 import { SUITE } from 'src/actions/suite/constants';
-import { copyAddressToClipboard, showCopyAddressModal } from 'src/actions/suite/copyAddressActions';
-import { goto } from 'src/actions/suite/routerActions';
-import {
-    Address,
-    HiddenPlaceholder,
-    RedactNumericalValue,
-    Translation,
-    TrezorLink,
-} from 'src/components/suite';
+import { HiddenPlaceholder } from 'src/components/suite';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectIsCopyAddressModalShown } from 'src/selectors/suite/suiteSelectors';
 import { getTokenAddressTranslationId } from 'src/utils/wallet/tokenUtils';
 
 import { DropdownRow } from '../../tokens/DropdownRow';
@@ -81,22 +87,26 @@ const NftsRow = ({
                 <Table.Cell colSpan={1}>
                     <DropdownRow
                         isActive={isCollectionOpen}
-                        typographyStyle="body"
-                        variant="default"
+                        typographyStyle="body-md"
+                        intent="neutral"
                         nftName={NftName}
                         nftItemsCount={!isEmptyCollection ? nftItemsCount : undefined}
                         shouldDisplayIcon={!isEmptyCollection}
                     />
                 </Table.Cell>
                 <Table.Cell colSpan={1} align="end">
-                    <Row gap={spacings.xs}>
+                    <Row gap={8}>
                         <Dropdown
                             placement={{ position: 'bottom', alignment: 'start' }}
+                            tooltip={{
+                                content: <Translation id="TR_SHOW_MORE" />,
+                                placement: 'left',
+                            }}
                             content={
                                 <Card paddingType="small">
-                                    <Column maxWidth={200} gap={spacings.md}>
+                                    <Column gap={16}>
                                         <InfoItem
-                                            typographyStyle="label"
+                                            typographyStyle="body-xs"
                                             label={
                                                 <Translation
                                                     id={getTokenAddressTranslationId(
@@ -104,20 +114,15 @@ const NftsRow = ({
                                                     )}
                                                 />
                                             }
-                                            gap={spacings.zero}
+                                            gap={0}
                                         >
-                                            <Row>
-                                                <Text typographyStyle="label" as="div">
-                                                    <Address
-                                                        isChunked={false}
-                                                        value={nft.contract}
-                                                    />
-                                                </Text>
-                                                <IconButton
-                                                    icon="copy"
-                                                    size="tiny"
-                                                    variant="tertiary"
-                                                    onClick={() => {
+                                            <Link href={getNftContractExplorerUrl(explorer, nft)}>
+                                                <Address
+                                                    typographyStyle="body-xs"
+                                                    isTruncated
+                                                    value={nft.contract}
+                                                    isCopyAllowed
+                                                    onCopy={() => {
                                                         dispatch(
                                                             shouldShowCopyAddressModal
                                                                 ? showCopyAddressModal(
@@ -130,7 +135,7 @@ const NftsRow = ({
                                                         );
                                                     }}
                                                 />
-                                            </Row>
+                                            </Link>
                                         </InfoItem>
                                     </Column>
                                 </Card>
@@ -138,7 +143,7 @@ const NftsRow = ({
                             items={[
                                 {
                                     label: <Translation id="TR_HIDE_COLLECTION" />,
-                                    icon: 'eyeSlash',
+                                    icon: EyeSlashIcon,
                                     onClick: () =>
                                         dispatch(
                                             tokenDefinitionsActions.setTokenStatus({
@@ -152,7 +157,7 @@ const NftsRow = ({
                                 },
                                 {
                                     label: <Translation id="TR_VIEW_ALL_TRANSACTION" />,
-                                    icon: 'newspaper',
+                                    icon: NewspaperIcon,
                                     onClick: () => {
                                         dispatch({
                                             type: SUITE.SET_TRANSACTION_HISTORY_PREFILL,
@@ -160,7 +165,8 @@ const NftsRow = ({
                                         });
                                         if (account) {
                                             dispatch(
-                                                goto('wallet-index', {
+                                                goto({
+                                                    routeName: 'wallet-index',
                                                     params: {
                                                         symbol: account.symbol,
                                                         accountIndex: account.index,
@@ -173,7 +179,7 @@ const NftsRow = ({
                                 },
                                 {
                                     label: <Translation id="TR_VIEW_IN_EXPLORER" />,
-                                    icon: 'arrowUpRight',
+                                    icon: ArrowUpRightIcon,
                                     onClick: () => {
                                         window.open(
                                             getNftContractExplorerUrl(explorer, nft),
@@ -185,7 +191,7 @@ const NftsRow = ({
                         />
                         {!isShown && (
                             <Button
-                                icon="eye"
+                                iconLeft={EyeIcon}
                                 onClick={() => {
                                     dispatch(
                                         tokenDefinitionsActions.setTokenStatus({
@@ -196,8 +202,8 @@ const NftsRow = ({
                                         }),
                                     );
                                 }}
-                                variant="tertiary"
-                                size="small"
+                                intent="neutral"
+                                priority="secondary"
                             >
                                 <Translation id="TR_UNHIDE" />
                             </Button>
@@ -205,7 +211,7 @@ const NftsRow = ({
                     </Row>
                 </Table.Cell>
             </Table.Row>
-            {['ERC721', 'BEP721'].includes(nft.type) &&
+            {NFT_SINGLETOKEN_STANDARDS.has(nft.standard) &&
                 nft.ids?.map((id, index) => (
                     <Table.Row
                         key={`${id}-${index}`}
@@ -213,36 +219,30 @@ const NftsRow = ({
                         isHighlightedOnHover={false}
                     >
                         <Table.Cell colSpan={2}>
-                            <Text typographyStyle="hint">
+                            <Text typographyStyle="body-sm">
                                 <HiddenPlaceholder>
-                                    <Row gap={spacings.xs}>
+                                    <Row gap={8}>
                                         <IconCircle
-                                            name="pictureFrame"
-                                            paddingType="large"
-                                            size={28}
-                                            variant="tertiary"
+                                            icon={PictureFrameIcon}
+                                            size={32}
+                                            intent="neutral"
                                         />
-                                        <Text textWrap="nowrap">{NftName}</Text>
-                                        #<RedactNumericalValue value={id} />
+                                        <Link href={getNftExplorerUrl(explorer, nft, id)}>
+                                            <Text textWrap="nowrap">{NftName}</Text>
+                                        </Link>
+                                        <Text>
+                                            #<RedactNumericalValue value={id} />
+                                        </Text>
                                         <Badge size="small">
                                             <RedactNumericalValue value="1x" />
                                         </Badge>
-                                        <TrezorLink
-                                            typographyStyle="label"
-                                            variant="nostyle"
-                                            href={getNftExplorerUrl(explorer, nft, id)}
-                                            target="_blank"
-                                            onClick={e => e.stopPropagation()}
-                                        >
-                                            <Icon name="arrowUpRight" size={12} />
-                                        </TrezorLink>
                                     </Row>
                                 </HiddenPlaceholder>
                             </Text>
                         </Table.Cell>
                     </Table.Row>
                 ))}
-            {['ERC1155', 'BEP1155'].includes(nft.type) &&
+            {NFT_MULTITOKEN_STANDARDS.has(nft.standard) &&
                 nft.multiTokenValues?.map((value, index) => (
                     <Table.Row
                         key={`${nft.contract}-${index}`}
@@ -250,29 +250,25 @@ const NftsRow = ({
                         isHighlightedOnHover={false}
                     >
                         <Table.Cell colSpan={2}>
-                            <Text typographyStyle="hint">
+                            <Text typographyStyle="body-sm">
                                 <HiddenPlaceholder>
-                                    <Row gap={spacings.xs}>
+                                    <Row gap={8}>
                                         <IconCircle
-                                            name="pictureFrame"
-                                            paddingType="large"
-                                            size={28}
-                                            variant="tertiary"
+                                            icon={PictureFrameIcon}
+                                            size={32}
+                                            intent="neutral"
                                         />
-                                        <Text textWrap="nowrap">{NftName}</Text>
-                                        #<RedactNumericalValue value={value.id || ''} />
+                                        <Link
+                                            href={getNftExplorerUrl(explorer, nft, value?.id || '')}
+                                        >
+                                            <Text textWrap="nowrap">{NftName}</Text>
+                                        </Link>
+                                        <Text>
+                                            #<RedactNumericalValue value={value.id || ''} />
+                                        </Text>
                                         <Badge size="small">
                                             <RedactNumericalValue value={value.value || ''} />x
                                         </Badge>
-                                        <TrezorLink
-                                            typographyStyle="label"
-                                            variant="nostyle"
-                                            href={getNftExplorerUrl(explorer, nft, value?.id || '')}
-                                            target="_blank"
-                                            onClick={e => e.stopPropagation()}
-                                        >
-                                            <Icon name="arrowUpRight" size={12} />
-                                        </TrezorLink>
                                     </Row>
                                 </HiddenPlaceholder>
                             </Text>

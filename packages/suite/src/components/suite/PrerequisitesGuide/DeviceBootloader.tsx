@@ -1,39 +1,32 @@
-import { isDeviceWithButtons } from '@suite-common/suite-utils';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { ArrowsClockwiseIcon, TrezorBodyIcon } from '@trezor/icons';
 
-import { Translation, TroubleshootingTips } from 'src/components/suite';
-import { TrezorDevice } from 'src/types/suite';
+import { TroubleshootingTips } from 'src/components/suite/troubleshooting/TroubleshootingTips';
+import { getHowToGetFromBootloaderInstructionsMap } from 'src/utils/device/bootloader';
 
-import { TroubleshootingTipsItem } from '../troubleshooting/TroubleshootingTips';
+import { type TroubleshootingTipsItem } from '../troubleshooting/TroubleshootingTipsItem';
 import { UpdateGoToSettingsDescription } from '../troubleshooting/tips/UpdateGoToSettingsDescription';
 
-interface DeviceBootloaderProps {
-    device?: TrezorDevice;
-}
-
 /* User connected the device in bootloader mode, but in order to continue it needs to be in normal mode */
-export const DeviceBootloader = ({ device }: DeviceBootloaderProps) => {
+export const DeviceBootloader = () => {
+    const { device } = useDevice();
     const deviceModelInternal = device?.features?.internal_model;
+
+    const tipDescription = getHowToGetFromBootloaderInstructionsMap({ deviceModelInternal });
 
     const tips: TroubleshootingTipsItem[] = [
         {
             key: 'device-bootloader',
             heading: <Translation id="TR_DEVICE_CONNECTED_BOOTLOADER_RECONNECT" />,
-            description: (
-                <Translation
-                    id={
-                        deviceModelInternal && isDeviceWithButtons(deviceModelInternal)
-                            ? 'TR_DEVICE_CONNECTED_BOOTLOADER_RECONNECT_IN_NORMAL_NO_BUTTON'
-                            : 'TR_DEVICE_CONNECTED_BOOTLOADER_RECONNECT_IN_NORMAL_NO_TOUCH'
-                    }
-                />
-            ),
-            noBullet: true,
+            description: tipDescription !== null ? <Translation id={tipDescription} /> : null,
+            icon: TrezorBodyIcon,
         },
         {
             key: 'wipe-or-update',
             heading: <Translation id="TR_WIPE_OR_UPDATE" />,
             description: <UpdateGoToSettingsDescription />,
-            noBullet: true,
+            icon: ArrowsClockwiseIcon,
         },
     ];
 
@@ -41,7 +34,7 @@ export const DeviceBootloader = ({ device }: DeviceBootloaderProps) => {
         <TroubleshootingTips
             label={<Translation id="TR_DEVICE_IN_BOOTLOADER" />}
             items={tips}
-            initiallyIsOpen
+            intent="warning"
         />
     );
 };

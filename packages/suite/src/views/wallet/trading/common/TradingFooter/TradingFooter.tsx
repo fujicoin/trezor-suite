@@ -1,166 +1,35 @@
-import { useRef, useState } from 'react';
+import { useSelector } from 'react-redux';
 
-import styled, { css } from 'styled-components';
+import { Translation } from '@suite/intl';
+import { type TradingProviderInfo, selectTradingProviderMetadata } from '@suite-common/trading';
+import { Column, Link, Text } from '@trezor/components';
 
-import { Icon, Image, Link, Row } from '@trezor/components';
-import { useOnClickOutside } from '@trezor/react-utils';
-import { borders, spacingsPx, typography, zIndices } from '@trezor/theme';
-import { DATA_TOS_INVITY_URL, INVITY_URL } from '@trezor/urls';
+import { TradingFormFeesDisclaimer } from '../TradingFormFeesDisclaimer/TradingFormFeesDisclaimer';
 
-import { Translation } from 'src/components/suite';
-import { TradingFooterLogoWrapper } from 'src/views/wallet/trading';
-import { TradingProvidedByInvity } from 'src/views/wallet/trading/common/TradingFooter/TradingProvidedByInvity';
+type TradingFooterProps = {
+    provider?: TradingProviderInfo;
+};
 
-const Wrapper = styled.div`
-    margin-top: ${spacingsPx.xxxl};
-`;
-
-const WrapperBorder = styled.div`
-    padding-top: ${spacingsPx.lg};
-    border-top: 1px solid ${({ theme }) => theme.borderElevation1};
-`;
-
-const Left = styled.div`
-    display: flex;
-    flex: 1;
-    align-items: center;
-    color: ${({ theme }) => theme.textSubdued};
-    ${typography.highlight}
-`;
-
-const Right = styled.div`
-    display: flex;
-    align-items: center;
-    flex: 1;
-    position: relative;
-    justify-content: flex-end;
-`;
-
-const FooterBox = styled.div`
-    position: absolute;
-    border-radius: ${borders.radii.xs};
-    padding: 10px;
-    flex: 1;
-    min-width: 345px;
-    bottom: 30px;
-    box-shadow: 0 1px 2px 0 ${({ theme }) => theme.legacy.BOX_SHADOW_BLACK_20};
-    z-index: ${zIndices.tooltip};
-
-    background: ${({ theme }) => theme.legacy.BG_WHITE};
-    overflow: hidden;
-`;
-
-const Header = styled.div`
-    display: flex;
-    justify-content: space-between;
-    padding-bottom: 10px;
-    margin-bottom: 10px;
-    border-bottom: 1px solid ${({ theme }) => theme.legacy.STROKE_GREY};
-`;
-
-const BoxLeft = styled.div``;
-const BoxRight = styled.div`
-    display: flex;
-    align-items: center;
-`;
-
-const IconWrapper = styled.div`
-    cursor: pointer;
-    margin-left: 10px;
-`;
-
-const Text = styled.div`
-    padding-left: 10px;
-    color: ${({ theme }) => theme.textSubdued};
-    ${typography.body}
-    margin-bottom: 15px;
-`;
-
-const linkStyle = css`
-    color: ${({ theme }) => theme.textSubdued};
-    cursor: pointer;
-
-    &:hover {
-        color: ${({ theme }) => theme.textSubdued};
-        text-decoration: underline;
-    }
-`;
-
-// reason: different design then basic Link
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledLink = styled(Link)`
-    ${linkStyle}
-`;
-
-const LearnMoreToggle = styled.div`
-    ${linkStyle}
-`;
-
-const VerticalDivider = styled.div`
-    height: 12px;
-    border-left: 1px solid ${({ theme }) => theme.legacy.TYPE_LIGHTER_GREY};
-    margin: 0 8px;
-`;
-
-const FooterText = styled(Text)`
-    padding-right: 10px;
-`;
-
-export const TradingFooter = () => {
-    const [toggled, setToggled] = useState(false);
-    const menuRef = useRef<HTMLDivElement>(null);
-    const toggleRef = useRef<HTMLDivElement>(null);
-
-    useOnClickOutside([menuRef, toggleRef], () => {
-        if (toggled) {
-            setToggled(false);
-        }
-    });
+export const TradingFooter = ({ provider }: TradingFooterProps) => {
+    const currentProviderMetadata = useSelector(selectTradingProviderMetadata);
+    const { companyName, termsUrl } = provider ?? currentProviderMetadata ?? {};
 
     return (
-        <Wrapper>
-            <WrapperBorder>
-                <Row justifyContent="center">
-                    <Left>
-                        <TradingProvidedByInvity />
-                    </Left>
-                    <Right>
-                        {toggled && (
-                            <FooterBox ref={menuRef}>
-                                <Header>
-                                    <BoxLeft>
-                                        <TradingFooterLogoWrapper>
-                                            <Link href={INVITY_URL} target="_blank">
-                                                <Image width={70} image="INVITY_LOGO" />
-                                            </Link>
-                                        </TradingFooterLogoWrapper>
-                                    </BoxLeft>
-                                    <BoxRight>
-                                        <Link href={INVITY_URL}>invity.io</Link>
-                                        <IconWrapper onClick={() => setToggled(false)}>
-                                            <Icon name="x" size={16} />
-                                        </IconWrapper>
-                                    </BoxRight>
-                                </Header>
-                                <FooterText>
-                                    <Translation id="TR_BUY_FOOTER_TEXT_1" />
-                                </FooterText>
-                                <FooterText>
-                                    <Translation id="TR_BUY_FOOTER_TEXT_2" />
-                                </FooterText>
-                            </FooterBox>
-                        )}
-
-                        <StyledLink href={DATA_TOS_INVITY_URL} variant="nostyle">
-                            <Translation id="TR_TERMS_OF_USE_INVITY" />
-                        </StyledLink>
-                        <VerticalDivider />
-                        <LearnMoreToggle ref={toggleRef} onClick={() => setToggled(true)}>
-                            <Translation id="TR_BUY_LEARN_MORE" />
-                        </LearnMoreToggle>
-                    </Right>
-                </Row>
-            </WrapperBorder>
-        </Wrapper>
+        <Column alignItems="center" margin={{ top: 48 }} gap={12}>
+            <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
+                {termsUrl ? (
+                    <Translation
+                        id="TR_TRADING_TERMS"
+                        values={{
+                            provider: companyName,
+                            comp: () => <Link href={termsUrl}>{companyName}</Link>,
+                        }}
+                    />
+                ) : (
+                    <Translation id="TR_TRADING_TERMS_NO_PROVIDER" />
+                )}
+            </Text>
+            <TradingFormFeesDisclaimer />
+        </Column>
     );
 };

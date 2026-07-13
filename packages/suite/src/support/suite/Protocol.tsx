@@ -1,11 +1,11 @@
 import { useCallback, useEffect } from 'react';
-import { useLocation } from 'react-router';
 
+import { selectURLSearchParams } from '@suite/router';
 import { isDesktop, isWeb } from '@trezor/env-utils';
 import { desktopApi } from '@trezor/suite-desktop-api';
 
 import * as protocolActions from 'src/actions/suite/protocolActions';
-import { useDispatch } from 'src/hooks/suite';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 
 const Protocol = () => {
     const dispatch = useDispatch();
@@ -17,17 +17,20 @@ const Protocol = () => {
         [dispatch],
     );
 
-    const { search } = useLocation();
+    const searchParams = useSelector(selectURLSearchParams);
 
-    useEffect(() => {
-        if (search) {
-            const query = new URLSearchParams(search);
-            const uri = query.get('uri');
+    const processSearch = useCallback(() => {
+        if (searchParams) {
+            const uri = searchParams.get('uri');
             if (uri) {
                 handleProtocolRequest(uri);
             }
         }
-    }, [search, handleProtocolRequest]);
+    }, [handleProtocolRequest, searchParams]);
+
+    useEffect(() => {
+        processSearch();
+    }, [processSearch, searchParams]);
 
     useEffect(() => {
         if (isWeb() && navigator.registerProtocolHandler) {
@@ -42,6 +45,8 @@ const Protocol = () => {
 
         if (isDesktop()) {
             desktopApi.on('protocol/open', handleProtocolRequest);
+
+            return () => desktopApi.removeAllListeners('protocol/open');
         }
     }, [handleProtocolRequest]);
 

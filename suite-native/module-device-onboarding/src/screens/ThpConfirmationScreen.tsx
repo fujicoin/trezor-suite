@@ -1,38 +1,39 @@
 import { useEffect } from 'react';
 import { useSelector } from 'react-redux';
 
+import { selectIsDeviceThpLocked } from '@suite-common/device';
 import { selectThpStep } from '@suite-common/thp';
 import { ContinueOnTrezorScreenContent } from '@suite-native/device';
 import {
-    DeviceOnboardingStackParamList,
+    type DeviceOnboardingStackParamList,
     DeviceOnboardingStackRoutes,
-    StackProps,
+    type StackProps,
+    useInterceptNativeNavigation,
 } from '@suite-native/navigation';
 
-import { DeviceOnboardingScreenWithExitButton } from '../components/DeviceOnboardingScreenWithExitButton';
+import { NonClosableDeviceOnboardingScreen } from '../components/NonClosableDeviceOnboardingScreen';
 
 export const ThpConfirmationScreen = ({
     navigation,
 }: StackProps<DeviceOnboardingStackParamList, DeviceOnboardingStackRoutes.ThpConfirmation>) => {
     const thpStep = useSelector(selectThpStep);
+    const isDeviceThpLocked = useSelector(selectIsDeviceThpLocked);
+
+    useInterceptNativeNavigation();
 
     useEffect(() => {
         if (thpStep === 'BeforeConnectionInfo') {
-            navigation.navigate(DeviceOnboardingStackRoutes.ThpPairingInfo);
+            navigation.replace(DeviceOnboardingStackRoutes.ThpPairingInfo);
         } else if (thpStep === 'CodeEntry') {
-            navigation.navigate(DeviceOnboardingStackRoutes.ThpCodeEntry);
-        } else if (thpStep === null) {
-            navigation.navigate(DeviceOnboardingStackRoutes.ThpPairingSuccess);
+            navigation.replace(DeviceOnboardingStackRoutes.ThpCodeEntry);
+        } else if (!isDeviceThpLocked) {
+            navigation.replace(DeviceOnboardingStackRoutes.ThpPairingSuccess);
         }
-    }, [thpStep, navigation]);
+    }, [thpStep, isDeviceThpLocked, navigation]);
 
     return (
-        <DeviceOnboardingScreenWithExitButton
-            isScrollable={false}
-            noBottomPadding={true}
-            hasBottomInset={false}
-        >
+        <NonClosableDeviceOnboardingScreen noBottomPadding={true} hasBottomInset={false}>
             <ContinueOnTrezorScreenContent />
-        </DeviceOnboardingScreenWithExitButton>
+        </NonClosableDeviceOnboardingScreen>
     );
 };

@@ -1,7 +1,16 @@
-import { CryptoId } from 'invity-api';
+import { type CryptoId } from 'invity-api';
 import { combineReducers } from 'redux';
 
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
+import { selectedAccountReducer } from '@suite/account';
+import { MODAL_CONTEXT_NONE, type State as ModalState, modalReducer } from '@suite/modal';
+import {
+    type LocationChangePayload,
+    type RouterState,
+    getRoute,
+    routerLocationChange,
+    routerReducer,
+} from '@suite/router';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
 import {
     type TradingState,
     initialState,
@@ -11,19 +20,14 @@ import {
     tradingSellActions,
 } from '@suite-common/trading';
 import { prepareAccountsReducer } from '@suite-common/wallet-core';
-import { SelectedAccountStatus } from '@suite-common/wallet-types';
+import { type AccountKey, type SelectedAccountStatus } from '@suite-common/wallet-types';
+import { mockAccountKey } from '@suite-common/wallet-types/mocks';
 
-import { MODAL, ROUTER } from 'src/actions/suite/constants';
 import { ACCOUNT } from 'src/actions/wallet/trading/__fixtures__/tradingCommonActions/store';
 import { tradingMiddlewareFixtures } from 'src/middlewares/wallet/__fixtures__/tradingMiddleware';
 import { tradingMiddleware } from 'src/middlewares/wallet/tradingMiddleware';
-import modalReducer, { State as ModalState } from 'src/reducers/suite/modalReducer';
-import routerReducer, { RouterState } from 'src/reducers/suite/routerReducer';
-import suiteReducer, { SuiteState } from 'src/reducers/suite/suiteReducer';
+import suiteReducer, { type SuiteState } from 'src/reducers/suite/suiteReducer';
 import { accounts } from 'src/reducers/wallet/__fixtures__/transactionConstants';
-import selectedAccountReducer from 'src/reducers/wallet/selectedAccountReducer';
-import { Action } from 'src/types/suite';
-
 jest.mock('@suite-common/trading', () => {
     const originalModule = jest.requireActual('@suite-common/trading');
 
@@ -36,25 +40,35 @@ jest.mock('@suite-common/trading', () => {
     };
 });
 
-const tradingNewReducer = prepareTradingReducer(extraDependenciesMock);
-const accountsReducer = prepareAccountsReducer(extraDependenciesMock);
+const tradingReducer = prepareTradingReducer(extraDependenciesCommonMock);
+const accountsReducer = prepareAccountsReducer(extraDependenciesCommonMock);
 
 interface Args {
-    tradingNew?: TradingState;
+    trading?: TradingState;
     selectedAccount?: SelectedAccountStatus;
     settings?: SuiteState;
     router?: RouterState;
     modal?: ModalState;
 }
 
-const getInitialState = ({ tradingNew, selectedAccount, router }: Args = {}) => ({
+const getRequiredRoute = <TName extends NonNullable<LocationChangePayload['route']>['name']>(
+    name: TName,
+) => {
+    const route = getRoute(name);
+
+    if (!route) {
+        throw new Error(`Missing route ${name}`);
+    }
+
+    return route as Extract<NonNullable<LocationChangePayload['route']>, { name: TName }>;
+};
+
+const getInitialState = ({ trading, selectedAccount, router }: Args = {}) => ({
     wallet: {
-        tradingNew:
-            tradingNew ??
-            ({
-                isLoading: false,
-                lastLoadedTimestamp: 0,
-            } as any),
+        trading: trading ?? {
+            isLoading: false,
+            lastLoadedTimestamp: 0,
+        },
         selectedAccount:
             selectedAccount ??
             ({
@@ -68,23 +82,23 @@ const getInitialState = ({ tradingNew, selectedAccount, router }: Args = {}) => 
             debug: {
                 invityServerEnvironment: 'dev',
             },
-        } as any,
+        },
     },
-    router: router ?? routerReducer(tradingMiddlewareFixtures.DEFAULT_ROUTE, {} as Action),
-    modal: modalReducer({ context: MODAL.CONTEXT_NONE }, {} as Action),
+    router: router ?? routerReducer(tradingMiddlewareFixtures.DEFAULT_ROUTE, { type: 'init' }),
+    modal: modalReducer({ context: MODAL_CONTEXT_NONE }, { type: 'init' }),
 });
 
 type State = ReturnType<typeof getInitialState>;
 
 const initStore = (state: State) => {
     const { settings } = state.suite;
-    const { tradingNew, selectedAccount } = state.wallet;
+    const { trading, selectedAccount } = state.wallet;
 
     const store = configureMockStore({
         extra: {},
         reducer: combineReducers({
             wallet: combineReducers({
-                tradingNew: tradingNewReducer,
+                trading: tradingReducer,
                 selectedAccount: selectedAccountReducer,
                 accounts: accountsReducer,
             }),
@@ -94,16 +108,16 @@ const initStore = (state: State) => {
         }),
         preloadedState: {
             wallet: {
-                tradingNew: {
+                trading: {
                     ...initialState,
-                    ...tradingNew,
+                    ...trading,
                 },
                 selectedAccount,
                 accounts,
             },
             suite: {
                 settings,
-            } as any,
+            },
             router: state.router ? { ...state.router } : {},
             modal: state.modal ? { ...state.modal } : {},
         },
@@ -118,62 +132,73 @@ describe('tradingMiddleware', () => {
         jest.clearAllMocks();
     });
 
-    it.each([
+    const mockedModalAccountKey = mockAccountKey({ descriptor: 'mockedKey' });
+    const mockedModalCryptoId = 'bitcoin' as CryptoId;
+
+    it.each<
+        [
+            string,
+            { accountKey: AccountKey | undefined; cryptoId: CryptoId | undefined },
+            LocationChangePayload,
+        ]
+    >([
         [
             'should stay modalAccountKey stable and modalCryptoId stable',
-            'mocked-key',
+            { accountKey: mockedModalAccountKey, cryptoId: mockedModalCryptoId },
             tradingMiddlewareFixtures.TRADING_SELL_ROUTE,
         ],
         [
             'should clean modalAccountKey and modalCryptoId when trading is abandoned',
-            undefined,
+            { accountKey: undefined, cryptoId: undefined },
             {
                 ...tradingMiddlewareFixtures.DEFAULT_ROUTE,
-                route: {
-                    ...tradingMiddlewareFixtures.DEFAULT_ROUTE.route,
-                    name: 'suite-start',
-                },
+                pathname: '/start',
+                app: 'start',
+                route: getRequiredRoute('suite-start'),
             },
         ],
     ])('%s', (_, result, routeChange) => {
         const store = initStore(
             getInitialState({
-                tradingNew: {
+                trading: {
                     ...initialState,
-                    modalAccountKey: 'mocked-key',
-                    modalCryptoId: 'mocked-key' as CryptoId,
+                    modalAccountKey: mockedModalAccountKey,
+                    modalCryptoId: mockedModalCryptoId,
                 },
-                router: routerReducer(tradingMiddlewareFixtures.TRADING_SELL_ROUTE, {} as Action),
+                router: routerReducer(tradingMiddlewareFixtures.TRADING_SELL_ROUTE, {
+                    type: 'init',
+                }),
             }),
         );
 
         // go away from trading
-        store.dispatch({
-            type: ROUTER.LOCATION_CHANGE,
-            payload: {
-                ...routeChange,
-            },
-        });
+        store.dispatch(routerLocationChange({ ...routeChange }));
 
-        expect(store.getState().wallet.tradingNew.modalCryptoId).toEqual(result);
-        expect(store.getState().wallet.tradingNew.modalAccountKey).toEqual(result);
+        expect(store.getState().wallet.trading.modalCryptoId).toEqual(result.cryptoId);
+        expect(store.getState().wallet.trading.modalAccountKey).toEqual(result.accountKey);
     });
 
-    it.each([
+    type TradingRouterTestFixture = [
+        string,
+        { cryptoId: CryptoId | undefined; key: AccountKey | undefined },
+        RouterState,
+        LocationChangePayload,
+    ];
+    it.each<TradingRouterTestFixture>([
         [
-            'should clean prefilledFromCryptoId when route is change from sell to buy',
+            'should keep prefilledFromAccount when route is changed from sell to buy',
             {
-                cryptoId: undefined,
-                key: undefined,
+                cryptoId: 'bitcoin' as CryptoId,
+                key: 'descriptor' as AccountKey,
             },
             tradingMiddlewareFixtures.TRADING_BUY_ROUTE,
             tradingMiddlewareFixtures.TRADING_SELL_ROUTE,
         ],
         [
-            'should clean prefilledFromCryptoId when route is change from buy to sell',
+            'should keep prefilledFromAccount when route is changed from buy to sell',
             {
-                cryptoId: undefined,
-                key: undefined,
+                cryptoId: 'bitcoin' as CryptoId,
+                key: 'descriptor' as AccountKey,
             },
             tradingMiddlewareFixtures.TRADING_SELL_ROUTE,
             tradingMiddlewareFixtures.TRADING_BUY_ROUTE,
@@ -191,7 +216,7 @@ describe('tradingMiddleware', () => {
             'should prefilledFromCryptoId stay stable when is page changed to the same',
             {
                 cryptoId: 'bitcoin' as CryptoId,
-                key: 'descriptor',
+                key: 'descriptor' as AccountKey,
             },
             tradingMiddlewareFixtures.TRADING_SELL_ROUTE,
             tradingMiddlewareFixtures.TRADING_SELL_ROUTE,
@@ -199,25 +224,20 @@ describe('tradingMiddleware', () => {
     ])('%s', (_, result, routeDefault, routeChange) => {
         const store = initStore(
             getInitialState({
-                tradingNew: {
+                trading: {
                     ...initialState,
                     prefilledFromAccount: {
                         cryptoId: 'bitcoin' as CryptoId,
-                        key: 'descriptor',
+                        key: 'descriptor' as AccountKey, // Todo: create properly via `createAccountKey()`
                     },
                 },
-                router: routerReducer(routeDefault, {} as Action),
+                router: routerReducer(routeDefault, { type: 'init' }),
             }),
         );
 
-        store.dispatch({
-            type: ROUTER.LOCATION_CHANGE,
-            payload: {
-                ...routeChange,
-            },
-        });
+        store.dispatch(routerLocationChange({ ...routeChange }));
 
-        expect(store.getState().wallet.tradingNew.prefilledFromAccount).toEqual(result);
+        expect(store.getState().wallet.trading.prefilledFromAccount).toEqual(result);
     });
 
     it.each([
@@ -229,7 +249,7 @@ describe('tradingMiddleware', () => {
         (section, route) => {
             const store = initStore(
                 getInitialState({
-                    tradingNew: {
+                    trading: {
                         ...initialState,
                     },
                     router: {
@@ -239,17 +259,35 @@ describe('tradingMiddleware', () => {
             );
 
             // go to trading
-            store.dispatch({
-                type: ROUTER.LOCATION_CHANGE,
-                payload: {
-                    ...route,
-                },
-            });
+            store.dispatch(routerLocationChange({ ...route }));
 
-            expect(store.getState().wallet.tradingNew.activeSection).toEqual(section);
-            expect(store.getState().wallet.tradingNew[section].transactionId).toBeUndefined();
+            expect(store.getState().wallet.trading.activeSection).toEqual(section);
+            expect(store.getState().wallet.trading[section].transactionId).toBeUndefined();
         },
     );
+
+    it('should set buy trading and receive account keys from prefilled account on buy route', () => {
+        const accountKey = mockAccountKey({ descriptor: 'prefilledaccountkey' });
+        const store = initStore(
+            getInitialState({
+                trading: {
+                    ...initialState,
+                    prefilledFromAccount: {
+                        cryptoId: 'bitcoin' as CryptoId,
+                        key: accountKey,
+                    },
+                },
+                router: {
+                    ...getInitialState().router,
+                },
+            }),
+        );
+
+        store.dispatch(routerLocationChange({ ...tradingMiddlewareFixtures.TRADING_BUY_ROUTE }));
+
+        expect(store.getState().wallet.trading.buy.tradingAccountKey).toEqual(accountKey);
+        expect(store.getState().wallet.trading.buy.receiveAccountKey).toEqual(accountKey);
+    });
 
     it.each([
         [tradingExchangeActions.setTradingAccountKey.type, 'exchange' as const],
@@ -257,7 +295,7 @@ describe('tradingMiddleware', () => {
     ])('should create new invity API key when action %s is called', (action, section) => {
         const store = initStore(
             getInitialState({
-                tradingNew: {
+                trading: {
                     ...initialState,
                 },
                 router: {
@@ -273,7 +311,7 @@ describe('tradingMiddleware', () => {
         });
 
         expect(invityAPI.createInvityAPIKey).toHaveBeenCalledTimes(1);
-        expect(store.getState().wallet.tradingNew[section].tradingAccountKey).toEqual(
+        expect(store.getState().wallet.trading[section].tradingAccountKey).toEqual(
             'btc-descriptor',
         );
     });

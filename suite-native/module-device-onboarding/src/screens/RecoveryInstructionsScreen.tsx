@@ -1,20 +1,15 @@
 import { useSetAtom } from 'jotai';
 
-import {
-    Box,
-    Button,
-    SwipeableWalkthroughStepHeader,
-    VStack,
-    useBottomSheetModal,
-} from '@suite-native/atoms';
+import { Box, Button, VStack, useBottomSheetModal } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import {
-    DeviceOnboardingStackParamList,
+    type DeviceOnboardingStackParamList,
     DeviceOnboardingStackRoutes,
     Screen,
     ScreenHeader,
-    StackProps,
+    type StackProps,
 } from '@suite-native/navigation';
+import { SwipeableWalkthroughStepHeader } from '@suite-native/swipeable-walkthrough';
 
 import { updateOnboardingAnalyticsAtom } from '../../atoms';
 import { RecoveryCardSvg } from '../assets/RecoveryCardSvg';
@@ -64,7 +59,7 @@ export const RecoveryInstructionsScreen = ({
                     >
                         <Translation id="generic.buttons.continue" />
                     </Button>
-                    <Button colorScheme="tertiaryElevation0" onPress={openModal}>
+                    <Button intent="neutral" priority="secondary" onPress={openModal}>
                         <Translation id="moduleDeviceOnboarding.recoveryInstructionsScreen.secondaryButton" />
                     </Button>
                 </VStack>

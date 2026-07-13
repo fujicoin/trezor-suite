@@ -20,8 +20,8 @@ yarn add @trezor/blockchain-link
 And use it.
 
 ```javascript
-import BlockchainLink from '@trezor/blockchain-link';
-import Blockbook from '@trezor/blockchain-link/lib/workers/blockbook';
+import { BlockchainLink } from '@trezor/blockchain-link';
+import Blockbook from '@trezor/blockchain-link/lib/workers/blockbook/index.mjs';
 
 const link = new BlockchainLink({
     name: 'Name used in logs.',
@@ -43,7 +43,7 @@ Each `src/workers/*/index` file can be used in WebWorker thread.
 Built from source using webpack `worker-loader`:
 
 ```
-import BlockbookWorker from 'worker-loader?filename=workers/blockbook-worker.[hash].js!@trezor/blockchain-link/lib/workers/blockbook/index.js';
+import BlockbookWorker from 'worker-loader?filename=workers/blockbook-worker.[hash].js!@trezor/blockchain-link/lib/workers/blockbook/index.mjs';
 ```
 
 ## Development
@@ -78,7 +78,3 @@ yarn workspace @trezor/blockchain-link build:lib
 yarn workspace @trezor/blockchain-link build:workers
 yarn workspace @trezor/blockchain-link test:integration
 ```
-
-### Publishing
-
-[Follow instructions](../../docs/releases/npm-packages.md) how to publish @trezor package to npm registry.

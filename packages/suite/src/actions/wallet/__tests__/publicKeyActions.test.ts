@@ -1,9 +1,10 @@
 import { combineReducers, createReducer } from '@reduxjs/toolkit';
 
 import { connectInitThunk } from '@suite-common/connect-init';
+import type { DeviceReducerState } from '@suite-common/device';
 import { messageSystemInitialState } from '@suite-common/message-system';
+import { mockSuiteDevice } from '@suite-common/suite-types/mocks';
 import { configureMockStore, testMocks } from '@suite-common/test-utils';
-import { DeviceReducerState } from '@suite-common/wallet-core';
 
 import fixtures from '../__fixtures__/publicKeyActions';
 
@@ -13,7 +14,7 @@ const setTrezorConnectFixtures = (fixture: any) => {
     let buttonRequest: ((e?: any) => any) | undefined;
 
     const getPublicKey = (_params: any) => {
-        if (fixture && fixture.getPublicKey) {
+        if (fixture?.getPublicKey) {
             if (fixture.getPublicKey.success && buttonRequest) {
                 buttonRequest({ code: 'ButtonRequest_PublicKey' });
             }
@@ -42,8 +43,8 @@ const setTrezorConnectFixtures = (fixture: any) => {
     jest.spyOn(TrezorConnect, 'cardanoGetPublicKey').mockImplementation(getPublicKey);
 };
 
-const device = testMocks.getSuiteDevice({
-    state: '1stTestnetAddress@device_id:0',
+const device = mockSuiteDevice({
+    state: { staticSessionId: '1stTestnetAddress@device_id:0' },
     connected: true,
     available: true,
 });
@@ -78,7 +79,7 @@ const rootReducer = combineReducers({
         () => ({}),
     ),
     messageSystem: createReducer(messageSystemInitialState, () => ({})),
-    firmware: createReducer([{ firmwareUpdateSource: 'production' }], () => ({})),
+    firmware: createReducer([{ firmwareChannel: 'production' }], () => ({})),
 });
 
 interface StateOverrides {
@@ -104,9 +105,9 @@ describe('PublicKeyActions', () => {
             setTrezorConnectFixtures(f.mocks);
             const store = initStore(f.initialState);
             await store.dispatch(connectInitThunk());
-            await store.dispatch(f.action());
+            await store.dispatch(f.action() as any);
 
-            if (f.result && f.result.actions) {
+            if (f.result?.actions) {
                 expect(store.getActions()).toMatchObject(f.result.actions);
             }
         });

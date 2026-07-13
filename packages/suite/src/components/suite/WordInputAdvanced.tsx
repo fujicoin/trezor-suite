@@ -1,22 +1,24 @@
 import { useCallback, useEffect } from 'react';
 
+import { useExternalLink } from '@suite/external-links';
+import { Translation } from '@suite/intl';
+import { selectModalRequestId } from '@suite/modal';
 import {
     Banner,
     Button,
     Card,
     Column,
     Grid,
+    IconButton,
     KEYBOARD_CODE,
     Paragraph,
-    PinButton,
 } from '@trezor/components';
-import TrezorConnect, { UI } from '@trezor/connect';
-import { spacings } from '@trezor/theme';
+import TrezorConnect, { UI_RESPONSE } from '@trezor/connect';
+import { CaretLeftIcon, DotOutlineFilledIcon, QuestionIcon } from '@trezor/icons';
 import { HELP_CENTER_ADVANCED_RECOVERY_URL } from '@trezor/urls';
 import { resolveAfter } from '@trezor/utils';
 
-import { Translation } from 'src/components/suite';
-import { useExternalLink } from 'src/hooks/suite';
+import { useSelector } from 'src/hooks/suite';
 
 type WordInputAdvancedProps = {
     count: 6 | 9;
@@ -24,11 +26,15 @@ type WordInputAdvancedProps = {
 
 export const WordInputAdvanced = ({ count }: WordInputAdvancedProps) => {
     const learnMoreUrl = useExternalLink(HELP_CENTER_ADVANCED_RECOVERY_URL);
+    const requestId = useSelector(selectModalRequestId);
 
-    const onSubmit = useCallback(async (value: string) => {
-        await resolveAfter(600);
-        TrezorConnect.uiResponse({ type: UI.RECEIVE_WORD, payload: value });
-    }, []);
+    const onSubmit = useCallback(
+        async (value: string) => {
+            await resolveAfter(600);
+            TrezorConnect.uiResponse({ type: UI_RESPONSE.RECEIVE_WORD, payload: value, requestId });
+        },
+        [requestId],
+    );
 
     const backspace = useCallback(() => {
         onSubmit(String.fromCharCode(8));
@@ -96,60 +102,53 @@ export const WordInputAdvanced = ({ count }: WordInputAdvancedProps) => {
     }, [backspace, count, onSubmit]);
 
     return (
-        <Column gap={spacings.md}>
+        <Column gap={16} maxWidth={380}>
             <Banner
-                variant="info"
-                icon="question"
+                intent="info"
+                icon={QuestionIcon}
                 rightContent={
-                    <Banner.Button
-                        href={learnMoreUrl}
-                        icon="arrowUpRight"
-                        iconAlignment="end"
-                        size="tiny"
-                    >
+                    <Banner.Button href={learnMoreUrl} size="small">
                         <Translation id="TR_LEARN_MORE" />
                     </Banner.Button>
                 }
-            >
-                <Paragraph typographyStyle="label">
-                    <Translation id="TR_ADVANCED_RECOVERY_NOT_SURE" />
-                </Paragraph>
-            </Banner>
+                description={
+                    <Paragraph typographyStyle="body-xs">
+                        <Translation id="TR_ADVANCED_RECOVERY_NOT_SURE" />
+                    </Paragraph>
+                }
+            />
             <Card paddingType="none">
-                <Column gap={spacings.xl} padding={spacings.xxl} alignItems="flex-end">
-                    <Grid columns={count === 9 ? 3 : 2} gap={spacings.lg} width="100%">
-                        {count === 9 &&
-                            // prettier-ignore
-                            // Order follows standard numeric keypad layout
-                            [7, 8, 9,
-                             4, 5, 6,
-                             1, 2, 3].map(num => (
-                                <PinButton
-                                    key={num}
-                                    data-value={String(num)}
-                                    onClick={() => onSubmit(String(num))}
-                                    data-testid={
-                                        num === 1 ? '@recovery/word-input-advanced/1' : undefined
-                                    }
-                                />
-                            ))}
-                        {count === 6 && (
-                            // TODO: Do we need the data-value mess here? Can it be removed?
-                            <>
-                                <PinButton data-value="8" onClick={() => onSubmit('7')} />
-                                <PinButton data-value="9" onClick={() => onSubmit('9')} />
-                                <PinButton data-value="5" onClick={() => onSubmit('4')} />
-                                <PinButton data-value="6" onClick={() => onSubmit('6')} />
-                                <PinButton
-                                    data-value="2"
-                                    onClick={() => onSubmit('1')}
-                                    data-testid="@recovery/word-input-advanced/1"
-                                />
-                                <PinButton data-value="3" onClick={() => onSubmit('3')} />
-                            </>
-                        )}
+                <Column gap={40} padding={16} alignItems="center">
+                    <Grid columns={count === 9 ? 3 : 2} gap={20}>
+                        {(count === 9
+                            ? // prettier-ignore
+                              [7, 8, 9,
+                               4, 5, 6,
+                               1, 2, 3]
+                            : // prettier-ignore
+                              [7, 9,
+                               4, 6,
+                               1, 3]
+                        ).map(num => (
+                            <IconButton
+                                key={num}
+                                onClick={() => onSubmit(String(num))}
+                                data-testid={`@recovery/word-input-advanced/${num}`}
+                                icon={DotOutlineFilledIcon}
+                                intent="neutral"
+                                priority="secondary"
+                                size="large"
+                                tooltip={{ isActive: false }}
+                            />
+                        ))}
                     </Grid>
-                    <Button variant="tertiary" onClick={backspace} size="small" icon="caretLeft">
+                    <Button
+                        intent="neutral"
+                        priority="secondary"
+                        onClick={backspace}
+                        size="small"
+                        iconLeft={CaretLeftIcon}
+                    >
                         <Translation id="TR_BACKSPACE" />
                     </Button>
                 </Column>

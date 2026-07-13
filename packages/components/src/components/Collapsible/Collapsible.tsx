@@ -1,28 +1,13 @@
-import { ReactNode, createContext, useContext, useId, useState } from 'react';
+import { type ReactNode, useId, useState } from 'react';
 
 import styled from 'styled-components';
 
-import { SpacingValues, spacings } from '@trezor/theme';
+import { type SpacingValues, spacings } from '@trezor/theme';
 
 import { CollapsibleContent } from './CollapsibleContent';
+import { CollapsibleContext } from './CollapsibleContext';
 import { CollapsibleToggle } from './CollapsibleToggle';
 import { CollapsibleToggleIcon } from './CollapsibleToggleIcon';
-
-type CollapsibleContextProps = {
-    isOpen: boolean;
-    toggle: (isOpen: boolean) => void;
-    gap?: SpacingValues;
-    contentId: string;
-};
-
-const CollapsibleContext = createContext<CollapsibleContextProps>({
-    isOpen: false,
-    toggle: () => {},
-    gap: spacings.zero,
-    contentId: '',
-});
-
-export const useCollapsible = () => useContext(CollapsibleContext);
 
 const Container = styled.div``;
 
@@ -53,7 +38,9 @@ export const Collapsible = ({
                 gap,
             }}
         >
-            <Container data-testid={dataTest}>{children}</Container>
+            <Container data-testid={dataTest} aria-expanded={isOpen ?? uncontrolledIsOpen}>
+                {children}
+            </Container>
         </CollapsibleContext.Provider>
     );
 };

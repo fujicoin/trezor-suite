@@ -1,17 +1,22 @@
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 
-import { FiatGraphPointWithCryptoBalance } from '@suite-common/graph';
-import { AccountsRootState, selectBaseCurrency } from '@suite-common/wallet-core';
-import { AccountKey, TokenAddress } from '@suite-common/wallet-types';
+import { type FiatGraphPointWithCryptoBalance } from '@suite-common/graph';
+import { type AccountsRootState, selectBaseCurrency } from '@suite-common/wallet-core';
+import { type AccountKey, type TokenAddress } from '@suite-common/wallet-types';
 import {
-    NativeAccountsRootState,
+    type NativeAccountsRootState,
     selectAccountFiatBalance,
     selectAccountTokenFiatBalance,
 } from '@suite-native/accounts';
 import { VStack } from '@suite-native/atoms';
-import { Graph, TimeSwitch, useGraphAtoms, useGraphForSingleAccount } from '@suite-native/graph';
-import { selectIsHistoryEnabledAccountByAccountKey } from '@suite-native/graph/src/selectors';
+import {
+    Graph,
+    TimeSwitch,
+    selectIsHistoryEnabledAccountByAccountKey,
+    useGraphAtoms,
+    useGraphForSingleAccount,
+} from '@suite-native/graph';
 
 import { AccountDetailHeader } from './AccountDetailHeader';
 import { referencePointAtom, selectedPointAtom } from '../accountDetailGraphAtoms';
@@ -48,6 +53,9 @@ export const AccountDetailGraph = ({ accountKey, tokenContract }: AccountDetailG
             totalFiatBalance,
         });
 
+    const isTokenPriceUnavailable = !isLoading && (!!error || graphPoints.length <= 1);
+    const isGraphHidden = !!tokenContract && isTokenPriceUnavailable;
+
     return (
         <VStack spacing="sp24">
             <AccountDetailHeader
@@ -56,7 +64,7 @@ export const AccountDetailGraph = ({ accountKey, tokenContract }: AccountDetailG
                 totalFiatBalance={totalFiatBalance}
             />
 
-            {isHistoryEnabledAccount && (
+            {isHistoryEnabledAccount && !isGraphHidden && (
                 <>
                     <Graph<FiatGraphPointWithCryptoBalance>
                         onPointSelected={setSelectedPoint}

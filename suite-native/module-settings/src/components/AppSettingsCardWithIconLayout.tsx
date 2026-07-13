@@ -1,4 +1,7 @@
-import { CompactCardWithIconLayout, CompactCardWithIconLayoutProps } from '@suite-native/atoms';
+import {
+    CompactCardWithIconLayout,
+    type CompactCardWithIconLayoutProps,
+} from '@suite-native/atoms';
 
 export const AppSettingsCardWithIconLayout = ({
     icon,
@@ -8,6 +11,7 @@ export const AppSettingsCardWithIconLayout = ({
     subtitle,
     noShadow,
     borderColor,
+    variant,
 }: CompactCardWithIconLayoutProps) => (
     <CompactCardWithIconLayout
         icon={icon}
@@ -17,5 +21,6 @@ export const AppSettingsCardWithIconLayout = ({
         testID={testID}
         subtitle={subtitle}
         borderColor={borderColor}
+        variant={variant}
     />
 );

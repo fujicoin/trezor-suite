@@ -1,18 +1,14 @@
-import { testMocks } from '@suite-common/test-utils';
+import { mockSuiteDevice } from '@suite-common/suite-types/mocks';
 
 import * as onboardingActions from 'src/actions/onboarding/onboardingActions';
 import * as STEP from 'src/constants/onboarding/steps';
 import onboardingReducer from 'src/reducers/onboarding/onboardingReducer';
 
-const { getSuiteDevice } = testMocks;
-
 export default [
     {
         description: 'goToNextStep (without param)',
         initialState: {
-            suite: {
-                device: getSuiteDevice(),
-            },
+            device: mockSuiteDevice(),
         },
         action: () => onboardingActions.goToNextStep(),
         expect: {
@@ -22,9 +18,7 @@ export default [
     {
         description: 'goToNextStep (with param)',
         initialState: {
-            suite: {
-                device: getSuiteDevice(),
-            },
+            device: mockSuiteDevice(),
         },
         action: () => onboardingActions.goToNextStep('firmware'),
         expect: {
@@ -40,7 +34,7 @@ export default [
         },
         action: () => onboardingActions.goToPreviousStep(),
         expect: {
-            toMatchObject: { activeStepId: STEP.ID_RESET_DEVICE_STEP },
+            toMatchObject: { activeStepId: STEP.ID_BACKUP_TYPE_STEP },
         },
     },
     {
@@ -49,9 +43,7 @@ export default [
             onboarding: {
                 path: ['new'],
             },
-            suite: {
-                device: getSuiteDevice(),
-            },
+            device: mockSuiteDevice(),
         },
         action: () => onboardingActions.addPath('create'),
         expect: {
@@ -64,9 +56,7 @@ export default [
             onboarding: {
                 path: ['create'],
             },
-            suite: {
-                device: getSuiteDevice(),
-            },
+            device: mockSuiteDevice(),
         },
         action: () => onboardingActions.addPath('create'),
         expect: {
@@ -91,9 +81,7 @@ export default [
             onboarding: {
                 path: ['create', 'recovery'],
             },
-            suite: {
-                device: getSuiteDevice(),
-            },
+            device: mockSuiteDevice(),
         },
         action: () => onboardingActions.removePath(['recovery']),
         expect: {
@@ -107,9 +95,7 @@ export default [
                 path: ['create'],
                 activeStepId: STEP.ID_RECOVERY_STEP,
             },
-            suite: {
-                device: getSuiteDevice(),
-            },
+            device: mockSuiteDevice(),
         },
         action: () => onboardingActions.resetOnboarding(),
         expect: {

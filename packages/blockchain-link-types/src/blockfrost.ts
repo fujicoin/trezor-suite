@@ -194,7 +194,7 @@ export interface ParseAssetResult {
 
 export interface AddressNotification {
     address: string;
-    tx: any;
+    tx: BlockfrostTransaction;
 }
 
 export interface ServerInfo {
@@ -234,7 +234,6 @@ export interface AssetBalance {
 }
 
 export type BlockfrostToken = {
-    type: 'BLOCKFROST';
     standard: 'BLOCKFROST';
     name: string; // from unit or fingerprint
     contract: string; // unit

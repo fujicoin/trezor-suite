@@ -1,131 +1,39 @@
-import { MouseEventHandler, ReactNode } from 'react';
+import { type MouseEventHandler, type ReactNode } from 'react';
 
-import styled, { css, useTheme } from 'styled-components';
-
+import { Address, selectAddressLabel } from '@suite/address';
+import { Translation, useTranslation } from '@suite/intl';
+import { Labeling } from '@suite/labeling';
+import {
+    selectIsLegacyLabelingVisible,
+    selectLabelingDataForSelectedAccount,
+} from '@suite/metadata';
+import { openModal } from '@suite/modal';
+import { returnStableArrayIfEmpty } from '@suite-common/redux-utils';
+import { selectIsSuiteSyncEnabled, selectSuiteSyncOutputLabels } from '@suite-common/suite-sync';
+import { type SuiteSyncOutput } from '@suite-common/suite-sync-storage';
 import { useDisplayBaseCurrency } from '@suite-common/wallet-core';
 import { formatNetworkAmount, isSameUtxo } from '@suite-common/wallet-utils';
-import { Checkbox, Row, Spinner, Text, TextButton, Tooltip } from '@trezor/components';
-import { CheckContainer } from '@trezor/components/src/components/form/Checkbox/Checkbox';
-import { AccountUtxo } from '@trezor/connect';
-import { borders, spacings, spacingsPx, typography } from '@trezor/theme';
-
-import { openModal } from 'src/actions/suite/modalActions';
 import {
-    BaseCurrencyValue,
-    FormattedCryptoAmount,
-    MetadataLabeling,
-    Translation,
-} from 'src/components/suite';
+    Checkbox,
+    Column,
+    GhostContainer,
+    Icon,
+    InfoSegments,
+    Row,
+    Spinner,
+    Text,
+    TextButton,
+    Tooltip,
+} from '@trezor/components';
+import { type AccountUtxo } from '@trezor/connect';
+import { ChangeIcon, ClockIcon, TagFilledIcon, TagIcon, XCircleIcon } from '@trezor/icons';
+
+import { BaseCurrencyValue, FormattedCryptoAmount } from 'src/components/suite';
 import { TransactionTimestamp, UtxoAnonymity } from 'src/components/wallet';
 import { useDispatch, useSelector } from 'src/hooks/suite';
 import { useSendFormContext } from 'src/hooks/wallet';
 import { useCoinjoinUnavailableUtxos } from 'src/hooks/wallet/form/useCoinjoinUnavailableUtxos';
-import {
-    selectIsLabelingInitPossible,
-    selectLabelingDataForSelectedAccount,
-} from 'src/reducers/suite/metadataReducer';
-import { WalletAccountTransaction } from 'src/types/wallet';
-
-import { UtxoTag } from './UtxoTag';
-
-const transitionSpeed = '0.16s';
-
-const ROW_GAP = spacings.xxs;
-
-const LabelPart = styled.div`
-    display: flex;
-    align-items: center;
-    gap: ${ROW_GAP}px;
-    color: ${({ theme }) => theme.textSubdued};
-    overflow: hidden;
-`;
-
-const DetailPartVisibleOnHover = styled.div<{ $alwaysVisible?: boolean }>`
-    display: flex;
-    align-items: center;
-    gap: ${ROW_GAP}px;
-    color: ${({ theme }) => theme.textSubdued};
-
-    ${({ $alwaysVisible }) =>
-        !$alwaysVisible &&
-        css`
-            opacity: 0;
-            transition: opacity ${transitionSpeed};
-        `};
-`;
-
-const Wrapper = styled.div<{ $isChecked: boolean; $isDisabled: boolean }>`
-    align-items: flex-start;
-    border-radius: ${borders.radii.xs};
-    display: flex;
-    margin: 1px -${spacingsPx.sm};
-    padding: ${spacingsPx.sm} ${spacingsPx.sm} ${spacingsPx.xs};
-    transition: background ${transitionSpeed};
-    cursor: pointer;
-
-    ${({ $isDisabled }) =>
-        $isDisabled &&
-        css`
-            color: ${({ theme }) => theme.textSubdued};
-            cursor: default;
-        `};
-
-    &:hover,
-    &:focus-within {
-        background: ${({ $isDisabled, theme }) =>
-            !$isDisabled && theme.backgroundSurfaceElevation2};
-
-        ${({ $isChecked, $isDisabled }) =>
-            !$isChecked &&
-            !$isDisabled &&
-            css`
-                ${CheckContainer} {
-                    background: ${({ theme }) => theme.backgroundSurfaceElevation0};
-                    border-color: ${({ theme }) => theme.borderFocus};
-                }
-            `};
-
-        ${DetailPartVisibleOnHover} {
-            opacity: 1;
-        }
-    }
-`;
-
-const Body = styled.div`
-    flex-grow: 1;
-
-    /* prevent overflow if contents (e.g. label) are too long */
-    min-width: 0;
-`;
-
-const Address = styled.div`
-    overflow: hidden;
-    font-variant-numeric: tabular-nums slashed-zero;
-    text-overflow: ellipsis;
-`;
-
-const StyledCryptoAmount = styled(FormattedCryptoAmount)`
-    margin-left: auto;
-    padding-left: ${spacingsPx.xxs};
-    white-space: nowrap;
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const TransactionDetailButton = styled(TextButton)`
-    color: ${({ theme }) => theme.textSubdued};
-
-    &:hover,
-    &:focus {
-        color: ${({ theme }) => theme.textOnTertiary};
-    }
-`;
-
-const StyledFiatValue = styled(BaseCurrencyValue)`
-    margin-left: auto;
-    padding-left: ${spacingsPx.xxs};
-    color: ${({ theme }) => theme.textSubdued};
-    ${typography.hint}
-`;
+import { type WalletAccountTransaction } from 'src/types/wallet';
 
 type ResolveUtxoSpendableProps = {
     utxo: AccountUtxo;
@@ -174,19 +82,31 @@ export const UtxoSelection = ({ transaction, utxo }: UtxoSelectionProps) => {
             isCoinControlEnabled,
         },
     } = useSendFormContext();
-    // selecting metadata from store rather than send form context which does not update on metadata change
-    const { addressLabels, outputLabels } = useSelector(selectLabelingDataForSelectedAccount);
-    const { shallDisplayBaseCurrency } = useDisplayBaseCurrency(account.symbol);
-    const dispatch = useDispatch();
 
-    const theme = useTheme();
+    const isSuiteSyncEnabled = useSelector(selectIsSuiteSyncEnabled);
+    const isLegacyLabelingVisible = useSelector(selectIsLegacyLabelingVisible);
+
+    // selecting metadata from store rather than send form context which does not update on metadata change
+    const { outputLabels } = useSelector(selectLabelingDataForSelectedAccount);
+    const { shallDisplayBaseCurrency } = useDisplayBaseCurrency(account.symbol);
+    const suiteSyncOutputLabels = useSelector(state =>
+        isSuiteSyncEnabled
+            ? selectSuiteSyncOutputLabels(state, account.deviceState)
+            : returnStableArrayIfEmpty<SuiteSyncOutput>(),
+    );
+    const { translationString } = useTranslation();
+
+    const dispatch = useDispatch();
+    const addressLabel = useSelector(state =>
+        selectAddressLabel(state, {
+            address: utxo.address,
+            deviceStaticId: account.deviceState,
+        }),
+    );
 
     const coinjoinUnavailableMessage = useCoinjoinUnavailableUtxos({ account, utxo });
     const isPendingTransaction = utxo.confirmations === 0;
     const isChangeAddress = utxo.path.split('/').at(-2) === '1'; // change address always has a 1 on the penultimate level of the derivation path
-    const outputLabel = outputLabels?.[utxo.txid]?.[utxo.vout];
-
-    const isLabelingPossible = useSelector(selectIsLabelingInitPossible);
     const anonymity = account.addresses?.anonymitySet?.[utxo.address];
 
     const isChecked = isCoinControlEnabled
@@ -196,13 +116,10 @@ export const UtxoSelection = ({ transaction, utxo }: UtxoSelectionProps) => {
     const unspendableTooltip = resolveUtxoSpendable({ utxo, coinjoinRegisteredUtxos });
     const isDisabled = unspendableTooltip !== null;
 
-    const utxoTagIconColor = isDisabled
-        ? theme.legacy.TYPE_LIGHT_GREY
-        : theme.legacy.TYPE_DARK_GREY;
-
     const handleCheckbox = () => toggleUtxoSelection(utxo);
     const showTransactionDetail: MouseEventHandler = e => {
-        e.stopPropagation(); // do not trigger the checkbox
+        e.stopPropagation();
+
         if (transaction) {
             dispatch(
                 openModal({
@@ -217,118 +134,161 @@ export const UtxoSelection = ({ transaction, utxo }: UtxoSelectionProps) => {
         }
     };
 
+    const outputLabel =
+        suiteSyncOutputLabels.find(it => it.txId === utxo.txid && it.txTargetId === `${utxo.vout}`)
+            ?.label ??
+        (isLegacyLabelingVisible ? outputLabels?.[utxo.txid]?.[utxo.vout] : undefined);
+
     return (
-        <Wrapper
-            $isChecked={isChecked}
-            $isDisabled={isDisabled}
-            onClick={isDisabled ? undefined : handleCheckbox}
-        >
-            <Tooltip content={unspendableTooltip}>
-                <Checkbox
-                    isChecked={isChecked}
-                    isDisabled={isDisabled}
-                    onClick={handleCheckbox}
-                    margin={{ top: spacings.xxxs, right: spacings.xs }}
-                />
-            </Tooltip>
-
-            <Body>
-                <Row gap={ROW_GAP}>
-                    {isPendingTransaction && (
-                        <UtxoTag
-                            tooltipMessage={<Translation id="TR_IN_PENDING_TRANSACTION" />}
-                            icon="clock"
-                            iconColor={utxoTagIconColor}
-                        />
-                    )}
-
-                    {coinjoinUnavailableMessage && (
-                        <UtxoTag
-                            tooltipMessage={coinjoinUnavailableMessage}
-                            icon="xCircle"
-                            iconColor={utxoTagIconColor}
-                        />
-                    )}
-
-                    {isChangeAddress && (
-                        <UtxoTag
-                            tooltipMessage={<Translation id="TR_CHANGE_ADDRESS_TOOLTIP" />}
-                            icon="change"
-                            iconColor={utxoTagIconColor}
-                        />
-                    )}
-                    <Text typographyStyle="hint">
-                        <MetadataLabeling
-                            payload={{
-                                type: 'addressLabel',
-                                entityKey: account.key,
-                                defaultValue: utxo.address,
-                                value: addressLabels[utxo.address],
-                            }}
-                            isDisabled
-                            defaultVisibleValue={<Address>{utxo.address}</Address>}
-                        />
-                    </Text>
-
-                    <StyledCryptoAmount
-                        value={formatNetworkAmount(utxo.amount, account.symbol)}
-                        symbol={account.symbol}
+        <GhostContainer onClick={handleCheckbox} padding={12} margin={{ horizontal: -12 }} as="div">
+            <Row gap={24} width="100%">
+                <Tooltip content={unspendableTooltip}>
+                    <Checkbox
+                        isChecked={isChecked}
+                        isDisabled={isDisabled}
+                        onChange={handleCheckbox}
+                        onClick={e => e.stopPropagation()}
                     />
-                </Row>
-
-                <Row margin={{ top: spacings.xxs }} minHeight={spacings.xl} gap={ROW_GAP}>
-                    {transaction ? (
-                        <TransactionTimestamp showDate transaction={transaction} />
-                    ) : (
-                        <Tooltip
-                            cursor="pointer"
-                            content={<Translation id="TR_LOADING_TRANSACTION_DETAILS" />}
+                </Tooltip>
+                <Column flex="1" gap={0}>
+                    <Row gap={12} justifyContent="space-between">
+                        <Text typographyStyle="body-md">
+                            <Labeling
+                                deviceStaticSessionId={account.deviceState}
+                                payload={{
+                                    type: 'addressLabel',
+                                    entityKey: account.key,
+                                    defaultValue: utxo.address,
+                                    accountDescriptor: account.descriptor,
+                                    networkSymbol: account.symbol,
+                                }}
+                                displayValue={<Address value={utxo.address} isTruncated />}
+                                placeholder={translationString('TR_LABELING_ADDRESS_LABEL')}
+                                maxWidth={350}
+                                minHeight={28}
+                                gap={6}
+                                leftAddon={
+                                    <>
+                                        {isPendingTransaction && (
+                                            <Tooltip
+                                                content={
+                                                    <Translation id="TR_IN_PENDING_TRANSACTION" />
+                                                }
+                                            >
+                                                <Icon
+                                                    as={ClockIcon}
+                                                    intent="neutral"
+                                                    priority="secondary"
+                                                    size={16}
+                                                />
+                                            </Tooltip>
+                                        )}
+                                        {coinjoinUnavailableMessage && (
+                                            <Tooltip content={coinjoinUnavailableMessage}>
+                                                <Icon
+                                                    as={XCircleIcon}
+                                                    intent="neutral"
+                                                    priority="secondary"
+                                                    size={16}
+                                                />
+                                            </Tooltip>
+                                        )}
+                                        {isChangeAddress && (
+                                            <Tooltip
+                                                content={
+                                                    <Translation id="TR_CHANGE_ADDRESS_TOOLTIP" />
+                                                }
+                                            >
+                                                <Icon
+                                                    as={ChangeIcon}
+                                                    intent="neutral"
+                                                    priority="secondary"
+                                                    size={16}
+                                                />
+                                            </Tooltip>
+                                        )}
+                                    </>
+                                }
+                            >
+                                {addressLabel}
+                            </Labeling>
+                        </Text>
+                        <FormattedCryptoAmount
+                            value={formatNetworkAmount(utxo.amount, account.symbol)}
+                            symbol={account.symbol}
+                        />
+                    </Row>
+                    <Row justifyContent="space-between" gap={12}>
+                        <InfoSegments
+                            typographyStyle="body-sm"
+                            intent="neutral"
+                            priority="secondary"
+                            gap={6}
                         >
-                            <Spinner size={14} margin={{ right: spacings.xs }} />
-                        </Tooltip>
-                    )}
-
-                    {anonymity && (
-                        <>
-                            <span>•</span>
-                            <UtxoAnonymity anonymity={anonymity} />
-                        </>
-                    )}
-
-                    {isLabelingPossible && (
-                        <LabelPart>
-                            <span>•</span>
-                            <MetadataLabeling
-                                visible
+                            {transaction ? (
+                                <TransactionTimestamp showDate transaction={transaction} />
+                            ) : (
+                                <Tooltip
+                                    cursor="pointer"
+                                    content={<Translation id="TR_LOADING_TRANSACTION_DETAILS" />}
+                                >
+                                    <Spinner size={16} isDisabled={true} />
+                                </Tooltip>
+                            )}
+                            {anonymity && <UtxoAnonymity anonymity={anonymity} />}
+                            {transaction && (
+                                <TextButton
+                                    size="small"
+                                    intent="neutral"
+                                    onClick={showTransactionDetail}
+                                    isUnderlined
+                                >
+                                    <Translation id="TR_DETAIL" />
+                                </TextButton>
+                            )}
+                            <Labeling
+                                deviceStaticSessionId={account.deviceState}
+                                displayValue={<Translation id="TR_LABELING_ADD_LABEL" />}
                                 payload={{
                                     type: 'outputLabel',
                                     entityKey: account.key,
                                     txid: utxo.txid,
-                                    outputIndex: utxo.vout,
+                                    outputIndex: `${utxo.vout}`,
                                     defaultValue: `${utxo.txid}-${utxo.vout}`,
-                                    value: outputLabel,
+                                    networkSymbol: account.symbol,
+                                    accountDescriptor: account.descriptor,
                                 }}
-                            />
-                        </LabelPart>
-                    )}
-
-                    {transaction && (
-                        <DetailPartVisibleOnHover>
-                            <span>•</span>
-                            <TransactionDetailButton size="small" onClick={showTransactionDetail}>
-                                <Translation id="TR_DETAIL" />
-                            </TransactionDetailButton>
-                        </DetailPartVisibleOnHover>
-                    )}
-
-                    {shallDisplayBaseCurrency && (
-                        <StyledFiatValue
-                            amount={formatNetworkAmount(utxo.amount, account.symbol, false)}
-                            symbol={network.symbol}
-                        />
-                    )}
-                </Row>
-            </Body>
-        </Wrapper>
+                                gap={6}
+                                leftAddon={
+                                    <Icon
+                                        as={outputLabel ? TagFilledIcon : TagIcon}
+                                        intent="neutral"
+                                        priority="secondary"
+                                        size={12}
+                                    />
+                                }
+                                placeholder={translationString('TR_LABELING_OUTPUT_LABEL')}
+                                maxWidth={250}
+                            >
+                                {outputLabel}
+                            </Labeling>
+                        </InfoSegments>
+                        {shallDisplayBaseCurrency && (
+                            <Text
+                                typographyStyle="body-sm"
+                                intent="neutral"
+                                priority="secondary"
+                                as="div"
+                            >
+                                <BaseCurrencyValue
+                                    amount={formatNetworkAmount(utxo.amount, account.symbol, false)}
+                                    symbol={network.symbol}
+                                />
+                            </Text>
+                        )}
+                    </Row>
+                </Column>
+            </Row>
+        </GhostContainer>
     );
 };

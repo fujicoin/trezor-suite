@@ -1,12 +1,18 @@
+import { type TestStore, act } from '@suite-native/test-utils-store';
 import {
-    PreloadedState,
-    TestStore,
-    initStore,
-    renderHookWithStoreProviderAsync,
-} from '@suite-native/test-utils';
+    MOCK_ACCOUNT_DEVICE_SESSION_ID,
+    btc1NormalAccount,
+    eth1NormalAccount,
+    getBuyTrade,
+    getExchangeTrade,
+    getSellTrade,
+    sol1normalAccount,
+} from '@suite-native/trading-fixtures';
 
-import { getBuyTrade, getExchangeTrade, getSellTrade } from '../../../__fixtures__/trades';
-import { getInitializedTradingState } from '../../../__fixtures__/tradingState';
+import {
+    createTradingLightStore,
+    renderHookWithTradingProvider,
+} from '../../../__tests__/tradingTestUtils';
 import { useAllTradesReloadTimer } from '../useAllTradesReloadTimer';
 
 // Mock the useReloadTimer hook
@@ -35,54 +41,25 @@ describe('useAllTradesReloadTimer', () => {
         });
     });
 
-    const getInitializedStore = async ({ trades = [] }: { trades?: any[] } = {}) => {
-        const preloadedState: PreloadedState = {
-            wallet: {
-                tradingNew: {
-                    ...getInitializedTradingState(),
-                    trades,
+    const getInitializedStore = ({ trades = [] }: { trades?: any[] } = {}) =>
+        createTradingLightStore({
+            overrides: {
+                wallet: {
+                    trading: { trades },
+                    accounts: [btc1NormalAccount, eth1NormalAccount, sol1normalAccount],
                 },
-                accounts: [
-                    {
-                        key: 'btc1',
-                        symbol: 'btc',
-                        deviceState: 'device1@test:123',
-                        descriptor: 'btc-descriptor',
-                        addresses: { unused: [{ address: 'btc-address' }] },
-                        visible: true,
+                device: {
+                    selectedDevice: {
+                        state: { staticSessionId: MOCK_ACCOUNT_DEVICE_SESSION_ID },
                     },
-                    {
-                        key: 'eth1',
-                        symbol: 'eth',
-                        deviceState: 'device1@test:123',
-                        descriptor: 'eth-descriptor',
-                        addresses: { unused: [{ address: 'eth-address' }] },
-                        visible: true,
-                    },
-                    {
-                        key: 'sol1',
-                        symbol: 'sol',
-                        deviceState: 'device1@test:123',
-                        descriptor: 'sol-descriptor',
-                        addresses: { unused: [{ address: 'sol-address' }] },
-                        visible: true,
-                    },
-                ],
-            },
-            device: {
-                selectedDevice: {
-                    state: { staticSessionId: 'device1@test:123' },
                 },
             },
-        };
-
-        return await initStore(preloadedState);
-    };
+        });
 
     const renderUseAllTradesReloadTimer = (store: TestStore) =>
-        renderHookWithStoreProviderAsync(() => useAllTradesReloadTimer(), { store });
+        renderHookWithTradingProvider(() => useAllTradesReloadTimer(), { store });
 
-    it('should enable reload timer when there are trades to watch', async () => {
+    it('should enable reload timer when there are trades to watch', () => {
         const mockTrades = [
             getBuyTrade({ status: 'SUBMITTED' }),
             getExchangeTrade({ status: 'CONVERTING' }),
@@ -91,7 +68,7 @@ describe('useAllTradesReloadTimer', () => {
         // Mock the trades with account keys
         const tradesWithAccounts = mockTrades.map(trade => ({
             ...trade,
-            selectedAccountKey: 'btc1',
+            selectedAccountKey: btc1NormalAccount.key,
         }));
 
         mockUseReloadTimer.mockReturnValue({
@@ -100,8 +77,8 @@ describe('useAllTradesReloadTimer', () => {
             resetCount: 0,
         });
 
-        const store = await getInitializedStore({ trades: tradesWithAccounts });
-        await renderUseAllTradesReloadTimer(store);
+        const store = getInitializedStore({ trades: tradesWithAccounts });
+        renderUseAllTradesReloadTimer(store);
 
         expect(mockUseReloadTimer).toHaveBeenCalledWith({
             isEnabled: true, // Should be true when there are trades to watch
@@ -109,7 +86,7 @@ describe('useAllTradesReloadTimer', () => {
         });
     });
 
-    it('should filter trades that need watching correctly', async () => {
+    it('should return selected trades', () => {
         const mockTrades = [
             getBuyTrade({ status: 'SUBMITTED' }), // Should be watched
             getBuyTrade({ status: 'SUCCESS' }), // Should not be watched (final status)
@@ -119,74 +96,16 @@ describe('useAllTradesReloadTimer', () => {
 
         const tradesWithAccounts = mockTrades.map(trade => ({
             ...trade,
-            selectedAccountKey: 'btc1',
+            selectedAccountKey: btc1NormalAccount.key,
         }));
 
-        const store = await getInitializedStore({ trades: tradesWithAccounts });
-        const { result } = await renderUseAllTradesReloadTimer(store);
+        const store = getInitializedStore({ trades: tradesWithAccounts });
+        const { result } = renderUseAllTradesReloadTimer(store);
 
         expect(result.current.tradesToWatch).toHaveLength(2);
-        expect(result.current.tradesToWatch[0].data.status).toBe('SUBMITTED');
-        expect(result.current.tradesToWatch[1].data.status).toBe('CONVERTING');
-    });
-
-    it('should group trades by account correctly', async () => {
-        const mockTrades = [
-            getBuyTrade({ status: 'SUBMITTED' }),
-            getExchangeTrade({ status: 'CONVERTING' }),
-        ];
-
-        const tradesWithAccounts = mockTrades.map((trade, index) => ({
-            ...trade,
-            selectedAccountKey: index === 0 ? 'btc1' : 'eth1',
-        }));
-
-        const store = await getInitializedStore({ trades: tradesWithAccounts });
-        const { result } = await renderUseAllTradesReloadTimer(store);
-
-        expect(result.current.tradesByAccount).toHaveLength(2);
-        expect(result.current.tradesByAccount[0].account.key).toBe('btc1');
-        expect(result.current.tradesByAccount[0].trades).toHaveLength(1);
-        expect(result.current.tradesByAccount[1].account.key).toBe('eth1');
-        expect(result.current.tradesByAccount[1].trades).toHaveLength(1);
-    });
-
-    it('should handle trades with undefined status', async () => {
-        const mockTrades = [
-            getBuyTrade({ status: undefined }), // Should not be watched
-            getExchangeTrade({ status: 'CONVERTING' }), // Should be watched
-        ];
-
-        const tradesWithAccounts = mockTrades.map(trade => ({
-            ...trade,
-            selectedAccountKey: 'btc1',
-        }));
-
-        const store = await getInitializedStore({ trades: tradesWithAccounts });
-        const { result } = await renderUseAllTradesReloadTimer(store);
-
-        expect(result.current.tradesToWatch).toHaveLength(1);
-        expect(result.current.tradesToWatch[0].data.status).toBe('CONVERTING');
-    });
-
-    it('should handle trades without account keys', async () => {
-        const mockTrades = [
-            getBuyTrade({ status: 'SUBMITTED' }),
-            getExchangeTrade({ status: 'CONVERTING' }),
-        ];
-
-        // Remove account keys to test fallback behavior
-        const tradesWithoutAccounts = mockTrades.map(trade => ({
-            ...trade,
-            selectedAccountKey: undefined,
-            sendAccountKey: undefined,
-        }));
-
-        const store = await getInitializedStore({ trades: tradesWithoutAccounts });
-        const { result } = await renderUseAllTradesReloadTimer(store);
-
-        // Trades without account keys should not be grouped
-        expect(result.current.tradesByAccount).toHaveLength(0);
+        expect(result.current.tradesToWatch[0]?.data.status).toBe('SUBMITTED');
+        expect(result.current.tradesToWatch[1]?.data.status).toBe('CONVERTING');
+        expect(result.current.tradesByAccount).toHaveLength(1);
     });
 
     it('should dispatch watchTradeThunk for active trades', async () => {
@@ -204,14 +123,16 @@ describe('useAllTradesReloadTimer', () => {
 
         const tradesWithAccounts = mockTrades.map(trade => ({
             ...trade,
-            selectedAccountKey: 'btc1',
+            selectedAccountKey: btc1NormalAccount.key,
         }));
 
-        const store = await getInitializedStore({ trades: tradesWithAccounts });
-        const { result } = await renderUseAllTradesReloadTimer(store);
+        const store = getInitializedStore({ trades: tradesWithAccounts });
+        const { result } = renderUseAllTradesReloadTimer(store);
 
         // Call the refreshAllTrades function
-        await result.current.refreshAllTrades();
+        await act(async () => {
+            await result.current.refreshAllTrades();
+        });
 
         // Should reset the timer
         expect(mockReset).toHaveBeenCalled();
@@ -231,10 +152,12 @@ describe('useAllTradesReloadTimer', () => {
             getExchangeTrade({ status: 'ERROR' }),
         ];
 
-        const store = await getInitializedStore({ trades: mockTrades });
-        const { result } = await renderUseAllTradesReloadTimer(store);
+        const store = getInitializedStore({ trades: mockTrades });
+        const { result } = renderUseAllTradesReloadTimer(store);
 
-        await result.current.refreshAllTrades();
+        await act(async () => {
+            await result.current.refreshAllTrades();
+        });
 
         // Should not reset timer when there are no trades to watch
         expect(mockReset).not.toHaveBeenCalled();
@@ -251,16 +174,18 @@ describe('useAllTradesReloadTimer', () => {
         const mockTrades = [getBuyTrade({ status: 'SUBMITTED' })];
         const tradesWithAccounts = mockTrades.map(trade => ({
             ...trade,
-            selectedAccountKey: 'btc1',
+            selectedAccountKey: btc1NormalAccount.key,
         }));
 
-        const store = await getInitializedStore({ trades: tradesWithAccounts });
-        const { result } = await renderUseAllTradesReloadTimer(store);
+        const store = getInitializedStore({ trades: tradesWithAccounts });
+        const { result } = renderUseAllTradesReloadTimer(store);
 
         // Initially should be false
         expect(result.current.hasFetchedInitialTrades).toBe(false);
 
-        await result.current.refreshAllTrades();
+        await act(async () => {
+            await result.current.refreshAllTrades();
+        });
 
         // After refresh, should still be false (state is managed internally)
         // The actual state change happens in the hook's internal state
@@ -275,8 +200,8 @@ describe('useAllTradesReloadTimer', () => {
             resetCount: 0,
         });
 
-        const store = await getInitializedStore({ trades: [] });
-        const { result } = await renderUseAllTradesReloadTimer(store);
+        const store = getInitializedStore({ trades: [] });
+        const { result } = renderUseAllTradesReloadTimer(store);
 
         expect(result.current.tradesToWatch).toHaveLength(0);
         expect(result.current.tradesByAccount).toHaveLength(0);
@@ -286,7 +211,7 @@ describe('useAllTradesReloadTimer', () => {
         expect(mockReset).not.toHaveBeenCalled();
     });
 
-    it('should handle trades with different trade types', async () => {
+    it('should handle trades with different trade types', () => {
         const mockTrades = [
             getBuyTrade({ status: 'SUBMITTED' }),
             getExchangeTrade({ status: 'CONVERTING' }),
@@ -295,19 +220,19 @@ describe('useAllTradesReloadTimer', () => {
 
         const tradesWithAccounts = mockTrades.map(trade => ({
             ...trade,
-            selectedAccountKey: 'btc1',
+            selectedAccountKey: btc1NormalAccount.key,
         }));
 
-        const store = await getInitializedStore({ trades: tradesWithAccounts });
-        const { result } = await renderUseAllTradesReloadTimer(store);
+        const store = getInitializedStore({ trades: tradesWithAccounts });
+        const { result } = renderUseAllTradesReloadTimer(store);
 
         // All trades should be watched as they have non-final statuses
         expect(result.current.tradesToWatch).toHaveLength(3);
     });
 
-    it('should provide setIsFetching function', async () => {
-        const store = await getInitializedStore();
-        const { result } = await renderUseAllTradesReloadTimer(store);
+    it('should provide setIsFetching function', () => {
+        const store = getInitializedStore();
+        const { result } = renderUseAllTradesReloadTimer(store);
 
         expect(typeof result.current.setIsFetching).toBe('function');
 

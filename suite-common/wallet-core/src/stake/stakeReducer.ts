@@ -1,64 +1,15 @@
 import { createReducerWithExtraDeps } from '@suite-common/redux-utils';
-import { NetworkSymbol } from '@suite-common/wallet-config';
-import { PrecomposedTransactionFinal, StakeFormState, Timestamp } from '@suite-common/wallet-types';
 import { cloneObject } from '@trezor/utils';
 
 import { stakeActions } from './stakeActions';
-import {
-    fetchEverstakeData,
-    fetchEverstakeRewards,
-    fetchEverstakeStakingInfo,
-} from './stakeThunks';
-import { StakeRewardsByAccount, TotalStakeRewardsByAccount, ValidatorsQueue } from './stakeTypes';
-import { SerializedTx } from '../send/sendFormTypes';
-
-export interface StakeState {
-    precomposedTx?: PrecomposedTransactionFinal;
-    precomposedForm?: StakeFormState;
-    serializedTx?: SerializedTx; // payload for TrezorConnect.pushTransaction
-    data: {
-        [key in NetworkSymbol]?: {
-            poolStats?: {
-                error: boolean | string;
-                isLoading: boolean;
-                lastSuccessfulFetchTimestamp: Timestamp;
-                data: {
-                    ethApy?: number;
-                    nextRewardPayout?: number;
-                    isPoolStatsLoading?: boolean;
-                };
-            };
-            validatorsQueue?: {
-                error: boolean | string;
-                isLoading: boolean;
-                lastSuccessfulFetchTimestamp: Timestamp;
-                data: ValidatorsQueue;
-            };
-            stakingInfo?: {
-                error: boolean | string;
-                isLoading: boolean;
-                lastSuccessfulFetchTimestamp: Timestamp;
-                data: { apy?: number };
-            };
-            stakingRewards?: {
-                error: boolean | string;
-                isLoading: boolean;
-                lastSuccessfulFetchTimestamp: Timestamp;
-                data: {
-                    rewardsHistory?: StakeRewardsByAccount;
-                    totalRewards?: TotalStakeRewardsByAccount;
-                };
-            };
-        };
-    };
-}
-
-export type StakeRootState = { wallet: { stake: StakeState } };
+import { stakeDataSlice } from './stakeDataSlice';
+import type { StakeState } from './stakeReducerTypes';
 
 export const stakeInitialState: StakeState = {
     precomposedTx: undefined,
     serializedTx: undefined,
-    data: {},
+    votingDelegation: { type: 'everstake' },
+    data: stakeDataSlice.getInitialState(),
 };
 
 export const prepareStakeReducer = createReducerWithExtraDeps(stakeInitialState, builder => {
@@ -86,151 +37,15 @@ export const prepareStakeReducer = createReducerWithExtraDeps(stakeInitialState,
                 delete state.serializedTx;
             }
         })
+        .addCase(stakeActions.setVotingDelegationOption, (state, action) => {
+            state.votingDelegation = action.payload;
+        })
         .addCase(stakeActions.dispose, state => {
             delete state.precomposedTx;
             delete state.precomposedForm;
             delete state.serializedTx;
         })
-        .addCase(fetchEverstakeData.pending, (state, action) => {
-            const { symbol } = action.meta.arg;
-
-            if (!state.data[symbol]) {
-                state.data[symbol] = {
-                    poolStats: {
-                        error: false,
-                        isLoading: true,
-                        lastSuccessfulFetchTimestamp: 0 as Timestamp,
-                        data: {},
-                    },
-                    validatorsQueue: {
-                        error: false,
-                        isLoading: true,
-                        lastSuccessfulFetchTimestamp: 0 as Timestamp,
-                        data: {},
-                    },
-                };
-            }
-        })
-        .addCase(fetchEverstakeData.fulfilled, (state, action) => {
-            const { symbol, endpointType } = action.meta.arg;
-
-            const data = state.data[symbol];
-
-            if (data?.[endpointType]) {
-                data[endpointType] = {
-                    error: false,
-                    isLoading: false,
-                    lastSuccessfulFetchTimestamp: Date.now() as Timestamp,
-                    data: action.payload,
-                };
-            }
-        })
-        .addCase(fetchEverstakeData.rejected, (state, action) => {
-            const { symbol, endpointType } = action.meta.arg;
-
-            const data = state.data[symbol];
-
-            if (data?.[endpointType]) {
-                data[endpointType] = {
-                    error: true,
-                    isLoading: false,
-                    lastSuccessfulFetchTimestamp: 0 as Timestamp,
-                    data: {},
-                };
-            }
-        })
-        .addCase(fetchEverstakeStakingInfo.pending, (state, action) => {
-            const { symbol, endpointType } = action.meta.arg;
-
-            if (!state.data[symbol]?.[endpointType]) {
-                state.data[symbol] = {
-                    ...state.data[symbol],
-                    stakingInfo: {
-                        error: false,
-                        isLoading: true,
-                        lastSuccessfulFetchTimestamp: 0 as Timestamp,
-                        data: {},
-                    },
-                };
-            }
-        })
-        .addCase(fetchEverstakeStakingInfo.fulfilled, (state, action) => {
-            const { symbol, endpointType } = action.meta.arg;
-
-            const data = state.data[symbol];
-
-            if (data?.[endpointType]) {
-                data[endpointType] = {
-                    error: false,
-                    isLoading: false,
-                    lastSuccessfulFetchTimestamp: Date.now() as Timestamp,
-                    data: action.payload,
-                };
-            }
-        })
-        .addCase(fetchEverstakeStakingInfo.rejected, (state, action) => {
-            const { symbol, endpointType } = action.meta.arg;
-
-            const data = state.data[symbol];
-
-            if (data?.[endpointType]) {
-                data[endpointType] = {
-                    error: true,
-                    isLoading: false,
-                    lastSuccessfulFetchTimestamp: 0 as Timestamp,
-                    data: {},
-                };
-            }
-        })
-        .addCase(fetchEverstakeRewards.pending, (state, action) => {
-            const { symbol, endpointType, address } = action.meta.arg;
-
-            const data = state.data[symbol]?.[endpointType]?.data;
-
-            if (!data?.totalRewards?.[address] || !data.rewardsHistory?.[address]) {
-                state.data[symbol] = {
-                    ...state.data[symbol],
-                    stakingRewards: {
-                        error: false,
-                        isLoading: true,
-                        lastSuccessfulFetchTimestamp: 0 as Timestamp,
-                        data: {},
-                    },
-                };
-            }
-        })
-        .addCase(fetchEverstakeRewards.fulfilled, (state, action) => {
-            const { symbol, endpointType } = action.meta.arg;
-
-            const data = state.data[symbol];
-
-            if (data?.[endpointType]) {
-                data[endpointType] = {
-                    error: false,
-                    isLoading: false,
-                    lastSuccessfulFetchTimestamp: Date.now() as Timestamp,
-                    data: action.payload,
-                };
-            }
-        })
-
-        .addCase(fetchEverstakeRewards.rejected, (state, action) => {
-            const { symbol, endpointType } = action.meta.arg;
-
-            const data = state.data[symbol];
-
-            if (data?.[endpointType]) {
-                data[endpointType] = {
-                    error: true,
-                    isLoading: false,
-                    lastSuccessfulFetchTimestamp: 0 as Timestamp,
-                    data: {},
-                };
-            }
+        .addDefaultCase((state, action) => {
+            state.data = stakeDataSlice.reducer(state.data, action);
         });
 });
-
-export const selectStake = (state: StakeRootState) => state.wallet.stake;
-
-export const selectStakePrecomposedForm = (state: StakeRootState) =>
-    state.wallet.stake.precomposedForm;

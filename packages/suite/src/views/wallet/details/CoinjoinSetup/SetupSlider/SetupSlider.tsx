@@ -1,39 +1,21 @@
-import { ChangeEventHandler, KeyboardEventHandler, ReactNode, useRef } from 'react';
+import { type ChangeEventHandler, type KeyboardEventHandler, type ReactNode, useRef } from 'react';
 
 import styled from 'styled-components';
 
-import { Range, RangeProps, variables } from '@trezor/components';
+import { selectCurrentCoinjoinSession } from '@suite/coinjoin';
+import { Paragraph, Range, type RangeProps, Row } from '@trezor/components';
 
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { selectCurrentCoinjoinSession } from 'src/reducers/wallet/coinjoinReducer';
 
-import { SliderInput, SliderInputProps } from './SliderInput';
-
-const Row = styled.div`
-    align-items: center;
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-`;
-
-const Heading = styled.div`
-    font-size: ${variables.FONT_SIZE.H3};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-`;
-
-const Description = styled.p`
-    color: ${({ theme }) => theme.legacy.TYPE_LIGHT_GREY};
-    font-size: ${variables.FONT_SIZE.SMALL};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-    margin: 8px 0;
-`;
+import { SliderInput, type SliderInputProps } from './SliderInput';
 
 const StyledSliderInput = styled(SliderInput)<{ $width?: number }>`
     width: ${({ $width }) => $width && `${$width}px`};
 `;
 
 interface SetupSliderProps
-    extends Pick<SliderInputProps, 'isDisabled' | 'max' | 'min' | 'onChange' | 'unit'>,
+    extends
+        Pick<SliderInputProps, 'isDisabled' | 'max' | 'min' | 'onChange' | 'unit'>,
         Pick<RangeProps, 'labels' | 'onLabelClick' | 'trackStyle'> {
     children?: ReactNode;
     description: ReactNode;
@@ -91,8 +73,8 @@ export const SetupSlider = ({
 
     return (
         <div>
-            <Row>
-                <Heading>{heading}</Heading>
+            <Row alignItems="center" justifyContent="space-between" gap={12}>
+                <Paragraph typographyStyle="headline-sm">{heading}</Paragraph>
                 <StyledSliderInput
                     ref={inputRef}
                     value={inputValue}
@@ -104,7 +86,14 @@ export const SetupSlider = ({
                     $width={inputWidth}
                 />
             </Row>
-            <Description>{description}</Description>
+            <Paragraph
+                typographyStyle="body-sm"
+                margin={{ vertical: 8 }}
+                intent="neutral"
+                priority="secondary"
+            >
+                {description}
+            </Paragraph>
             <Range
                 min={min}
                 max={max}

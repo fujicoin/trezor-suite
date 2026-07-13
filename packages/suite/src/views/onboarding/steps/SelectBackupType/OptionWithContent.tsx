@@ -1,18 +1,13 @@
-import { ReactNode, forwardRef } from 'react';
+import { type ReactNode, forwardRef } from 'react';
 
 import styled, { css } from 'styled-components';
 
-import { BackupType } from '@suite-common/suite-types';
-import { Icon, Radio, Row, Text, Tooltip, useElevation, variables } from '@trezor/components';
-import {
-    Elevation,
-    borders,
-    mapElevationToBackground,
-    mapElevationToBorder,
-    spacingsPx,
-} from '@trezor/theme';
+import { Translation } from '@suite/intl';
+import { type BackupType } from '@suite-common/suite-types';
+import { Icon, Radio, Row, Text, Tooltip, variables } from '@trezor/components';
+import { CaretDownIcon, RecoverySeedIcon } from '@trezor/icons';
+import { borders, spacingsPx } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useLayoutSize } from 'src/hooks/suite';
 
 import { typesToLabelMap } from './typesToLabelMap';
@@ -41,13 +36,13 @@ export const OptionStyled = styled.div<{ $hasHoverInteraction?: boolean; $disabl
     align-items: center;
     cursor: pointer;
 
-    color: ${({ $disabled, theme }) => ($disabled ? theme.textSubdued : undefined)};
+    color: ${({ $disabled, theme }) => ($disabled ? theme.contentSecondary : undefined)};
 
     ${({ $hasHoverInteraction }) =>
-        $hasHoverInteraction === true
+        $hasHoverInteraction
             ? css`
                   &:hover {
-                      background-color: ${({ theme }) => theme.backgroundSurfaceElevation2};
+                      background-color: ${({ theme }) => theme.elementFillElevatedHovered};
                       transition: background 0.2s ease;
 
                       margin-left: -10px;
@@ -68,10 +63,10 @@ export const OptionStyled = styled.div<{ $hasHoverInteraction?: boolean; $disabl
             : ''};
 `;
 
-const DownIconCircle = styled.div<{ $elevation: Elevation }>`
+const DownIconCircle = styled.div`
     border-radius: ${borders.radii.full};
-    border: 1px solid ${mapElevationToBorder};
-    background: ${mapElevationToBackground};
+    border: 1px solid ${({ theme }) => theme.elementBorderNeutralSofter};
+    background: ${({ theme }) => theme.elementFillElevated};
     height: 36px;
     width: 36px;
     display: flex;
@@ -80,15 +75,11 @@ const DownIconCircle = styled.div<{ $elevation: Elevation }>`
     overflow: hidden;
 `;
 
-const ArrowDown = () => {
-    const { elevation } = useElevation();
-
-    return (
-        <DownIconCircle $elevation={elevation}>
-            <Icon name="caretDown" size={16} />
-        </DownIconCircle>
-    );
-};
+const ArrowDown = () => (
+    <DownIconCircle>
+        <Icon as={CaretDownIcon} size={16} />
+    </DownIconCircle>
+);
 
 type OptionProps = {
     children: ReactNode;
@@ -112,7 +103,7 @@ const Option = ({
     >
         <Radio
             isChecked={isChecked}
-            onClick={onSelect}
+            onChange={onSelect}
             data-testid={dataTest}
             isDisabled={disabled}
         />
@@ -137,7 +128,7 @@ export const SelectedOption = forwardRef<HTMLDivElement, SelectedOptionProps>(
         <SelectedOptionStyled $isDisabled={isDisabled}>
             <OptionStyled ref={ref} onClick={isDisabled ? undefined : onClick}>
                 <div>
-                    <Icon name="recoverySeed" size={24} />
+                    <Icon as={RecoverySeedIcon} size={24} />
                 </div>
                 {children}
                 <ArrowDown />
@@ -175,12 +166,14 @@ export const OptionWithContent = ({
         >
             <OptionText>
                 <Row alignItems="center">
-                    <Text typographyStyle={isBelowTablet ? 'highlight' : 'titleSmall'}>
+                    <Text typographyStyle={isBelowTablet ? 'body-md-strong' : 'headline-sm'}>
                         <Translation id={typesToLabelMap[value]} />
                     </Text>
                     {tags}
                 </Row>
-                <Text variant="tertiary">{children}</Text>
+                <Text intent="neutral" priority="secondary">
+                    {children}
+                </Text>
             </OptionText>
         </Option>
     );

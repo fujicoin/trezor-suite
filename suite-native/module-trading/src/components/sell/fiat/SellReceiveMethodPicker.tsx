@@ -1,19 +1,19 @@
 import { StretchInY, StretchOutY } from 'react-native-reanimated';
 import { useSelector } from 'react-redux';
 
-import { SellFiatTrade } from 'invity-api';
+import type { SellFiatTrade } from 'invity-api';
 
+import { useServices } from '@suite-common/dependency-injection';
 import { selectTradingSellIsLoading } from '@suite-common/trading';
-import { EventType, analytics } from '@suite-native/analytics';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { AnimatedBox, Text } from '@suite-native/atoms';
 import { Translation, useTranslate } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { OverviewRow, OverviewValueSkeleton } from '@suite-native/trading-atoms';
+import { selectSellBestQuotesForAvailablePaymentMethods } from '@suite-native/trading-state';
 
 import { useSheetControls } from '../../../hooks/general/useSheetControls';
 import { useSellFormContext } from '../../../hooks/sell/useSellFormContext';
-import { selectSellBestQuotesForAvailablePaymentMethods } from '../../../selectors/sellSelectors';
-import { OverviewRow } from '../../general/OverviewRow';
-import { OverviewValueSkeleton } from '../../general/OverviewValueSkeleton';
+import { PaymentMethodPickerValue } from '../../general/PaymentMethodPickerValue';
 import { PaymentMethodSheet } from '../../general/PaymentMethodSheet/PaymentMethodSheet';
 
 const RECEIVE_METHOD_PICKER_TEST_ID = '@trading/sell/receive-method-picker';
@@ -22,11 +22,6 @@ type SellReceiveMethodPickerRightProps = {
     isLoading: boolean;
     selectedValue: SellFiatTrade | undefined;
 };
-
-const pickerStyle = prepareNativeStyle(({ borders, colors }) => ({
-    borderTopWidth: borders.widths.small,
-    borderTopColor: colors.backgroundSurfaceElevation0,
-}));
 
 const SellReceiveMethodPickerRight = ({
     isLoading,
@@ -40,21 +35,19 @@ const SellReceiveMethodPickerRight = ({
 
     if (selectedValue) {
         return (
-            <Text
-                color="textSubdued"
-                variant="body"
+            <PaymentMethodPickerValue
+                paymentMethod={selectedValue.paymentMethod}
+                paymentMethodName={selectedValue.paymentMethodName}
                 accessibilityLabel={translate('moduleTrading.tradingScreen.selectedReceiveMethod')}
                 testID={RECEIVE_METHOD_PICKER_TEST_ID + '/value'}
-            >
-                {selectedValue.paymentMethodName}
-            </Text>
+            />
         );
     }
 
     return (
         <Text
-            color="textSubdued"
-            variant="body"
+            color="contentSecondary"
+            variant="body-sm"
             accessibilityLabel={translate('moduleTrading.tradingScreen.noReceiveMethod')}
             testID={RECEIVE_METHOD_PICKER_TEST_ID + '/value'}
         >
@@ -65,7 +58,7 @@ const SellReceiveMethodPickerRight = ({
 
 export const SellReceiveMethodPicker = () => {
     const { translate } = useTranslate();
-    const { applyStyle } = useNativeStyles();
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const form = useSellFormContext();
     const quotes = useSelector(selectSellBestQuotesForAvailablePaymentMethods);
     const isLoading = useSelector(selectTradingSellIsLoading);
@@ -90,7 +83,7 @@ export const SellReceiveMethodPicker = () => {
         if (selectedValue?.paymentMethod === quote.paymentMethod) return;
 
         analytics.report({
-            type: EventType.TradingParameterChanged,
+            type: events.tradingParameterChangedEvent.name,
             payload: {
                 type: 'sell',
                 parameter: 'paymentMethod',
@@ -100,17 +93,12 @@ export const SellReceiveMethodPicker = () => {
 
     return (
         <>
-            <AnimatedBox
-                style={applyStyle(pickerStyle)}
-                entering={StretchInY}
-                exiting={StretchOutY}
-            >
+            <AnimatedBox entering={StretchInY} exiting={StretchOutY}>
                 <OverviewRow
                     title={translate('moduleTrading.tradingScreen.receiveMethod')}
                     onPress={showSheetConditionally}
                     testID={RECEIVE_METHOD_PICKER_TEST_ID}
                     noCaret={isLoading}
-                    noBottomBorder
                 >
                     <SellReceiveMethodPickerRight
                         isLoading={isLoading}

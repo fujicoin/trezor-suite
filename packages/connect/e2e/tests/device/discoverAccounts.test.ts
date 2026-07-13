@@ -1,5 +1,8 @@
-import TrezorConnect, { BundleProgress, UI } from '../../../src';
-import type { DiscoverAccountsProgress } from '../../../src/types/api/discoverAccounts';
+// eslint-disable-next-line import/no-extraneous-dependencies
+import TrezorConnect, { type BundleProgress } from '@trezor/connect';
+import { UI_REQUEST } from '@trezor/connect-common';
+import type { DiscoverAccountsProgress } from '@trezor/connect-common/src/types/api/account/discoverAccounts';
+
 import { getController, initTrezorConnect, setup } from '../../common.setup';
 
 let controller: ReturnType<typeof getController> | undefined;
@@ -35,8 +38,8 @@ describe(`TrezorConnect.discoverAccounts`, () => {
     });
 
     it('TEST', async () => {
-        // print current test case, `jest` default reporter doesn't log this. see https://github.com/facebook/jest/issues/4471
-        if (typeof jest !== 'undefined' && process.stderr) {
+        // print current test case for better debugging visibility
+        if (typeof process !== 'undefined' && process.stderr) {
             process.stderr.write(`\n${'TrezorConnect.discoverAccounts'}: ${'test'}\n`);
         }
 
@@ -65,12 +68,16 @@ describe(`TrezorConnect.discoverAccounts`, () => {
             */
         };
 
-        TrezorConnect.on<DiscoverAccountsProgress>(UI.BUNDLE_PROGRESS, onBundleProgress);
+        TrezorConnect.on(UI_REQUEST.BUNDLE_PROGRESS, onBundleProgress);
         /*
         new Promise(resolve => setTimeout(resolve, 600)).then(() =>
-            TrezorConnect.cancel('CANCELLED'),
+            TrezorConnect.cancel({ reason: 'CANCELLED' }),
         );
         */
+
+        // The bundle includes a Cardano coin, so 'ada' must be enabled — otherwise Connect
+        // rejects the call with Method_NetworkNotEnabled.
+        await TrezorConnect.updateConnectSettings({ enabledNetworks: [{ coin: 'ada' }] });
 
         const result = await TrezorConnect.discoverAccounts({
             coins: [
@@ -81,10 +88,9 @@ describe(`TrezorConnect.discoverAccounts`, () => {
                 { symbol: 'ada' },
                 { symbol: 'xrp' },
             ],
-            useCardanoDerivation: true,
         });
 
-        TrezorConnect.off(UI.BUNDLE_PROGRESS, onBundleProgress);
+        TrezorConnect.off(UI_REQUEST.BUNDLE_PROGRESS, onBundleProgress);
 
         expect(result).toMatchObject({});
     }, 180000);

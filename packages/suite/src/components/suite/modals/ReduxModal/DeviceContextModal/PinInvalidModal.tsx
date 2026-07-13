@@ -1,7 +1,7 @@
-import { selectSelectedDeviceLabelOrName } from '@suite-common/wallet-core';
+import { Translation } from '@suite/intl';
+import { selectSelectedDeviceLabelOrName } from '@suite-common/device';
 import { Modal } from '@trezor/components';
 
-import { Translation } from 'src/components/suite/Translation';
 import { useSelector } from 'src/hooks/suite';
 
 export const PinInvalidModal = ({ onCancel }: { onCancel: () => void }) => {
@@ -13,10 +13,10 @@ export const PinInvalidModal = ({ onCancel }: { onCancel: () => void }) => {
                 heading={<Translation id="TR_ENTERED_PIN_NOT_CORRECT" values={{ deviceLabel }} />}
                 onCancel={onCancel}
                 data-testid="@modal/pin"
-                size="tiny"
+                width={400}
                 bottomContent={
                     <>
-                        <Modal.Button onClick={onCancel} variant="tertiary">
+                        <Modal.Button onClick={onCancel} intent="neutral" priority="secondary">
                             <Translation id="TR_CANCEL" />
                         </Modal.Button>
                     </>

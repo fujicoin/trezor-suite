@@ -1,9 +1,12 @@
-import { CoinInfo, Coins, CryptoId, Platforms, PlatformsInfo } from 'invity-api';
+import {
+    type CoinInfo,
+    type Coins,
+    type CryptoId,
+    type Platforms,
+    type PlatformsInfo,
+} from 'invity-api';
 
-import { getDisplaySymbol, getNetwork } from '@suite-common/wallet-config';
-
-import { TradingCryptoSelectItemProps } from '../types';
-import { cryptoIdToNetwork, isCryptoIdForNativeToken, parseCryptoId } from '../utils';
+import { parseCryptoId } from '../utils';
 
 export const getTradingCoinInfoByCryptoId = (
     coins: Coins,
@@ -51,44 +54,7 @@ export const getTradingSymbolAndContractAddressByCryptoId = (
     }
 
     return {
-        coinSymbol: getTradingCoinInfoByCryptoId(coins ?? {}, cryptoId)?.symbol,
+        coinSymbol: getTradingCoinInfoByCryptoId(coins ?? {}, cryptoId)?.symbol.toUpperCase(),
         contractAddress: parseCryptoId(cryptoId).contractAddress,
-    };
-};
-
-export const toCryptoOption = (
-    cryptoId?: CryptoId | null,
-    coinInfo?: CoinInfo | null,
-): TradingCryptoSelectItemProps => {
-    if (!cryptoId || !coinInfo) {
-        const { coingeckoId, name, symbol } = getNetwork('btc');
-        const item: TradingCryptoSelectItemProps = {
-            type: 'currency',
-            value: coingeckoId as CryptoId,
-            label: symbol.toUpperCase(),
-            symbol,
-            cryptoName: name,
-            coingeckoId,
-            contractAddress: null,
-        };
-
-        return item;
-    }
-    const { networkId, contractAddress } = parseCryptoId(cryptoId);
-    const isNativeToken = isCryptoIdForNativeToken(cryptoId);
-    const coinInfoSymbol = coinInfo.symbol.toLowerCase();
-    const symbol = isNativeToken
-        ? (cryptoIdToNetwork(cryptoId)?.symbol ?? coinInfoSymbol)
-        : coinInfoSymbol;
-    const displaySymbol = getDisplaySymbol(coinInfoSymbol, contractAddress);
-
-    return {
-        type: 'currency',
-        value: cryptoId,
-        label: displaySymbol,
-        cryptoName: coinInfo.name,
-        coingeckoId: networkId,
-        contractAddress: contractAddress || null,
-        symbol,
     };
 };

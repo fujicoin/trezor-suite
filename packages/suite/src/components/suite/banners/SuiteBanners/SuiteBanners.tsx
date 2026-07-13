@@ -2,26 +2,33 @@ import { useEffect, useState } from 'react';
 
 import styled from 'styled-components';
 
-import { selectBannerMessage } from '@suite-common/message-system';
 import {
+    selectFirmwareHashCheckErrorIfEnabled,
+    selectFirmwareRevisionCheckErrorIfEnabled,
+} from '@suite/authenticity-checks';
+import { MessageSystemBanner } from '@suite/message-system';
+import { SuiteSyncBanner, selectIsSuiteSyncBannerVisible } from '@suite/suite-sync';
+import {
+    selectDeviceStaticSessionId,
     selectIsDeviceBackupRequired,
     selectIsDeviceBackupUnfinished,
     selectSelectedDevice,
-} from '@suite-common/wallet-core';
+} from '@suite-common/device';
+import { selectBannerMessage } from '@suite-common/message-system';
+import { selectVisibleDeviceAccounts } from '@suite-common/wallet-core';
+import { isCardanoStakedWithFiveBinaries } from '@suite-common/wallet-utils';
+import { isWeb } from '@trezor/env-utils';
 import { spacingsPx } from '@trezor/theme';
 
 import { MAX_CONTENT_WIDTH } from 'src/constants/suite/layout';
 import { useSelector } from 'src/hooks/suite';
-import {
-    selectFirmwareHashCheckErrorIfEnabled,
-    selectFirmwareRevisionCheckErrorIfEnabled,
-} from 'src/selectors/suite/suiteAuthenticityChecksSelectors';
-import { selectTransportOfType } from 'src/selectors/suite/suiteSelectors';
+import { useLocalNetworkAccessPermission } from 'src/hooks/suite/useLocalNetworkAccessPermission';
 
-import { MessageSystemBanner } from '../MessageSystemBanner';
-import { BridgeDeprecated } from './BridgeDeprecatedBanner';
+import { BridgeDeprecated, useLegacyBridgeDetection } from './BridgeDeprecatedBanner';
+import { CardanoOutdatedStakingBanner } from './CardanoOutdatedStakingBanner';
 import { FailedBackup } from './FailedBackupBanner';
 import { FirmwareAuthenticityCheckBanner } from './FirmwareAuthenticityCheckBanner';
+import { LocalNetworkAccessPermission } from './LocalNetworkAccessPermission';
 import { NoBackup } from './NoBackupBanner';
 import { NoConnectionBanner } from './NoConnectionBanner';
 import { SafetyChecksBanner } from './SafetyChecksBanner';
@@ -42,7 +49,7 @@ type SuiteBannersProps = {
 };
 
 export const SuiteBanners = ({ isOnboarding, fill }: SuiteBannersProps) => {
-    const bridge = useSelector(selectTransportOfType('BridgeTransport'));
+    const legacyBridgeDetected = useLegacyBridgeDetection();
     const device = useSelector(selectSelectedDevice);
     const isOnline = useSelector(state => state.suite.online);
     const bannerMessage = useSelector(selectBannerMessage);
@@ -50,6 +57,13 @@ export const SuiteBanners = ({ isOnboarding, fill }: SuiteBannersProps) => {
     const firmwareHashError = useSelector(selectFirmwareHashCheckErrorIfEnabled);
     const isDeviceBackupUnfinished = useSelector(selectIsDeviceBackupUnfinished);
     const isDeviceBackupRequired = useSelector(selectIsDeviceBackupRequired);
+    const transport = useSelector(state => state.suite.transport);
+    const accounts = useSelector(selectVisibleDeviceAccounts);
+    const { localNetworkAccessPermission } = useLocalNetworkAccessPermission();
+    const deviceStaticSessionId = useSelector(selectDeviceStaticSessionId);
+    const isSuiteSyncBannerVisible = useSelector(state =>
+        selectIsSuiteSyncBannerVisible(state, deviceStaticSessionId),
+    );
 
     // The dismissal doesn't need to outlive the session. Use local state.
     const [safetyChecksDismissed, setSafetyChecksDismissed] = useState(false);
@@ -67,6 +81,7 @@ export const SuiteBanners = ({ isOnboarding, fill }: SuiteBannersProps) => {
 
     let banner = null;
     let priority = 0;
+
     // firmware hash & revision check (performed when connecting a device), either of them may fail
     if (firmwareRevisionError || firmwareHashError) {
         banner = <FirmwareAuthenticityCheckBanner />;
@@ -90,9 +105,24 @@ export const SuiteBanners = ({ isOnboarding, fill }: SuiteBannersProps) => {
         // Let the user dismiss the warning.
         banner = <SafetyChecksBanner onDismiss={() => setSafetyChecksDismissed(true)} />;
         priority = 50;
-    } else if (bridge?.outdated) {
+    } else if (
+        isWeb() &&
+        window.location.hostname !== 'localhost' && // localhost is not cross-origin so it is not needed there
+        // transport error is unfortunately not very specific but we don't have anything better
+        transport?.error === 'Network request failed' &&
+        localNetworkAccessPermission === 'denied'
+    ) {
+        banner = <LocalNetworkAccessPermission />;
+        priority = 40;
+    } else if (legacyBridgeDetected) {
         banner = <BridgeDeprecated />;
         priority = 30;
+    } else if (accounts.some(account => isCardanoStakedWithFiveBinaries(account))) {
+        banner = <CardanoOutdatedStakingBanner />;
+        priority = 20;
+    } else if (deviceStaticSessionId !== null && isSuiteSyncBannerVisible) {
+        banner = <SuiteSyncBanner deviceStaticSessionId={deviceStaticSessionId} />;
+        priority = 10;
     }
 
     // message system banners should always be visible in the app even if app body is blurred

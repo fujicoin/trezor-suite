@@ -1,16 +1,16 @@
-import { DeviceModelInternal } from '@trezor/device-utils';
+import type { CoinInfo, Features, UnavailableCapabilities } from '@trezor/connect-common';
+import { DeviceModelInternal, getFirmwareOrBootloaderVersionArray } from '@trezor/device-utils';
+import type { MessagesSchema as PROTO } from '@trezor/protobuf';
 import { isArrayMember, versionUtils } from '@trezor/utils';
 
-import { PROTO } from '../constants';
+import { isDebugFirmware } from './firmwareUtils';
 import { config } from '../data/config';
-import { CoinInfo, Features, UnavailableCapabilities } from '../types';
 
 const DEFAULT_CAPABILITIES_T1: PROTO.Capability[] = [
     'Capability_Bitcoin',
     'Capability_Bitcoin_like',
     'Capability_Crypto',
     'Capability_Ethereum',
-    'Capability_NEM',
     'Capability_Stellar',
     'Capability_U2F',
 ];
@@ -21,11 +21,10 @@ const DEFAULT_CAPABILITIES_TT: PROTO.Capability[] = [
     'Capability_Binance',
     'Capability_Cardano',
     'Capability_Crypto',
-    'Capability_EOS',
     'Capability_Ethereum',
     'Capability_Monero',
-    'Capability_NEM',
     'Capability_Ripple',
+    'Capability_Solana',
     'Capability_Stellar',
     'Capability_Tezos',
     'Capability_U2F',
@@ -34,7 +33,7 @@ const DEFAULT_CAPABILITIES_TT: PROTO.Capability[] = [
 export const parseCapabilities = (features?: Features): PROTO.Capability[] => {
     if (!features || features.firmware_present === false) return []; // no features or no firmware - no capabilities
     // fallback for older firmware that does not report capabilities
-    if (!features.capabilities || !features.capabilities.length) {
+    if (!features.capabilities?.length) {
         return features.major_version === 1 ? DEFAULT_CAPABILITIES_T1 : DEFAULT_CAPABILITIES_TT;
     }
 
@@ -45,7 +44,7 @@ export const getUnavailableCapabilities = (features: Features, coins: CoinInfo[]
     const { capabilities } = features;
     const list: UnavailableCapabilities = {};
     if (!capabilities) return list;
-    const fw = [features.major_version, features.minor_version, features.patch_version].join('.');
+    const fw = getFirmwareOrBootloaderVersionArray(features).join('.');
     const key = features.internal_model;
 
     // 1. check if firmware version is supported by CoinInfo.support
@@ -84,10 +83,10 @@ export const getUnavailableCapabilities = (features: Features, coins: CoinInfo[]
         if (info.type === 'ethereum') {
             return !capabilities.includes('Capability_Ethereum');
         }
-        if (info.type === 'nem') {
-            return !capabilities.includes('Capability_NEM');
-        }
         // misc
+        if ((info.shortcut === 'TRX' || info.shortcut === 'tTRX') && info.type === 'misc') {
+            return !capabilities.includes('Capability_Tron');
+        }
         if (info.shortcut === 'BNB' && info.type === 'misc') {
             return !capabilities.includes('Capability_Binance');
         }
@@ -124,8 +123,10 @@ export const getUnavailableCapabilities = (features: Features, coins: CoinInfo[]
         });
 
     // 4. check if firmware version is in range of capabilities in "config.supportedFirmware"
+    const isDebug = isDebugFirmware(features);
     config.supportedFirmware.forEach(s => {
         if (!s.capabilities) return;
+        if (s.firmwareType && (s.firmwareType === 'debug') !== isDebug) return;
         const min = s.min ? (s.min as Record<DeviceModelInternal, string | undefined>)[key] : null;
         const max = s.max ? s.max[key] : null;
         if (min && (min === '0' || versionUtils.isNewer(min, fw))) {

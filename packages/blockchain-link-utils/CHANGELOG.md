@@ -1,3 +1,40 @@
+# 1.5.1
+
+- npm-prerelease: @trezor/blockchain-link-utils 1.5.1-beta.1 (2662cd1ed3)
+
+# 1.5.0
+
+- chore(blockchain-link-utils): remove dependency to protobuf (2f3d880b50)
+- npm-prerelease: @trezor/blockchain-link-utils 1.5.0-beta.2 (57de3cac26)
+- refactor(connect): new replace-imports.sh script using babel (2128d273f3)
+- chore(blockchain-link-types): remove TokenInfo.type (11ae574860)
+- fix(blockchain-link-utils): properly type TokenInfo standard (35c52365fe)
+- npm-prerelease: @trezor/blockchain-link-utils 1.5.0-beta.1 (8a7a4dcad3)
+- chore: change fail in test names to error to find fails easier (2393763310)
+- feat(blockchain-link-utils): Add support for change trust operations in transaction processing (3ab9ae7e76)
+- feat(blockchain-link-utils): add asset code and address validation functions (64d2ebe5d5)
+- chore: bump xrpl (70df85521c)
+- npm-prerelease: @trezor/blockchain-link-utils 1.4.5-beta.1 (a5a25d31c4)
+- refactor(blockchain-link-utils): switch Stellar transaction builders to params objects (4344c8f4f1)
+- feat(blockchain-link): refactor base reserve handling and add trustline transaction builders (2b32cef13c)
+
+# 1.4.4
+
+- npm-prerelease: @trezor/blockchain-link-utils 1.4.4-beta.1 (4d1585e947)
+
+# 1.4.3
+
+- fix: add TON of missing dependecies in package.json (7027213e3f)
+- npm-prerelease: @trezor/blockchain-link-utils 1.4.3-beta.1 (664db5fb37)
+- fix(blockchain-link-utils): filter pending txs with same nonce as mined (69303fdc6d)
+- fix(blockchain-link-utils): do not use pending EVM balance (07f9a2a5a8)
+- fix: cardano deregister stake deposit (24c4b68434)
+- fix(blockchain-link): Use `stellar.advanced.coin.definitions.v1.json` instead of `stellar.advanced.coin.definitions.v1.jws (93431531c0)
+- fix(blockchain-link): fix circular dependency in Stellar utils. (a7d6c46d8c)
+- feat(blockchain-link): add Stellar token metadata handling. (56e7e07e08)
+- chore(suite): bump trends deps (4eb03b8e23)
+- chore: update @solana/kit (d681087f42)
+
 # 1.4.2
 
 - npm-prerelease: @trezor/blockchain-link-utils 1.4.2-beta.2 (728da7ab21)

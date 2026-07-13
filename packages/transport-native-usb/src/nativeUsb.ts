@@ -1,9 +1,12 @@
 import { WebUSB } from '@trezor/react-native-usb';
-import { AbstractApiTransport, Transport as AbstractTransport, UsbApi } from '@trezor/transport';
+import {
+    AbstractApiTransport,
+    type Transport as AbstractTransport,
+    UsbApi,
+} from '@trezor/transport-common';
 
 export class NativeUsbTransport extends AbstractApiTransport {
     public name = 'NativeUsbTransport' as const;
-    public apiType = 'usb' as const;
 
     constructor(params: ConstructorParameters<typeof AbstractTransport>[0]) {
         const { logger, ...rest } = params;
@@ -19,5 +22,9 @@ export class NativeUsbTransport extends AbstractApiTransport {
             logger,
             ...rest,
         });
+
+        // Let the native Kotlin code handle the chunking.
+        // It significantly improves the performance of writes during FW update.
+        this.api.nativeWriteChunking = true;
     }
 }

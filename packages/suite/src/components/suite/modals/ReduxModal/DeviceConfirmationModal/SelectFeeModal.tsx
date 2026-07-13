@@ -1,23 +1,22 @@
 import { useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { FormProvider, useForm } from 'react-hook-form';
 import { useIntl } from 'react-intl';
 
+import { Translation, messages } from '@suite/intl';
+import { onReceiveFee } from '@suite/modal';
 import { selectConnectPopupCall } from '@suite-common/connect-popup';
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 import { sortLevels } from '@suite-common/wallet-core';
-import { Account, FormState } from '@suite-common/wallet-types';
+import { type Account, type FormState } from '@suite-common/wallet-types';
 import { Button, Column, Modal } from '@trezor/components';
 import type { ComposeOutput, UiRequestSelectFee } from '@trezor/connect';
 import { spacings } from '@trezor/theme';
 
-import { onReceiveFee } from 'src/actions/suite/modalActions';
 import { ConnectCallSource } from 'src/components/suite/ConnectCallSource';
 import { ConnectModalBackdrop } from 'src/components/suite/ConnectModalBackdrop';
-import { Translation } from 'src/components/suite/Translation';
 import { Fees } from 'src/components/wallet/Fees/Fees';
 import { useDispatch, useSelector } from 'src/hooks/suite';
 import { useFees } from 'src/hooks/wallet/form/useFees';
-import messages from 'src/support/messages';
 
 import { TransactionReviewOutputElement } from '../TransactionReviewModal/TransactionReviewOutputList/TransactionReviewOutputElement';
 
@@ -90,17 +89,17 @@ export const SelectFeeModal = ({ data }: SelectAccountModalProps) => {
         tokens: [],
     };
     const feeInfo = {
-        levels: sortLevels(
-            fees
-                .filter(level => level.fee != '0')
-                .filter(level => level.name !== 'low') // this option is hidden in Suite
-                .map(level => ({
-                    // level.name is just a string instead of enum
-                    label: level.name as any,
-                    feePerUnit: level.feePerByte!,
-                    blocks: level.blocks!,
-                })),
-        ),
+        levels: fees
+            .filter(level => level.fee != '0')
+            .filter(level => level.name !== 'low') // this option is hidden in Suite
+            .map(level => ({
+                // level.name is just a string instead of enum
+                label: level.name as any,
+                feePerUnit: level.feePerByte!,
+                blocks: level.blocks!,
+            }))
+            .sort(sortLevels),
+
         minFee,
         maxFee,
         minPriorityFee: -1,
@@ -120,13 +119,8 @@ export const SelectFeeModal = ({ data }: SelectAccountModalProps) => {
         composeRequest: () => {},
     });
     const {
-        control,
-        register,
-        setValue,
-        getValues,
         handleSubmit,
-        formState: { isDirty, errors },
-        trigger,
+        formState: { errors },
     } = methods;
 
     const onSend = handleSubmit(data => {
@@ -162,7 +156,7 @@ export const SelectFeeModal = ({ data }: SelectAccountModalProps) => {
             <Modal.ModalBase
                 onCancel={onClose}
                 onBackClick={onChangeAccount}
-                variant="primary"
+                intent="brand"
                 heading={<Translation id="TR_SELECT_FEE" />}
                 description={
                     <>
@@ -171,32 +165,23 @@ export const SelectFeeModal = ({ data }: SelectAccountModalProps) => {
                 }
                 bottomContent={
                     <>
-                        <Button onClick={onSend} isDisabled={!errors} variant="primary">
+                        <Button onClick={onSend} isDisabled={!errors} intent="brand">
                             <Translation id="TR_CONTINUE" />
                         </Button>
-                        <Button onClick={onClose} variant="tertiary">
+                        <Button onClick={onClose} intent="neutral" priority="secondary">
                             <Translation id="TR_CANCEL" />
                         </Button>
                     </>
                 }
             >
-                <Column gap={spacings.md}>
-                    {popupCall?.state === 'ongoing' && popupCall?.payload?.outputs && (
-                        <OutputsSummary account={account} outputs={popupCall.payload.outputs} />
-                    )}
-                    <Fees
-                        account={account}
-                        feeInfo={feeInfo}
-                        control={control}
-                        register={register}
-                        setValue={setValue}
-                        getValues={getValues}
-                        errors={errors}
-                        isDirty={isDirty}
-                        changeFeeLevel={changeFeeLevel}
-                        trigger={trigger}
-                    />
-                </Column>
+                <FormProvider {...methods}>
+                    <Column gap={spacings.md}>
+                        {popupCall?.state === 'ongoing' && popupCall?.payload?.outputs && (
+                            <OutputsSummary account={account} outputs={popupCall.payload.outputs} />
+                        )}
+                        <Fees account={account} feeInfo={feeInfo} changeFeeLevel={changeFeeLevel} />
+                    </Column>
+                </FormProvider>
             </Modal.ModalBase>
         </ConnectModalBackdrop>
     );

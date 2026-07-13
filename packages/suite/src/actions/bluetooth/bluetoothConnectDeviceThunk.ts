@@ -1,13 +1,12 @@
 import { BLUETOOTH_PREFIX, bluetoothActions } from '@suite-common/bluetooth';
 import { createThunk } from '@suite-common/redux-utils';
 import { notificationsActions } from '@suite-common/toast-notifications';
-import TrezorConnect, { Device } from '@trezor/connect';
+import TrezorConnect, { type BluetoothDeviceId, type Device } from '@trezor/connect';
 import { desktopApi } from '@trezor/suite-desktop-api';
 import { bluetoothIpc } from '@trezor/transport-bluetooth';
 
 import {
-    setBluetoothDeviceNeedsManualOsRemoval,
-    setBluetoothListOpen,
+    setBluetoothDeviceNeedsManualPairing,
     startConnectingBluetoothDevice,
     stopConnectingBluetoothDevice,
 } from './desktopBluetoothReducer';
@@ -19,7 +18,7 @@ type BluetoothConnectDeviceThunkResult = {
 
 export const bluetoothConnectDeviceThunk = createThunk<
     BluetoothConnectDeviceThunkResult,
-    { deviceId: string },
+    { deviceId: BluetoothDeviceId },
     void
 >(
     `${BLUETOOTH_PREFIX}/bluetoothConnectDeviceThunk`,
@@ -32,6 +31,14 @@ export const bluetoothConnectDeviceThunk = createThunk<
         desktopApi.appFocus();
 
         if (!result.success) {
+            // handling for this error: https://github.com/trezor/trezor-suite/blob/837cdf89c70cca80fd5dabb910e9a8509de7c3b1/packages/transport-bluetooth/src/server/platform/linux.rs#L253
+            if (result.error === 'BluetoothSettingsMissing') {
+                dispatch(stopConnectingBluetoothDevice({ deviceId }));
+                dispatch(setBluetoothDeviceNeedsManualPairing(true));
+
+                return fulfillWithValue({ success: result.success });
+            }
+
             // This can fail, but we are silent about this as the device may not be there anymore
             await bluetoothIpc.disconnectDevice(deviceId);
 
@@ -41,7 +48,7 @@ export const bluetoothConnectDeviceThunk = createThunk<
                 result.error.includes('Operation already in progress') ||
                 result.error.includes('Peer removed pairing information');
             if (isUnpaired) {
-                dispatch(setBluetoothDeviceNeedsManualOsRemoval({ needsManualRemoval: true }));
+                dispatch(bluetoothActions.setIsDeviceOsUnpairingRequired(true));
                 dispatch(bluetoothActions.removeKnownDeviceAction({ id: deviceId }));
             } else {
                 dispatch(
@@ -60,7 +67,10 @@ export const bluetoothConnectDeviceThunk = createThunk<
         // wait for device handshake in @trezor/connect
         await new Promise<void>(resolve => {
             const closeViewAfterConnection = (device: Device) => {
-                if (device.bluetoothProps?.id !== deviceId) {
+                if (
+                    device.descriptor.apiType !== 'bluetooth' ||
+                    device.descriptor.id !== deviceId
+                ) {
                     return;
                 }
 
@@ -77,7 +87,6 @@ export const bluetoothConnectDeviceThunk = createThunk<
         });
 
         dispatch(stopConnectingBluetoothDevice({ deviceId }));
-        dispatch(setBluetoothListOpen({ isOpen: false }));
 
         return fulfillWithValue({ success: result.success });
     },

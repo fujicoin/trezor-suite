@@ -1,7 +1,8 @@
+import { useTranslation } from '@suite/intl';
+import { selectIsLabelingAvailable } from '@suite/metadata';
 import { getNetworkDisplaySymbol } from '@suite-common/wallet-config';
 
-import { useSelector, useTranslation } from 'src/hooks/suite';
-import { selectIsLabelingAvailable } from 'src/reducers/suite/metadataReducer';
+import { useSelector } from 'src/hooks/suite';
 
 export const useExampleCSV = (): string => {
     const { account, network } = useSelector(state => state.wallet.selectedAccount);
@@ -26,7 +27,7 @@ export const useExampleCSV = (): string => {
     }`;
     const lines = [headerLine, example1];
 
-    if (network.testnet === true) return lines.join('\n');
+    if (network.testnet) return lines.join('\n');
 
     // Inserting fiat rate is only available for mainnet networks
     const example2 = `${addresses[1]},4.9,USD${

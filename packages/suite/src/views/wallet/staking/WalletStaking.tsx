@@ -1,12 +1,14 @@
+import { Translation } from '@suite/intl';
 import { hasNetworkFeatures } from '@suite-common/wallet-utils';
+import { WarningIcon } from '@trezor/icons';
 
-import { Translation } from 'src/components/suite';
 import { AccountExceptionLayout, WalletLayout } from 'src/components/wallet';
 import { useSelector } from 'src/hooks/suite';
 
-import { CardanoStakingDashboard } from './components/CardanoStakingDashboard';
-import { EthStakingDashboard } from './components/EthStakingDashboard/components/EthStakingDashboard';
+import { AdaStakingDashboard } from './components/AdaStakingDashboard/AdaStakingDashboard';
+import { EthStakingDashboard } from './components/EthStakingDashboard/EthStakingDashboard';
 import { SolStakingDashboard } from './components/SolStakingDashboard/SolStakingDashboard';
+import { TronStakingDashboard } from './components/TronStakingDashboard/TronStakingDashboard';
 
 export const WalletStaking = () => {
     const selectedAccount = useSelector(state => state.wallet.selectedAccount);
@@ -18,11 +20,13 @@ export const WalletStaking = () => {
     if (hasNetworkFeatures(selectedAccount.account, 'staking')) {
         switch (selectedAccount.account.networkType) {
             case 'cardano':
-                return <CardanoStakingDashboard selectedAccount={selectedAccount} />;
+                return <AdaStakingDashboard selectedAccount={selectedAccount} />;
             case 'ethereum':
                 return <EthStakingDashboard selectedAccount={selectedAccount} />;
             case 'solana':
                 return <SolStakingDashboard selectedAccount={selectedAccount} />;
+            case 'tron':
+                return <TronStakingDashboard selectedAccount={selectedAccount} />;
             // no default
         }
     }
@@ -31,7 +35,7 @@ export const WalletStaking = () => {
         <WalletLayout title="TR_NAV_STAKING" account={selectedAccount}>
             <AccountExceptionLayout
                 title={<Translation id="TR_STAKING_IS_NOT_SUPPORTED" />}
-                iconName="warning"
+                icon={WarningIcon}
                 iconVariant="warning"
             />
         </WalletLayout>

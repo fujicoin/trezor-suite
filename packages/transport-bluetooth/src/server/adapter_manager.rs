@@ -2,7 +2,7 @@ use btleplug::{
     api::{Central, CentralEvent, CentralState, Manager as _, Peripheral as _},
     platform::{Adapter, Manager, Peripheral, PeripheralId},
 };
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use futures::StreamExt;
 use log::info;
 use std::{
@@ -22,11 +22,20 @@ use crate::server::{
 };
 
 #[derive(Clone)]
+pub struct ServicelessDevice {
+    update_count: u128,
+    timestamp: u128,
+}
+
+#[derive(Clone)]
 pub struct AdapterManager {
     manager: Manager,
     adapter: Arc<Mutex<Option<Adapter>>>,
     adapter_state: Arc<Mutex<AdapterState>>,
     manager_state: Arc<Mutex<ManagerState>>,
+    discovered_id: DashSet<String>,
+    serviceless_peripherals: DashMap<String, ServicelessDevice>,
+    serviceless_peripherals_prune_ts: Arc<Mutex<u128>>,
 }
 
 struct ManagerState {
@@ -54,6 +63,18 @@ pub enum AdapterError {
     #[error("PeripheralNotFound")]
     PeripheralNotFound,
 
+    #[error("PeripheralNotConnected")]
+    PeripheralNotConnected,
+
+    #[error("PeripheralCharacteristicNotFound")]
+    PeripheralCharacteristicNotFound,
+
+    #[error("PeripheralDiscovered")]
+    PeripheralDiscovered,
+
+    #[error("Peripheral create error")]
+    PeripheralNotCreated,
+
     #[error("Btleplug error: {0}")]
     BtleplugError(#[from] btleplug::Error),
 }
@@ -76,6 +97,9 @@ impl AdapterManager {
             adapter,
             adapter_state,
             manager_state,
+            discovered_id: DashSet::new(),
+            serviceless_peripherals: DashMap::new(),
+            serviceless_peripherals_prune_ts: Arc::new(Mutex::new(0)),
         })
     }
 
@@ -265,18 +289,25 @@ impl AdapterManager {
     }
 
     async fn add_device(&self, id: &PeripheralId) -> Result<TrezorDevice, AdapterError> {
+        let state = self.manager_state.lock().await;
+        if state.peripherals.contains_key(&id.to_string()) {
+            return Err(AdapterError::PeripheralDiscovered);
+        }
+        drop(state);
+
         let id = id.to_string();
         let peripheral = self.get_peripheral_or_die(&id).await?;
         let is_known = self.is_known_peripheral(&id).await;
         let device = match TrezorDevice::new(peripheral, is_known).await {
             Ok(device) => device,
             Err(_) => {
-                return Err(AdapterError::AdapterMissing);
+                return Err(AdapterError::PeripheralNotCreated);
             }
         };
 
         let state = self.manager_state.lock().await;
         state.peripherals.insert(device.get_id(), device.clone());
+        self.discovered_id.insert(device.get_id());
 
         Ok(device)
     }
@@ -332,6 +363,7 @@ impl AdapterManager {
 
         // notify about each removed device
         for id in removed.iter() {
+            self.discovered_id.remove(id);
             self.dispatch_notification(NotificationEvent::DeviceRemoved { id: id.clone() })
                 .await;
         }
@@ -339,8 +371,16 @@ impl AdapterManager {
         Ok(devices)
     }
 
+    fn is_discovered(&self, id: &PeripheralId) -> bool {
+        self.discovered_id.contains(&id.to_string())
+    }
+
     // get TrezorDevice from AdapterManager or None
     async fn get_device(&self, id: &PeripheralId) -> Option<TrezorDevice> {
+        if !self.is_discovered(id) {
+            return None;
+        }
+
         let state = self.manager_state.lock().await;
         if let Some(device) = state.peripherals.get(&id.to_string()) {
             return Some(device.clone());
@@ -390,6 +430,72 @@ impl AdapterManager {
         devices
     }
 
+    async fn add_serviceless_device(
+        &self,
+        id: &PeripheralId,
+        update_count: u128,
+    ) -> Result<(), AdapterError> {
+        let peripheral = self.get_peripheral_or_die(&id.to_string()).await?;
+        if let Ok(Some(props)) = peripheral.properties().await {
+            if let Some(_name) = props.local_name {
+                let device = ServicelessDevice {
+                    update_count,
+                    timestamp: utils::get_timestamp(),
+                };
+
+                self.serviceless_peripherals
+                    .insert(id.to_string(), device.clone());
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn update_serviceless_device(&self, id: &PeripheralId) -> Result<(), AdapterError> {
+        let device = self.serviceless_peripherals.get(&id.to_string());
+        if device.is_none() {
+            return Ok(());
+        }
+
+        let update_count = device.unwrap().update_count;
+        self.serviceless_peripherals.remove(&id.to_string());
+        if self.is_discovered(id) {
+            return Ok(());
+        }
+
+        let peripheral = self.get_peripheral_or_die(&id.to_string()).await?;
+        if peripheral.services().is_empty() {
+            let _ = peripheral.discover_services().await;
+        }
+
+        let adapter = self.get_adapter_or_die().await?;
+        if let Some(_device) = utils::scan_filter(&adapter, id).await {
+            if let Ok(_device) = self.add_device(id).await {
+                let devices = self.get_devices().await;
+                self.dispatch_notification(NotificationEvent::DeviceDiscovered {
+                    id: id.to_string(),
+                    devices,
+                })
+                .await;
+            }
+        } else if update_count < 1000 && peripheral.services().is_empty() {
+            let _ = self.add_serviceless_device(id, update_count + 1).await;
+        }
+
+        // prune outdated data
+        let threshold = 30_000;
+        let now = utils::get_timestamp();
+        let mut ts = self.serviceless_peripherals_prune_ts.lock().await;
+        if now - threshold > *ts {
+            let threshold = now - threshold;
+            self.serviceless_peripherals
+                .retain(|_key, p| p.timestamp >= threshold);
+            *ts = now;
+        }
+
+        Ok(())
+    }
+
     async fn start_events_stream(&self) -> Result<(), AdapterError> {
         let adapter = self.get_adapter_or_die().await?;
         // linux this will start scanning after adp.events subscription
@@ -419,6 +525,8 @@ impl AdapterManager {
                                         .await;
                                 }
                             }
+                        } else {
+                            let _ = self_ref.add_serviceless_device(&id, 0).await;
                         }
                     }
                     CentralEvent::DeviceUpdated(id) => {
@@ -442,6 +550,8 @@ impl AdapterManager {
                                     })
                                     .await;
                             }
+                        } else {
+                            let _ = self_ref.update_serviceless_device(&id).await;
                         }
                     }
                     CentralEvent::DeviceDisconnected(id) => {
@@ -500,6 +610,18 @@ impl AdapterManager {
                             }
                         }
                     }
+                    CentralEvent::ManufacturerDataAdvertisement {
+                        id,
+                        manufacturer_data: _,
+                    } => {
+                        // log is useful but noisy
+                        // info!("ManufacturerDataAdvertisement: {:?} : {:?}", id, manufacturer_data);
+                        let _ = self_ref.update_serviceless_device(&id).await;
+                    }
+                    CentralEvent::ServicesAdvertisement { id, services: _ } => {
+                        // info!("ServicesAdvertisement: {:?} : {:?}", id, services);
+                        let _ = self_ref.update_serviceless_device(&id).await;
+                    }
                     _ => {}
                 }
             }
@@ -522,6 +644,10 @@ impl AdapterManager {
                 adapter_loader.abort();
             }
         }
+    }
+    pub async fn is_listeners_empty(&self) -> bool {
+        let state = self.manager_state.lock().await;
+        state.listeners.is_empty()
     }
 
     async fn dispatch_adapter_event(&self) {

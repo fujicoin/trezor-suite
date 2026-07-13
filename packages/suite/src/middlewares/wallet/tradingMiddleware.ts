@@ -1,8 +1,11 @@
-import { MiddlewareAPI } from 'redux';
+import { type MiddlewareAPI } from 'redux';
 
+import { selectFullSelectedAccount } from '@suite/account';
+import { routerLocationChange } from '@suite/router';
 import {
     invityAPI,
     selectTradingAccountAccordingActiveSection,
+    selectTradingAccountKeyByTradeType,
     selectTradingActiveSection,
     selectTradingModalAccountKey,
     selectTradingPrefilledFromAccount,
@@ -12,9 +15,7 @@ import {
     tradingSellActions,
 } from '@suite-common/trading';
 
-import { ROUTER } from 'src/actions/suite/constants';
-import { selectFullSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
-import { Action, AppState, Dispatch } from 'src/types/suite';
+import { type Action, type AppState, type Dispatch } from 'src/types/suite';
 
 export const tradingMiddleware =
     (api: MiddlewareAPI<Dispatch, AppState>) =>
@@ -27,15 +28,21 @@ export const tradingMiddleware =
         // get the new state after the action has been processed
         const nextState = api.getState();
 
-        const isRouteChange = action.type === ROUTER.LOCATION_CHANGE;
+        const isRouteChange = action.type === routerLocationChange.type;
         let activeSection = selectTradingActiveSection(state);
 
         if (isRouteChange) {
             const routeName = nextState.router.route?.name;
             const isTradingRoute = !!routeName?.includes('wallet-trading');
-            const isBuy = routeName === 'wallet-trading-buy';
-            const isSell = routeName === 'wallet-trading-sell';
-            const isExchange = routeName === 'wallet-trading-exchange';
+            const isBuyForm = routeName === 'wallet-trading-buy';
+            const isBuy = !!routeName?.startsWith('wallet-trading-buy');
+            const isSellForm = routeName === 'wallet-trading-sell';
+            const isSell = !!routeName?.startsWith('wallet-trading-sell');
+            const isExchangeCreationFlow = [
+                'wallet-trading-exchange',
+                'wallet-trading-exchange-confirm',
+            ].some(name => name === routeName);
+            const isExchangeTransactionDetail = routeName === 'wallet-trading-exchange-detail';
             const nextModalAccountKey = selectTradingModalAccountKey(nextState);
             const prefilledFromAccount = selectTradingPrefilledFromAccount(nextState);
 
@@ -45,45 +52,58 @@ export const tradingMiddleware =
                 api.dispatch(tradingActions.setModalCryptoCurrency(undefined));
             }
 
-            if (isBuy) {
+            if (isBuyForm) {
                 activeSection = 'buy';
                 api.dispatch(tradingActions.setTradingActiveSection(activeSection));
                 api.dispatch(tradingBuyActions.saveTransactionId(undefined));
                 if (prefilledFromAccount.key) {
                     api.dispatch(tradingBuyActions.setTradingAccountKey(prefilledFromAccount.key));
+                    api.dispatch(tradingBuyActions.setReceiveAccountKey(prefilledFromAccount.key));
+                } else {
+                    // When switching from sell tab, carry over the sell account key
+                    const sellAccountKey = selectTradingAccountKeyByTradeType(nextState, 'sell');
+                    if (sellAccountKey) {
+                        api.dispatch(tradingBuyActions.setTradingAccountKey(sellAccountKey));
+                    }
                 }
+            } else if (isBuy && prefilledFromAccount.key) {
+                activeSection = 'buy';
+                api.dispatch(tradingActions.setTradingActiveSection(activeSection));
+                api.dispatch(tradingBuyActions.setTradingAccountKey(prefilledFromAccount.key));
             }
 
-            if (isSell) {
+            if (isSellForm) {
                 activeSection = 'sell';
                 api.dispatch(tradingActions.setTradingActiveSection(activeSection));
                 api.dispatch(tradingSellActions.saveTransactionId(undefined));
                 if (prefilledFromAccount.key) {
                     api.dispatch(tradingSellActions.setTradingAccountKey(prefilledFromAccount.key));
+                } else {
+                    // When switching from buy tab, carry over the buy account key
+                    const buyAccountKey = selectTradingAccountKeyByTradeType(nextState, 'buy');
+                    if (buyAccountKey) {
+                        api.dispatch(tradingSellActions.setTradingAccountKey(buyAccountKey));
+                    }
                 }
+            } else if (isSell && prefilledFromAccount.key) {
+                activeSection = 'sell';
+                api.dispatch(tradingActions.setTradingActiveSection(activeSection));
+                api.dispatch(tradingSellActions.setTradingAccountKey(prefilledFromAccount.key));
             }
 
-            if (isExchange) {
+            if (isExchangeCreationFlow) {
                 activeSection = 'exchange';
                 api.dispatch(tradingActions.setTradingActiveSection(activeSection));
                 api.dispatch(tradingExchangeActions.saveTransactionId(undefined));
-                if (prefilledFromAccount.key) {
-                    api.dispatch(
-                        tradingExchangeActions.setTradingAccountKey(prefilledFromAccount.key),
-                    );
-                }
             }
 
-            const wasBuy = state.router.route?.name === 'wallet-trading-buy';
-            const wasSell = state.router.route?.name === 'wallet-trading-sell';
-            const isBuyToSell = wasBuy && isSell;
-            const isSellToBuy = wasSell && isBuy;
+            const isInTradingSection =
+                isBuy || isSell || isExchangeCreationFlow || isExchangeTransactionDetail;
 
-            const cleanupPrefilledFromCryptoId =
-                !!prefilledFromAccount.cryptoId &&
-                ((!isSell && !isExchange && !isBuy) || isBuyToSell || isSellToBuy);
-
-            if (cleanupPrefilledFromCryptoId) {
+            if (!isInTradingSection) {
+                api.dispatch(tradingExchangeActions.setTradingAccountKey(undefined));
+                api.dispatch(tradingBuyActions.setTradingAccountKey(undefined));
+                api.dispatch(tradingSellActions.setTradingAccountKey(undefined));
                 api.dispatch(
                     tradingActions.setTradingFromPrefilledAccount({
                         key: undefined,

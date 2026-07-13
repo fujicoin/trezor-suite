@@ -1,9 +1,9 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 import styled from 'styled-components';
 
 import {
     TruncateWithTooltip as TruncateWithTooltipComponent,
-    TruncateWithTooltipProps,
+    type TruncateWithTooltipProps,
 } from './TruncateWithTooltip';
 
 const Container = styled.div`
@@ -12,10 +12,10 @@ const Container = styled.div`
     max-width: 200px;
 `;
 
-const meta: Meta = {
+const meta: Meta<typeof TruncateWithTooltipComponent> = {
     title: 'TruncateWithTooltip',
     component: TruncateWithTooltipComponent,
-} as Meta;
+};
 export default meta;
 
 export const TruncateWithTooltip: StoryObj<TruncateWithTooltipProps> = {

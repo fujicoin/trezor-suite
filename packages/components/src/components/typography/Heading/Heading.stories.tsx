@@ -1,9 +1,9 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 import styled from 'styled-components';
 
 import { H1, H2, H3, H4 } from './Heading';
 import { getFramePropsStory } from '../../../utils/frameProps';
-import { allowedTextFrameProps, allowedTextTextProps, textVariants } from '../Text/Text';
+import { allowedTextFrameProps, allowedTextTextProps, textIntents } from '../Text/Text';
 import { getTextPropsStory } from '../utils';
 
 const Wrapper = styled.div`
@@ -12,9 +12,9 @@ const Wrapper = styled.div`
     overflow: hidden;
 `;
 
-const meta: Meta = {
-    title: 'Typography',
-} as Meta;
+const meta: Meta<typeof H1> = {
+    title: '🅰️ Typography',
+};
 export default meta;
 
 export const Heading: StoryObj<typeof H1> = {
@@ -31,11 +31,11 @@ export const Heading: StoryObj<typeof H1> = {
         ...getFramePropsStory(allowedTextFrameProps).args,
     },
     argTypes: {
-        variant: {
+        intent: {
             control: {
                 type: 'select',
             },
-            options: textVariants,
+            options: textIntents,
         },
         ...getTextPropsStory(allowedTextTextProps).argTypes,
         ...getFramePropsStory(allowedTextFrameProps).argTypes,

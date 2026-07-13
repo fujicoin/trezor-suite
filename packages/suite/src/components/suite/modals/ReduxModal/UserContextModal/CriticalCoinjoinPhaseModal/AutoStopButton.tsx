@@ -1,13 +1,13 @@
+import { selectIsSessionAutostopped, toggleAutostopCoinjoin } from '@suite/coinjoin';
+import { Translation } from '@suite/intl';
+import { type AccountKey } from '@suite-common/wallet-types';
 import { Checkbox, Text } from '@trezor/components';
 
-import { toggleAutostopCoinjoin } from 'src/actions/wallet/coinjoinAccountActions';
-import { Translation } from 'src/components/suite';
 import { useDispatch } from 'src/hooks/suite/useDispatch';
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { selectIsSessionAutostopped } from 'src/reducers/wallet/coinjoinReducer';
 
 type AutoStopButtonProps = {
-    relatedAccountKey: string;
+    relatedAccountKey: AccountKey;
 };
 
 export const AutoStopButton = ({ relatedAccountKey }: AutoStopButtonProps) => {
@@ -19,8 +19,8 @@ export const AutoStopButton = ({ relatedAccountKey }: AutoStopButtonProps) => {
     };
 
     return (
-        <Checkbox isChecked={isActivated} onClick={handleClick} verticalAlignment="center">
-            <Text typographyStyle="hint" variant="tertiary">
+        <Checkbox isChecked={isActivated} onChange={handleClick} verticalAlignment="center">
+            <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
                 <Translation id="TR_ENABLE_AUTOSTOP_COINJOIN" />
             </Text>
         </Checkbox>

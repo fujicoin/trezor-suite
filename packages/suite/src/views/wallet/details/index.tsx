@@ -1,30 +1,32 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 import styled from 'styled-components';
 
+import { AccountTypeBadge } from '@suite/account';
+import { useDevice } from '@suite/device';
+import { LearnMoreButton } from '@suite/external-links';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { useReceiveDisabled } from '@suite/receive';
 import { getAccountTypeTech } from '@suite-common/wallet-utils';
-import { Button, Card, Column, InfoItem, Paragraph, Row, variables } from '@trezor/components';
-import { spacings } from '@trezor/theme';
-import { HELP_CENTER_BIP32_URL, HELP_CENTER_XPUB_URL, Url } from '@trezor/urls';
+import { Button, Card, Column, InfoItem, Paragraph } from '@trezor/components';
+import { typography } from '@trezor/theme';
+import { HELP_CENTER_BIP32_URL, HELP_CENTER_XPUB_URL, type Url } from '@trezor/urls';
 
 import { showXpub } from 'src/actions/wallet/publicKeyActions';
-import { Translation } from 'src/components/suite';
-import { AccountTypeBadge } from 'src/components/suite/AccountTypeBadge';
-import { LearnMoreButton } from 'src/components/suite/LearnMoreButton';
-import { TranslationKey } from 'src/components/suite/Translation';
 import { AccountTypeDescription } from 'src/components/suite/modals/ReduxModal/UserContextModal/AddAccountModal/AccountTypeSelect/AccountTypeDescription';
 import { WalletLayout } from 'src/components/wallet';
-import { useDevice, useDispatch, useSelector } from 'src/hooks/suite';
-import { useReceiveDisabled } from 'src/hooks/suite/useReceiveDisabled';
+import { useDispatch, useSelector } from 'src/hooks/suite';
+import { ContentFlex, useIsContentBelowBreakpoint } from 'src/support/suite/ContentFlex';
 
+import { AccountNonce } from './AccountNonce';
 import { CoinjoinLogs } from './CoinjoinLogs';
 import { CoinjoinSetup } from './CoinjoinSetup/CoinjoinSetup';
 import { RescanAccount } from './RescanAccount';
+import { Bip329Labels } from '../labels/Bip329Labels';
 
 const Heading = styled.h3`
-    color: ${({ theme }) => theme.legacy.TYPE_LIGHT_GREY};
-    font-size: ${variables.FONT_SIZE.SMALL};
-    font-weight: ${variables.FONT_WEIGHT.DEMI_BOLD};
+    color: ${({ theme }) => theme.contentSecondary};
+    ${typography['body-sm-strong']}
     margin: 14px 0 4px;
     text-transform: uppercase;
 `;
@@ -36,43 +38,52 @@ type DetailsRowProps = {
     learnMoreUrl?: Url;
 };
 
-const DetailsRow = ({ title, description, learnMoreUrl, children }: DetailsRowProps) => (
-    <Row gap={spacings.xxxl} justifyContent="space-between">
-        <InfoItem
-            label={<Translation id={title} />}
-            typographyStyle="body"
-            variant="default"
-            gap={spacings.xs}
-            maxWidth={500}
-        >
-            <Column gap={spacings.sm}>
-                <Paragraph typographyStyle="hint" variant="tertiary">
-                    {description}
-                </Paragraph>
-                {learnMoreUrl && <LearnMoreButton url={learnMoreUrl} />}
+const DetailsRow = ({ title, description, learnMoreUrl, children }: DetailsRowProps) => {
+    const isContentBelowBreakpoint = useIsContentBelowBreakpoint();
+
+    return (
+        <ContentFlex gap={40} justifyContent="space-between">
+            <InfoItem
+                label={<Translation id={title} />}
+                typographyStyle="body-md"
+                intent="neutral"
+                priority="primary"
+                gap={8}
+                maxWidth={500}
+            >
+                <Column gap={12}>
+                    <Paragraph typographyStyle="body-sm" intent="neutral" priority="secondary">
+                        {description}
+                    </Paragraph>
+                    {learnMoreUrl && <LearnMoreButton url={learnMoreUrl} />}
+                </Column>
+            </InfoItem>
+            <Column alignItems={isContentBelowBreakpoint ? 'flex-start' : 'flex-end'} gap={8}>
+                {children}
             </Column>
-        </InfoItem>
-        <Column alignItems="flex-end" gap={spacings.xs}>
-            {children}
-        </Column>
-    </Row>
-);
+        </ContentFlex>
+    );
+};
 
 const Details = () => {
+    const { device, isLocked } = useDevice();
     const selectedAccount = useSelector(state => state.wallet.selectedAccount);
     const { isReceiveDisabled, ReceiveDisabledWrapper } = useReceiveDisabled();
 
     const dispatch = useDispatch();
 
-    const { device, isLocked } = useDevice();
-
-    if (!device || selectedAccount.status !== 'loaded') {
+    if (
+        !device ||
+        (selectedAccount.status !== 'loaded' && selectedAccount.status !== 'exception') ||
+        selectedAccount.account == null
+    ) {
         return <WalletLayout title="TR_ACCOUNT_DETAILS_HEADER" account={selectedAccount} />;
     }
 
     const { account } = selectedAccount;
+
     const locked = isLocked(true);
-    const disabled = locked || isReceiveDisabled;
+    const disabled = locked || isReceiveDisabled || selectedAccount.status !== 'loaded';
 
     const accountTypeTech = getAccountTypeTech(account.path);
 
@@ -96,7 +107,7 @@ const Details = () => {
             )}
 
             <Card data-testid="@wallet/account-details">
-                <Column gap={spacings.xxxl} hasDivider>
+                <Column gap={40} hasDivider>
                     <DetailsRow
                         title="TR_ACCOUNT_DETAILS_TYPE_HEADER"
                         description={
@@ -113,9 +124,8 @@ const Details = () => {
                             shouldDisplayNormalType
                             path={account.path}
                             networkType={account.networkType}
-                            onElevation={true}
                         />
-                        <Paragraph typographyStyle="label" textWrap="nowrap">
+                        <Paragraph typographyStyle="body-xs" textWrap="nowrap">
                             (<Translation id={accountTypeTech} />)
                         </Paragraph>
                     </DetailsRow>
@@ -124,7 +134,7 @@ const Details = () => {
                         description={<Translation id="TR_ACCOUNT_DETAILS_PATH_DESC" />}
                         learnMoreUrl={HELP_CENTER_BIP32_URL}
                     >
-                        <Paragraph typographyStyle="hint">{account.path}</Paragraph>
+                        <Paragraph typographyStyle="body-sm">{account.path}</Paragraph>
                     </DetailsRow>
                     {!isCoinjoinAccount ? (
                         shouldDisplayXpubSection && (
@@ -135,12 +145,12 @@ const Details = () => {
                             >
                                 <ReceiveDisabledWrapper>
                                     <Button
-                                        variant="tertiary"
+                                        intent="neutral"
+                                        priority="secondary"
                                         data-testid="@wallets/details/show-xpub-button"
                                         onClick={handleXpubClick}
                                         isDisabled={disabled}
                                         isLoading={locked}
-                                        size="small"
                                         minWidth={140}
                                     >
                                         <Translation id="TR_ACCOUNT_DETAILS_XPUB_BUTTON" />
@@ -151,6 +161,15 @@ const Details = () => {
                     ) : (
                         <RescanAccount account={account} />
                     )}
+                    {account.networkType === 'ethereum' && (
+                        <DetailsRow
+                            title="TR_ACCOUNT_DETAILS_NONCE_HEADER"
+                            description={<Translation id="TR_ACCOUNT_DETAILS_NONCE_DESC" />}
+                        >
+                            <AccountNonce account={account} />
+                        </DetailsRow>
+                    )}
+                    <Bip329Labels account={account} isLoading={locked} />
                 </Column>
             </Card>
 

@@ -1,18 +1,32 @@
 import { isAnyOf } from '@reduxjs/toolkit';
-import { MiddlewareAPI } from 'redux';
 
-import { firmwareUpdate } from '@suite-common/firmware';
-import { UNIT_ABBREVIATIONS } from '@suite-common/suite-constants';
-import { getPhysicalDeviceCount } from '@suite-common/suite-utils';
+import { asTypedDesktopAnalytics, events } from '@suite/analytics';
 import {
-    WALLET_SETTINGS,
-    deviceActions,
-    discoveryActions,
-    selectDevices,
-    selectDevicesCount,
-} from '@suite-common/wallet-core';
-import { Account } from '@suite-common/wallet-types';
-import { getAccountTotalStakingBalance } from '@suite-common/wallet-utils';
+    selectAnonymityGainToReportByAccountKey,
+    selectCoinjoinAccountByKey,
+    updateLastAnonymityReportTimestamp,
+} from '@suite/coinjoin';
+import {
+    anchorChange,
+    routerLocationChange,
+    selectRouteName,
+    selectRouterUrl,
+} from '@suite/router';
+import { deviceActions, selectDevices, selectDevicesCount } from '@suite-common/device';
+import { firmwareUpdate } from '@suite-common/firmware';
+import { createMiddlewareWithExtraDeps } from '@suite-common/redux-utils';
+import { UNIT_ABBREVIATIONS } from '@suite-common/suite-constants';
+import {
+    getIsDeviceDescriptorApiTypeBluetooth,
+    getPhysicalDeviceCount,
+} from '@suite-common/suite-utils';
+import { WALLET_SETTINGS, discoveryActions } from '@suite-common/wallet-core';
+import { type AccountKey } from '@suite-common/wallet-types';
+import {
+    accumulateAccountCountBySymbolAndType,
+    getAccountTotalStakingBalance,
+    getAccountsWithSomeTransactionHistory,
+} from '@suite-common/wallet-utils';
 import { DEVICE, TRANSPORT } from '@trezor/connect';
 import {
     getBootloaderHash,
@@ -23,18 +37,11 @@ import {
     hasBitcoinOnlyFirmware,
     isDeviceInBootloaderMode,
 } from '@trezor/device-utils';
-import { EventType, analytics } from '@trezor/suite-analytics';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { BigNumber } from '@trezor/utils';
 
-import { ROUTER, SUITE } from 'src/actions/suite/constants';
-import { setFlag } from 'src/actions/suite/suiteActions';
-import { updateLastAnonymityReportTimestamp } from 'src/actions/wallet/coinjoinAccountActions';
+import { SUITE } from 'src/actions/suite/constants';
 import { COINJOIN } from 'src/actions/wallet/constants';
-import {
-    selectAnonymityGainToReportByAccountKey,
-    selectCoinjoinAccountByKey,
-} from 'src/reducers/wallet/coinjoinReducer';
-import type { Action, AppState, Dispatch } from 'src/types/suite';
+import { type Action, type AppState } from 'src/types/suite';
 import {
     getSuiteReadyPayload,
     redactRouterUrl,
@@ -49,20 +56,22 @@ import { hasVisibleTokens } from 'src/utils/wallet/tokenUtils';
     - transport (webusb/bridge) and its version
     - backup type (shamir/bip39)
 */
-const analyticsMiddleware =
-    (api: MiddlewareAPI<Dispatch, AppState>) => (next: Dispatch) => (action: Action) => {
-        const prevRouterUrl = api.getState().router.url;
-        // pass action
-        next(action);
+const analyticsMiddleware = createMiddlewareWithExtraDeps(
+    (action: Action, { extra, next, dispatch, getState }) => {
+        const prevRouterUrl = selectRouterUrl(getState());
+        const prevRouteName = selectRouteName(getState());
+        // NOTE: pass action on, keep the result
+        const result = next(action);
 
-        const state = api.getState();
+        const state: AppState = getState();
+        const { analytics } = extra.services;
 
         if (isAnyOf(firmwareUpdate.fulfilled, firmwareUpdate.rejected)(action)) {
             const { device, toBtcOnly, toFwVersion, error = '' } = action.payload ?? {};
 
             if (device?.features) {
-                analytics.report({
-                    type: EventType.DeviceUpdateFirmware,
+                asTypedDesktopAnalytics(analytics).report({
+                    type: events.deviceUpdateFirmwareEvent.name,
                     payload: {
                         model: device.features.internal_model,
                         fromFwVersion:
@@ -79,94 +88,85 @@ const analyticsMiddleware =
 
         switch (action.type) {
             case deviceActions.addAuthorizedDevice.type:
-                analytics.report({
-                    type: EventType.SelectWalletType,
-                    payload: { type: action.payload.device.walletNumber ? 'hidden' : 'standard' },
+                asTypedDesktopAnalytics(analytics).report({
+                    type: events.selectWalletTypeEvent.name,
+                    payload: {
+                        type: action.payload.device.walletNumber ? 'hidden' : 'standard',
+                    },
                 });
                 break;
+
             case SUITE.READY:
-                // reporting can start when analytics is properly initialized and enabled
-                // it is done async because some UAParser queries are async
                 getSuiteReadyPayload(state).then(payload => {
-                    analytics.report({
-                        type: EventType.SuiteReady,
+                    asTypedDesktopAnalytics(analytics).report({
+                        type: events.suiteReadyEvent.name,
                         payload,
                     });
                 });
                 break;
+
             case TRANSPORT.START:
-                analytics.report({
-                    type: EventType.TransportType,
+                asTypedDesktopAnalytics(analytics).report({
+                    type: events.transportTypeEvent.name,
                     payload: {
                         type: action.payload.type,
                         version: action.payload.version,
                     },
                 });
                 break;
+
             case DEVICE.CONNECT: {
-                const {
-                    device: { features, mode },
-                } = action.payload;
+                const { device } = action.payload;
+                const { features, mode } = device;
 
-                if (!features || !mode) return;
+                if (!features || !mode) return result;
 
-                if (!isDeviceInBootloaderMode(action.payload.device)) {
-                    analytics.report({
-                        type: EventType.DeviceConnect,
+                if (!isDeviceInBootloaderMode(device)) {
+                    asTypedDesktopAnalytics(analytics).report({
+                        type: events.deviceConnectEvent.name,
                         payload: {
                             mode,
-                            firmware: getFirmwareVersion(action.payload.device),
-                            firmwareRevision: getFirmwareRevision(action.payload.device),
-                            bootloaderHash: getBootloaderHash(action.payload.device),
+                            firmware: getFirmwareVersion(device),
+                            firmwareRevision: getFirmwareRevision(device),
+                            bootloaderHash: getBootloaderHash(device),
                             backup_type: features.backup_type || 'Bip39',
                             pin_protection: features.pin_protection,
                             passphrase_protection: features.passphrase_protection,
                             totalInstances: selectDevicesCount(state),
-                            isBitcoinOnly: hasBitcoinOnlyFirmware(action.payload.device),
-                            isBitcoinOnlyDevice: !!features?.unit_btconly,
+                            isBitcoinOnly: hasBitcoinOnlyFirmware(device),
+                            isBitcoinOnlyDevice: !!features.unit_btconly,
                             totalDevices: getPhysicalDeviceCount(selectDevices(state)),
                             language: features.language,
                             model: features.internal_model,
                             optiga_sec: features.optiga_sec,
-                            firmwareSource: getFirmwareSource(action.payload.device),
+                            firmwareSource: getFirmwareSource(device),
+                            connectionType: getIsDeviceDescriptorApiTypeBluetooth(device)
+                                ? 'bluetooth'
+                                : 'cable',
                         },
                     });
                 } else {
-                    analytics.report({
-                        type: EventType.DeviceConnect,
+                    asTypedDesktopAnalytics(analytics).report({
+                        type: events.deviceConnectEvent.name,
                         payload: {
                             mode: 'bootloader',
-                            firmware: getFirmwareVersion(action.payload.device),
-                            bootloader: getBootloaderVersion(action.payload.device),
-                            firmwareSource: getFirmwareSource(action.payload.device),
+                            firmware: getFirmwareVersion(device),
+                            bootloader: getBootloaderVersion(device),
+                            firmwareSource: getFirmwareSource(device),
                         },
                     });
                 }
                 break;
             }
+
             case DEVICE.DISCONNECT:
-                analytics.report({ type: EventType.DeviceDisconnect });
+                asTypedDesktopAnalytics(analytics).report({
+                    type: events.deviceDisconnectEvent.name,
+                });
                 break;
-            // report when discovery finishes
+
             case discoveryActions.updateDiscovery.type: {
-                if (action.payload.status.status !== 'complete') return;
-
-                const accumulateAccountCountBySymbolAndType = (
-                    acc: { [key: string]: number },
-                    { symbol, accountType }: Account,
-                ) => {
-                    // change coinjoin accounts to taproot for analytics
-                    const accType = accountType === 'coinjoin' ? 'taproot' : accountType;
-
-                    const id = `${symbol}_${accType}`;
-                    acc[id] = (acc[id] || 0) + 1;
-
-                    return acc;
-                };
-
-                const accountsWithTransactions = state.wallet.accounts
-                    .filter(account => account.history.total + (account.history.unconfirmed || 0))
-                    .reduce(accumulateAccountCountBySymbolAndType, {});
+                if (action.payload.status.status !== 'complete') return result;
 
                 const accountsWithNonZeroBalance = state.wallet.accounts
                     .filter(
@@ -182,56 +182,78 @@ const analyticsMiddleware =
                     .reduce(accumulateAccountCountBySymbolAndType, {});
 
                 const accountsWithTokens = state.wallet.accounts
-                    .filter(account => new BigNumber((account.tokens || []).length).gt(0))
-                    .reduce((acc: { [key: string]: number }, { symbol, tokens }) => {
+                    .filter(account => new BigNumber(account.tokens?.length || 0).gt(0))
+                    .reduce<Record<string, number>>((acc, { symbol, tokens }) => {
                         if (
-                            tokens &&
-                            tokens.length > 0 &&
+                            tokens?.length &&
                             !hasVisibleTokens(symbol, tokens, state.tokenDefinitions)
                         ) {
                             return acc;
                         }
-
                         acc[symbol] = (acc[symbol] || 0) + 1;
 
                         return acc;
                     }, {});
 
-                analytics.report({
-                    type: EventType.AccountsStatus,
-                    payload: { ...accountsWithTransactions },
+                const accountsWithStaking = state.wallet.accounts
+                    .filter(account =>
+                        new BigNumber(getAccountTotalStakingBalance(account) || 0).gt(0),
+                    )
+                    .reduce(accumulateAccountCountBySymbolAndType, {});
+
+                asTypedDesktopAnalytics(analytics).report({
+                    type: events.accountsStatusEvent.name,
+                    payload: getAccountsWithSomeTransactionHistory(state.wallet.accounts).reduce(
+                        accumulateAccountCountBySymbolAndType,
+                        {},
+                    ),
                 });
 
-                analytics.report({
-                    type: EventType.AccountsNonZeroBalance,
-                    payload: { ...accountsWithNonZeroBalance },
+                asTypedDesktopAnalytics(analytics).report({
+                    type: events.accountsNonZeroBalanceEvent.name,
+                    payload: accountsWithNonZeroBalance,
                 });
 
-                analytics.report({
-                    type: EventType.AccountsTokensStatus,
-                    payload: { ...accountsWithTokens },
+                asTypedDesktopAnalytics(analytics).report({
+                    type: events.accountsTokensStatusEvent.name,
+                    payload: accountsWithTokens,
                 });
+
+                asTypedDesktopAnalytics(analytics).report({
+                    type: events.accountsActiveStakingEvent.name,
+                    payload: accountsWithStaking,
+                });
+
                 break;
             }
-            case ROUTER.LOCATION_CHANGE:
+
+            case routerLocationChange.type:
                 if (
                     state.suite.lifecycle.status !== 'initial' &&
                     state.suite.lifecycle.status !== 'loading'
                 ) {
-                    analytics.report({
-                        type: EventType.RouterLocationChange,
+                    asTypedDesktopAnalytics(analytics).report({
+                        type: events.routerLocationChangeEvent.name,
                         payload: {
                             prevRouterUrl: redactRouterUrl(prevRouterUrl),
-                            nextRouterUrl: redactRouterUrl(action.payload.url),
+                            nextRouterUrl: redactRouterUrl(selectRouterUrl(state)),
                             anchor: redactTransactionIdFromAnchor(action.payload.anchor),
                         },
                     });
+
+                    if (selectRouteName(state) === 'suite-earn' && prevRouteName !== 'suite-earn') {
+                        asTypedDesktopAnalytics(analytics).report({
+                            type: events.yieldEarnEntryEvent.name,
+                            payload: { from: prevRouteName ?? 'unknown' },
+                        });
+                    }
                 }
                 break;
-            case ROUTER.ANCHOR_CHANGE:
+
+            case anchorChange.type:
                 if (action.payload) {
-                    analytics.report({
-                        type: EventType.RouterLocationChange,
+                    asTypedDesktopAnalytics(analytics).report({
+                        type: events.routerLocationChangeEvent.name,
                         payload: {
                             prevRouterUrl: redactRouterUrl(prevRouterUrl),
                             nextRouterUrl: redactRouterUrl(prevRouterUrl),
@@ -240,21 +262,23 @@ const analyticsMiddleware =
                     });
                 }
                 break;
+
             case COINJOIN.SESSION_COMPLETED:
             case COINJOIN.SESSION_PAUSE:
             case COINJOIN.ACCOUNT_UNREGISTER: {
                 const coinjoinAccount = selectCoinjoinAccountByKey(
                     state,
-                    action.payload.accountKey,
+                    action.payload.accountKey as AccountKey,
                 );
                 const anonymityGainToReport = selectAnonymityGainToReportByAccountKey(
                     state,
-                    action.payload.accountKey,
+                    action.payload.accountKey as AccountKey,
                 );
+
                 if (coinjoinAccount && anonymityGainToReport !== null) {
-                    analytics.report(
+                    asTypedDesktopAnalytics(analytics).report(
                         {
-                            type: EventType.CoinjoinAnonymityGain,
+                            type: events.coinjoinAnonymityGainEvent.name,
                             payload: {
                                 networkSymbol: coinjoinAccount.symbol,
                                 value: anonymityGainToReport,
@@ -262,60 +286,44 @@ const analyticsMiddleware =
                         },
                         { anonymize: true },
                     );
-                    api.dispatch(updateLastAnonymityReportTimestamp(action.payload.accountKey));
+                    dispatch(updateLastAnonymityReportTimestamp(action.payload.accountKey));
                 }
                 break;
             }
 
-            case deviceActions.rememberDevice.type: {
-                analytics.report({
+            case deviceActions.setRememberDevice.type:
+                asTypedDesktopAnalytics(analytics).report({
                     type: action.payload.remember
-                        ? EventType.SwitchDeviceRemember
-                        : EventType.SwitchDeviceForget,
+                        ? events.switchDeviceRememberEvent.name
+                        : events.switchDeviceForgetEvent.name,
                 });
                 break;
-            }
 
-            case WALLET_SETTINGS.SET_HIDE_BALANCE: {
-                if (!state.suite.flags.discreetModeCompleted) {
-                    api.dispatch(setFlag('discreetModeCompleted', true));
-                }
-                analytics.report({
-                    type: EventType.MenuToggleDiscreet,
-                    payload: {
-                        value: action.toggled,
-                    },
-                });
-                break;
-            }
-
-            case WALLET_SETTINGS.CHANGE_COIN_VISIBILITY: {
-                analytics.report({
-                    type: EventType.SettingsCoins,
+            case WALLET_SETTINGS.CHANGE_COIN_VISIBILITY:
+                asTypedDesktopAnalytics(analytics).report({
+                    type: events.settingsCoinsEvent.name,
                     payload: {
                         symbol: action.payload.symbol,
                         value: action.payload.shouldBeVisible,
                     },
                 });
                 break;
-            }
 
-            case WALLET_SETTINGS.SET_BITCOIN_AMOUNT_UNITS: {
-                analytics.report({
-                    type: EventType.SettingsGeneralChangeBitcoinUnit,
+            case WALLET_SETTINGS.SET_BITCOIN_AMOUNT_UNITS:
+                asTypedDesktopAnalytics(analytics).report({
+                    type: events.settingsGeneralChangeBitcoinUnitEvent.name,
                     payload: {
                         unit: UNIT_ABBREVIATIONS[action.payload],
                     },
                 });
-
                 break;
-            }
 
             default:
                 break;
         }
 
-        return action;
-    };
+        return result;
+    },
+);
 
 export default analyticsMiddleware;

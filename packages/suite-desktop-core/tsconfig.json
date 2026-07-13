@@ -1,21 +1,17 @@
 {
     "extends": "../../tsconfig.base.json",
-    "compilerOptions": {
-        "module": "commonjs",
-        "moduleResolution": "node",
-        "outDir": "libDev"
-    },
+    "compilerOptions": { "outDir": "libDev" },
     "include": ["src", "e2e", "**/*.json"],
     "references": [
         {
-            "path": "../../suite-common/message-system"
+            "path": "../../suite-common/connect-popup"
+        },
+        {
+            "path": "../../suite-common/platform-encryption"
         },
         { "path": "../../suite-common/sentry" },
         {
             "path": "../../suite-common/suite-constants"
-        },
-        {
-            "path": "../../suite-common/suite-types"
         },
         {
             "path": "../../suite-common/suite-utils"
@@ -23,28 +19,26 @@
         {
             "path": "../../suite-common/wallet-config"
         },
+        {
+            "path": "../../suite-common/wallet-utils"
+        },
+        { "path": "../../suite/sentry" },
+        { "path": "../../suite/tor" },
         { "path": "../coinjoin" },
         { "path": "../connect" },
         { "path": "../connect-common" },
-        { "path": "../connect-web" },
         { "path": "../env-utils" },
         { "path": "../eslint" },
         { "path": "../ipc-proxy" },
         { "path": "../node-utils" },
         { "path": "../request-manager" },
-        { "path": "../suite" },
         { "path": "../suite-desktop-api" },
         { "path": "../suite-desktop-native" },
         { "path": "../theme" },
-        { "path": "../transport" },
         { "path": "../transport-bluetooth" },
         { "path": "../transport-bridge" },
         { "path": "../urls" },
         { "path": "../utils" },
-        { "path": "../blockchain-link-types" },
-        { "path": "../device-utils" },
-        { "path": "../protobuf" },
-        { "path": "../trezor-user-env-link" },
         { "path": "../type-utils" }
     ]
 }

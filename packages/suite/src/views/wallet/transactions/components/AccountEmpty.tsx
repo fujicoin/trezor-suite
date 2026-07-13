@@ -1,22 +1,25 @@
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { goto } from '@suite/router';
+import { useServices } from '@suite-common/dependency-injection';
+import { getTradingPrefilledFromAccountData, tradingActions } from '@suite-common/trading';
 import {
     getNetwork,
     getNetworkDisplaySymbol,
     getNetworkFeatures,
 } from '@suite-common/wallet-config';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { ArrowDownIcon, ArrowsLeftRightIcon, CurrencyCircleDollarIcon } from '@trezor/icons';
 
-import { goto } from 'src/actions/suite/routerActions';
-import { Translation } from 'src/components/suite';
 import { AccountExceptionLayout } from 'src/components/wallet';
 import { useDispatch } from 'src/hooks/suite';
-import { Account } from 'src/types/wallet';
-
+import { type Account } from 'src/types/wallet';
 interface AccountEmptyProps {
     account: Account;
 }
 
 export const AccountEmpty = ({ account }: AccountEmptyProps) => {
     const dispatch = useDispatch();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
 
     const isTokensNetwork = getNetworkFeatures(account.symbol).includes('tokens');
 
@@ -24,19 +27,24 @@ export const AccountEmpty = ({ account }: AccountEmptyProps) => {
     const networkName = getNetwork(account.symbol).name;
 
     const handleNavigateToReceivePage = () => {
-        dispatch(goto('wallet-receive', { preserveParams: true }));
+        dispatch(goto({ routeName: 'wallet-receive', preserveParams: true }));
         analytics.report({
-            type: EventType.AccountsEmptyAccountReceive,
+            type: events.accountsEmptyAccountReceiveEvent.name,
             payload: {
                 symbol: account.symbol,
             },
         });
     };
     const handleNavigateToBuyPage = () => {
-        dispatch(goto('wallet-trading-buy', { preserveParams: true }));
+        dispatch(
+            tradingActions.setTradingFromPrefilledAccount(
+                getTradingPrefilledFromAccountData(account),
+            ),
+        );
+        dispatch(goto({ routeName: 'wallet-trading-buy' }));
 
         analytics.report({
-            type: EventType.TradingNavigate,
+            type: events.tradeNavigateEvent.name,
             payload: {
                 action: 'navigate',
                 type: 'buy',
@@ -48,6 +56,7 @@ export const AccountEmpty = ({ account }: AccountEmptyProps) => {
 
     return (
         <AccountExceptionLayout
+            data-testid="@accounts/empty-account"
             title={<Translation id="TR_ACCOUNT_IS_EMPTY_TITLE" />}
             description={
                 isTokensNetwork ? (
@@ -62,31 +71,35 @@ export const AccountEmpty = ({ account }: AccountEmptyProps) => {
                     />
                 )
             }
-            iconName="arrowsLeftRight"
-            iconVariant="tertiary"
+            icon={ArrowsLeftRightIcon}
+            iconVariant="neutral"
             actions={[
                 {
-                    'data-testid': '@accounts/empty-account/receive',
-                    key: '1',
-                    onClick: handleNavigateToReceivePage,
-                    children: isTokensNetwork ? (
-                        <Translation id="TR_RECEIVE" />
-                    ) : (
-                        <Translation
-                            id="TR_RECEIVE_NETWORK"
-                            values={{ networkDisplaySymbol: displaySymbol }}
-                        />
-                    ),
-                },
-                {
                     'data-testid': '@accounts/empty-account/buy',
-                    key: '2',
+                    key: '1',
                     onClick: handleNavigateToBuyPage,
+                    iconLeft: CurrencyCircleDollarIcon,
+                    size: 'medium',
                     children: isTokensNetwork ? (
                         <Translation id="TR_BUY" />
                     ) : (
                         <Translation
                             id="TR_BUY_NETWORK"
+                            values={{ networkDisplaySymbol: displaySymbol }}
+                        />
+                    ),
+                },
+                {
+                    'data-testid': '@accounts/empty-account/receive',
+                    key: '2',
+                    onClick: handleNavigateToReceivePage,
+                    iconLeft: ArrowDownIcon,
+                    size: 'medium',
+                    children: isTokensNetwork ? (
+                        <Translation id="TR_RECEIVE" />
+                    ) : (
+                        <Translation
+                            id="TR_RECEIVE_NETWORK"
                             values={{ networkDisplaySymbol: displaySymbol }}
                         />
                     ),

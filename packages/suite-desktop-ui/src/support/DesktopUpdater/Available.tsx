@@ -1,12 +1,12 @@
+import { downloadThunk } from '@suite/desktop-update';
+import { selectFlags, setFlag } from '@suite/flags';
+import { Translation } from '@suite/intl';
 import { Card, Checkbox, Column, H4, Modal, Paragraph } from '@trezor/components';
-import { UpdateInfo, desktopApi } from '@trezor/suite-desktop-api';
+import { type UpdateInfo, desktopApi } from '@trezor/suite-desktop-api';
 import { spacings } from '@trezor/theme';
 
-import { download } from 'src/actions/suite/desktopUpdateActions';
-import { setFlag } from 'src/actions/suite/suiteActions';
-import { MarkdownWithComponents, Translation } from 'src/components/suite';
+import { MarkdownWithComponents } from 'src/components/suite';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectSuiteFlags } from 'src/selectors/suite/suiteSelectors';
 
 import { getVersionName } from './getVersionName';
 
@@ -17,10 +17,10 @@ interface AvailableProps {
 
 export const Available = ({ onCancel, latest }: AvailableProps) => {
     const dispatch = useDispatch();
-    const { enableAutoupdateOnNextRun } = useSelector(selectSuiteFlags);
+    const { enableAutoupdateOnNextRun } = useSelector(selectFlags);
 
     const downloadUpdate = () => {
-        dispatch(download());
+        dispatch(downloadThunk());
         desktopApi.downloadUpdate();
     };
 
@@ -31,7 +31,7 @@ export const Available = ({ onCancel, latest }: AvailableProps) => {
     });
 
     const handleToggleAutoUpdateClick = () =>
-        dispatch(setFlag('enableAutoupdateOnNextRun', !enableAutoupdateOnNextRun));
+        dispatch(setFlag({ key: 'enableAutoupdateOnNextRun', value: !enableAutoupdateOnNextRun }));
 
     return (
         <Modal
@@ -48,7 +48,7 @@ export const Available = ({ onCancel, latest }: AvailableProps) => {
                     <Modal.Button onClick={downloadUpdate}>
                         <Translation id="TR_UPDATE_MODAL_START_DOWNLOAD" />
                     </Modal.Button>
-                    <Modal.Button onClick={onCancel} variant="tertiary">
+                    <Modal.Button onClick={onCancel} intent="neutral" priority="secondary">
                         <Translation id="TR_UPDATE_MODAL_NOT_NOW" />
                     </Modal.Button>
                 </>
@@ -61,7 +61,7 @@ export const Available = ({ onCancel, latest }: AvailableProps) => {
                         values={{ version: suiteNewVersion }}
                     />
                 </H4>
-                <Paragraph typographyStyle="hint" variant="tertiary">
+                <Paragraph typographyStyle="body-sm" intent="neutral" priority="secondary">
                     <Translation id="TR_WERE_CONSTANTLY_WORKING_TO_IMPROVE" />
                 </Paragraph>
                 <Card maxHeight={400} overflow="auto" margin={{ top: spacings.sm }}>
@@ -76,7 +76,7 @@ export const Available = ({ onCancel, latest }: AvailableProps) => {
             <Card margin={{ top: spacings.xxl }}>
                 <Checkbox
                     isChecked={enableAutoupdateOnNextRun}
-                    onClick={handleToggleAutoUpdateClick}
+                    onChange={handleToggleAutoUpdateClick}
                 >
                     <Translation id="TR_UPDATE_MODAL_ENABLE_AUTO_UPDATES" />
                 </Checkbox>

@@ -7,67 +7,56 @@ import animationEnd from './animationData/refresh-spinner-end-success.json';
 import animationWarn from './animationData/refresh-spinner-end-warning.json';
 import animationMiddle from './animationData/refresh-spinner-middle.json';
 import animationStart from './animationData/refresh-spinner-start.json';
+import type { SpinnerSize, SpinnerVariant } from './types';
+import { getSpinnerColorsReplace } from './utils';
 import {
-    FrameProps,
-    FramePropsKeys,
+    type FrameProps,
+    type FramePropsKeys,
     pickAndPrepareFrameProps,
     withFrameProps,
 } from '../../../utils/frameProps';
-import { TransientProps } from '../../../utils/transientProps';
+import { type TransientProps } from '../../../utils/transientProps';
 import { recolorLottieAnimation } from '../../animations/recolorLottieAnimation';
 
-export const allowedSpinnerFrameProps = ['margin'] as const satisfies FramePropsKeys[];
+export const allowedSpinnerFrameProps = ['margin', 'opacity'] as const satisfies FramePropsKeys[];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedSpinnerFrameProps)[number]>;
 
 const StyledLottie = styled(Lottie)<
     {
         size: SpinnerProps['size'];
-        $isGrey: SpinnerProps['isGrey'];
     } & TransientProps<AllowedFrameProps>
 >`
     width: ${({ size }) => `${size}px`};
     height: ${({ size }) => `${size}px`};
-    filter: ${({ $isGrey }) => ($isGrey ? 'grayscale(1) opacity(0.6)' : 'none')};
+    display: flex;
 
     ${withFrameProps}
 `;
 
-const ORIGIN_COLORS_IN_ANIMATION = {
-    BODY: '#00854DFF',
-    WARNING_BACKGROUND: '#f7bf2f',
-    WARNING_FOREGROUND: '#ffffff',
+export type SpinnerProps = AllowedFrameProps & {
+    size?: SpinnerSize;
+    isDisabled?: boolean;
+    variant?: SpinnerVariant;
+    hasStartAnimation?: boolean;
+    'data-testid'?: string;
 };
 
-export type SpinnerProps = AllowedFrameProps & {
-    size?: number;
-    isGrey?: boolean;
-    hasStartAnimation?: boolean;
-    hasFinished?: boolean;
-    hasError?: boolean;
-    className?: string;
-    'data-testid'?: string;
-    bodyColor?: string | null;
-    warningBackgroundColor?: string | null;
-    warningForegroundColor?: string | null;
-};
+export { spinnerSizes, spinnerVariants } from './types';
+export type { SpinnerSize, SpinnerVariant } from './types';
 
 export const Spinner = ({
-    size = 100,
-    isGrey = true,
+    size = 40,
+    isDisabled = false,
+    variant = 'loading',
     hasStartAnimation,
-    hasFinished,
-    hasError,
-    className,
     'data-testid': dataTest,
-    bodyColor,
-    warningBackgroundColor,
-    warningForegroundColor,
     ...rest
 }: SpinnerProps) => {
     const theme = useTheme();
-    const defaultBodyColor = theme.baseContentBrand;
-    const defaultWarningColor = theme.baseContentWarning;
-    const defaultWarningForegroundColor = theme.baseContentReversePrimary;
+    const defaultBodyColor = isDisabled ? theme.contentDisabled : theme.contentBrand;
+    const defaultWarningColor = isDisabled ? theme.contentDisabled : theme.contentWarning;
+    const defaultWarningForegroundColor = theme.contentPrimaryInverse;
+    const animationKey = `${theme.variant}-${variant}-${isDisabled ? 'disabled' : 'enabled'}`;
 
     const frameProps = pickAndPrepareFrameProps(rest, allowedSpinnerFrameProps);
 
@@ -79,25 +68,13 @@ export const Spinner = ({
     };
 
     const colorsReplace = useMemo(
-        () => [
-            { from: ORIGIN_COLORS_IN_ANIMATION.BODY, to: bodyColor ?? defaultBodyColor },
-            {
-                from: ORIGIN_COLORS_IN_ANIMATION.WARNING_BACKGROUND,
-                to: warningBackgroundColor ?? defaultWarningColor,
-            },
-            {
-                from: ORIGIN_COLORS_IN_ANIMATION.WARNING_FOREGROUND,
-                to: warningForegroundColor ?? defaultWarningForegroundColor,
-            },
-        ],
-        [
-            bodyColor,
-            warningBackgroundColor,
-            warningForegroundColor,
-            defaultBodyColor,
-            defaultWarningColor,
-            defaultWarningForegroundColor,
-        ],
+        () =>
+            getSpinnerColorsReplace({
+                bodyColor: defaultBodyColor,
+                warningBackgroundColor: defaultWarningColor,
+                warningForegroundColor: defaultWarningForegroundColor,
+            }),
+        [defaultBodyColor, defaultWarningColor, defaultWarningForegroundColor],
     );
 
     const memoizedAnimations = useMemo(
@@ -111,14 +88,14 @@ export const Spinner = ({
     );
 
     const lottieProps = useMemo(() => {
-        if (hasFinished && hasFinishedRotation) {
+        if (variant === 'success' && hasFinishedRotation) {
             return {
                 animationData: memoizedAnimations.end,
                 loop: false,
             };
         }
 
-        if (hasError && hasFinishedRotation) {
+        if (variant === 'error' && hasFinishedRotation) {
             return {
                 animationData: memoizedAnimations.warn,
                 loop: false,
@@ -137,20 +114,12 @@ export const Spinner = ({
             onComplete: () => setHasStarted(true),
             loop: false,
         };
-    }, [
-        hasStarted,
-        hasStartAnimation,
-        hasFinished,
-        hasError,
-        hasFinishedRotation,
-        memoizedAnimations,
-    ]);
+    }, [hasStarted, hasStartAnimation, variant, hasFinishedRotation, memoizedAnimations]);
 
     return (
         <StyledLottie
+            key={animationKey}
             size={size}
-            $isGrey={isGrey}
-            className={className}
             data-testid={dataTest ?? '@spinner'}
             {...lottieProps}
             {...frameProps}

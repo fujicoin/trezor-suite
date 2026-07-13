@@ -1,10 +1,11 @@
 import { useSelector } from 'react-redux';
 
-import { AccountsRootState, selectFormattedAccountType } from '@suite-common/wallet-core';
+import { type AccountsRootState, selectFormattedAccountType } from '@suite-common/wallet-core';
+import { AccountLabel } from '@suite-native/accounts';
 import { Badge } from '@suite-native/atoms';
+import { type ReceiveAccount } from '@suite-native/trading-types';
 
 import { AccountListBaseItem } from './AccountListBaseItem';
-import { ReceiveAccount } from '../../../types/general';
 
 export type AccountListItemProps = {
     receiveAccount: ReceiveAccount;
@@ -17,14 +18,12 @@ export const AccountListItem = ({ receiveAccount, onPress }: AccountListItemProp
         selectFormattedAccountType(state, account.key),
     );
 
-    const typeBadge = formattedAccountType && (
-        <Badge label={formattedAccountType} size="small" elevation="1" />
-    );
+    const typeBadge = formattedAccountType && <Badge label={formattedAccountType} size="small" />;
 
     return (
         <AccountListBaseItem
             receiveAccount={receiveAccount}
-            label={account.accountLabel}
+            label={<AccountLabel account={account} />}
             isAddressDetail={false}
             info={typeBadge}
             onPress={onPress}

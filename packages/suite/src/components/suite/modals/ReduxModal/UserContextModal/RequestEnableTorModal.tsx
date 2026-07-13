@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
 
+import { Translation } from '@suite/intl';
+import { selectTorState } from '@suite/tor';
 import { RequestEnableTorResponse } from '@suite-common/suite-config';
-import { UserContextPayload } from '@suite-common/suite-types';
+import { type UserContextPayload } from '@suite-common/suite-types';
 import { Banner, Modal } from '@trezor/components';
+import { TorBrowserIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite';
-import { selectTorState } from 'src/selectors/suite/suiteSelectors';
 
 type RequestEnableTorModalProps = {
     decision: Extract<UserContextPayload, { type: 'request-enable-tor' }>['decision'];
@@ -39,7 +40,7 @@ export const RequestEnableTorModal = ({ onCancel, decision }: RequestEnableTorMo
             onCancel={onCancel}
             onBackClick={onBackClick}
             heading={<Translation id="TR_TOR_ENABLE" />}
-            size="small"
+            width={600}
             bottomContent={
                 <>
                     <Modal.Button
@@ -53,20 +54,25 @@ export const RequestEnableTorModal = ({ onCancel, decision }: RequestEnableTorMo
                             <Translation id="TR_TOR_ENABLE" />
                         )}
                     </Modal.Button>
-                    <Modal.Button variant="tertiary" onClick={onCancel}>
+                    <Modal.Button intent="neutral" priority="secondary" onClick={onCancel}>
                         <Translation id="TR_CANCEL" />
                     </Modal.Button>
                 </>
             }
         >
-            <Banner icon="torBrowser" variant="primary" margin={{ top: spacings.md }}>
-                <Translation
-                    id="TR_TOR_REQUEST_ENABLE_FOR_COIN_JOIN_TITLE"
-                    values={{
-                        b: chunks => <strong>{chunks}</strong>,
-                    }}
-                />
-            </Banner>
+            <Banner
+                icon={TorBrowserIcon}
+                intent="brand"
+                margin={{ top: spacings.md }}
+                description={
+                    <Translation
+                        id="TR_TOR_REQUEST_ENABLE_FOR_COIN_JOIN_TITLE"
+                        values={{
+                            b: chunks => <strong>{chunks}</strong>,
+                        }}
+                    />
+                }
+            />
         </Modal>
     );
 };

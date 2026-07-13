@@ -1,32 +1,24 @@
 import { useMemo } from 'react';
 
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
+import { Translation } from '@suite/intl';
+import { selectLanguage } from '@suite/settings';
 import { localizeNumber } from '@suite-common/wallet-utils';
-import {
-    Card,
-    Column,
-    H3,
-    Icon,
-    LottieAnimation,
-    ProgressBar,
-    variables,
-} from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { Card, Column, H3, Icon, LottieAnimation, ProgressBar } from '@trezor/components';
+import { StarFourIcon } from '@trezor/icons';
+import { spacings, typography } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { useCoinjoinAccountLoadingProgress } from 'src/hooks/coinjoin';
 import { useSelector } from 'src/hooks/suite';
-import { selectLanguage } from 'src/selectors/suite/suiteSelectors';
 
 import { RotatingFacts } from './RotatingFacts';
 
 const Subheader = styled.div`
     display: flex;
     align-items: center;
-    color: ${({ theme }) => theme.legacy.TYPE_LIGHT_GREY};
-    font-size: ${variables.FONT_SIZE.SMALL};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
+    color: ${({ theme }) => theme.contentSecondary};
+    ${typography['body-sm']}
     text-align: center;
     margin-top: 8px;
 
@@ -35,43 +27,30 @@ const Subheader = styled.div`
     }
 `;
 
-// eslint-disable-next-line local-rules/no-override-ds-component
-const DiscoveryProgress = styled(ProgressBar)`
+const DiscoveryProgressWrapper = styled.div`
+    width: 100%;
     max-width: 440px;
     margin: 18px 0 28px;
-
-    ${ProgressBar.Value} {
-        transition: width 30s cubic-bezier(0.3, 1, 0.3, 1);
-    }
 `;
 
 const FactHeading = styled.div`
     display: flex;
     align-items: center;
-    color: ${({ theme }) => theme.legacy.TYPE_ORANGE};
-    font-size: ${variables.FONT_SIZE.TINY};
-    font-weight: ${variables.FONT_WEIGHT.DEMI_BOLD};
+    color: ${({ theme }) => theme.contentWarning};
+    ${typography['body-xs']}
     text-transform: uppercase;
 `;
 
-// eslint-disable-next-line local-rules/no-override-ds-component
-const SparksIcon = styled(Icon)`
-    margin-right: 4px;
-    padding-bottom: 2px;
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledLottieAnimation = styled(LottieAnimation)`
+const LottieWrapper = styled.div`
     margin: -32px -8px -32px -20px;
 
     path {
-        stroke: ${({ theme }) => theme.legacy.TYPE_LIGHT_GREY};
-        fill: ${({ theme }) => theme.legacy.BG_WHITE};
+        stroke: ${({ theme }) => theme.contentSecondary};
+        fill: ${({ theme }) => theme.contentPrimaryInverse};
     }
 `;
 
 export const CoinjoinAccountDiscoveryProgress = () => {
-    const theme = useTheme();
     const locale = useSelector(selectLanguage);
     const { messageId, outOf, progress, stage } = useCoinjoinAccountLoadingProgress();
     const messageValues = useMemo(
@@ -90,18 +69,27 @@ export const CoinjoinAccountDiscoveryProgress = () => {
                     <Translation id="TR_LOADING_FUNDS" />
                 </H3>
                 <Subheader>
-                    <StyledLottieAnimation
-                        type={stage === 'block' ? 'BLOCK' : 'MEMPOOL'}
-                        size={64}
-                        loop
-                    />
+                    <LottieWrapper>
+                        <LottieAnimation
+                            type={stage === 'block' ? 'BLOCK' : 'MEMPOOL'}
+                            size={64}
+                            loop
+                        />
+                    </LottieWrapper>
                     {messageId && <Translation id={messageId} values={messageValues} />}
                 </Subheader>
 
-                <DiscoveryProgress max={1.01} value={progress} />
+                <DiscoveryProgressWrapper>
+                    <ProgressBar max={1.01} value={progress} />
+                </DiscoveryProgressWrapper>
 
                 <FactHeading>
-                    <SparksIcon name="starFour" size={13} color={theme.legacy.TYPE_ORANGE} />
+                    <Icon
+                        as={StarFourIcon}
+                        size={13}
+                        intent="warning"
+                        margin={{ right: 4, bottom: 2 }}
+                    />
                     <Translation id="TR_LOADING_FACT_TITLE" />
                 </FactHeading>
 

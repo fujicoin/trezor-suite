@@ -1,152 +1,127 @@
-import { Ref, forwardRef } from 'react';
-
-import styled from 'styled-components';
-
-import { BaseCurrencyAmount } from '@suite-common/wallet-utils';
-import { Column, TOOLTIP_DELAY_NORMAL, Tooltip } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useServices } from '@suite-common/dependency-injection';
+import { type BaseCurrencyAmount } from '@suite-common/wallet-types';
+import { Box, TOOLTIP_DELAY_NORMAL, Tooltip } from '@trezor/components';
 import { exhaustive } from '@trezor/type-utils';
 
 import { useGoToWithAnalytics } from 'src/components/suite/layouts/SuiteLayout/PageHeader/useGoToWithAnalytics';
-import { NavigationItemBase } from 'src/components/suite/layouts/SuiteLayout/Sidebar/NavigationItem';
-import { Account, AccountItemType } from 'src/types/wallet';
+import { CollapsedSidebarOnly } from 'src/components/suite/layouts/SuiteLayout/Sidebar/CollapsedSidebarOnly';
+import { ExpandedSidebarOnly } from 'src/components/suite/layouts/SuiteLayout/Sidebar/ExpandedSidebarOnly';
+import { type Account, type AccountItemType } from 'src/types/wallet';
 
-import { AccountItemLeft } from './AccountItemLeft';
-import { AccountRow } from './AccountRow';
-import { CollapsedSidebarOnly } from '../../../../suite/layouts/SuiteLayout/Sidebar/CollapsedSidebarOnly';
-import { ExpandedSidebarOnly } from '../../../../suite/layouts/SuiteLayout/Sidebar/ExpandedSidebarOnly';
+import { AccountItemContent } from './AccountRow/AccountItemContent/AccountItemContent';
+import { AccountRow } from './AccountRow/AccountRow';
 
-export const CollapsedItem = styled(NavigationItemBase)<{ $isSelected: boolean }>`
-    background: ${({ theme, $isSelected }) => $isSelected && theme.backgroundSurfaceElevation1};
-    line-height: 0;
-    z-index: 0;
-    position: relative;
-
-    &:hover {
-        z-index: 1;
-        position: relative;
-        background: ${({ theme, $isSelected }) =>
-            !$isSelected && theme.backgroundTertiaryPressedOnElevation0};
+function getRoute(type: AccountItemType) {
+    switch (type) {
+        case 'coin':
+            return 'wallet-index';
+        case 'staking':
+            return 'wallet-staking';
+        case 'tokens':
+            return 'wallet-tokens';
+        default:
+            return exhaustive(type);
     }
-`;
-export const Left = styled.div`
-    position: relative;
-`;
+}
 
-interface AccountItemProps {
+export interface AccountItemProps {
     account: Account;
     // NOTE: disables the default item click behavior
     forceOnlyItemClick?: boolean;
     type: AccountItemType;
     isSelected: boolean;
-    isGroupSelected?: boolean;
     formattedBalance: string;
     customFiatValue?: BaseCurrencyAmount;
-    isGroup?: boolean;
     tokens?: Account['tokens'];
     dataTestKey?: string;
     isFiatLoading?: boolean;
     onClick?: (account: Account, type: AccountItemType) => void;
 }
 
-// Using `forwardRef` to be able to pass `ref` (item) TO parent (Menu/index)
-export const AccountItem = forwardRef(
-    (
-        {
-            account,
-            forceOnlyItemClick,
-            type,
-            isSelected,
-            isGroupSelected,
-            formattedBalance,
-            customFiatValue,
-            isGroup,
-            dataTestKey,
-            isFiatLoading,
-            onClick,
-        }: AccountItemProps,
-        ref: Ref<HTMLDivElement>,
-    ) => {
-        const { accountType, index, symbol } = account;
+export const AccountItem = ({
+    account,
+    forceOnlyItemClick,
+    type,
+    isSelected,
+    formattedBalance,
+    customFiatValue,
+    dataTestKey,
+    isFiatLoading,
+    onClick,
+}: AccountItemProps) => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
+    const { accountType, index, symbol } = account;
 
-        const goToWithAnalytics = useGoToWithAnalytics(account);
+    const goToWithAnalytics = useGoToWithAnalytics(account);
 
-        const accountRouteParams = {
-            symbol,
-            accountIndex: index,
-            accountType,
-        };
+    const handleHeaderClick = () => {
+        onClick?.(account, type);
 
-        const getRoute = () => {
-            switch (type) {
-                case 'coin':
-                    return 'wallet-index';
-                case 'staking':
-                    return 'wallet-staking';
-                case 'tokens':
-                    return 'wallet-tokens';
-                default:
-                    return exhaustive(type);
-            }
-        };
+        // NOTE: disable default behavior useful eg in global send modal - when picking account
+        // from which to send
+        if (forceOnlyItemClick) {
+            return;
+        }
 
-        const handleHeaderClick = () => {
-            onClick?.(account, type);
+        goToWithAnalytics({
+            routeName: getRoute(type),
+            params: {
+                symbol,
+                accountIndex: index,
+                accountType,
+            },
+        });
 
-            // NOTE: disable default behavior useful eg in global send modal - when picking account
-            // from which to send
-            if (forceOnlyItemClick) {
-                return;
-            }
-            goToWithAnalytics(getRoute(), { params: accountRouteParams });
+        if (type === 'staking') {
+            analytics.report({
+                type: events.stakingNavigateEvent.name,
+                payload: {
+                    action: 'navigate',
+                    from: 'sidebar',
+                    networkSymbol: symbol,
+                },
+            });
+        }
+    };
 
-            if (type === 'staking') {
-                analytics.report({
-                    type: EventType.StakingNavigate,
-                    payload: {
-                        action: 'navigate',
-                        from: 'sidebar',
-                        networkSymbol: symbol,
-                    },
-                });
-            }
-        };
+    const commonProps = {
+        isFiatLoading: Boolean(isFiatLoading),
+        formattedBalance,
+        dataTestKey,
+        type,
+        account,
+        customFiatValue,
+    };
 
-        const content = (
-            <AccountRow
-                isFiatLoading={Boolean(isFiatLoading)}
-                isSelected={isSelected}
-                isGroup={isGroup}
-                isGroupSelected={isGroupSelected}
-                handleHeaderClick={handleHeaderClick}
-                dataTestKey={dataTestKey}
-                type={type}
-                account={account}
-                ref={ref}
-                customFiatValue={customFiatValue}
-                formattedBalance={formattedBalance}
-            />
-        );
-
-        return (
-            <>
-                <ExpandedSidebarOnly>{content}</ExpandedSidebarOnly>
-                <CollapsedSidebarOnly>
-                    <Column alignItems="center">
-                        <Tooltip
-                            delayShow={TOOLTIP_DELAY_NORMAL}
-                            cursor="pointer"
-                            content={content}
-                            placement="right"
-                            hasArrow
-                        >
-                            <CollapsedItem $isSelected={isSelected} onClick={handleHeaderClick}>
-                                <AccountItemLeft type={type} account={account} />
-                            </CollapsedItem>
-                        </Tooltip>
-                    </Column>
-                </CollapsedSidebarOnly>
-            </>
-        );
-    },
-);
+    return (
+        <>
+            <ExpandedSidebarOnly>
+                <AccountRow
+                    {...commonProps}
+                    isSelected={isSelected}
+                    handleHeaderClick={handleHeaderClick}
+                />
+            </ExpandedSidebarOnly>
+            <CollapsedSidebarOnly>
+                <Tooltip
+                    delayShow={TOOLTIP_DELAY_NORMAL}
+                    cursor="pointer"
+                    content={
+                        <Box padding={4}>
+                            <AccountItemContent {...commonProps} showAccountTypeBadge />
+                        </Box>
+                    }
+                    placement="right"
+                >
+                    <AccountRow
+                        {...commonProps}
+                        isSelected={isSelected}
+                        handleHeaderClick={handleHeaderClick}
+                        isCollapsed
+                    />
+                </Tooltip>
+            </CollapsedSidebarOnly>
+        </>
+    );
+};

@@ -1,95 +1,110 @@
-import { testMocks } from '@suite-common/test-utils';
 import '@suite-common/test-utils/src/globalOverrides';
+
+import { coinjoinReducer } from '@suite/coinjoin';
+import { initialRunCompleted, prepareFlagsReducer } from '@suite/flags';
+import { initialMetadataState, metadataReducer } from '@suite/metadata';
+import { receiveReducer } from '@suite/receive';
+import { suiteSettingsInitialState } from '@suite/settings';
+import { suiteSyncSlice } from '@suite/suite-sync';
+import { deviceActions, selectDevices, selectDevicesCount } from '@suite-common/device';
+import { asEncryptedHex } from '@suite-common/platform-encryption';
+import { setSuiteSyncOwner } from '@suite-common/suite-sync';
+import { type SuiteSyncOwnerSerialized } from '@suite-common/suite-sync-storage';
+import { mockSuiteDevice } from '@suite-common/suite-types/mocks';
+import { testMocks, wireEnabledNetworksMock } from '@suite-common/test-utils';
 import {
     changeCoinVisibility,
-    deviceActions,
     prepareDiscoveryReducer,
     prepareSendFormReducer,
-    selectDevices,
-    selectDevicesCount,
     transactionsActions,
 } from '@suite-common/wallet-core';
 import * as discoveryActions from '@suite-common/wallet-core';
+import { asAccountDescriptor } from '@suite-common/wallet-types';
+import { mockAccountKey, mockWalletAccount } from '@suite-common/wallet-types/mocks';
 import { getAccountIdentifier, getAccountTransactions } from '@suite-common/wallet-utils';
+import { type StaticSessionId, asWalletDescriptor } from '@trezor/device-utils';
 
 import { deviceSlice } from 'src/actions/device/deviceSlice';
+import { suiteSyncQuotaManagerSlice } from 'src/actions/suiteSyncQuotaManager/suiteSyncQuotaManagerSlice';
 import { SETTINGS } from 'src/config/suite';
 import storageMiddleware from 'src/middlewares/wallet/storageMiddleware';
 import suiteReducer from 'src/reducers/suite/suiteReducer';
 import { accountsReducer, fiatRatesReducer, transactionsReducer } from 'src/reducers/wallet';
-import { coinjoinReducer } from 'src/reducers/wallet/coinjoinReducer';
 import graphReducer from 'src/reducers/wallet/graphReducer';
+import { db } from 'src/storage';
 import { extraDependencies } from 'src/support/extraDependencies';
 import { preloadStore } from 'src/support/suite/preloadStore';
 import { configureStore } from 'src/support/tests/configureStore';
-import { AcquiredDevice, AppState } from 'src/types/suite';
+import { type AcquiredDevice, type AppState } from 'src/types/suite';
 
 import * as storageActions from '../storageActions';
-import * as suiteActions from '../suiteActions';
 
-const { getSuiteDevice, getWalletAccount, getWalletTransaction } = testMocks;
+const { getWalletTransaction } = testMocks;
 
 const discoveryReducer = prepareDiscoveryReducer(extraDependencies);
 const deviceReducer = deviceSlice.prepareReducer(extraDependencies);
+const flagsReducer = prepareFlagsReducer(extraDependencies);
 const sendFormReducer = prepareSendFormReducer(extraDependencies);
 const walletSettingsReducer = discoveryActions.prepareWalletSettingsReducer(extraDependencies);
+const quotaManagerSliceReducer = suiteSyncQuotaManagerSlice.prepareReducer(extraDependencies);
+const suiteSyncReducer = suiteSyncSlice.prepareReducer(extraDependencies);
 
 // TODO: add method in suite-storage for deleting all stored data (done as a static method on SuiteDB), call it after each test
 // TODO: test deleting device instances on parent device forget
 
-const dev1 = getSuiteDevice({
-    state: '1stTestnetAddress@device_a_id:0',
+const dev1 = mockSuiteDevice({
+    state: { staticSessionId: '1stTestnetAddress@device_a_id:0' },
     path: '1',
     instance: 1,
     remember: true, // normally it would be set by SUITE.REMEMBER_DEVICE dispatched from modalActions.onRememberDevice()
 });
-const dev2 = getSuiteDevice({
-    state: '1stTestnetAddress@device_b_id:0',
+const dev2 = mockSuiteDevice({
+    state: { staticSessionId: '1stTestnetAddress@device_b_id:0' },
     path: '2',
     instance: 1,
     remember: true, // normally it would be set by SUITE.REMEMBER_DEVICE dispatched from modalActions.onRememberDevice()
 });
-const dev2Instance1 = getSuiteDevice({
-    state: '1stTestnetAddress@device_c_id:0',
+const dev2Instance1 = mockSuiteDevice({
+    state: { staticSessionId: '1stTestnetAddress@device_c_id:0' },
     path: '2',
     instance: 2,
     remember: true, // normally it would be set by SUITE.REMEMBER_DEVICE dispatched from modalActions.onRememberDevice()
 });
-const devNotRemembered = getSuiteDevice({
-    state: '1stTestnetAddress@device_a_id:0',
-    path: '1',
-    instance: 1,
-});
 
-const acc1 = getWalletAccount({
+const acc1 = mockWalletAccount({
     deviceState: dev1.state?.staticSessionId,
     symbol: 'btc',
-    descriptor: 'desc1',
-    key: `desc1-btc-${dev1.state?.staticSessionId}`,
-    networkType: 'bitcoin',
+    descriptor: asAccountDescriptor('desc1'),
 });
-const acc2 = getWalletAccount({
+const acc2 = mockWalletAccount({
     deviceState: dev2.state?.staticSessionId,
     symbol: 'btc',
-    descriptor: 'desc2',
-    key: `desc2-btc-${dev2.state?.staticSessionId}`,
-    networkType: 'bitcoin',
+    descriptor: asAccountDescriptor('desc2'),
 });
 
 const tx1 = getWalletTransaction({
     deviceState: dev1.state?.staticSessionId,
     txid: 'txid1',
-    descriptor: 'desc1',
+    descriptor: asAccountDescriptor('desc1'),
     symbol: 'btc',
 });
 const tx2 = getWalletTransaction({
     deviceState: dev2.state?.staticSessionId,
     txid: 'txid2',
-    descriptor: 'desc2',
+    descriptor: asAccountDescriptor('desc2'),
     symbol: 'btc',
 });
 
-type PartialState = Pick<AppState, 'suite' | 'device'> & {
+type PartialState = Pick<
+    AppState,
+    | 'suite'
+    | 'suiteSettings'
+    | 'device'
+    | 'suiteSync'
+    | 'suiteSyncQuotaManager'
+    | 'flags'
+    | 'metadata'
+> & {
     wallet: Partial<
         Pick<
             AppState['wallet'],
@@ -98,6 +113,7 @@ type PartialState = Pick<AppState, 'suite' | 'device'> & {
             | 'settings'
             | 'discovery'
             | 'send'
+            | 'receive'
             | 'transactions'
             | 'graph'
             | 'fiat'
@@ -110,43 +126,46 @@ const getInitialState = (prevState?: Partial<PartialState>, action?: any) => ({
         prevState ? prevState.suite : undefined,
         action || ({ type: 'foo' } as any),
     ),
+    suiteSettings: prevState?.suiteSettings ?? suiteSettingsInitialState,
+    flags: flagsReducer(
+        prevState ? prevState.flags : undefined,
+        action || ({ type: 'foo' } as any),
+    ),
+    metadata: metadataReducer(
+        prevState ? prevState.metadata : initialMetadataState,
+        action || ({ type: 'foo' } as any),
+    ),
+    suiteSync: suiteSyncReducer(
+        prevState ? prevState.suiteSync : undefined,
+        action || ({ type: 'foo' } as any),
+    ),
+    suiteSyncQuotaManager: quotaManagerSliceReducer(
+        prevState ? prevState.suiteSyncQuotaManager : undefined,
+        action || ({ type: 'foo' } as any),
+    ),
     device: deviceReducer(
         prevState ? prevState.device : undefined,
         action || ({ type: 'foo' } as any),
     ),
     wallet: {
-        accounts: accountsReducer(
-            prevState && prevState.wallet ? prevState.wallet.accounts : undefined,
-            action || ({ type: 'foo' } as any),
-        ),
-        coinjoin: coinjoinReducer(
-            prevState && prevState.wallet ? prevState.wallet.coinjoin : undefined,
-            action || ({ type: 'foo' } as any),
-        ),
+        accounts: accountsReducer(prevState?.wallet?.accounts, action || ({ type: 'foo' } as any)),
+        coinjoin: coinjoinReducer(prevState?.wallet?.coinjoin, action || ({ type: 'foo' } as any)),
         settings: walletSettingsReducer(
-            prevState && prevState.wallet ? prevState.wallet.settings : undefined,
+            prevState?.wallet?.settings,
             action || ({ type: 'foo' } as any),
         ),
         discovery: discoveryReducer(
-            prevState && prevState.wallet ? prevState.wallet.discovery : undefined,
+            prevState?.wallet?.discovery,
             action || ({ type: 'foo' } as any),
         ),
-        send: sendFormReducer(
-            prevState && prevState.wallet ? prevState.wallet.send : undefined,
-            action || ({ type: 'foo' } as any),
-        ),
+        send: sendFormReducer(prevState?.wallet?.send, action || ({ type: 'foo' } as any)),
+        receive: receiveReducer(prevState?.wallet?.receive, action || ({ type: 'foo' } as any)),
         transactions: transactionsReducer(
-            prevState && prevState.wallet ? prevState.wallet.transactions : undefined,
+            prevState?.wallet?.transactions,
             action || ({ type: 'foo' } as any),
         ),
-        fiat: fiatRatesReducer(
-            prevState && prevState.wallet ? prevState.wallet.fiat : undefined,
-            action || ({ type: 'foo' } as any),
-        ),
-        graph: graphReducer(
-            prevState && prevState.wallet ? prevState.wallet.graph : undefined,
-            action || ({ type: 'foo' } as any),
-        ),
+        fiat: fiatRatesReducer(prevState?.wallet?.fiat, action || ({ type: 'foo' } as any)),
+        graph: graphReducer(prevState?.wallet?.graph, action || ({ type: 'foo' } as any)),
         formDrafts: {},
     },
 });
@@ -163,6 +182,10 @@ const updateStore = (store: mockStoreType) => {
         const action = store.getActions().pop();
         const prevState = store.getState();
         store.getState().suite = getInitialState(prevState, action).suite;
+        store.getState().suiteSettings = getInitialState(prevState, action).suiteSettings;
+        store.getState().flags = getInitialState(prevState, action).flags;
+        store.getState().metadata = getInitialState(prevState, action).metadata;
+        store.getState().suiteSync = getInitialState(prevState, action).suiteSync;
         store.getState().device = getInitialState(prevState, action).device;
         store.getState().wallet = getInitialState(prevState, action).wallet;
         store.getActions().push(action);
@@ -205,10 +228,10 @@ describe('Storage actions', () => {
         const f = global.fetch;
         global.fetch = mockFetch({ TR_ID: 'Message' });
         await store.dispatch(storageActions.saveSuiteSettings());
-        await store.dispatch(suiteActions.initialRunCompleted());
+        await store.dispatch(initialRunCompleted({ isFreshDeviceSetup: true }));
         store.dispatch(await preloadStore());
 
-        expect(store.getState().suite.flags.initialRun).toEqual(false);
+        expect(store.getState().flags.initialRun).toEqual(false);
         global.fetch = f;
     });
 
@@ -216,17 +239,19 @@ describe('Storage actions', () => {
         let store = mockStore(getInitialState());
         updateStore(store);
 
-        // @ts-expect-error partial params
-        await storageActions.saveDraft({ address: 'a' }, 'account-key');
-        store.dispatch(await preloadStore());
-        expect(store.getState().wallet.send.drafts).toEqual({ 'account-key': { address: 'a' } });
+        const accountKey = mockAccountKey({ descriptor: 'accountKey' });
 
         // @ts-expect-error partial params
-        await storageActions.saveDraft({ address: 'b' }, 'account-key');
+        await storageActions.saveDraft({ address: 'a' }, accountKey);
         store.dispatch(await preloadStore());
-        expect(store.getState().wallet.send.drafts).toEqual({ 'account-key': { address: 'b' } });
+        expect(store.getState().wallet.send.drafts).toEqual({ [accountKey]: { address: 'a' } });
 
-        await storageActions.removeDraft('account-key');
+        // @ts-expect-error partial params
+        await storageActions.saveDraft({ address: 'b' }, accountKey);
+        store.dispatch(await preloadStore());
+        expect(store.getState().wallet.send.drafts).toEqual({ [accountKey]: { address: 'b' } });
+
+        await storageActions.removeDraft(accountKey);
         store = mockStore(getInitialState());
         updateStore(store);
         store.dispatch(await preloadStore());
@@ -238,7 +263,7 @@ describe('Storage actions', () => {
             getInitialState({
                 device: {
                     devices: [dev1, dev2, dev2Instance1],
-                    isDeviceAutoEjectEnabled: false,
+                    persistentDeviceData: [],
                     isConnectionModalOpen: false,
                     defaultConnectionMode: 'cable',
                 },
@@ -260,9 +285,9 @@ describe('Storage actions', () => {
         store.dispatch(transactionsActions.addTransaction({ transactions: [tx2], account: acc2 }));
 
         // remember devices
-        await store.dispatch(storageActions.rememberDevice(dev1, true));
-        await store.dispatch(storageActions.rememberDevice(dev2, true));
-        await store.dispatch(storageActions.rememberDevice(dev2Instance1, true));
+        await store.dispatch(storageActions.rememberDevice(dev1));
+        await store.dispatch(storageActions.rememberDevice(dev2));
+        await store.dispatch(storageActions.rememberDevice(dev2Instance1));
 
         store.dispatch(await preloadStore());
 
@@ -281,18 +306,18 @@ describe('Storage actions', () => {
         });
 
         expect(acc1Txs.length).toEqual(1);
-        expect(acc1Txs[0].deviceState).toEqual(tx1.deviceState);
+        expect(acc1Txs[0]?.deviceState).toEqual(tx1.deviceState);
         // stored accounts
         expect(load1.wallet.accounts.length).toEqual(2);
         expect(load1.wallet.accounts[0]).toEqual(acc1);
 
         // stored device2
-        expect(load1.device.devices[1].state).toEqual(dev2.state);
+        expect(load1.device.devices[1]?.state).toEqual(dev2.state);
         // stored txs
         const acc2Txs = getAccountTransactions(acc2.key, load1.wallet.transactions.transactions);
 
         expect(acc2Txs.length).toEqual(1);
-        expect(acc2Txs[0].deviceState).toEqual(tx2.deviceState);
+        expect(acc2Txs[0]?.deviceState).toEqual(tx2.deviceState);
         // stored 1 account
         expect(load1.wallet.accounts[1]).toEqual(acc2);
 
@@ -318,10 +343,10 @@ describe('Storage actions', () => {
         expect(load2.wallet.send.drafts).toEqual({});
         // acc1 deleted
         expect(load2.wallet.accounts.length).toEqual(1);
-        expect(load2.wallet.accounts[0].deviceState).toEqual(dev2.state?.staticSessionId);
+        expect(load2.wallet.accounts[0]?.deviceState).toEqual(dev2.state?.staticSessionId);
         // forget device dev1 along with its instances
-        await store.dispatch(storageActions.rememberDevice(dev2, false));
-        await store.dispatch(storageActions.rememberDevice(dev2Instance1, false));
+        await store.dispatch(storageActions.forgetDevice(dev2));
+        await store.dispatch(storageActions.forgetDevice(dev2Instance1));
         store.dispatch(await preloadStore());
         expect(selectDevicesCount(store.getState())).toEqual(0);
     });
@@ -331,7 +356,7 @@ describe('Storage actions', () => {
             getInitialState({
                 device: {
                     devices: [dev1, dev2],
-                    isDeviceAutoEjectEnabled: false,
+                    persistentDeviceData: [],
                     isConnectionModalOpen: false,
                     defaultConnectionMode: 'cable',
                 },
@@ -347,8 +372,8 @@ describe('Storage actions', () => {
         store.dispatch(transactionsActions.addTransaction({ transactions: [tx2], account: acc2 }));
 
         // store in db
-        await store.dispatch(storageActions.rememberDevice(dev1, true));
-        await store.dispatch(storageActions.rememberDevice(dev2, true));
+        await store.dispatch(storageActions.rememberDevice(dev1));
+        await store.dispatch(storageActions.rememberDevice(dev2));
 
         // remove txs for acc 1
         await storageActions.removeAccountTransactions(acc1);
@@ -376,7 +401,7 @@ describe('Storage actions', () => {
             getInitialState({
                 device: {
                     devices: [dev1Connected],
-                    isDeviceAutoEjectEnabled: false,
+                    persistentDeviceData: [],
                     isConnectionModalOpen: false,
                     defaultConnectionMode: 'cable',
                 },
@@ -388,9 +413,9 @@ describe('Storage actions', () => {
         updateStore(store);
 
         // store device in db
-        await store.dispatch(storageActions.rememberDevice(dev1, true));
+        await store.dispatch(storageActions.rememberDevice(dev1));
 
-        // Change device label inside a reducer
+        // Change device label inside a reducer. This is a plain action, and storageMiddleware updates the db.
         await store.dispatch(
             deviceActions.updateSelectedDevice({
                 ...(dev1Connected as AcquiredDevice),
@@ -398,24 +423,24 @@ describe('Storage actions', () => {
             }),
         );
 
+        // Hack - because the db operation is done in a middleware, it is not awaitable via dispatch
+        await new Promise(resolve => setTimeout(resolve, 100));
         store.dispatch(await preloadStore());
-        expect(selectDevices(store.getState())[0].label).toBe('New Label');
+        expect(selectDevices(store.getState())[0]?.label).toBe('New Label');
     });
 
     it('should store graph data with the device and remove it on ACCOUNT.REMOVE (triggered by disabling the coin)', async () => {
-        const accLtc = getWalletAccount({
+        const accLtc = mockWalletAccount({
             deviceState: dev1.state!.staticSessionId!,
             symbol: 'ltc',
-            descriptor: 'desc2',
-            key: `desc2-ltc-${dev1.state}`,
-            networkType: 'bitcoin',
+            descriptor: asAccountDescriptor('desc2'),
         });
 
         const store = mockStore(
             getInitialState({
                 device: {
                     devices: [dev1],
-                    isDeviceAutoEjectEnabled: false,
+                    persistentDeviceData: [],
                     isConnectionModalOpen: false,
                     defaultConnectionMode: 'cable',
                 },
@@ -437,7 +462,6 @@ describe('Storage actions', () => {
                             },
                         ],
                         selectedRange: SETTINGS.DEFAULT_GRAPH_RANGE,
-                        selectedView: 'linear',
                         error: null,
                         isLoading: false,
                     },
@@ -446,12 +470,14 @@ describe('Storage actions', () => {
         );
         updateStore(store);
         // store device in db
-        await store.dispatch(storageActions.rememberDevice(dev1, true));
+        await store.dispatch(storageActions.rememberDevice(dev1));
 
         // verify that graph data are stored
         store.dispatch(await preloadStore());
         expect(store.getState().wallet.graph.data.length).toBe(2);
 
+        // changeCoinVisibility awaits updateConnectSettings; mock it as a no-op success.
+        wireEnabledNetworksMock();
         // disable btc network, enable ltc, triggering ACCOUNT.REMOVE
         await store.dispatch(changeCoinVisibility({ symbol: 'ltc', shouldBeVisible: true }));
         await store.dispatch(changeCoinVisibility({ symbol: 'btc', shouldBeVisible: false }));
@@ -459,26 +485,70 @@ describe('Storage actions', () => {
         // verify that graph data for acc1 were removed
         store.dispatch(await preloadStore());
         expect(store.getState().wallet.graph.data.length).toBe(1);
-        expect(store.getState().wallet.graph.data[0].account.symbol).toBe('ltc');
+        expect(store.getState().wallet.graph.data[0]?.account.symbol).toBe('ltc');
     });
 
-    it('remember device with forceRemember', async () => {
-        const store = mockStore(
+    it('should store SuiteSyncOwner on setSuiteSyncOwner and remove it on forgetDevice', async () => {
+        const owner = asEncryptedHex<SuiteSyncOwnerSerialized>('owner-key');
+        const deviceStaticId = dev1.state!.staticSessionId!;
+        const store = mockStore(getInitialState());
+        updateStore(store);
+
+        store.dispatch(
+            setSuiteSyncOwner({
+                deviceStaticId,
+                owner,
+            }),
+        );
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        expect(await db.getItemByPK('suiteSyncOwners', deviceStaticId)).toEqual('owner-key');
+
+        await store.dispatch(storageActions.forgetDevice(dev1));
+
+        expect(await db.getItemByPK('suiteSyncOwners', deviceStaticId)).toBeUndefined();
+    });
+
+    it('should remove legacy labels migration flag on forgetDevice', async () => {
+        const forgottenDeviceStaticSessionId: StaticSessionId = 'forgotten-wallet@device_a_id:0';
+        const forgottenWalletDescriptor = asWalletDescriptor('forgotten-wallet');
+        const keptWalletDescriptor = asWalletDescriptor('kept-wallet');
+
+        const forgottenDevice = mockSuiteDevice({
+            state: { staticSessionId: forgottenDeviceStaticSessionId },
+            remember: true,
+        });
+
+        let store = mockStore(
             getInitialState({
-                device: {
-                    devices: [devNotRemembered],
-                    isDeviceAutoEjectEnabled: false,
-                    isConnectionModalOpen: false,
-                    defaultConnectionMode: 'cable',
+                metadata: {
+                    ...initialMetadataState,
+                    hasLegacyLabelsMigrated: {
+                        [forgottenWalletDescriptor]: true,
+                        [keptWalletDescriptor]: true,
+                    },
+                    error: {
+                        [forgottenDeviceStaticSessionId]: true,
+                        'other-device': true,
+                    },
                 },
             }),
         );
         updateStore(store);
 
-        // store in db
-        await store.dispatch(storageActions.rememberDevice(devNotRemembered, true, true));
+        await store.dispatch(storageActions.saveMetadataSettings());
+        await store.dispatch(storageActions.forgetDevice(forgottenDevice));
+
+        store = mockStore(getInitialState());
+        updateStore(store);
         store.dispatch(await preloadStore());
-        expect(selectDevices(store.getState())[0].remember).toBe(true);
-        expect(selectDevices(store.getState())[0].forceRemember).toBe(true);
+
+        expect(store.getState().metadata.hasLegacyLabelsMigrated).toEqual({
+            [keptWalletDescriptor]: true,
+        });
+        expect(store.getState().metadata.error).toEqual({
+            'other-device': true,
+        });
     });
 });

@@ -1,0 +1,34 @@
+import { type Rating } from './rating';
+import { type UserData } from './userData';
+
+export type FeedbackType = 'BUG' | 'SUGGESTION';
+
+export type FeedbackCategory =
+    | 'dashboard'
+    | 'account'
+    | 'settings'
+    | 'send'
+    | 'receive'
+    | 'trade'
+    | 'experimental'
+    | 'feature'
+    | 'other';
+
+type FeedbackExtras = Record<string, any>;
+
+interface BasePayload extends UserData, FeedbackExtras {
+    description: string;
+}
+
+interface BugPayload extends BasePayload {
+    category: FeedbackCategory;
+}
+
+interface SuggestionPayload extends BasePayload {
+    rating?: Rating;
+    category?: FeedbackCategory;
+}
+
+export type Feedback =
+    | { type: 'BUG'; payload: BugPayload }
+    | { type: 'SUGGESTION'; payload: SuggestionPayload };

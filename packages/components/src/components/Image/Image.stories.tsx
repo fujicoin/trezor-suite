@@ -1,24 +1,24 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 
-import { Image as ImageComponent, ImageProps, allowedImageFrameProps } from './Image';
-import { PNG_IMAGES, SVG_IMAGES } from './images';
+import { Image as ImageComponent, type ImageProps, allowedImageFrameProps } from './Image';
+import { IMAGES } from './images';
 import { getFramePropsStory } from '../../utils/frameProps';
 
-const meta: Meta = {
+const meta: Meta<typeof ImageComponent> = {
     title: 'Image',
     component: ImageComponent,
-} as Meta;
+};
 export default meta;
 
 export const Image: StoryObj<ImageProps> = {
     args: {
-        image: 'BACKUP',
+        image: 'TOUCH',
         imageSrc: undefined,
         ...getFramePropsStory(allowedImageFrameProps).args,
     },
     argTypes: {
         image: {
-            options: Object.keys({ ...SVG_IMAGES, ...PNG_IMAGES }),
+            options: Object.keys({ ...IMAGES }),
             control: {
                 type: 'select',
             },

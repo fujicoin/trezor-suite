@@ -1,6 +1,6 @@
 import { DeviceModelInternal } from '@trezor/device-utils';
 
-import { BluetoothFilterPolicy, BluetoothManufacturerData } from './types';
+import { type BluetoothFilterPolicy, type BluetoothManufacturerData } from './types';
 
 // MODEL_BLE_CODE defined in trezor-firmware
 // https://github.com/trezor/trezor-firmware/blob/main/core/embed/models/T3W1/model_T3W1.h#L36
@@ -13,6 +13,7 @@ const MODEL_BLE_CODE: Record<number, DeviceModelInternal> = {
 const ADV_FLAG_PAIRING = 0x01;
 const ADV_FLAG_BOND_MEM_FULL = 0x02;
 const ADV_FLAG_DEV_CONNECTED = 0x04;
+const ADV_FLAG_USER_DISCONNECT = 0x08;
 
 const parseDeviceModel = (bytes: number): DeviceModelInternal =>
     MODEL_BLE_CODE[bytes] ?? DeviceModelInternal.UNKNOWN;
@@ -21,6 +22,7 @@ const parseFilterPolicy = (value: number): BluetoothFilterPolicy => ({
     pairing: !!(value & ADV_FLAG_PAIRING),
     bond_memory_full: !!(value & ADV_FLAG_BOND_MEM_FULL),
     connected: !!(value & ADV_FLAG_DEV_CONNECTED),
+    user_disconnected: !!(value & ADV_FLAG_USER_DISCONNECT),
 });
 
 const serializeFilterPolicy = (policy?: BluetoothFilterPolicy) => {
@@ -65,10 +67,14 @@ export const parseManufacturerData = (bytes: number[]): BluetoothManufacturerDat
         };
     }
 
+    const filterPolicyByte = bytes[0] ?? 0;
+    const deviceColorByte = bytes[1] ?? 0;
+    const deviceModelByte = bytes[2] ?? 0;
+
     return {
-        deviceModel: parseDeviceModel(bytes[2]),
-        deviceColor: bytes[1],
-        filterPolicy: parseFilterPolicy(bytes[0]),
+        deviceModel: parseDeviceModel(deviceModelByte),
+        deviceColor: deviceColorByte,
+        filterPolicy: parseFilterPolicy(filterPolicyByte),
     };
 };
 

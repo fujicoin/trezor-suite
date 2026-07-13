@@ -1,22 +1,27 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 
-import { AccountsRootState, DeviceRootState, SendRootState } from '@suite-common/wallet-core';
+import { useFocusEffect } from '@react-navigation/native';
+
 import { Box, Text, VStack } from '@suite-native/atoms';
-import { ConfirmOnTrezorWrapper, useConfirmOnTrezorController } from '@suite-native/device';
+import {
+    ConfirmOnTrezorWrapper,
+    useConfirmOnTrezorController,
+} from '@suite-native/confirm-on-trezor';
 import { Translation } from '@suite-native/intl';
 import {
     ScreenHeader,
-    SendStackParamList,
+    type SendStackParamList,
     SendStackRoutes,
-    StackProps,
+    type StackProps,
 } from '@suite-native/navigation';
-
-import { AddressReviewStepList } from '../components/AddressReviewStepList';
 import {
+    type TransactionReviewOutputsState,
     selectIsReceiveAddressOutputConfirmed,
     selectIsTransactionReviewInProgress,
-} from '../selectors';
+} from '@suite-native/transaction-management';
+
+import { AddressReviewStepList } from '../components/AddressReviewStepList';
 
 export const SendAddressReviewScreen = ({
     route,
@@ -25,26 +30,26 @@ export const SendAddressReviewScreen = ({
     const { confirmOnTrezorRef, revealConfirmOnTrezorSheet, currentHeaderHeight } =
         useConfirmOnTrezorController();
     const { accountKey, tokenContract } = route.params;
-    const isAddressConfirmed = useSelector(
-        (state: AccountsRootState & DeviceRootState & SendRootState) =>
-            selectIsReceiveAddressOutputConfirmed(state, accountKey, tokenContract),
+    const isAddressConfirmed = useSelector((state: TransactionReviewOutputsState) =>
+        selectIsReceiveAddressOutputConfirmed(state, 'send', accountKey, tokenContract),
     );
 
-    const isTransactionReviewInProgress = useSelector(
-        (state: AccountsRootState & DeviceRootState & SendRootState) =>
-            selectIsTransactionReviewInProgress(state, accountKey, tokenContract),
+    const isTransactionReviewInProgress = useSelector((state: TransactionReviewOutputsState) =>
+        selectIsTransactionReviewInProgress(state, 'send', accountKey, tokenContract),
     );
 
-    useEffect(() => {
-        if (isAddressConfirmed) {
-            navigation.navigate(SendStackRoutes.SendOutputsReview, {
-                accountKey,
-                tokenContract,
-                prevHeaderHeight: currentHeaderHeight,
-                initialSnapIndex: currentHeaderHeight ? 1 : undefined,
-            });
-        }
-    }, [isAddressConfirmed, accountKey, navigation, tokenContract, currentHeaderHeight]);
+    useFocusEffect(
+        useCallback(() => {
+            if (isAddressConfirmed) {
+                navigation.navigate(SendStackRoutes.SendOutputsReview, {
+                    accountKey,
+                    tokenContract,
+                    prevHeaderHeight: currentHeaderHeight,
+                    initialSnapIndex: currentHeaderHeight ? 1 : undefined,
+                });
+            }
+        }, [accountKey, currentHeaderHeight, isAddressConfirmed, navigation, tokenContract]),
+    );
 
     useEffect(() => {
         if (isTransactionReviewInProgress) {
@@ -61,7 +66,7 @@ export const SendAddressReviewScreen = ({
         >
             <Box flex={1} justifyContent="space-between">
                 <VStack justifyContent="center" spacing="sp24">
-                    <Text variant="titleSmall">
+                    <Text variant="headline-sm">
                         <Translation id="moduleSend.review.address.title" />
                     </Text>
                     <AddressReviewStepList />

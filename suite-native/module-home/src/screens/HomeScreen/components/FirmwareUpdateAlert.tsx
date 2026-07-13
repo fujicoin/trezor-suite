@@ -1,48 +1,18 @@
 import { useMemo } from 'react';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 import { atom, useAtomValue, useSetAtom } from 'jotai';
 
-import {
-    selectDeviceId,
-    selectDeviceUpdateFirmwareVersion,
-    selectHasRunningDiscovery,
-    selectIsDeviceBackedUp,
-    selectIsDeviceConnected,
-    selectIsFirmwareUpgradable,
-    selectIsPortfolioTrackerDevice,
-    selectShouldOfferUpdateFirmware,
-} from '@suite-common/wallet-core';
-import { Box, Button, HStack, Text, VStack } from '@suite-native/atoms';
-import { useIsFirmwareUpdateFeatureEnabled } from '@suite-native/firmware';
-import { Icon } from '@suite-native/icons';
-import { Translation } from '@suite-native/intl';
+import { selectDeviceId, selectDeviceUpdateFirmwareVersion } from '@suite-common/device';
+import { AnimatedFullAlertBox } from '@suite-native/atoms';
+import { Translation, useTranslate } from '@suite-native/intl';
 import {
     DeviceSettingsStackRoutes,
-    FirmwareUpdateStackRoutes,
-    RootStackParamList,
+    type RootStackParamList,
     RootStackRoutes,
-    StackNavigationProps,
+    type StackNavigationProps,
 } from '@suite-native/navigation';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-
-const containerStyle = prepareNativeStyle(utils => ({
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    borderRadius: utils.borders.radii.r12,
-    borderWidth: 1,
-    borderColor: utils.colors.backgroundAlertBlueSubtleOnElevationNegative,
-    backgroundColor: utils.colors.backgroundAlertBlueSubtleOnElevation1,
-    padding: utils.spacings.sp16,
-    gap: utils.spacings.sp12,
-    marginHorizontal: utils.spacings.sp16,
-}));
-
-const flex1Style = {
-    flex: 1,
-};
 
 type CloseStateItem = {
     deviceId: string;
@@ -51,14 +21,9 @@ type CloseStateItem = {
 const closeStateAtom = atom<CloseStateItem[]>([]);
 
 export const FirmwareUpdateAlert = () => {
-    const { applyStyle } = useNativeStyles();
+    const { translate } = useTranslate();
     const updateFirmwareVersion = useSelector(selectDeviceUpdateFirmwareVersion);
-    const shouldOfferUpdateFirmware = useSelector(selectShouldOfferUpdateFirmware);
-    const isPortfolioTrackerDevice = useSelector(selectIsPortfolioTrackerDevice);
     const deviceId = useSelector(selectDeviceId);
-    const isConnected = useSelector(selectIsDeviceConnected);
-    const isDeviceBackedUp = useSelector(selectIsDeviceBackedUp);
-    const isDiscoveryRunning = useSelector(selectHasRunningDiscovery);
     const navigation =
         useNavigation<StackNavigationProps<RootStackParamList, RootStackRoutes.AppTabs>>();
     const setCloseState = useSetAtom(closeStateAtom);
@@ -74,16 +39,11 @@ export const FirmwareUpdateAlert = () => {
     );
 
     const isClosed = useAtomValue(isClosedAtom);
-    const isFirmwareUpdateEnabled = useIsFirmwareUpdateFeatureEnabled();
-
-    const isFirmwareUpgradable = useSelector(selectIsFirmwareUpgradable);
 
     const handleUpdateFirmware = () => {
         navigation.navigate(RootStackRoutes.DeviceSettingsStack, {
-            screen: DeviceSettingsStackRoutes.FirmwareUpdateStack,
-            params: {
-                screen: FirmwareUpdateStackRoutes.ConfirmFirmwareUpdate,
-            },
+            screen: DeviceSettingsStackRoutes.DeviceFirmware,
+            params: { closeActionType: 'close' },
         });
     };
 
@@ -93,56 +53,25 @@ export const FirmwareUpdateAlert = () => {
         setCloseState(prev => [...prev, { deviceId, version: updateFirmwareVersion }]);
     };
 
-    if (!isFirmwareUpdateEnabled) {
-        return null;
-    }
-
-    if (
-        !isFirmwareUpgradable ||
-        !shouldOfferUpdateFirmware ||
-        isPortfolioTrackerDevice ||
-        isDiscoveryRunning ||
-        !isConnected ||
-        !isDeviceBackedUp ||
-        isClosed
-    ) {
+    if (isClosed) {
         return null;
     }
 
     return (
-        <Animated.View style={applyStyle(containerStyle)} entering={FadeIn} exiting={FadeOut}>
-            <Icon name="info" size="large" />
-            <VStack spacing="sp12" style={flex1Style}>
-                <Box>
-                    <Text variant="highlight">
-                        <Translation id="moduleHome.firmwareUpdateAlert.title" />
-                    </Text>
-                    <Text>
-                        <Translation
-                            id="moduleHome.firmwareUpdateAlert.version"
-                            values={{ version: updateFirmwareVersion }}
-                        />
-                    </Text>
-                </Box>
-                <HStack spacing="sp8" style={flex1Style}>
-                    <Button
-                        size="small"
-                        colorScheme="blueElevation0"
-                        onPress={handleClose}
-                        style={flex1Style}
-                    >
-                        <Translation id="moduleHome.firmwareUpdateAlert.button.close" />
-                    </Button>
-                    <Button
-                        size="small"
-                        colorScheme="blueBold"
-                        onPress={handleUpdateFirmware}
-                        style={flex1Style}
-                    >
-                        <Translation id="moduleHome.firmwareUpdateAlert.button.update" />
-                    </Button>
-                </HStack>
-            </VStack>
-        </Animated.View>
+        <AnimatedFullAlertBox
+            title={<Translation id="moduleHome.firmwareUpdateAlert.title" />}
+            description={
+                <Translation
+                    id="moduleHome.firmwareUpdateAlert.version"
+                    values={{ version: updateFirmwareVersion }}
+                />
+            }
+            intent="info"
+            secondaryButtonLabel={translate('moduleHome.firmwareUpdateAlert.button.close')}
+            onPressSecondaryButton={handleClose}
+            primaryButtonLabel={translate('moduleHome.firmwareUpdateAlert.button.update')}
+            onPressPrimaryButton={handleUpdateFirmware}
+            marginHorizontal="sp16"
+        />
     );
 };

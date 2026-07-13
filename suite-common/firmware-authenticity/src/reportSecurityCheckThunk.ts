@@ -1,14 +1,14 @@
 import { createThunk } from '@suite-common/redux-utils';
-import { ReportSecurityCheckProps } from '@suite-common/suite-types';
+import { type ReportSecurityCheckParams } from '@suite-common/suite-types';
 
-export const FIRMWARE_AUTHENTICITY_MODULE_PREFIX = '@common/firmware-authenticity';
+const FIRMWARE_AUTHENTICITY_MODULE_PREFIX = '@common/firmware-authenticity';
 
 /**
- * Wrapper thunk around extra.utils.reportSecurityCheck
+ * Wrapper thunk around extra.services.reportSecurityCheck
  */
-export const reportSecurityCheckThunk = createThunk<void, ReportSecurityCheckProps, void>(
+export const reportSecurityCheckThunk = createThunk<void, ReportSecurityCheckParams, void>(
     `${FIRMWARE_AUTHENTICITY_MODULE_PREFIX}/reportSecurityCheckThunk`,
     (props, { extra }) => {
-        extra.utils.reportSecurityCheck(props);
+        extra.services.reportSecurityCheck(props);
     },
 );

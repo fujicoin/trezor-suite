@@ -1,20 +1,22 @@
+import { useSelector } from 'react-redux';
+
 import { useNavigation } from '@react-navigation/native';
 
-import { Button, Card, CenteredTitleHeader, VStack } from '@suite-native/atoms';
-import { ConfirmOnTrezorAnimation } from '@suite-native/device';
+import { selectDeviceModel } from '@suite-common/device';
+import { Box, Button, Card, CenteredTitleHeader, VStack } from '@suite-native/atoms';
+import { ConfirmOnTrezorAnimation } from '@suite-native/confirm-on-trezor';
 import { Translation } from '@suite-native/intl';
 import {
     DeviceOnboardingStackRoutes,
-    RootStackParamList,
+    type RootStackParamList,
     RootStackRoutes,
-    StackNavigationProps,
+    type StackNavigationProps,
 } from '@suite-native/navigation';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { DeviceModelInternal } from '@trezor/device-utils';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 const cardStyle = prepareNativeStyle(utils => ({
-    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
     paddingTop: utils.spacings.sp32,
     paddingBottom: utils.spacings.sp16,
     paddingHorizontal: utils.spacings.sp16,
@@ -22,7 +24,6 @@ const cardStyle = prepareNativeStyle(utils => ({
 
 const contentStyle = prepareNativeStyle(_ => ({
     width: '100%',
-    alignItems: 'center',
 }));
 
 const buttonStyle = prepareNativeStyle(_ => ({
@@ -34,24 +35,33 @@ export const UninitializedConnectedDeviceState = () => {
     const navigation =
         useNavigation<StackNavigationProps<RootStackParamList, RootStackRoutes.AppTabs>>();
 
-    const handleAddAccount = () => {
+    const deviceModel = useSelector(selectDeviceModel);
+
+    const navigateToDeviceOnboarding = () => {
         navigation.navigate(RootStackRoutes.DeviceOnboardingStack, {
             screen: DeviceOnboardingStackRoutes.UninitializedDeviceLanding,
+            params: {
+                deviceModel: deviceModel ?? DeviceModelInternal.UNKNOWN,
+            },
         });
     };
 
     return (
         <Card style={applyStyle(cardStyle)}>
             <VStack spacing="sp24" style={applyStyle(contentStyle)}>
-                <ConfirmOnTrezorAnimation />
+                {/* Prevents translation clipping on CenteredTitleHeader in some languages. */}
+                <Box alignItems="center">
+                    <ConfirmOnTrezorAnimation />
+                </Box>
                 <CenteredTitleHeader
                     title={<Translation id="moduleHome.emptyState.uninitializedDevice.title" />}
                     subtitle={
                         <Translation id="moduleHome.emptyState.uninitializedDevice.subtitle" />
                     }
                     testID="@homescreen/uninitializedConnectedDeviceText"
+                    alignSelf="stretch"
                 />
-                <Button size="large" onPress={handleAddAccount} style={applyStyle(buttonStyle)}>
+                <Button onPress={navigateToDeviceOnboarding} style={applyStyle(buttonStyle)}>
                     <Translation id="moduleHome.emptyState.uninitializedDevice.button" />
                 </Button>
             </VStack>

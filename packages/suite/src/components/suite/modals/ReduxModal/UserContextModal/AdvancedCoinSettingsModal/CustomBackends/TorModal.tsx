@@ -1,9 +1,10 @@
+import { Translation } from '@suite/intl';
+import { getIsTorLoading } from '@suite/tor';
 import { H3, Modal, Paragraph } from '@trezor/components';
 import { isDesktop } from '@trezor/env-utils';
+import { TorBrowserIcon } from '@trezor/icons';
 
-import { Translation } from 'src/components/suite';
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { getIsTorLoading } from 'src/utils/suite/tor';
 
 export type TorResult = 'use-defaults' | 'enable-tor';
 
@@ -12,7 +13,7 @@ type TorModalProps = {
 };
 
 export const TorModal = ({ onResult }: TorModalProps) => {
-    const isTorLoading = useSelector(state => getIsTorLoading(state.suite.torStatus));
+    const isTorLoading = useSelector(state => getIsTorLoading(state.tor.torStatus));
 
     return (
         <Modal
@@ -26,18 +27,22 @@ export const TorModal = ({ onResult }: TorModalProps) => {
                             <Translation id="TR_TOR_ENABLE_AND_CONFIRM" />
                         </Modal.Button>
                     )}
-                    <Modal.Button variant="tertiary" onClick={() => onResult('use-defaults')}>
+                    <Modal.Button
+                        intent="neutral"
+                        priority="secondary"
+                        onClick={() => onResult('use-defaults')}
+                    >
                         <Translation id="TR_USE_DEFAULT_BACKENDS" />
                     </Modal.Button>
                 </>
             }
-            size="small"
-            iconName="torBrowser"
+            width={600}
+            icon={TorBrowserIcon}
         >
             <H3>
                 <Translation id="TR_TOR_ENABLE" />
             </H3>
-            <Paragraph variant="tertiary">
+            <Paragraph intent="neutral" priority="secondary">
                 <Translation id="TR_ONION_BACKEND_TOR_NEEDED" />
             </Paragraph>
         </Modal>

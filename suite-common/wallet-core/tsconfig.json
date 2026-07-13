@@ -2,10 +2,19 @@
     "extends": "../../tsconfig.base.json",
     "compilerOptions": { "outDir": "libDev" },
     "references": [
+        { "path": "../analytics" },
         { "path": "../bluetooth" },
-        { "path": "../device-authenticity" },
+        { "path": "../calldata" },
+        { "path": "../device" },
+        { "path": "../earn-stablecoin-api" },
+        { "path": "../earn-staking-api" },
         { "path": "../fiat-services" },
+        { "path": "../firmware" },
+        { "path": "../react-query" },
         { "path": "../redux-utils" },
+        { "path": "../schemas" },
+        { "path": "../staking" },
+        { "path": "../suite-constants" },
         { "path": "../suite-types" },
         { "path": "../suite-utils" },
         { "path": "../test-utils" },
@@ -17,14 +26,26 @@
         { "path": "../wallet-types" },
         { "path": "../wallet-utils" },
         {
+            "path": "../../packages/analytics-uploader"
+        },
+        {
+            "path": "../../packages/blockchain-link"
+        },
+        {
             "path": "../../packages/blockchain-link-types"
         },
         {
             "path": "../../packages/blockchain-link-utils"
         },
+        { "path": "../../coins/coins-solana" },
+        { "path": "../../coins/coins-stellar" },
         { "path": "../../packages/connect" },
+        {
+            "path": "../../packages/connect-common"
+        },
         { "path": "../../packages/device-utils" },
         { "path": "../../packages/env-utils" },
+        { "path": "../../packages/protobuf" },
         { "path": "../../packages/type-utils" },
         { "path": "../../packages/utils" }
     ]

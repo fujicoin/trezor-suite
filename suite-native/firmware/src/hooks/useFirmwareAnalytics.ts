@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
 
-import { TrezorDevice } from '@suite-common/suite-types';
-import { selectDeviceUpdateFirmwareVersion } from '@suite-common/wallet-core';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectDeviceUpdateFirmwareVersion } from '@suite-common/device';
+import { type TrezorDevice } from '@suite-common/suite-types';
 import {
-    EventType,
-    FirmwareUpdatePayload,
-    FirmwareUpdateStartType,
-    analytics,
+    type FirmwareUpdatePayload,
+    type FirmwareUpdateStartType,
+    events,
+    selectNativeAnalyticsDep,
 } from '@suite-native/analytics';
-import { FirmwareType } from '@trezor/connect';
+import { type FirmwareType } from '@trezor/connect';
 import {
     DeviceModelInternal,
     getBootloaderVersion,
@@ -26,14 +27,14 @@ export const useFirmwareAnalytics = ({
     navigationLocation?: 'settings' | 'onboarding';
 }) => {
     const toFwVersion = useSelector(selectDeviceUpdateFirmwareVersion);
-
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const prepareAnalyticsPayload = useCallback(
-        () => ({
+        (): FirmwareUpdatePayload => ({
             model: device?.features?.internal_model ?? DeviceModelInternal.UNKNOWN,
             fromBootloaderVersion: getBootloaderVersion(device),
             fromFwVersion: device?.firmware === 'none' ? 'none' : getFirmwareVersion(device),
             toFwVersion: toFwVersion ?? '?.?.?',
-            fromFwType: (device?.firmwareType || 'none') as FirmwareType | 'none',
+            fromFwType: device?.firmwareType || 'none',
             toFwType: targetFirmwareType,
             location: navigationLocation ?? null,
         }),
@@ -43,6 +44,7 @@ export const useFirmwareAnalytics = ({
     // Use refs to avoid any re-renders because of analytics and to make useCallback dependencies stable
     // so it won't trigger any useEffect which could interfere with other business logic.
     const analyticsPayload = useRef<FirmwareUpdatePayload>(prepareAnalyticsPayload());
+    // eslint-disable-next-line react-hooks/purity
     const timeStarted = useRef<number>(Date.now());
 
     useEffect(() => {
@@ -65,20 +67,20 @@ export const useFirmwareAnalytics = ({
             resetTimeStarted();
 
             analytics.report({
-                type: EventType.FirmwareUpdateStarted,
+                type: events.firmwareFirmwareUpdateStartedEvent.name,
                 payload: {
                     ...getAnalyticsPayload(),
                     startType,
                 },
             });
         },
-        [getAnalyticsPayload, resetTimeStarted],
+        [getAnalyticsPayload, analytics, resetTimeStarted],
     );
 
     const handleAnalyticsReportStucked = useCallback(
         (state: 'modalPart1' | 'modalPart2' | 'buttonVisible') => {
             analytics.report({
-                type: EventType.FirmwareUpdateStucked,
+                type: events.firmwareFirmwareUpdateStuckedEvent.name,
                 payload: {
                     ...getAnalyticsPayload(),
                     duration: getElapsedTimeInSeconds(),
@@ -86,13 +88,13 @@ export const useFirmwareAnalytics = ({
                 },
             });
         },
-        [getElapsedTimeInSeconds, getAnalyticsPayload],
+        [analytics, getAnalyticsPayload, getElapsedTimeInSeconds],
     );
 
     const handleAnalyticsReportFinished = useCallback(
         ({ error }: { error?: string } = {}) => {
             analytics.report({
-                type: EventType.FirmwareUpdateFinished,
+                type: events.firmwareFirmwareUpdateFinishedEvent.name,
                 payload: {
                     ...getAnalyticsPayload(),
                     duration: getElapsedTimeInSeconds(),
@@ -100,15 +102,15 @@ export const useFirmwareAnalytics = ({
                 },
             });
         },
-        [getElapsedTimeInSeconds, getAnalyticsPayload],
+        [analytics, getAnalyticsPayload, getElapsedTimeInSeconds],
     );
 
     const handleAnalyticsReportCancelled = useCallback(() => {
         analytics.report({
-            type: EventType.FirmwareUpdateCancel,
+            type: events.firmwareFirmwareUpdateCancelEvent.name,
             payload: getAnalyticsPayload(),
         });
-    }, [getAnalyticsPayload]);
+    }, [getAnalyticsPayload, analytics]);
 
     return {
         getElapsedTimeInSeconds,

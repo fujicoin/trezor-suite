@@ -1,13 +1,19 @@
+import { Translation } from '@suite/intl';
+import { openModal } from '@suite/modal';
 import {
     getSessionNetworks,
     selectSessions,
     walletConnectDisconnectThunk,
 } from '@suite-common/walletconnect';
 import { Badge, Card, Column, Dropdown, H3, Row, Text } from '@trezor/components';
+import {
+    ArrowsClockwiseIcon,
+    ShieldCheckFilledIcon,
+    ShieldWarningFilledIcon,
+    XCircleIcon,
+} from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import * as modalActions from 'src/actions/suite/modalActions';
-import { Translation } from 'src/components/suite';
 import { ConnectAppIcon } from 'src/components/suite/ConnectAppIcon';
 import { useDispatch, useSelector } from 'src/hooks/suite';
 
@@ -21,7 +27,7 @@ export const WalletConnectList = () => {
                 <H3 align="center">
                     <Translation id="TR_NO_CONNECTED_APPS" />
                 </H3>
-                <Text align="center" variant="tertiary">
+                <Text align="center" intent="neutral" priority="secondary">
                     <Translation id="TR_NO_CONNECTED_APPS_DESCRIPTION" />
                 </Text>
             </Column>
@@ -45,25 +51,27 @@ export const WalletConnectList = () => {
                         <Column flex="1">
                             <Row columnGap={spacings.sm} rowGap={spacings.xxxs} flexWrap="wrap">
                                 <Text>{session.peer.metadata.name}</Text>
-                                <Text variant="tertiary">{session.peer.metadata.url}</Text>
+                                <Text intent="neutral" priority="secondary">
+                                    {session.peer.metadata.url}
+                                </Text>
                                 {session.validation === 'VALID' && (
-                                    <Badge variant="info" icon="shieldCheckFilled">
+                                    <Badge intent="info" iconLeft={ShieldCheckFilledIcon}>
                                         <Translation id="TR_WALLETCONNECT_SERVICE_VERIFIED" />
                                     </Badge>
                                 )}
                                 {session.validation === 'UNKNOWN' && (
-                                    <Badge variant="warning" icon="shieldWarningFilled">
+                                    <Badge intent="warning" iconLeft={ShieldWarningFilledIcon}>
                                         <Translation id="TR_WALLETCONNECT_SERVICE_UNKNOWN" />
                                     </Badge>
                                 )}
                                 {session.validation === 'INVALID' && (
-                                    <Badge variant="destructive" icon="shieldWarningFilled">
+                                    <Badge intent="critical" iconLeft={ShieldWarningFilledIcon}>
                                         <Translation id="TR_WALLETCONNECT_SERVICE_DANGEROUS" />
                                     </Badge>
                                 )}
                             </Row>
 
-                            <Text variant="tertiary">
+                            <Text intent="neutral" priority="secondary">
                                 {getSessionNetworks(session)
                                     .map(network => network.name)
                                     .join(', ')}
@@ -72,9 +80,13 @@ export const WalletConnectList = () => {
 
                         <Dropdown
                             placement={{ position: 'bottom', alignment: 'end' }}
+                            tooltip={{
+                                content: <Translation id="TR_SHOW_MORE" />,
+                                placement: 'left',
+                            }}
                             items={[
                                 {
-                                    icon: 'xCircle',
+                                    icon: XCircleIcon,
                                     label: <Translation id="TR_DISCONNECT" />,
                                     onClick: () => {
                                         dispatch(
@@ -85,11 +97,11 @@ export const WalletConnectList = () => {
                                     },
                                 },
                                 {
-                                    icon: 'arrowsClockwise',
+                                    icon: ArrowsClockwiseIcon,
                                     label: <Translation id="TR_SWITCH_ACCOUNT" />,
                                     onClick: () => {
                                         dispatch(
-                                            modalActions.openModal({
+                                            openModal({
                                                 type: 'walletconnect-switch-account',
                                                 sessionTopic: session.topic,
                                             }),

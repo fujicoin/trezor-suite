@@ -1,41 +1,48 @@
-import { AnimatedProps, FadeIn, FadeOutDown } from 'react-native-reanimated';
+import { type AnimatedProps, FadeIn, FadeOutDown } from 'react-native-reanimated';
 
 import { AnimatedBox, Button } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 
-import { BuyLegalSheet } from './BuyLegalSheet';
 import { useBuyFlow } from '../../hooks/buy/useBuyFlow';
 import { useBuyFormContext } from '../../hooks/buy/useBuyFormContext';
+import { useTradingStellarActivateToken } from '../../hooks/general/useTradingStellarActivateToken';
 
 export type ConfirmationProps = {
     enteringAnimation?: AnimatedProps<any>['entering'];
 };
 
+type ContinueButtonProps = {
+    selectQuote: () => Promise<void>;
+};
+
 const CONFIRMATION_TEST_ID = '@trading/buy/continue-button';
+
+const ContinueButton = ({ selectQuote }: ContinueButtonProps) => (
+    <AnimatedBox entering={FadeIn}>
+        <Button onPress={selectQuote} testID={CONFIRMATION_TEST_ID}>
+            <Translation id="moduleTrading.tradingScreen.buttons.continue" />
+        </Button>
+    </AnimatedBox>
+);
 
 export const BuyConfirmation = ({ enteringAnimation }: ConfirmationProps) => {
     const form = useBuyFormContext();
+    const { canProceed, selectQuote } = useBuyFlow(form);
+    const [receiveCryptoId, quote] = form.watch(['asset.cryptoId', 'quote']);
 
-    const { canProceed, selectQuote, isConsentRequested, giveConsent, cancelConsent } =
-        useBuyFlow(form);
+    const { isReceivingInactiveStellarToken, activateButtonElement } =
+        useTradingStellarActivateToken({
+            quote,
+            receiveCryptoId,
+            buttonTestId: CONFIRMATION_TEST_ID,
+        });
 
-    const quote = form.watch('quote');
+    const shouldDisplayContinueButton = canProceed && !isReceivingInactiveStellarToken;
 
     return (
         <AnimatedBox entering={enteringAnimation} exiting={FadeOutDown}>
-            {canProceed && (
-                <AnimatedBox entering={FadeIn}>
-                    <Button onPress={selectQuote} testID={CONFIRMATION_TEST_ID}>
-                        <Translation id="moduleTrading.tradingScreen.buttons.continue" />
-                    </Button>
-                </AnimatedBox>
-            )}
-            <BuyLegalSheet
-                onDismiss={cancelConsent}
-                isVisible={isConsentRequested}
-                onConsent={giveConsent}
-                tradeProvider={quote?.exchange ?? ''}
-            />
+            {isReceivingInactiveStellarToken && activateButtonElement}
+            {shouldDisplayContinueButton && <ContinueButton selectQuote={selectQuote} />}
         </AnimatedBox>
     );
 };

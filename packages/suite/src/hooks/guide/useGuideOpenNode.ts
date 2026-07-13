@@ -1,4 +1,5 @@
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useServices } from '@suite-common/dependency-injection';
 
 import { openNode } from 'src/actions/suite/guideActions';
 import { useGuide } from 'src/hooks/guide';
@@ -6,6 +7,7 @@ import { useDispatch, useSelector } from 'src/hooks/suite';
 import { getNodeById } from 'src/utils/suite/guide';
 
 export const useGuideOpenNode = () => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const { isGuideOpen, openGuide } = useGuide();
 
     const indexNode = useSelector(state => state.guide.indexNode);
@@ -31,7 +33,7 @@ export const useGuideOpenNode = () => {
         }
 
         analytics.report({
-            type: EventType.GuideTooltipLinkNavigation,
+            type: events.guideTooltipLinkNavigationEvent.name,
             payload: {
                 id: node.id,
             },

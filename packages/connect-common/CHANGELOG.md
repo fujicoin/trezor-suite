@@ -1,3 +1,45 @@
+# 0.5.0
+
+- chore: remove tada from suite (2e60907d0c)
+- npm-prerelease: @trezor/connect-common 0.5.0-beta.2 (47cbe9d59f)
+- refactor(connect): new replace-imports.sh script using babel (2128d273f3)
+- npm-prerelease: @trezor/connect-common 0.5.0-beta.1 (57e7c36773)
+- docs(releases): bundling new firmwares (82ddc09e9f)
+- npm-prerelease: @trezor/connect-common 0.4.5-beta.1 (0780b8e249)
+- chore(connect-common): bundle latest releases fw (19be9a7521)
+- feat(connect-webextension): suite web popup implementation for webextension (175e40c82d)
+- chore(connect): move message channel impl to common (eeed9f440a)
+- chore(suite): update network backends (74e276011e)
+- chore(suite): update AVAX backend server (6d7c023598)
+- docs(packages): remove link to non-existing document (9291fe7872)
+- chore(connect): add Avax (21c129caf1)
+
+# 0.4.4
+
+- npm-prerelease: @trezor/connect-common 0.4.4-beta.1 (21b32236d3)
+- fix(connect-common): check FW revision only new format (acafacea41)
+- refactor: rename holesky to hoodi (0053b5b021)
+- Revert feat(connect-common): temporarily add 1.13.0 FW (1740165c53)
+- fix(connect-common): add missing requireds (a753e6d5df)
+
+# 0.4.3
+
+- fix: add depcheck scripts for all the package.json-s (a4f8b09e38)
+- feat(connect-common): move releases JSON map to src/ (b9da62ac19)
+- npm-prerelease: @trezor/connect-common 0.4.3-beta.2 (c88d7c157c)
+- chore(connect-common): remove unused releases 2.9.0 (4c2d615abb)
+- feat(connect-common): fw release config bundled in json (a73cdd76c5)
+- npm-prerelease: @trezor/connect-common 0.4.3-beta.1 (058b4efd4b)
+- chore(connect): cleanup leftovers releases.json (2c1dda8762)
+- chore(connect-common): releases JSON to new format (cabe59dd62)
+- chore(connect-common): update firmware-release-config (6cf5e66336)
+- fix(connect-common): remove deprecated turkish translation on t3t1 (6fe5310f5c)
+- feat(suite): lower BTC min fee per unit from 1 sat/vb to 0.1 sat/vb (1f8703eba7)
+- chore(connect-common): firmware index for releases JSONs (7b14e451d9)
+- feat(connect-common): update revision scripts to new format (1da49c38a2)
+- feat(connect-common): add new releases JSON format (b6596968ba)
+- Revert feat(suite-common): add 2.9.0 fw binaries (8196cdb60f)
+
 # 0.4.2
 
 - npm-prerelease: @trezor/connect-common 0.4.2-beta.3 (8f288023b1)

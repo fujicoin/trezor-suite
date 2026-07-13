@@ -1,53 +1,25 @@
-import styled, { useTheme } from 'styled-components';
+import { Column, IconCircle, List, Paragraph } from '@trezor/components';
+import { DotOutlineFilledIcon } from '@trezor/icons';
 
-import { Column, Icon, List, Row, Text, iconSizes } from '@trezor/components';
-import { borders, spacings, spacingsPx } from '@trezor/theme';
-
-import { TroubleshootingTipsItem } from './TroubleshootingTips';
-
-const IconWrapper = styled.div`
-    border: ${borders.widths.small} solid
-        ${({ theme }) => theme.backgroundAlertBlueSubtleOnElevationNegative};
-    border-radius: ${borders.radii.sm};
-    background: ${({ theme }) => theme.backgroundAlertBlueSubtleOnElevation1};
-    padding: ${spacingsPx.xs};
-`;
+import { type TroubleshootingTipsItem } from './TroubleshootingTipsItem';
 
 type TroubleshootingTipsItemProps = {
     item: TroubleshootingTipsItem;
 };
 
-export const TroubleshootingTipsItemComponent = ({ item }: TroubleshootingTipsItemProps) => {
-    const theme = useTheme();
-
-    return (
-        <List.Item
-            bulletComponent={
-                item.icon ? (
-                    <IconWrapper>
-                        <Icon
-                            color={theme.iconAlertBlue}
-                            name={item.icon ?? 'dotOutlineFilled'}
-                            size={iconSizes.large}
-                        />
-                    </IconWrapper>
-                ) : (
-                    <Icon
-                        color={theme.iconAlertBlue}
-                        name="dotOutlineFilled"
-                        size={iconSizes.large}
-                    />
-                )
-            }
-        >
-            <Row justifyContent="space-between" alignItems="center">
-                <Column gap={spacings.xs}>
-                    <Text typographyStyle="body">{item.heading}</Text>
-                    <Text typographyStyle="hint" variant="tertiary">
-                        {item.description}
-                    </Text>
-                </Column>
-            </Row>
-        </List.Item>
-    );
-};
+export const TroubleshootingTipsItemComponent = ({ item }: TroubleshootingTipsItemProps) => (
+    <List.Item
+        bulletComponent={
+            <IconCircle intent="info" icon={item.icon ?? DotOutlineFilledIcon} size={40} />
+        }
+    >
+        <Column>
+            <Paragraph typographyStyle="body-md">{item.heading}</Paragraph>
+            {item.description && (
+                <Paragraph typographyStyle="body-sm" intent="neutral" priority="secondary">
+                    {item.description}
+                </Paragraph>
+            )}
+        </Column>
+    </List.Item>
+);

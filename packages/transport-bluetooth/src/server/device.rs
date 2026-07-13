@@ -17,9 +17,14 @@ use uuid::{uuid, Uuid};
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum DeviceConnectionStatus {
     Disconnected,
-    Pairing { pin: Option<String> },
-    Paired,
-    PairingError { error: String },
+    Pairing {
+        pin: Option<String>,
+    },
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
+    Paired, // not used in macos
+    PairingError {
+        error: String,
+    },
     Connecting,
     Connected,
 }
@@ -111,6 +116,8 @@ const MANUFACTURER_DATA: u16 = 3881; // trezor-firmware CONFIG_BT_COMPANY_ID=0x0
 pub const SERVICE_UUID: Uuid = uuid!("8c000001-a59b-4d58-a9ad-073df69fa1b1"); // trezor-firmware BT_UUID_TRZ_VAL
 pub const CHARACTERISTIC_RX: Uuid = uuid!("8c000002-a59b-4d58-a9ad-073df69fa1b1"); // trezor-firmware BT_UUID_TRZ_TX_VAL
 pub const CHARACTERISTIC_TX: Uuid = uuid!("8c000003-a59b-4d58-a9ad-073df69fa1b1"); // trezor-firmware BT_UUID_TRZ_RX_VAL
+pub const CHARACTERISTIC_PUSH_NOTIFICATION: Uuid = uuid!("8c000004-a59b-4d58-a9ad-073df69fa1b1"); // trezor-firmware BT_UUID_TRZ_NOTIFY_VAL
+pub const CHARACTERISTIC_BATTERY_LEVEL: Uuid = uuid!("00002a19-0000-1000-8000-00805f9b34fb"); // characteristic of battery service 0000180f-0000-1000-8000-00805f9b34fb
 
 impl TrezorDevice {
     pub async fn new(peripheral: Peripheral, is_known: bool) -> Result<Self, Box<dyn Error>> {
@@ -211,10 +218,9 @@ impl TrezorDevice {
         }
     }
 
-    pub fn is_paired(&self) -> bool {
-        match self.props.lock() {
-            Ok(p) => p.paired,
-            Err(_) => false,
+    pub fn set_is_paired(&self, value: bool) {
+        if let Ok(mut props) = self.props.lock() {
+            props.paired = value;
         }
     }
 

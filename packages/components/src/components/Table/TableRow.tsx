@@ -1,56 +1,39 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 import styled, { css } from 'styled-components';
 
-import {
-    Elevation,
-    mapElevationToBackground,
-    mapElevationToBorder,
-    nextElevation,
-} from '@trezor/theme';
-
-import { useTable } from './Table';
+import { useTable } from './TableContext';
 import { useTableHeader } from './TableHeader';
-import { useElevation } from '../ElevationContext/ElevationContext';
 
 export const Row = styled.tr<{
-    $elevation: Elevation;
     $isCollapsed: boolean;
+    $verticalAlign?: string;
     $isHighlighted: boolean;
     $isHeader: boolean;
     $hasBorderTop: boolean;
 }>`
-    ${({ $hasBorderTop, theme, $elevation }) =>
+    ${({ $hasBorderTop, theme }) =>
         $hasBorderTop &&
         css`
-            border-top: 1px solid ${mapElevationToBorder({ theme, $elevation })};
+            border-top: 1px solid ${theme.borderNeutral};
         `}
 
-    &:first-child {
+    thead &:first-child,
+    tbody:first-child &:first-child,
+    colgroup:first-child + tbody &:first-child {
         border-top: 0;
     }
 
-    ${({ $isHighlighted, theme, $elevation, $isHeader }) =>
+    transition: background-color 0.2s;
+
+    ${({ $verticalAlign }) => `vertical-align: ${$verticalAlign};`}
+
+    ${({ $isHighlighted, theme, $isHeader }) =>
         $isHighlighted &&
         !$isHeader &&
         css`
             &:hover {
-                background-color: ${mapElevationToBackground({
-                    theme,
-                    $elevation: nextElevation[$elevation],
-                })};
-
-                & > td:first-child {
-                    background: linear-gradient(
-                        to right,
-                        ${mapElevationToBackground({
-                                theme,
-                                $elevation: nextElevation[$elevation],
-                            })}
-                            90%,
-                        rgb(0 0 0 / 0%)
-                    );
-                }
+                background-color: ${theme.elementFillGhostHovered};
             }
         `}
 
@@ -74,6 +57,7 @@ export const Row = styled.tr<{
 export interface TableRowProps {
     children: ReactNode;
     isCollapsed?: boolean;
+    verticalAlign?: string;
     isHighlightedOnHover?: boolean;
     onClick?: () => void;
     onHover?: (isHovering: boolean) => void;
@@ -86,17 +70,17 @@ export const TableRow = ({
     isCollapsed = false,
     onClick,
     onHover,
+    verticalAlign,
     isHighlightedOnHover,
     hasBorderTop,
     'data-testid': dataTestId,
 }: TableRowProps) => {
-    const { elevation } = useElevation();
     const isHeader = useTableHeader();
     const { isRowHighlightedOnHover, hasBorders } = useTable();
 
     return (
         <Row
-            $elevation={elevation}
+            $verticalAlign={verticalAlign}
             $isCollapsed={isCollapsed}
             $isHighlighted={isHighlightedOnHover ?? isRowHighlightedOnHover}
             $isHeader={isHeader}

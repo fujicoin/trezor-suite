@@ -1,37 +1,31 @@
-import { invityAPI } from '@suite-common/trading';
-import { Row, Text } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import {
+    type TradingProviderInfo as TradingProviderInfoType,
+    invityAPI,
+} from '@suite-common/trading';
+import { Row } from '@trezor/components';
 
-import { Translation } from 'src/components/suite';
+import { type TradingGetProvidersInfoProps } from 'src/types/trading/trading';
 import { TradingIcon } from 'src/views/wallet/trading/common/TradingIcon';
 
-export interface TradingProviderInfoProps {
+export type TradingProviderInfoProps = {
     exchange?: string;
-    providers?: {
-        [name: string]: {
-            logo: string;
-            companyName: string;
-            brandName?: string;
-        };
-    };
-}
+    providers?: TradingGetProvidersInfoProps;
+    provider?: TradingProviderInfoType;
+};
 
-export const TradingProviderInfo = ({ exchange, providers }: TradingProviderInfoProps) => {
-    const provider = providers && exchange ? providers[exchange] : null;
+export const TradingProviderInfo = ({
+    exchange,
+    providers,
+    provider,
+}: TradingProviderInfoProps) => {
+    const extractedProvider = provider ?? (providers && exchange ? providers[exchange] : undefined);
 
     return (
-        <Row data-testid="@trading/form/info/provider" gap={spacings.xs}>
-            {!exchange && <Translation id="TR_TRADING_UNKNOWN_PROVIDER" />}
-            {provider ? (
-                <>
-                    {provider.logo && (
-                        <TradingIcon iconUrl={invityAPI.getProviderLogoUrl(provider.logo)} />
-                    )}
-                    {provider.brandName ?? provider.companyName}
-                </>
-            ) : (
-                <Text margin={{ left: spacings.xxl }}>{exchange}</Text>
+        <Row gap={8} data-testid="@trading/form/info/provider">
+            {extractedProvider?.logo && (
+                <TradingIcon iconUrl={invityAPI.getProviderLogoUrl(extractedProvider?.logo)} />
             )}
+            {extractedProvider?.companyName}
         </Row>
     );
 };

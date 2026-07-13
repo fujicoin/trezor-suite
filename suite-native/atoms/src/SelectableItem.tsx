@@ -1,17 +1,18 @@
-import { ReactNode } from 'react';
-import { TouchableOpacity, View } from 'react-native';
+import { type ReactNode } from 'react';
+import { View } from 'react-native';
 
 import { Translation } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { Badge } from './Badge';
 import { Box } from './Box';
+import { PressableOpacity } from './Pressable';
 import { Radio } from './Radio';
 import { VStack } from './Stack';
 import { Text } from './Text';
 
 const cardStyle = prepareNativeStyle((utils, { isSelected }: { isSelected: boolean }) => ({
-    backgroundColor: utils.colors.backgroundSurfaceElevation1,
+    backgroundColor: utils.colors.surfaceFillRaised,
     borderRadius: utils.borders.radii.r16,
     padding: utils.spacings.sp16,
     ...utils.boxShadows.small,
@@ -19,7 +20,7 @@ const cardStyle = prepareNativeStyle((utils, { isSelected }: { isSelected: boole
         {
             condition: isSelected,
             style: {
-                borderColor: utils.colors.iconPrimaryDefault,
+                borderColor: utils.colors.contentBrand,
                 borderWidth: utils.borders.widths.large,
                 padding: utils.spacings.sp16 - utils.borders.widths.large,
                 ...utils.boxShadows.medium,
@@ -53,6 +54,7 @@ type SelectableItemProps = {
     content?: ReactNode;
     isSelected: boolean;
     isDefault: boolean;
+    testID?: string;
     onSelected: () => void;
 };
 
@@ -67,28 +69,28 @@ export const SelectableItem = ({
     const { applyStyle, utils } = useNativeStyles();
 
     return (
-        <TouchableOpacity
-            onPress={onSelected}
-            activeOpacity={0.6}
-            style={applyStyle(cardStyle, { isSelected })}
-        >
+        <PressableOpacity onPress={onSelected} style={applyStyle(cardStyle, { isSelected })}>
             <VStack spacing={utils.spacings.sp4}>
                 <Box style={applyStyle(titleWrapperStyle)}>
-                    <Text variant="titleSmall" color="textDefault">
+                    <Text variant="headline-sm" color="contentPrimary">
                         {title}
                     </Text>
                     {isDefault && (
                         <View style={applyStyle(badgeWrapperStyle)}>
                             <Badge
                                 key="defaultType"
-                                variant="greenSubtle"
+                                intent="brand"
                                 label={<Translation id="generic.default" />}
                                 icon="checkCircle"
                             />
                         </View>
                     )}
                 </Box>
-                <Text variant="hint" color="textDefault" style={applyStyle(subtitleWrapperStyle)}>
+                <Text
+                    variant="body-sm"
+                    color="contentPrimary"
+                    style={applyStyle(subtitleWrapperStyle)}
+                >
                     {subtitle}
                 </Text>
                 <Box>{content}</Box>
@@ -96,6 +98,6 @@ export const SelectableItem = ({
             <View style={applyStyle(radioWrapperStyle)}>
                 <Radio value="toggle" onPress={onSelected} isChecked={isSelected} />
             </View>
-        </TouchableOpacity>
+        </PressableOpacity>
     );
 };

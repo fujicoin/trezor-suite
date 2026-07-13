@@ -1,7 +1,7 @@
 import { getNetwork } from '@suite-common/wallet-config';
 import { selectBaseCurrency } from '@suite-common/wallet-core';
 import {
-    GroupedTransactionsByDate,
+    type GroupedTransactionsByDate,
     getTransactionWithLowestNonce,
     groupJointTransactions,
 } from '@suite-common/wallet-utils';
@@ -9,8 +9,7 @@ import {
 import { CoinjoinBatchItem } from 'src/components/wallet/TransactionItem/CoinjoinBatchItem';
 import { TransactionItem } from 'src/components/wallet/TransactionItem/TransactionItem';
 import { useSelector } from 'src/hooks/suite';
-import { selectLabelingDataForAccount } from 'src/reducers/suite/metadataReducer';
-import { Account, WalletAccountTransaction } from 'src/types/wallet';
+import { type Account, type WalletAccountTransaction } from 'src/types/wallet';
 
 import { TransactionsGroup } from './TransactionsGroup/TransactionsGroup';
 
@@ -28,7 +27,6 @@ export const TransactionGroupedList = ({
     isPending,
 }: TransactionGroupedListProps) => {
     const baseCurrencyCode = useSelector(selectBaseCurrency);
-    const accountMetadata = useSelector(state => selectLabelingDataForAccount(state, account.key));
     const network = getNetwork(symbol);
 
     const transactionWithLowestNonce: WalletAccountTransaction | null =
@@ -47,17 +45,15 @@ export const TransactionGroupedList = ({
             {groupJointTransactions(value).map((item, index) =>
                 item.type === 'joint-batch' ? (
                     <CoinjoinBatchItem
-                        key={item.rounds[0].txid}
+                        key={item.rounds[0]?.txid}
                         transactions={item.rounds}
                         isPending={isPending}
-                        localCurrency={baseCurrencyCode}
                     />
                 ) : (
                     <TransactionItem
                         key={item.tx.txid}
                         transaction={item.tx}
                         isPending={isPending}
-                        accountMetadata={accountMetadata}
                         accountKey={account.key}
                         network={network}
                         accountType={account.accountType}

@@ -1,10 +1,12 @@
 import { createAction } from '@reduxjs/toolkit';
 
+import { type BluetoothDeviceId } from '@trezor/connect';
+
 import {
-    BluetoothAdapterStatus,
-    BluetoothDeviceCommon,
-    BluetoothScanStatus,
-    DeviceBluetoothConnectionStatus,
+    type BluetoothAdapterStatus,
+    type BluetoothDeviceCommon,
+    type BluetoothScanStatus,
+    type DeviceBluetoothConnectionStatus,
 } from './types';
 
 export const BLUETOOTH_PREFIX = '@suite/bluetooth';
@@ -38,7 +40,7 @@ const knownDevicesUpdateAction = createAction(
 
 const removeKnownDeviceAction = createAction(
     `${BLUETOOTH_PREFIX}/remove-known-device`,
-    ({ id }: { id: string }) => ({
+    ({ id }: { id: BluetoothDeviceId }) => ({
         payload: { id },
     }),
 );
@@ -56,7 +58,7 @@ const updateDeviceConnectionStatus = createAction(
         deviceId,
         connectionStatus,
     }: {
-        deviceId: string;
+        deviceId: BluetoothDeviceId;
         connectionStatus: DeviceBluetoothConnectionStatus;
     }) => ({
         payload: { deviceId, connectionStatus },
@@ -68,6 +70,26 @@ const scanStatusAction = createAction(
     ({ status }: { status: BluetoothScanStatus }) => ({ payload: { status } }),
 );
 
+const enableAutoConnect = createAction(
+    `${BLUETOOTH_PREFIX}/enable-auto-connect`,
+    (payload?: { deviceId: BluetoothDeviceId }) => ({ payload }),
+);
+
+const setIsDeviceOsUnpairingRequired = createAction(
+    `${BLUETOOTH_PREFIX}/set-is-device-os-unpairing-required`,
+    (
+        isDeviceOsUnpairingRequired: boolean,
+        params: {
+            skipToggleModalConnection?: boolean;
+        } = {},
+    ) => ({
+        payload: {
+            isDeviceOsUnpairingRequired,
+            skipToggleModalConnection: Boolean(params?.skipToggleModalConnection),
+        },
+    }),
+);
+
 export const bluetoothActions = {
     adapterEventAction,
     nearbyDevicesUpdateAction,
@@ -76,4 +98,6 @@ export const bluetoothActions = {
     knownDevicesUpdateAction,
     removeKnownDeviceAction,
     updateDeviceConnectionStatus,
+    enableAutoConnect,
+    setIsDeviceOsUnpairingRequired,
 };

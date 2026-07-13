@@ -2,6 +2,10 @@ import { useState } from 'react';
 
 import styled from 'styled-components';
 
+import { selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { events } from '@suite-common/analytics';
+import { useServices } from '@suite-common/dependency-injection';
 import {
     Card,
     Column,
@@ -16,8 +20,7 @@ import {
 } from '@trezor/components';
 import { spacings, spacingsPx } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
-import { usePrintableLog } from 'src/utils/suite/logsUtils';
+import { useApplicationLogs } from 'src/utils/suite/logsUtils';
 
 const ScrollContainer = styled.div`
     overflow: auto;
@@ -42,16 +45,27 @@ const LogWrapper = styled.pre`
 type ApplicationLogModalProps = { onCancel: () => void };
 
 export const ApplicationLogModal = ({ onCancel }: ApplicationLogModalProps) => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const [hideSensitiveInfo, setHideSensitiveInfo] = useState(false);
-    const log = usePrintableLog(hideSensitiveInfo);
-
+    const applicationLogs = useApplicationLogs({ hideSensitiveInfo });
     const { ShadowTop, ShadowBottom, ShadowContainer, onScroll, scrollElementRef } =
         useScrollShadow();
 
     const download = () => {
-        if (log === null) return;
+        if (applicationLogs === null) return;
+
+        analytics.report({
+            type: events.settingsAppLogExportedEvent.name,
+            payload: {
+                isRedacted: hideSensitiveInfo,
+            },
+        });
+
         const element = document.createElement('a');
-        element.setAttribute('href', `data:text/plain;charset=utf-8,${encodeURIComponent(log)}`);
+        element.setAttribute(
+            'href',
+            `data:text/plain;charset=utf-8,${encodeURIComponent(applicationLogs)}`,
+        );
         element.setAttribute('download', 'trezor-suite-log.txt');
 
         element.style.display = 'none';
@@ -63,7 +77,7 @@ export const ApplicationLogModal = ({ onCancel }: ApplicationLogModalProps) => {
     };
 
     // usually takes less than 100 ms, so it's ok to delay display without a loader component
-    if (log === null) return null;
+    if (applicationLogs === null) return null;
 
     return (
         <Modal
@@ -79,13 +93,13 @@ export const ApplicationLogModal = ({ onCancel }: ApplicationLogModalProps) => {
         >
             <Card paddingType="none" margin={{ top: spacings.sm }} overflow="hidden">
                 <ShadowContainer>
-                    <ShadowTop backgroundColor="backgroundSurfaceElevation1" />
+                    <ShadowTop />
                     <ScrollContainer onScroll={onScroll} ref={scrollElementRef}>
                         <LogWrapper data-testid="@log/content">
-                            <Text typographyStyle="label">{log}</Text>
+                            <Text typographyStyle="body-xs">{applicationLogs}</Text>
                         </LogWrapper>
                     </ScrollContainer>
-                    <ShadowBottom backgroundColor="backgroundSurfaceElevation1" />
+                    <ShadowBottom />
                 </ShadowContainer>
             </Card>
 
@@ -94,7 +108,7 @@ export const ApplicationLogModal = ({ onCancel }: ApplicationLogModalProps) => {
                     <H4>
                         <Translation id="LOG_INCLUDE_BALANCE_TITLE" />
                     </H4>
-                    <Paragraph variant="tertiary" typographyStyle="hint">
+                    <Paragraph intent="neutral" priority="secondary" typographyStyle="body-sm">
                         <Translation id="LOG_INCLUDE_BALANCE_DESCRIPTION" />
                     </Paragraph>
                 </Column>

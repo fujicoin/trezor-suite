@@ -7,12 +7,28 @@
     "main": "src/index",
     "scripts": {
         "depcheck": "yarn g:depcheck",
-        "type-check": "yarn g:tsc --build"
+        "type-check": "yarn g:tsc --build",
+        "test:unit": "yarn g:jest",
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     },
     "dependencies": {
-        "@reduxjs/toolkit": "2.8.2",
+        "@mobily/ts-belt": "^3.13.1",
+        "@reduxjs/toolkit": "2.12.0",
+        "@suite-common/analytics-redux": "workspace:*",
+        "@suite-common/device": "workspace:*",
+        "@suite-common/discreet-mode": "workspace:*",
+        "@suite-common/react-query": "workspace:*",
         "@suite-common/redux-utils": "workspace:*",
+        "@suite-common/suite-types": "workspace:*",
+        "@suite-common/suite-utils": "workspace:*",
         "@suite-common/wallet-core": "workspace:*",
-        "@suite-common/wallet-utils": "workspace:*"
+        "@suite-common/wallet-types": "workspace:*",
+        "@suite-common/wallet-utils": "workspace:*",
+        "@trezor/connect": "workspace:*",
+        "@trezor/device-utils": "workspace:*",
+        "@trezor/env-utils": "workspace:*",
+        "@trezor/type-utils": "workspace:*",
+        "react": "19.2.3",
+        "react-redux": "9.3.0"
     }
 }

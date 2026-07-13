@@ -1,5 +1,5 @@
 import { getNetworkDisplaySymbol } from '@suite-common/wallet-config';
-import { SelectedAccountStatus } from '@suite-common/wallet-types';
+import { type SelectedAccountStatus } from '@suite-common/wallet-types';
 
 import { WalletLayout } from 'src/components/wallet';
 
@@ -15,7 +15,7 @@ export const StakingDashboard = ({ selectedAccount, dashboard }: StakingDashboar
 
     return (
         <WalletLayout
-            title="TR_STAKE_NETWORK"
+            title="TR_EARN_STAKE_TOKEN"
             titleValues={{ symbol: getNetworkDisplaySymbol(selectedAccount.account.symbol) }}
             account={selectedAccount}
         >

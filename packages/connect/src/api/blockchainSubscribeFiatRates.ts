@@ -1,11 +1,13 @@
 // origin: https://github.com/trezor/connect/blob/develop/src/js/core/methods/blockchain/BlockchainSubscribeFiatRates.js
 
-import { ERRORS } from '../constants';
-import { AbstractMethod, Payload } from '../core/AbstractMethod';
+import type { CoinInfo, PermissionRequest } from '@trezor/connect-common';
+import { ERRORS } from '@trezor/connect-common/src/constants';
+
+import type { MethodContext, MethodMessage, Payload } from '../core/AbstractMethod';
+import { AbstractMethod } from '../core/AbstractMethod';
 import { validateParams } from './common/paramsValidator';
 import { initBlockchain, isBackendSupported } from '../backend/BlockchainLink';
 import { getCoinInfo } from '../data/coinInfo';
-import type { CoinInfo } from '../types';
 
 type Params = {
     currency: Payload<'blockchainSubscribeFiatRates'>['currency'];
@@ -17,11 +19,8 @@ export default class BlockchainSubscribeFiatRates extends AbstractMethod<
     'blockchainSubscribeFiatRates',
     Params
 > {
-    init() {
-        this.useDevice = false;
-        this.useUi = false;
-
-        const { payload } = this;
+    constructor(message: MethodMessage<'blockchainSubscribeFiatRates'>) {
+        const { payload } = message;
 
         // validate incoming parameters
         validateParams(payload, [
@@ -37,17 +36,27 @@ export default class BlockchainSubscribeFiatRates extends AbstractMethod<
         // validate backend
         isBackendSupported(coinInfo);
 
-        this.params = {
+        const params = {
             currency: payload.currency,
             coinInfo,
             identity: payload.identity,
         };
+
+        super(message, params);
+        this.useDevice = false;
+        this.useUi = false;
     }
 
-    async run() {
+    get requiredPermissions(): PermissionRequest[] {
+        return [];
+    }
+
+    init() {}
+
+    async run({ sendCoreMessage }: MethodContext) {
         const backend = await initBlockchain(
             this.params.coinInfo,
-            this.postMessage,
+            sendCoreMessage,
             this.params.identity,
         );
 

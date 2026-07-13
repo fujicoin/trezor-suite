@@ -1,12 +1,15 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import {
-    DeviceNameStackParamList,
+    DeviceConnectionGuardScreen,
+    useDeviceConnectionGuard,
+} from '@suite-native/device-authorization';
+import {
+    type DeviceNameStackParamList,
     DeviceNameStackRoutes,
     stackNavigationOptionsConfig,
 } from '@suite-native/navigation';
 
-import { useDeviceConnectionGuard } from '../hooks/useDeviceConnectionGuard';
 import { ContinueOnTrezorScreen } from '../screens/ContinueOnTrezorScreen';
 import { DeviceNameLoadingScreen } from '../screens/DeviceNameLoadingScreen';
 import { DeviceNameScreen } from '../screens/DeviceNameScreen';
@@ -14,15 +17,16 @@ import { DeviceNameScreen } from '../screens/DeviceNameScreen';
 const DeviceNameStack = createNativeStackNavigator<DeviceNameStackParamList>();
 
 export const DeviceNameStackNavigator = () => {
-    const { isDeviceConnected } = useDeviceConnectionGuard();
-
-    if (!isDeviceConnected) return null;
+    const { isDeviceConnectionGuardVisible } = useDeviceConnectionGuard();
 
     return (
-        <DeviceNameStack.Navigator
-            initialRouteName={DeviceNameStackRoutes.DeviceName}
-            screenOptions={stackNavigationOptionsConfig}
-        >
+        <DeviceNameStack.Navigator screenOptions={stackNavigationOptionsConfig}>
+            {isDeviceConnectionGuardVisible && (
+                <DeviceNameStack.Screen
+                    name={DeviceNameStackRoutes.DeviceConnectionGuard}
+                    component={DeviceConnectionGuardScreen}
+                />
+            )}
             <DeviceNameStack.Screen
                 name={DeviceNameStackRoutes.DeviceName}
                 component={DeviceNameScreen}

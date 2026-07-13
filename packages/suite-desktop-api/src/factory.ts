@@ -1,8 +1,7 @@
 import type { IpcRendererEvent } from 'electron';
 
-import { DesktopApi, RendererChannels } from './api';
-import { createBioAuthAPI } from './bioAuthAPIFactory';
-import { StrictIpcRenderer } from './ipc';
+import { type DesktopApi, type RendererChannels } from './api';
+import { type StrictIpcRenderer } from './ipc';
 import * as validation from './validation';
 
 // Provide fallback for missing ipcRenderer
@@ -55,6 +54,7 @@ export const factory = <R extends StrictIpcRenderer<any, IpcRendererEvent>>(
         appAutoStartPopupResponse: response =>
             ipcRenderer.invoke('app/auto-start/popup-response', response),
         appIsVisible: () => ipcRenderer.invoke('app/is-visible'),
+        appIsFullScreen: () => ipcRenderer.invoke('app/is-fullscreen'),
 
         // Auto-updater
         checkForUpdates: ({ isManual }) => {
@@ -196,6 +196,31 @@ export const factory = <R extends StrictIpcRenderer<any, IpcRendererEvent>>(
         connectPopupResponse: response => ipcRenderer.invoke('connect-popup/response', response),
 
         openSystemSettings: settings => ipcRenderer.invoke('system/open-settings', settings),
-        ...createBioAuthAPI(ipcRenderer),
+
+        // bioAuth
+        setBioAuthSettings: settings =>
+            ipcRenderer.invoke('bio-auth/set-bio-auth-settings', settings),
+        getBioAuthSettings: () => ipcRenderer.invoke('bio-auth/get-bio-auth-settings'),
+        validateBioAuth: payload => ipcRenderer.invoke('bio-auth/validate-bio-auth', payload),
+        isBioAuthAvailable: () => ipcRenderer.invoke('bio-auth/is-bio-auth-available'),
+        getBioAuthStatus: () => ipcRenderer.invoke('bio-auth/get-validation-status'),
+
+        // safeStorage
+        safeStoreEncrypt: ({ value }) => ipcRenderer.invoke('safe-storage/encrypt', { value }),
+        safeStoreDecrypt: ({ value }) => ipcRenderer.invoke('safe-storage/decrypt', { value }),
+
+        // MCP server
+        mcpGetSettings: () => ipcRenderer.invoke('mcp/get-settings'),
+        mcpSetEnabled: (enabled: boolean) => {
+            if (validation.isPrimitive('boolean', enabled)) {
+                return ipcRenderer.invoke('mcp/set-enabled', enabled);
+            }
+
+            return Promise.resolve();
+        },
+        mcpRegenerateToken: () => ipcRenderer.invoke('mcp/regenerate-token'),
+
+        // Browser Window
+        reloadBrowserWindow: () => ipcRenderer.invoke('browser-window/reload'),
     };
 };

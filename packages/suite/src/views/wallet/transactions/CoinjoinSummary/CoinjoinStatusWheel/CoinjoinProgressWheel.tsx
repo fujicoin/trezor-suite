@@ -1,26 +1,25 @@
 import { useCallback, useState } from 'react';
 
 import { lighten, rgba } from 'polished';
-import styled, { DefaultTheme, css, keyframes } from 'styled-components';
+import styled, { type DefaultTheme, css, keyframes } from 'styled-components';
 
-import { Tooltip } from '@trezor/components';
-
-import { openModal } from 'src/actions/suite/modalActions';
-import { goto } from 'src/actions/suite/routerActions';
 import {
     coinjoinSessionAutostop,
-    startCoinjoinSession,
-} from 'src/actions/wallet/coinjoinAccountActions';
-import { stopCoinjoinSession } from 'src/actions/wallet/coinjoinClientActions';
-import { Translation } from 'src/components/suite/Translation';
-import { useCoinjoinSessionBlockers } from 'src/hooks/coinjoin/useCoinjoinSessionBlockers';
-import { useDispatch } from 'src/hooks/suite/useDispatch';
-import { useSelector } from 'src/hooks/suite/useSelector';
-import {
     selectCurrentCoinjoinWheelStates,
     selectSessionProgressByAccountKey,
     selectStartCoinjoinSessionArguments,
-} from 'src/reducers/wallet/coinjoinReducer';
+    startCoinjoinSession,
+    stopCoinjoinSession,
+} from '@suite/coinjoin';
+import { Translation } from '@suite/intl';
+import { openModal } from '@suite/modal';
+import { goto } from '@suite/router';
+import { type AccountKey } from '@suite-common/wallet-types';
+import { Tooltip } from '@trezor/components';
+
+import { useCoinjoinSessionBlockers } from 'src/hooks/coinjoin/useCoinjoinSessionBlockers';
+import { useDispatch } from 'src/hooks/suite/useDispatch';
+import { useSelector } from 'src/hooks/suite/useSelector';
 
 import {
     CoinjoinProgressContent,
@@ -40,7 +39,7 @@ export const DELAYED_SPIN = keyframes`
 `;
 
 const getOutlineSvg = (theme: DefaultTheme) =>
-    `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='100' ry='100' stroke='${theme.legacy.TYPE_LIGHT_GREY.replace(
+    `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='100' ry='100' stroke='${theme.contentSecondary.replace(
         /#/g,
         '%23',
     )}' stroke-width='5' stroke-dasharray='7' stroke-dashoffset='35' stroke-linecap='butt'/%3e%3c/svg%3e")`;
@@ -73,8 +72,8 @@ const Wheel = styled.div<{
     height: 94px;
     border-radius: 50%;
     background: ${({ theme, $progress }) =>
-        `conic-gradient(${theme.legacy.BG_GREEN} ${3.6 * $progress}deg, ${rgba(
-            theme.legacy.STROKE_GREY,
+        `conic-gradient(${theme.elementFillBrandBold} ${3.6 * $progress}deg, ${rgba(
+            theme.borderNeutral,
             0.6,
         )} 0)`};
     transition:
@@ -89,7 +88,7 @@ const Wheel = styled.div<{
 
             &:active {
                 ${ProgressContentContainer} {
-                    background: ${({ theme }) => lighten(0.02, theme.legacy.BG_GREY)};
+                    background: ${({ theme }) => lighten(0.02, theme.surfaceFillRaised)};
                 }
             }
         `}
@@ -98,13 +97,13 @@ const Wheel = styled.div<{
         $isWithoutProgressOutline &&
         css`
             background: none;
-            color: ${({ theme }) => theme.legacy.TYPE_GREEN};
+            color: ${({ theme }) => theme.contentBrand};
 
             ${ProgressContentContainer} {
-                background: ${({ theme }) => theme.legacy.BG_LIGHT_GREEN};
+                background: ${({ theme }) => theme.elementFillBrandBold};
 
                 path {
-                    fill: ${({ theme }) => theme.legacy.TYPE_GREEN};
+                    fill: ${({ theme }) => theme.contentBrand};
                 }
             }
         `}
@@ -127,7 +126,7 @@ const Wheel = styled.div<{
                     height: calc(100% - 12px);
 
                     span {
-                        color: ${theme.legacy.TYPE_GREEN};
+                        color: ${theme.contentBrand};
                     }
                 }
             }
@@ -136,14 +135,14 @@ const Wheel = styled.div<{
     ${({ $isPaused, $hasCriticalError, theme, $progress }) =>
         $isPaused &&
         css`
-            background: ${`conic-gradient(${theme.legacy.TYPE_LIGHTER_GREY} ${3.6 * $progress}deg, ${rgba(
-                theme.legacy.STROKE_GREY,
+            background: ${`conic-gradient(${theme.surfaceFillPage} ${3.6 * $progress}deg, ${rgba(
+                theme.borderNeutral,
                 0.6,
             )} 0)`};
 
             &:hover {
                 path {
-                    fill: ${!$hasCriticalError && theme.legacy.TYPE_GREEN};
+                    fill: ${!$hasCriticalError && theme.contentBrand};
                 }
             }
         `}
@@ -155,13 +154,13 @@ const Wheel = styled.div<{
             color: inherit;
 
             ${ProgressContentContainer} {
-                background: ${theme.legacy.BG_GREY};
+                background: ${theme.surfaceFillRaised};
             }
         `}
 `;
 
 interface CoinjoinProgressWheelProps {
-    accountKey: string;
+    accountKey: AccountKey;
 }
 
 export const CoinjoinProgressWheel = ({ accountKey }: CoinjoinProgressWheelProps) => {
@@ -218,7 +217,7 @@ export const CoinjoinProgressWheel = ({ accountKey }: CoinjoinProgressWheelProps
             return;
         }
 
-        dispatch(goto('wallet-anonymize', { preserveParams: true }));
+        dispatch(goto({ routeName: 'wallet-anonymize', preserveParams: true }));
     }, [
         isCoinjoinSessionBlocked,
         isAllPrivate,

@@ -1,13 +1,13 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import { Banner, BannerProps, Column, Margin, Text } from '@trezor/components';
+import { Translation } from '@suite/intl';
+import { Banner, type BannerProps, Column, type Margin, Text } from '@trezor/components';
+import { ShareNetworkIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme/src';
-
-import { Translation } from 'src/components/suite';
 
 interface Props {
     onClose: () => void;
-    variant: BannerProps['variant'];
+    intent: BannerProps['intent'];
     title: ReactNode;
     children: React.ReactNode;
     hasIcon?: boolean;
@@ -16,28 +16,29 @@ interface Props {
 
 export const CloseableBanner = ({
     onClose,
-    variant,
+    intent,
     title,
     children,
     hasIcon = false,
     margin,
 }: Props) => (
     <Banner
-        variant={variant}
+        intent={intent}
         rightContent={
             <Banner.Button onClick={onClose}>
                 <Translation id="TR_GOT_IT" />
             </Banner.Button>
         }
-        icon={hasIcon ? 'shareNetwork' : undefined}
+        icon={hasIcon ? ShareNetworkIcon : undefined}
         margin={margin}
-    >
-        <Column gap={spacings.xxs} flex="1" alignItems="flex-start" justifyContent="stretch">
-            <Text typographyStyle="highlight" variant="info">
-                {title}
-            </Text>
+        description={
+            <Column gap={spacings.xxs} flex="1" alignItems="flex-start" justifyContent="stretch">
+                <Text typographyStyle="body-md-strong" intent="info">
+                    {title}
+                </Text>
 
-            {children}
-        </Column>
-    </Banner>
+                {children}
+            </Column>
+        }
+    />
 );

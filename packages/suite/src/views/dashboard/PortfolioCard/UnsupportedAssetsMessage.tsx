@@ -1,12 +1,14 @@
-import { TrezorDevice } from '@suite-common/suite-types';
-import { getNetworkFeatures } from '@suite-common/wallet-config';
-import { Account } from '@suite-common/wallet-types';
-import { Text } from '@trezor/components';
+import { Translation } from '@suite/intl';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { type NetworkSymbol, getNetwork, getNetworkFeatures } from '@suite-common/wallet-config';
+import { type Account } from '@suite-common/wallet-types';
 import { hasBitcoinOnlyFirmware } from '@trezor/device-utils';
+import { unique } from '@trezor/utils';
 
-import { Translation } from '../../../components/suite';
+import { isNetworkWithGraphFeature } from 'src/utils/wallet/graph';
 
-const UNSUPPORTED_NETWORKS = ['ripple', 'solana', 'stellar'];
+const hasAnyAccountWithTokens = (accounts: Account[]): boolean =>
+    accounts.some(account => getNetworkFeatures(account.symbol).includes('tokens'));
 
 export const useUnsupportedNetworkMessage = ({
     showGraphControls,
@@ -17,41 +19,32 @@ export const useUnsupportedNetworkMessage = ({
     device?: TrezorDevice;
     accounts: Account[];
 }) => {
-    const hasAnyAccountWithTokens = (accounts: Account[]): boolean =>
-        accounts.some(account => {
-            const features = getNetworkFeatures(account.symbol);
-
-            return features?.includes('tokens') ?? false;
-        });
-
     const affectedAccounts =
-        showGraphControls &&
-        !hasBitcoinOnlyFirmware(device) &&
-        accounts
-            .filter(
-                account => account.history && UNSUPPORTED_NETWORKS.includes(account.networkType),
-            )
-            .map(({ networkType }) => networkType);
+        showGraphControls && !hasBitcoinOnlyFirmware(device)
+            ? accounts
+                  .filter(
+                      account =>
+                          account.history &&
+                          !isNetworkWithGraphFeature(account.symbol, account.backendType),
+                  )
+                  .map(({ symbol }) => symbol)
+            : [];
 
-    const affectedNetworks = [...new Set(affectedAccounts || [])];
+    const affectedNetworks = unique(affectedAccounts);
     const hasTokens = hasAnyAccountWithTokens(accounts);
-    const showMissingDataTooltip = affectedNetworks.length > 0 || hasTokens;
+    const showMissingDataTooltip = showGraphControls && (affectedNetworks.length > 0 || hasTokens);
 
     return { affectedNetworks, showMissingDataTooltip, hasTokens };
 };
 
 type MessageProps = {
-    affectedNetworks: string[];
+    affectedNetworks: NetworkSymbol[];
     hasTokens: boolean;
 };
 
-const capitalizeFirstLetter = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
-
 const Message = ({ affectedNetworks, hasTokens }: MessageProps) => {
     const hasNetworks = affectedNetworks.length > 0;
-    const networksString = affectedNetworks
-        .map(network => capitalizeFirstLetter(network))
-        .join(', ');
+    const networksString = affectedNetworks.map(network => getNetwork(network).name).join(', ');
 
     if (hasNetworks && hasTokens) {
         return (
@@ -73,7 +66,7 @@ const Message = ({ affectedNetworks, hasTokens }: MessageProps) => {
 };
 
 type UnsupportedAssetsMessageProps = {
-    affectedNetworks: string[];
+    affectedNetworks: NetworkSymbol[];
     hasTokens: boolean;
 };
 
@@ -81,7 +74,5 @@ export const UnsupportedAssetsMessage = ({
     affectedNetworks,
     hasTokens,
 }: UnsupportedAssetsMessageProps) => (
-    <Text variant="tertiary" typographyStyle="hint">
-        <Message affectedNetworks={affectedNetworks} hasTokens={hasTokens} />
-    </Text>
+    <Message affectedNetworks={affectedNetworks} hasTokens={hasTokens} />
 );

@@ -1,39 +1,35 @@
 import { useEffect, useState } from 'react';
-import Animated, { SlideInDown } from 'react-native-reanimated';
+import { SlideInDown } from 'react-native-reanimated';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { G } from '@mobily/ts-belt';
 import { CommonActions, useNavigation } from '@react-navigation/native';
 import { isFulfilled } from '@reduxjs/toolkit';
 import { useAtomValue } from 'jotai';
 
 import {
-    AccountsRootState,
-    SendRootState,
-    TransactionsRootState,
-    pushSendFormTransactionThunk,
+    type AccountsRootState,
+    type TransactionsRootState,
     selectAccountByKey,
-    selectSendFormDraftByKey,
     selectTransactionByAccountKeyAndTxid,
 } from '@suite-common/wallet-core';
-import { AccountKey, TokenAddress } from '@suite-common/wallet-types';
+import { type AccountKey, type TokenAddress } from '@suite-common/wallet-types';
 import { useAlert } from '@suite-native/alerts';
-import { EventType, analytics } from '@suite-native/analytics';
-import { Button, Card } from '@suite-native/atoms';
+import { AnimatedBox, Button, Card, useBannerAwareSafeAreaInsets } from '@suite-native/atoms';
 import { Translation, useTranslate } from '@suite-native/intl';
 import {
     AppTabsRoutes,
-    RootStackParamList,
+    type RootStackParamList,
     RootStackRoutes,
-    SendStackParamList,
+    type SendStackParamList,
     SendStackRoutes,
-    StackToStackCompositeNavigationProps,
+    type StackToStackCompositeNavigationProps,
+    TransactionDetailStackRoutes,
 } from '@suite-native/navigation';
-import { TokensRootState, selectAccountTokenSymbol } from '@suite-native/tokens';
+import { cleanupSendFormThunk, sendTransactionThunk } from '@suite-native/send';
+import { SignSuccessMessage } from '@suite-native/transaction-management';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { wasAppLeftDuringReviewAtom } from '../atoms/wasAppLeftDuringReviewAtom';
-import { cleanupSendFormThunk } from '../sendFormThunks';
-import { SignSuccessMessage } from './SignSuccessMessage';
 import { useUtxoSelection } from '../hooks/useUtxoSelection';
 
 type NavigationProps = StackToStackCompositeNavigationProps<
@@ -41,6 +37,10 @@ type NavigationProps = StackToStackCompositeNavigationProps<
     SendStackRoutes.SendOutputsReview,
     RootStackParamList
 >;
+
+const containerStyle = prepareNativeStyle<{ bottomInset: number }>((_, { bottomInset }) => ({
+    paddingBottom: bottomInset,
+}));
 
 const navigateOutOfSendFlowAction = ({
     accountKey,
@@ -69,12 +69,16 @@ const navigateOutOfSendFlowAction = ({
 
     if (txid) {
         routes.push({
-            name: RootStackRoutes.TransactionDetail,
+            name: RootStackRoutes.TransactionDetailStack,
             params: {
-                accountKey,
-                tokenContract,
-                txid,
-                closeActionType: 'close',
+                screen: TransactionDetailStackRoutes.TransactionDetail,
+                params: {
+                    accountKey,
+                    tokenContract,
+                    txid,
+                    closeActionType: 'close',
+                    source: 'send',
+                },
             },
         });
     }
@@ -86,21 +90,30 @@ const navigateOutOfSendFlowAction = ({
     });
 };
 
+type OutputsReviewFooterParams = {
+    accountKey: AccountKey;
+    tokenContract?: TokenAddress;
+    isPastDeadline?: boolean;
+    isSendInProgress: boolean;
+    setIsSendInProgress: (value: boolean) => void;
+};
+
 export const OutputsReviewFooter = ({
     accountKey,
     tokenContract,
-}: {
-    accountKey: AccountKey;
-    tokenContract?: TokenAddress;
-}) => {
+    isPastDeadline = false,
+    isSendInProgress,
+    setIsSendInProgress,
+}: OutputsReviewFooterParams) => {
     const [txid, setTxid] = useState<string>('');
     const dispatch = useDispatch();
     const navigation = useNavigation<NavigationProps>();
     const { showAlert } = useAlert();
-    const [isSendInProgress, setIsSendInProgress] = useState(false);
     const wasAppLeftDuringReview = useAtomValue(wasAppLeftDuringReviewAtom);
     const { setSelectedUtxos } = useUtxoSelection(accountKey);
     const { translate } = useTranslate();
+    const { applyStyle } = useNativeStyles();
+    const insets = useBannerAwareSafeAreaInsets();
 
     const isTransactionProcessedByBackend = !!useSelector((state: TransactionsRootState) =>
         selectTransactionByAccountKeyAndTxid(state, accountKey, txid),
@@ -108,14 +121,6 @@ export const OutputsReviewFooter = ({
 
     const account = useSelector((state: AccountsRootState) =>
         selectAccountByKey(state, accountKey),
-    );
-
-    const tokenSymbol = useSelector((state: TokensRootState) =>
-        selectAccountTokenSymbol(state, accountKey, tokenContract),
-    );
-
-    const formValues = useSelector((state: SendRootState) =>
-        selectSendFormDraftByKey(state, accountKey, tokenContract),
     );
 
     useEffect(() => {
@@ -129,7 +134,7 @@ export const OutputsReviewFooter = ({
                 }),
             );
 
-            dispatch(cleanupSendFormThunk({ accountKey }));
+            dispatch(cleanupSendFormThunk({ accountKey, tokenContract }));
         }
     }, [isTransactionProcessedByBackend, accountKey, tokenContract, txid, navigation, dispatch]);
 
@@ -138,33 +143,29 @@ export const OutputsReviewFooter = ({
     }
 
     const isSolanaAccount = account.networkType === 'solana';
+    const isSendDisabled = isSolanaAccount && isPastDeadline;
+
+    const handleRetryAfterExpiry = () => {
+        dispatch(cleanupSendFormThunk({ accountKey, tokenContract, shouldDeleteDraft: false }));
+        navigation.navigate(SendStackRoutes.SendOutputs, {
+            accountKey,
+            tokenContract,
+        });
+    };
 
     const handleSendTransaction = async () => {
+        if (isSendDisabled) return;
         setIsSendInProgress(true);
 
         const sendResponse = await dispatch(
-            pushSendFormTransactionThunk({
+            sendTransactionThunk({
                 selectedAccount: account,
+                wasAppLeftDuringReview,
             }),
         );
 
         if (isFulfilled(sendResponse)) {
             const { txid: sentTxid } = sendResponse.payload.payload;
-
-            if (formValues) {
-                analytics.report({
-                    type: EventType.SendTransactionDispatched,
-                    payload: {
-                        symbol: account.symbol,
-                        tokenAddresses: tokenContract ? [tokenContract] : undefined,
-                        tokenSymbols: tokenSymbol ? [tokenSymbol] : undefined,
-                        outputsCount: formValues.outputs.length,
-                        selectedFee: formValues.selectedFee ?? 'normal',
-                        hasDestinationTag: G.isNotNullable(formValues.destinationTag),
-                        wasAppLeftDuringReview,
-                    },
-                });
-            }
 
             setTxid(sentTxid);
             if (account.networkType === 'bitcoin') setSelectedUtxos([]); // clear selected UTXOs after sending the transaction
@@ -193,19 +194,15 @@ export const OutputsReviewFooter = ({
                 />
             ),
             primaryButtonTitle: <Translation id="generic.buttons.tryAgain" />,
-            primaryButtonVariant: 'redBold',
-            onPressPrimaryButton: () => {
-                dispatch(cleanupSendFormThunk({ accountKey, shouldDeleteDraft: false }));
-                navigation.navigate(SendStackRoutes.SendOutputs, {
-                    accountKey,
-                    tokenContract,
-                });
-            },
+            primaryButtonColorProps: { intent: 'critical', priority: 'primary' },
+            onPressPrimaryButton: handleRetryAfterExpiry,
             secondaryButtonTitle: (
                 <Translation id="moduleSend.review.outputs.errorAlert.secondaryButtonTitle" />
             ),
             onPressSecondaryButton: () => {
-                dispatch(cleanupSendFormThunk({ accountKey, shouldDeleteDraft: true }));
+                dispatch(
+                    cleanupSendFormThunk({ accountKey, tokenContract, shouldDeleteDraft: true }),
+                );
                 navigation.dispatch(
                     navigateOutOfSendFlowAction({
                         accountKey,
@@ -213,17 +210,21 @@ export const OutputsReviewFooter = ({
                     }),
                 );
             },
-            secondaryButtonVariant: 'redElevation1',
+            secondaryButtonColorProps: { intent: 'critical', priority: 'secondary' },
         });
         setIsSendInProgress(false);
     };
 
     return (
-        <Animated.View entering={SlideInDown}>
+        <AnimatedBox
+            entering={SlideInDown}
+            style={applyStyle(containerStyle, { bottomInset: insets.bottom })}
+        >
             <Card>
                 <SignSuccessMessage />
                 <Button
                     isLoading={isSendInProgress}
+                    isDisabled={isSendDisabled}
                     accessibilityRole="button"
                     accessibilityLabel={translate('generic.validateForm')}
                     testID="@send/send-transaction-button"
@@ -232,6 +233,6 @@ export const OutputsReviewFooter = ({
                     <Translation id="moduleSend.review.outputs.submitButton" />
                 </Button>
             </Card>
-        </Animated.View>
+        </AnimatedBox>
     );
 };

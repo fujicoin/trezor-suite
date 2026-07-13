@@ -1,8 +1,9 @@
-import { SharedValue } from 'react-native-reanimated';
+import { type SharedValue } from 'react-native-reanimated';
 
-import { SwipeableWalkthroughStep, VStack } from '@suite-native/atoms';
+import { VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { SwipeableWalkthroughStep } from '@suite-native/swipeable-walkthrough';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { WalletBackupRecapListItem } from './WalletBackupRecapListItem';
 import { WALLET_BACKUP_RECAP_STEPS, walletBackupSecuritySteps } from './presets';

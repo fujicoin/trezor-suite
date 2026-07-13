@@ -1,7 +1,15 @@
 import {
+    type MethodState,
+    initialState,
+    prepareBundle,
+    setAffectedValues,
+    updateParams,
+} from './methodCommon';
+import { getMethodState, getMethodStateFromSchema } from './methodInit';
+import type { MethodAction, TrezorConnectAction } from '../types/actions';
+import {
     ADD_BATCH,
     FIELD_CHANGE,
-    FIELD_DATA_CHANGE,
     REMOVE_BATCH,
     RESPONSE,
     SET_MANUAL_MODE,
@@ -9,16 +17,11 @@ import {
     SET_METHOD_PROCESSING,
     SET_SCHEMA,
     SET_UNION,
-} from '../actions/methodActions';
-import { type Action, type Field, isFieldBasic } from '../types';
-import {
-    MethodState,
-    initialState,
-    prepareBundle,
-    setAffectedValues,
-    updateParams,
-} from './methodCommon';
-import { getMethodState, getMethodStateFromSchema } from './methodInit';
+} from '../types/actions';
+import type { Field } from '../types/common';
+import { isFieldBasic } from '../types/common';
+
+type Action = MethodAction | TrezorConnectAction;
 
 // Recursively find a field in the schema (inner function)
 const findFieldsNested = (
@@ -33,9 +36,17 @@ const findFieldsNested = (
         return schema.find(f => f.name === field.name);
     }
 
-    const nextField = schema.find(f => f.name === remainingPath[0]);
-    if (nextField?.type === 'array' && typeof remainingPath[1] === 'number') {
-        return findFieldsNested(nextField.items[remainingPath[1]], field, currentDepth + 2);
+    // @ts-expect-error: indexing with noUncheckedIndexedAccess
+    const nextFieldName: string = remainingPath[0];
+    const nextField = schema.find(f => f.name === nextFieldName);
+    // @ts-expect-error: indexing with noUncheckedIndexedAccess
+    const nextPathSegment: string | number = remainingPath[1];
+    if (nextField?.type === 'array' && typeof nextPathSegment === 'number') {
+        const { items } = nextField;
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const nestedItems: (typeof items)[number] = items[nextPathSegment];
+
+        return findFieldsNested(nestedItems, field, currentDepth + 2);
     } else if (nextField?.type === 'union') {
         return findFieldsNested(nextField.current, field, currentDepth + 1);
     }
@@ -57,21 +68,11 @@ const onFieldChange = (state: MethodState, _field: Field<any>, value: any) => {
     return updateParams({ ...state, fields: newState.fields });
 };
 
-// Update field data
-const onFieldDataChange = (state: MethodState, _field: Field<any>, data: any) => {
-    const newState = state;
-    const field = findField(newState, _field);
-    if (!field || !isFieldBasic(field)) return state;
-    field.data = data;
-
-    return updateParams(newState);
-};
-
 // Add new batch
 const onAddBatch = (state: MethodState, _field: Field<any>, item: any) => {
     const newState = JSON.parse(JSON.stringify(state));
     const field = findField(newState, _field);
-    if (!field || field.type !== 'array') return state;
+    if (field?.type !== 'array') return state;
     field.items = [...field.items, item];
     prepareBundle(field);
 
@@ -81,12 +82,12 @@ const onAddBatch = (state: MethodState, _field: Field<any>, item: any) => {
 // Remove batch
 const onRemoveBatch = (state: MethodState, _field: Field<any>, _batch: any) => {
     const field = findField(state, _field);
-    if (!field || field.type !== 'array') return state;
+    if (field?.type !== 'array') return state;
     const items = field?.items?.filter(batch => batch !== _batch);
 
     const newState = JSON.parse(JSON.stringify(state));
     const newField = findField(newState, field);
-    if (!newField || newField.type !== 'array') return state;
+    if (newField?.type !== 'array') return state;
 
     newField.items = items;
     prepareBundle(newField);
@@ -98,7 +99,7 @@ const onRemoveBatch = (state: MethodState, _field: Field<any>, _batch: any) => {
 const onSetUnion = (state: MethodState, _field: Field<any>, current: any) => {
     const newState = JSON.parse(JSON.stringify(state));
     const field = findField(newState, _field);
-    if (!field || field.type !== 'union') return state;
+    if (field?.type !== 'union') return state;
     field.current = current;
     prepareBundle(field);
 
@@ -116,9 +117,6 @@ export default function method(state: MethodState = initialState, action: Action
         case FIELD_CHANGE:
             return onFieldChange(state, action.field, action.value);
 
-        case FIELD_DATA_CHANGE:
-            return onFieldDataChange(state, action.field, action.data);
-
         case ADD_BATCH:
             return onAddBatch(state, action.field, action.item);
 
@@ -131,7 +129,6 @@ export default function method(state: MethodState = initialState, action: Action
         case RESPONSE:
             return {
                 ...state,
-                tab: 'response',
                 response: action.response,
             };
 

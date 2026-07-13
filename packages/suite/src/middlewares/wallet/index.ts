@@ -1,37 +1,41 @@
-/* eslint-disable import/order */
+import type { MiddlewareAPI } from 'redux';
+
+import { coinjoinMiddleware } from '@suite/coinjoin';
+import { prepareConnectPopupMiddleware } from '@suite-common/connect-popup';
+import type { ExtraDependencies } from '@suite-common/redux-utils';
+import { prepareSuiteSyncMiddleware } from '@suite-common/suite-sync';
+import { prepareTokenDefinitionsMiddleware } from '@suite-common/token-definitions';
 import {
     prepareAccountsMiddleware,
     prepareBlockchainMiddleware,
     prepareFiatRatesMiddleware,
     prepareStakeMiddleware,
 } from '@suite-common/wallet-core';
-import { prepareTokenDefinitionsMiddleware } from '@suite-common/token-definitions';
-import { prepareConnectPopupMiddleware } from '@suite-common/connect-popup';
 import { prepareWalletConnectMiddleware } from '@suite-common/walletconnect';
 
-import { extraDependencies } from 'src/support/extraDependencies';
-
 import { prepareDiscoveryMiddleware } from './discoveryMiddleware';
-import storageMiddleware from './storageMiddleware';
-import walletMiddleware from './walletMiddleware';
 import graphMiddleware from './graphMiddleware';
-import { tradingMiddleware } from './tradingMiddleware';
-import { coinjoinMiddleware } from './coinjoinMiddleware';
 import { replaceByFeeErrorMiddleware } from './replaceByFeeErrorMiddleware';
+import storageMiddleware from './storageMiddleware';
+import { tradingMiddleware } from './tradingMiddleware';
+import walletMiddleware from './walletMiddleware';
 
-export default [
-    prepareBlockchainMiddleware(extraDependencies),
-    prepareAccountsMiddleware(extraDependencies),
+export const getWalletMiddlewares = (
+    getExtra: () => ExtraDependencies | null,
+): ((api: MiddlewareAPI) => any)[] => [
+    prepareBlockchainMiddleware(getExtra),
+    prepareAccountsMiddleware(getExtra),
     walletMiddleware,
-    prepareDiscoveryMiddleware(extraDependencies),
-    prepareFiatRatesMiddleware(extraDependencies),
-    prepareTokenDefinitionsMiddleware(extraDependencies),
-    prepareStakeMiddleware(extraDependencies),
+    prepareDiscoveryMiddleware(getExtra),
+    prepareFiatRatesMiddleware(getExtra),
+    prepareTokenDefinitionsMiddleware(getExtra),
+    prepareStakeMiddleware(getExtra),
     storageMiddleware,
     graphMiddleware,
     tradingMiddleware,
     coinjoinMiddleware,
     replaceByFeeErrorMiddleware,
-    prepareConnectPopupMiddleware(extraDependencies),
-    prepareWalletConnectMiddleware(extraDependencies),
+    prepareConnectPopupMiddleware(getExtra),
+    prepareWalletConnectMiddleware(getExtra),
+    prepareSuiteSyncMiddleware(getExtra),
 ];

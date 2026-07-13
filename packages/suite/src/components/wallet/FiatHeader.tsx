@@ -1,6 +1,7 @@
 import { useFormatters } from '@suite-common/formatters';
 import type { NetworkSymbol } from '@suite-common/wallet-config';
-import { AmountUnit, BASE_CURRENCY_ZERO, asBaseCurrencyAmount } from '@suite-common/wallet-utils';
+import { asBaseCurrencyAmount } from '@suite-common/wallet-types';
+import { type AmountUnit, BASE_CURRENCY_ZERO } from '@suite-common/wallet-utils';
 import { BigNumber } from '@trezor/utils';
 
 import { HiddenPlaceholder } from 'src/components/suite';
@@ -35,7 +36,7 @@ const useFiatAmount = ({ amount, symbol }: UseFiatAmountProps) => {
 /**
  * If `symbol` is not provided, `amount` is returned as is, otherwise it is converted to fiat currency.
  */
-export const FiatHeader = ({
+const FiatHeaderContent = ({
     amount,
     symbol,
     size,
@@ -53,12 +54,16 @@ export const FiatHeader = ({
     const formattedFiatAmount = formattedAmount?.props.children;
 
     return (
-        <HiddenPlaceholder enforceIntensity={10}>
-            <BigAmountValue
-                formattedStringAmount={formattedFiatAmount}
-                data-testid={dataTestId}
-                size={size}
-            />
-        </HiddenPlaceholder>
+        <BigAmountValue
+            formattedStringAmount={formattedFiatAmount}
+            data-testid={dataTestId}
+            size={size}
+        />
     );
 };
+
+export const FiatHeader = (props: FiatHeaderProps) => (
+    <HiddenPlaceholder enforceIntensity={10}>
+        <FiatHeaderContent {...props} />
+    </HiddenPlaceholder>
+);

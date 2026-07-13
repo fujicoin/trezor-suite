@@ -1,128 +1,150 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
-import { selectKnownDevices, selectNearbyDevices } from '@suite-common/bluetooth';
-import { TranslationKey } from '@suite-common/intl-types';
-import { Button, Modal } from '@trezor/components';
-import { isDesktop } from '@trezor/env-utils';
-import { TREZOR_SUPPORT_URL } from '@trezor/urls';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { useServices } from '@suite-common/dependency-injection';
+import { Column, H3, Modal, Paragraph } from '@trezor/components';
+import { DeviceModelInternal } from '@trezor/device-utils';
+import { DeviceAnimation } from '@trezor/product-components';
+import { TREZOR_SUPPORT_DEVICE_URL } from '@trezor/urls';
 
-import { Translation } from 'src/components/suite/Translation';
-import { TroubleshootingTipsItem } from 'src/components/suite/troubleshooting/TroubleshootingTips';
+import { type TroubleshootingTipsItem } from 'src/components/suite/troubleshooting/TroubleshootingTipsItem';
 import { TroubleshootingTipsList } from 'src/components/suite/troubleshooting/TroubleshootingTipsList';
 import {
-    TROUBLESHOOTING_ALL_BLUETOOTH_TIPS,
-    TROUBLESHOOTING_TIP_BRIDGE_STATUS,
     TROUBLESHOOTING_TIP_CABLE,
+    TROUBLESHOOTING_TIP_DEVICE_TURNED_ON_UNLOCKED,
     TROUBLESHOOTING_TIP_DIFFERENT_COMPUTER,
     TROUBLESHOOTING_TIP_SUITE_DESKTOP,
-    TROUBLESHOOTING_TIP_SUITE_DESKTOP_TOGGLE_BRIDGE,
     TROUBLESHOOTING_TIP_UDEV,
-    TROUBLESHOOTING_TIP_USB,
 } from 'src/components/suite/troubleshooting/tips';
 import { useSelector } from 'src/hooks/suite';
-import { useBridgeDesktopApi } from 'src/hooks/suite/useBridgeDesktopApi';
 import { selectHasTransportOfType } from 'src/selectors/suite/suiteSelectors';
 
+import { AnimationCard } from './AnimationCard';
+import { useConnectionGlobalModalContext } from './context/ConnectionGlobalModalContext';
 type DontSeeYourTrezorModalProps = {
-    isBluetoothMode: boolean;
-    onGoBack: () => void;
-    onRescan: () => void;
-    onStillDontWork: () => void;
+    onClose: () => void;
 };
 
 const commonCableTips = [
+    TROUBLESHOOTING_TIP_DEVICE_TURNED_ON_UNLOCKED,
     TROUBLESHOOTING_TIP_UDEV,
     TROUBLESHOOTING_TIP_CABLE,
-    TROUBLESHOOTING_TIP_USB,
+    TROUBLESHOOTING_TIP_DIFFERENT_COMPUTER,
 ];
 
-export const CantSeeTrezorModal = ({
-    onGoBack,
-    isBluetoothMode,
-    onRescan,
-    onStillDontWork,
-}: DontSeeYourTrezorModalProps) => {
-    const nearbyDevices = useSelector(selectNearbyDevices);
-    const knownDevices = useSelector(selectKnownDevices);
+export const CantSeeTrezorModal = ({ onClose }: DontSeeYourTrezorModalProps) => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
+    const {
+        isBluetoothMode,
+        toggleShouldPairAgain,
+        toggleShowHints,
+        onReScanClick,
+        notConnectedKnownDevices,
+        notConnectedNearbyDevices,
+    } = useConnectionGlobalModalContext();
+
+    // when this modal is displayed, scanning should start again in case it stopped due to timeout, so that user can act on the additional instructions
+    useEffect(() => {
+        if (isBluetoothMode) onReScanClick();
+    }, [isBluetoothMode, onReScanClick]);
+
     const isWebUsbTransport = useSelector(selectHasTransportOfType('WebUsbTransport'));
 
-    const bridgeDesktopApi = useBridgeDesktopApi();
-
-    const allowPairAgain = nearbyDevices?.length === 0 && knownDevices.length > 0;
+    const allowPairAgain =
+        notConnectedNearbyDevices?.length === 0 && notConnectedKnownDevices.length > 0;
 
     const openTrezorSupport = () => {
-        window.open(TREZOR_SUPPORT_URL, '_blank');
-        onGoBack?.();
+        window.open(TREZOR_SUPPORT_DEVICE_URL, '_blank');
+        toggleShowHints();
     };
 
     const cableItem: TroubleshootingTipsItem[] = useMemo(() => {
         const items = isWebUsbTransport
             ? [...commonCableTips, TROUBLESHOOTING_TIP_SUITE_DESKTOP]
-            : [
-                  TROUBLESHOOTING_TIP_BRIDGE_STATUS,
-                  ...commonCableTips,
-                  TROUBLESHOOTING_TIP_DIFFERENT_COMPUTER,
-              ];
-
-        if (bridgeDesktopApi?.bridgeProcess?.process) {
-            items.push(TROUBLESHOOTING_TIP_SUITE_DESKTOP_TOGGLE_BRIDGE);
-        } else {
-            // TODO: here we are going to put instruction to uninstall standalone bridge
-        }
+            : commonCableTips;
 
         return items;
-    }, [isWebUsbTransport, bridgeDesktopApi]);
+    }, [isWebUsbTransport]);
 
-    const tipItems = useMemo(() => {
-        if (isBluetoothMode && isDesktop()) {
-            return TROUBLESHOOTING_ALL_BLUETOOTH_TIPS;
-        }
-
-        return cableItem;
-    }, [isBluetoothMode, cableItem]);
-
-    const tertiaryButtonTranslation: TranslationKey = useMemo(() => {
-        if (isBluetoothMode) {
-            return allowPairAgain ? 'TR_STILL_NOT_WORKING' : 'TR_CANCEL';
-        }
-
-        return 'TR_CONTACT_TREZOR_SUPPORT';
-    }, [isBluetoothMode, allowPairAgain]);
-
-    const handlePrimaryCta = () => {
-        if (isBluetoothMode) {
-            onRescan?.();
-        }
-        onGoBack?.();
-    };
-
-    const handleTertiaryCta = () => {
-        if (isBluetoothMode) {
-            if (allowPairAgain) onStillDontWork();
-            onGoBack();
-        } else {
-            openTrezorSupport();
-        }
-    };
+    if (isBluetoothMode) {
+        return (
+            <Modal
+                onCancel={onClose}
+                width={400}
+                bottomContent={
+                    allowPairAgain && (
+                        <Modal.Button
+                            intent="neutral"
+                            priority="secondary"
+                            onClick={() => {
+                                analytics.report({
+                                    type: events.deviceConnectionHintModalEvent.name,
+                                    payload: {
+                                        option: 'notWorking',
+                                    },
+                                });
+                                toggleShouldPairAgain();
+                                toggleShowHints();
+                            }}
+                        >
+                            <Translation id="TR_STILL_NOT_WORKING" />
+                        </Modal.Button>
+                    )
+                }
+            >
+                <Column gap={32}>
+                    <Column gap={24} padding={{ horizontal: 8 }}>
+                        <H3 typographyStyle="headline-md" align="center" textWrap="pretty">
+                            <Translation id="TR_TREZOR_NEEDS_TO_BE_IN_PAIRING_MODE" />
+                        </H3>
+                        <Paragraph
+                            intent="neutral"
+                            priority="secondary"
+                            typographyStyle="body-sm"
+                            align="center"
+                            textWrap="balance"
+                        >
+                            <Translation id="TR_WINDOW_WILL_CLOSE_WHEN_TREZOR_IS_PAIRED" />
+                        </Paragraph>
+                    </Column>
+                    <AnimationCard aspectRatio="1">
+                        <DeviceAnimation
+                            type="PAIRING_MODE"
+                            deviceModelInternal={DeviceModelInternal.T3W1}
+                            loop
+                        />
+                    </AnimationCard>
+                </Column>
+            </Modal>
+        );
+    }
 
     return (
         <Modal
+            width={600}
             bottomContent={
                 <>
-                    <Button onClick={handlePrimaryCta} variant="info">
-                        <Translation
-                            id={isBluetoothMode ? 'TR_BLUETOOTH_SCAN_AGAIN' : 'TR_GOT_IT'}
-                        />
-                    </Button>
-                    <Button variant="tertiary" onClick={handleTertiaryCta}>
-                        <Translation id={tertiaryButtonTranslation} />
-                    </Button>
+                    <Modal.Button onClick={toggleShowHints}>
+                        <Translation id="TR_GOT_IT" />
+                    </Modal.Button>
+                    <Modal.Button
+                        intent="neutral"
+                        priority="secondary"
+                        onClick={() => {
+                            openTrezorSupport();
+                            onClose();
+                        }}
+                    >
+                        <Translation id="TR_CONTACT_TREZOR_SUPPORT" />
+                    </Modal.Button>
                 </>
             }
             heading={<Translation id="TR_STILL_DONT_SEE_YOUR_TREZOR" />}
-            onCancel={onGoBack}
+            onCancel={toggleShowHints}
+            intent="info"
         >
-            <TroubleshootingTipsList items={tipItems} />
+            <TroubleshootingTipsList items={cableItem} />
         </Modal>
     );
 };

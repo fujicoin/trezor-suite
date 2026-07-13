@@ -5,3 +5,5 @@ export * from './types';
 export * from './deviceModelInternal';
 export * from './deviceModelInternalUtils';
 export * from './models';
+export * from './deviceColorUtils';
+export * from './staticSessionIdUtils';

@@ -1,26 +1,28 @@
 // origin: https://github.com/trezor/connect/blob/develop/src/js/core/methods/blockchain/BlockchainSetCustomBackend.js
 
-import { ERRORS } from '../constants';
+import type { CoinInfo, PermissionRequest } from '@trezor/connect-common';
+import { ERRORS } from '@trezor/connect-common/src/constants';
+
+import type { MethodMessage } from '../core/AbstractMethod';
 import { AbstractMethod } from '../core/AbstractMethod';
 import { validateParams } from './common/paramsValidator';
 import { reconnectAllBackends, setCustomBackend } from '../backend/BlockchainLink';
 import { getCoinInfo } from '../data/coinInfo';
-import type { CoinInfo } from '../types';
 
 type Params = {
     coinInfo: CoinInfo;
+    blockchainLink?: {
+        type: string;
+        url: string[];
+    };
 };
 
 export default class BlockchainSetCustomBackend extends AbstractMethod<
     'blockchainSetCustomBackend',
     Params
 > {
-    init() {
-        this.requiredPermissions = [];
-        this.useDevice = false;
-        this.useUi = false;
-
-        const { payload } = this;
+    constructor(message: MethodMessage<'blockchainSetCustomBackend'>) {
+        const { payload } = message;
 
         // validate incoming parameters
         validateParams(payload, [
@@ -33,11 +35,17 @@ export default class BlockchainSetCustomBackend extends AbstractMethod<
             throw ERRORS.TypedError('Method_UnknownCoin');
         }
 
-        setCustomBackend(coinInfo, payload.blockchainLink);
+        const { blockchainLink } = payload;
 
-        this.params = {
-            coinInfo,
-        };
+        const params = { coinInfo, blockchainLink };
+
+        super(message, params);
+        this.useDevice = false;
+        this.useUi = false;
+    }
+
+    get requiredPermissions(): PermissionRequest[] {
+        return [{ permission: 'internal' }];
     }
 
     get info() {
@@ -45,6 +53,8 @@ export default class BlockchainSetCustomBackend extends AbstractMethod<
     }
 
     async run() {
+        setCustomBackend(this.params.coinInfo, this.params.blockchainLink);
+
         await reconnectAllBackends(this.params.coinInfo);
 
         return true;

@@ -4,8 +4,8 @@ import { sentryWebpackPlugin } from '@sentry/webpack-plugin';
 import childProcess from 'child_process';
 import fs from 'fs';
 import { sync } from 'glob';
+import TerserPlugin from 'minimizer-webpack-plugin';
 import path from 'path';
-import TerserPlugin from 'terser-webpack-plugin';
 import webpack from 'webpack';
 
 import { suiteVersion } from '../../suite/package.json';
@@ -53,6 +53,7 @@ const threads = sync(`${threadPath}/**/*.ts`).map(globMatch => {
 });
 
 // Add Windows Hello child process to the build
+const winHelloChildProcessKey = 'winHelloChildProcess'; // must match the expected /dist filename that WinHelloProcessManager requires
 const winHelloChildProcessPath = path.join(
     __dirname,
     '../../suite-desktop-native/src/winHelloChildProcess.ts',
@@ -76,22 +77,33 @@ const config: webpack.Configuration = {
     target: 'electron-main',
     mode: isDev ? 'development' : 'production',
     devtool: 'source-map',
-    entry: ['app', 'preload', ...threads, 'winHelloChildProcess'].reduce(
+    // Note that the entries key is important, it sets the the output file name in dist/
+    entry: [
+        // NOTE: in DEV ONLY pick app with react dev tools installed
+        { app: isDev ? 'app-with-devtools' : 'app' },
+        { preload: 'preload' },
+        ...threads.map(thread => ({ [String(thread)]: thread })),
+    ].reduce(
         (prev, cur) => ({
             ...prev,
-            [cur]:
-                cur === 'winHelloChildProcess'
-                    ? winHelloChildProcessPath
-                    : path.resolve(__dirname, `../src/${cur}.ts`),
+            ...Object.entries(cur).reduce(
+                (acc, [key, value]) => ({
+                    ...acc,
+                    [key]: path.resolve(__dirname, `../src/${value}.ts`),
+                }),
+                {},
+            ),
         }),
-        {},
+        { [winHelloChildProcessKey]: winHelloChildProcessPath },
     ),
     output: {
         filename: '[name].js',
         chunkFilename: a => {
-            const chunkName = a.chunk?.name;
-            if (chunkName && /-worker$/.test(chunkName)) return `workers/${chunkName}.js`;
-            if (chunkName && /-api$/.test(chunkName)) return `coins/${chunkName}.js`;
+            const { name, id } = a.chunk ?? {};
+
+            if (id && typeof id === 'string' && /node_modules/.test(id)) return `vendor/[name].js`;
+
+            if (name && /-api-index-ts$/.test(name)) return `${name.replace(/-index-ts$/, '')}.js`;
 
             return '[name].js';
         },
@@ -144,9 +156,11 @@ const config: webpack.Configuration = {
         splitChunks: {
             chunks: 'all',
             name(_: any, chunks: any) {
-                return chunks.length === 1
-                    ? chunks[0].name
-                    : `shared/${chunks.map((item: any) => item.name.split('/').pop()).join('~')}`;
+                if (chunks.every((item: any) => item.name)) {
+                    return chunks.length > 1
+                        ? `shared/${chunks.map((item: any) => item.name.split('/').pop()).join('~')}`
+                        : chunks[0].name;
+                }
             },
         },
         minimizer: [

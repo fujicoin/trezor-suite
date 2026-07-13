@@ -1,15 +1,16 @@
 import {
-    CTAAction,
-    Category,
-    Condition,
-    CountryCode,
-    FirmwareVariant,
-    Model,
-    Variant,
-    Vendor,
+    type CTAAction,
+    type Category,
+    type Condition,
+    type CountryCode,
+    type FirmwareVariant,
+    type Model,
+    type PairingMethod,
+    type Variant,
+    type Vendor,
 } from '@suite-common/suite-types';
 
-import { Context, Feature } from './messageSystemTypes';
+import { type Context, ExperimentId, Feature } from './messageSystemTypes';
 import { collectStringsDeep, toMessageSystemOptions } from './messageSystemUtils';
 import schema from '../schema/config.schema.v1.json';
 
@@ -37,7 +38,7 @@ export const FETCH_CHECK_INTERVAL_IN_MS_MOBILE = 180_000; // 3 min
 // timeout for fetching remote config
 export const FETCH_TIMEOUT_IN_MS = 30_000; // 30 sec
 
-export const CONFIG_URL_REMOTE_BASE = 'https://data.trezor.io/config';
+const CONFIG_URL_REMOTE_BASE = 'https://data.trezor.io/config';
 export const CONFIG_URL_REMOTE = {
     stable: `${CONFIG_URL_REMOTE_BASE}/stable/${JWS_CONFIG_FILENAME_REMOTE}`,
     develop: `${CONFIG_URL_REMOTE_BASE}/develop/${JWS_CONFIG_FILENAME_REMOTE}`,
@@ -60,7 +61,15 @@ export const CONTEXT_PATTERNS = {
     },
     getTrading: {
         pattern: 'trading.{type}',
-        regex: /^trading\.(buy|sell|exchange)$/,
+        regex: /^trading\.(buy|sell|exchange|concierge)$/,
+    },
+    getEarnDashboard: {
+        pattern: 'earn.dashboard.{type}',
+        regex: /^earn\.dashboard\.(staking|yield)$/,
+    },
+    getEarnYield: {
+        pattern: 'earn.yield.{type}',
+        regex: /^earn\.yield\.(deposit|withdraw|redeem|claim)$/,
     },
     getSettings: {
         pattern: 'settings.{category}',
@@ -71,6 +80,10 @@ export const CONTEXT_PATTERNS = {
         regex: /^legal\.[a-z0-9-]+$/,
     },
 } as const satisfies Record<keyof typeof Context, { pattern: string; regex: RegExp }>;
+
+export const EXPERIMENT_MAP = Object.fromEntries(
+    Object.entries(ExperimentId).map(([name, id]) => [id, name]),
+) as Record<ExperimentId, keyof typeof ExperimentId>;
 
 export const CATEGORY_ENUM = schema.definitions.category.enum.sort() as readonly Category[];
 export const VARIANT_ENUM = schema.properties.actions.items.properties.message.properties.variant
@@ -85,6 +98,8 @@ export const FW_VARIANT_ENUM = schema.definitions.conditions.items.properties.de
     .properties.variant.enum as readonly FirmwareVariant[];
 export const VENDOR_ENUM = schema.definitions.conditions.items.properties.devices.items.properties
     .vendor.enum as readonly Vendor[];
+export const PAIRING_METHOD_ENUM = schema.definitions.conditions.items.properties.devices.items
+    .properties.thpProperties.properties.pairingMethods.items.enum as readonly PairingMethod[];
 
 export const CATEGORY_OPTIONS = toMessageSystemOptions(CATEGORY_ENUM);
 export const CATEGORY_FILTER_OPTIONS = toMessageSystemOptions([

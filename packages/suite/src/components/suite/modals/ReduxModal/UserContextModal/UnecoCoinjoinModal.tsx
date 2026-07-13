@@ -1,14 +1,16 @@
+import { selectSelectedAccount } from '@suite/account';
+import { UNECONOMICAL_COINJOIN_THRESHOLD } from '@suite/coinjoin';
+import { Translation } from '@suite/intl';
+import { closeModal } from '@suite/modal';
+import { goto } from '@suite/router';
 import { convertAmountSubunitsToUnits, getAccountDecimals } from '@suite-common/wallet-utils';
 import { Column, H3, Modal, Paragraph } from '@trezor/components';
+import { ArrowsInIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { onCancel } from 'src/actions/suite/modalActions';
-import { goto } from 'src/actions/suite/routerActions';
-import { FormattedCryptoAmount, Translation } from 'src/components/suite';
-import { useDispatch } from 'src/hooks/suite/useDispatch';
+import { FormattedCryptoAmount } from 'src/components/suite/FormattedCryptoAmount';
+import { useDispatch } from 'src/hooks/suite';
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { selectSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
-import { UNECONOMICAL_COINJOIN_THRESHOLD } from 'src/services/coinjoin';
 
 export const UnecoCoinjoinModal = () => {
     const account = useSelector(selectSelectedAccount);
@@ -22,12 +24,12 @@ export const UnecoCoinjoinModal = () => {
     const decimals = getAccountDecimals(symbol) || 8;
 
     const handleContinue = () => {
-        dispatch(onCancel());
-        dispatch(goto('wallet-anonymize', { preserveParams: true }));
+        dispatch(closeModal());
+        dispatch(goto({ routeName: 'wallet-anonymize', preserveParams: true }));
     };
 
     const handleCancel = () => {
-        dispatch(onCancel());
+        dispatch(closeModal());
     };
 
     return (
@@ -38,20 +40,20 @@ export const UnecoCoinjoinModal = () => {
                     <Modal.Button onClick={handleContinue}>
                         <Translation id="TR_UNECO_COINJOIN_AGREE" />
                     </Modal.Button>
-                    <Modal.Button variant="tertiary" onClick={handleCancel}>
+                    <Modal.Button intent="neutral" priority="secondary" onClick={handleCancel}>
                         <Translation id="TR_CANCEL" />
                     </Modal.Button>
                 </>
             }
-            size="small"
-            variant="warning"
-            iconName="arrowsIn"
+            width={600}
+            intent="warning"
+            icon={ArrowsInIcon}
         >
             <Column gap={spacings.xs}>
                 <H3>
                     <Translation id="TR_UNECO_COINJOIN_TITLE" />
                 </H3>
-                <Paragraph variant="tertiary">
+                <Paragraph intent="neutral" priority="secondary">
                     <Translation
                         id="TR_UNECO_COINJOIN_EXPLANATION"
                         values={{
@@ -63,6 +65,7 @@ export const UnecoCoinjoinModal = () => {
                                     )}
                                     symbol={symbol}
                                     isRawString
+                                    disableHiddenPlaceholder
                                 />
                             ),
                             b: chunk => <strong>{chunk}</strong>,

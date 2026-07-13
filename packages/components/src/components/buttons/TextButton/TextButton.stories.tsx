@@ -1,63 +1,78 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
+import { action } from 'storybook/actions';
 
-import { TextButton as TextButtonComponent, TextButtonProps } from './TextButton';
-import { variables } from '../../../config';
+import * as generatedIcons from '@trezor/icons';
+
+import {
+    TextButton as TextButtonComponent,
+    type TextButtonProps,
+    allowedTextButtonFrameProps,
+} from './TextButton';
+import { textButtonSizes } from './types';
 import { getFramePropsStory } from '../../../utils/frameProps';
-import { allowedButtonFrameProps } from '../Button/Button';
-import { buttonSizes, buttonVariants, iconAlignments } from '../buttonStyleUtils';
+import { buttonIntents, buttonPriorities } from '../types';
 
-const meta: Meta = {
-    title: 'Buttons',
+const meta: Meta<typeof TextButtonComponent> = {
+    title: '🫵 Buttons',
     component: TextButtonComponent,
-} as Meta;
+};
 export default meta;
 
 export const TextButton: StoryObj<TextButtonProps> = {
     args: {
         children: 'Button label',
-        variant: 'primary',
-        iconAlignment: 'start',
+        onClick: action('onClick'),
+        intent: 'brand',
+        priority: 'primary',
         size: 'large',
+        isInverse: false,
         isDisabled: false,
         isLoading: false,
         isUnderlined: false,
-        ...getFramePropsStory(allowedButtonFrameProps).args,
+        ...getFramePropsStory(allowedTextButtonFrameProps).args,
     },
     argTypes: {
         children: {
-            table: {
-                type: {
-                    summary: 'ReactNode',
-                },
-            },
+            type: 'string',
         },
-        variant: {
-            control: {
-                type: 'radio',
-            },
-            options: buttonVariants,
+        href: {
+            type: 'string',
         },
-        icon: {
-            options: [null, ...variables.ICONS],
+        target: {
+            type: 'string',
+        },
+        intent: {
             control: {
                 type: 'select',
-                labels: {
-                    'No icon': null,
-                    ...variables.ICONS.reduce((acc, icon) => ({ ...acc, [icon]: icon }), {}),
-                },
             },
+            options: buttonIntents,
         },
-        iconAlignment: {
+        priority: {
             control: {
-                type: 'radio',
+                type: 'select',
             },
-            options: iconAlignments,
+            options: buttonPriorities,
+        },
+        iconLeft: {
+            options: ['none', ...Object.keys(generatedIcons)],
+            mapping: { none: undefined, ...generatedIcons },
+            control: { type: 'select' },
+        },
+        iconRight: {
+            options: ['none', ...Object.keys(generatedIcons)],
+            mapping: { none: undefined, ...generatedIcons },
+            control: { type: 'select' },
         },
         size: {
             control: {
-                type: 'radio',
+                type: 'select',
             },
-            options: buttonSizes,
+            options: textButtonSizes,
+        },
+        isInverse: {
+            control: {
+                type: 'boolean',
+            },
         },
         isDisabled: {
             control: {
@@ -74,9 +89,6 @@ export const TextButton: StoryObj<TextButtonProps> = {
                 type: 'boolean',
             },
         },
-        title: {
-            control: { type: 'text' },
-        },
-        ...getFramePropsStory(allowedButtonFrameProps).argTypes,
+        ...getFramePropsStory(allowedTextButtonFrameProps).argTypes,
     },
 };

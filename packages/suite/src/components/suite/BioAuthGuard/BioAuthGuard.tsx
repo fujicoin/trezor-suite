@@ -1,26 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import styled from 'styled-components';
 
-import { Button, Icon, Paragraph, Row, useElevation } from '@trezor/components';
+import { Translation } from '@suite/intl';
+import { Button, Icon, Paragraph, Row, Tooltip } from '@trezor/components';
 import { isMacOs } from '@trezor/env-utils';
-import {
-    Elevation,
-    borders,
-    mapElevationToBackground,
-    mapElevationToBorder,
-    spacingsPx,
-} from '@trezor/theme';
+import { LockFilledIcon } from '@trezor/icons';
+import { borders, spacingsPx } from '@trezor/theme';
 
-import { bioAuthActions } from 'src/actions/suite/bioAuthActions';
-import {
-    bioAuthWindowBlurThunk,
-    bioAuthWindowFocusThunk,
-    checkBioAuthAvailableThunk,
-    requestBioAuthValidationThunk,
-    requestOnceBioAuthValidationThunk,
-} from 'src/actions/suite/bioAuthThunks';
-import { Translation } from 'src/components/suite';
 import {
     Body,
     Columns,
@@ -28,21 +15,17 @@ import {
     PageWrapper,
     Wrapper,
 } from 'src/components/suite/layouts/SuiteLayout/SuiteLayout';
-import { useDispatch, useSelector, useTranslation } from 'src/hooks/suite';
-import {
-    selectBioAuthEnabled,
-    selectHasEverValidatedBioAuth,
-    selectIsBioAuthValidationRequired,
-} from 'src/reducers/bioAuth';
+import { useDispatch } from 'src/hooks/suite';
+import { useBioAuthDesktopApi } from 'src/hooks/suite/useBioAuthDesktopApi';
 
-const Container = styled.div<{ $elevation: Elevation }>`
+const Container = styled.div`
     display: flex;
-    border: 1px solid ${mapElevationToBorder};
+    border: 1px solid ${({ theme }) => theme.surfaceBorderRaised};
     gap: ${spacingsPx.xxs};
     align-items: center;
     width: 334px;
     height: 212px;
-    background: ${mapElevationToBackground};
+    background: ${({ theme }) => theme.surfaceFillRaised};
     border-radius: ${borders.radii.lg};
     flex-direction: column;
     justify-content: space-between;
@@ -51,22 +34,13 @@ const Container = styled.div<{ $elevation: Elevation }>`
 `;
 
 const BioAuthOverlay = ({
-    isBioAuthValidationRequired,
+    isBioAuthAvailable,
+    onPrimaryButtonClick,
 }: {
-    isBioAuthValidationRequired: boolean;
+    isBioAuthAvailable: boolean;
+    onPrimaryButtonClick: () => void;
 }) => {
-    const dispatch = useDispatch();
     const wrapperRef = useRef<HTMLDivElement>(null);
-    const { elevation } = useElevation();
-    const { translationString } = useTranslation();
-
-    const hasEverValidatedBioAuth = useSelector(selectHasEverValidatedBioAuth);
-
-    useEffect(() => {
-        if (!hasEverValidatedBioAuth && isBioAuthValidationRequired) {
-            dispatch(requestOnceBioAuthValidationThunk({ translationString }));
-        }
-    }, [hasEverValidatedBioAuth, dispatch, isBioAuthValidationRequired, translationString]);
 
     return (
         <Wrapper ref={wrapperRef} data-testid="@suite-layout">
@@ -80,36 +54,35 @@ const BioAuthOverlay = ({
                                 alignItems="center"
                                 justifyContent="center"
                             >
-                                {isBioAuthValidationRequired ? (
-                                    <Container $elevation={elevation}>
-                                        <Icon name="lockFilled" />
-                                        <Paragraph typographyStyle="titleSmall">
-                                            <Translation id="TR_BIO_AUTH_LOCKED_HEADING" />
-                                        </Paragraph>
-                                        <Paragraph typographyStyle="body">
-                                            {isMacOs() ? (
-                                                <Translation id="TR_BIO_AUTH_LOCKED_TEXT_MAC" />
-                                            ) : (
-                                                <Translation id="TR_BIO_AUTH_LOCKED_TEXT_WIN" />
-                                            )}
-                                        </Paragraph>
+                                <Container>
+                                    <Icon as={LockFilledIcon} />
+                                    <Paragraph align="center" typographyStyle="headline-sm">
+                                        <Translation id="TR_BIO_AUTH_LOCKED_HEADING" />
+                                    </Paragraph>
+                                    <Paragraph align="center" typographyStyle="body-md">
+                                        {isMacOs() ? (
+                                            <Translation id="TR_BIO_AUTH_LOCKED_TEXT_MAC" />
+                                        ) : (
+                                            <Translation id="TR_BIO_AUTH_LOCKED_TEXT_WIN" />
+                                        )}
+                                    </Paragraph>
+                                    <Tooltip
+                                        width="100%"
+                                        isActive={!isBioAuthAvailable}
+                                        content={
+                                            <Translation id="TR_BIO_AUTH_NOT_AVAILABLE_TOOLTIP_CONTENT" />
+                                        }
+                                    >
                                         <Button
-                                            isFullWidth
-                                            variant="primary"
-                                            onClick={() =>
-                                                dispatch(
-                                                    requestBioAuthValidationThunk({
-                                                        translationString,
-                                                    }),
-                                                )
-                                            }
+                                            isDisabled={!isBioAuthAvailable}
+                                            width="100%"
+                                            intent="brand"
+                                            onClick={() => onPrimaryButtonClick()}
                                         >
                                             <Translation id="TR_BIO_AUTH_UNLOCK" />
                                         </Button>
-                                    </Container>
-                                ) : (
-                                    <Icon name="eyeSlashFilled" />
-                                )}
+                                    </Tooltip>
+                                </Container>
                             </Row>
                         </MainContent>
                     </Columns>
@@ -120,43 +93,63 @@ const BioAuthOverlay = ({
 };
 
 export const BioAuthGuard = ({ children }: { children: React.ReactNode }) => {
-    const isBioAuthValidationRequired = useSelector(state =>
-        selectIsBioAuthValidationRequired(state, new Date()),
-    );
-    const isBioAuthAvailable = useSelector(selectBioAuthEnabled);
-    const isAppUiHidden = false; // NOTE: temporary
+    const [isWindowFocused, setIsWindowFocused] = useState(true);
+
+    const {
+        isBioAuthAvailable,
+        isBioAuthEnabled,
+        isBioAuthValidationRequired,
+        requestBioAuthValidation,
+        isCallInProgress,
+        cancelled,
+    } = useBioAuthDesktopApi();
+
     const dispatch = useDispatch();
 
     useEffect(() => {
-        dispatch(checkBioAuthAvailableThunk());
-    }, [dispatch]);
-
-    useEffect(() => {
-        if (!isBioAuthAvailable) {
-            return;
-        }
-        dispatch(bioAuthActions.initBioAuth(performance.now()));
+        if (!isBioAuthEnabled) return;
 
         const handleBlur = () => {
-            dispatch(bioAuthWindowBlurThunk(new Date()));
+            setIsWindowFocused(false);
         };
 
         const handleFocus = () => {
-            dispatch(bioAuthWindowFocusThunk(new Date()));
+            setIsWindowFocused(true);
         };
 
         window.addEventListener('blur', handleBlur);
-
         window.addEventListener('focus', handleFocus);
 
         return () => {
             window.removeEventListener('blur', handleBlur);
             window.removeEventListener('focus', handleFocus);
         };
-    }, [dispatch, isBioAuthAvailable]);
+    }, [dispatch, isBioAuthEnabled]);
 
-    return isAppUiHidden || isBioAuthValidationRequired ? (
-        <BioAuthOverlay isBioAuthValidationRequired={isBioAuthValidationRequired} />
+    useEffect(() => {
+        if (!isBioAuthEnabled) return;
+        if (!isBioAuthAvailable) return;
+        if (!isBioAuthValidationRequired) return;
+        if (!isWindowFocused) return;
+        if (isCallInProgress) return;
+        if (cancelled) return;
+
+        requestBioAuthValidation();
+    }, [
+        isBioAuthAvailable,
+        isBioAuthEnabled,
+        isBioAuthValidationRequired,
+        isWindowFocused,
+        isCallInProgress,
+        cancelled,
+        requestBioAuthValidation,
+    ]);
+
+    return isBioAuthEnabled && isBioAuthValidationRequired ? (
+        <BioAuthOverlay
+            isBioAuthAvailable={isBioAuthAvailable}
+            onPrimaryButtonClick={requestBioAuthValidation}
+        />
     ) : (
         children
     );

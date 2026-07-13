@@ -1,8 +1,8 @@
+import { Translation } from '@suite/intl';
+import { type RecoveryType, recoveryTypes } from '@suite/recovery';
 import { Card, Column, Grid, H4, Icon, Paragraph, RadioCard, Row } from '@trezor/components';
+import { RecoverySeedFilledIcon, TrezorModelOneFilledIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
-
-import { Translation } from 'src/components/suite';
-import { RecoveryType, recoveryTypes } from 'src/types/recovery';
 
 type SelectRecoveryTypeStepProps = {
     setRecoveryType: (type: RecoveryType) => void;
@@ -22,22 +22,23 @@ export const SelectRecoveryTypeStep = ({
                 {recoveryTypes.map(type => (
                     <RadioCard
                         key={type}
-                        isActive={recoveryType === type}
+                        isSelected={recoveryType === type}
                         onClick={() => setRecoveryType(type)}
                         dataTestId={`@recovery/select-type/${type}`}
                     >
                         <Row gap={spacings.md} padding={{ left: spacings.xxs }}>
                             <Icon
-                                name={
+                                as={
                                     type === 'standard'
-                                        ? 'recoverySeedFilled'
-                                        : 'trezorModelOneFilled'
+                                        ? RecoverySeedFilledIcon
+                                        : TrezorModelOneFilledIcon
                                 }
-                                size="extraLarge"
-                                variant="tertiary"
+                                size={32}
+                                intent="neutral"
+                                priority="secondary"
                             />
                             <Column gap={spacings.xxxs}>
-                                <Paragraph typographyStyle="highlight">
+                                <Paragraph typographyStyle="body-md-strong">
                                     <Translation
                                         id={
                                             type === 'standard'
@@ -46,7 +47,11 @@ export const SelectRecoveryTypeStep = ({
                                         }
                                     />
                                 </Paragraph>
-                                <Paragraph typographyStyle="hint" variant="tertiary">
+                                <Paragraph
+                                    typographyStyle="body-sm"
+                                    intent="neutral"
+                                    priority="secondary"
+                                >
                                     <Translation
                                         id={
                                             type === 'standard'

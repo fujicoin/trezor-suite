@@ -2,17 +2,17 @@ import { useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
-import { selectIsDeviceInBootloader } from '@suite-common/wallet-core';
+import { selectIsDeviceInBootloader } from '@suite-common/device';
 import { Translation } from '@suite-native/intl';
 import {
     AppTabsRoutes,
-    DeviceSettingsStackParamList,
-    DeviceSettingsStackRoutes,
+    type DeviceSettingsStackParamList,
+    type DeviceSettingsStackRoutes,
     HomeStackRoutes,
     LoadingSuccessScreen,
-    RootStackParamList,
+    type RootStackParamList,
     RootStackRoutes,
-    StackToStackCompositeNavigationProps,
+    type StackToStackCompositeNavigationProps,
 } from '@suite-native/navigation';
 
 type NavigationProps = StackToStackCompositeNavigationProps<
@@ -26,7 +26,7 @@ export const WipeDeviceLoadingScreen = () => {
     const isDeviceInBootloader = useSelector(selectIsDeviceInBootloader);
 
     const handleFinish = () => {
-        navigation.navigate(RootStackRoutes.AppTabs, {
+        navigation.popTo(RootStackRoutes.AppTabs, {
             screen: AppTabsRoutes.HomeStack,
             params: {
                 screen: HomeStackRoutes.Home,

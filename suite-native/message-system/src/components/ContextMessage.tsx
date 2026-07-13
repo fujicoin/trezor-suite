@@ -1,56 +1,50 @@
 import { useSelector } from 'react-redux';
 
 import {
-    ContextDomain,
-    MessageSystemRootState,
-    selectContextMessage,
+    type ContextDomain,
+    type MessageSystemRootState,
+    selectContextMessageContent,
 } from '@suite-common/message-system';
-import { InlineAlertBox, InlineAlertBoxProps, Text } from '@suite-native/atoms';
+import { InlineAlertBox, type InlineAlertBoxProps, Text } from '@suite-native/atoms';
+import { selectLocale } from '@suite-native/intl';
 import { Link } from '@suite-native/link';
-
-import { useHandleMessageLink } from '../hooks/useHandleMessageLink';
 
 export type ContextMessageProps = Omit<
     InlineAlertBoxProps,
-    'variant' | 'title' | 'buttonLabel' | 'onButtonPress'
+    'intent' | 'title' | 'buttonLabel' | 'onButtonPress' | 'isCloseButtonDisplayed'
 > & {
     context: ContextDomain;
 };
 
 export const ContextMessage = ({ context, ...rest }: ContextMessageProps) => {
-    // TODO: We use only English locale in suite-native so far. When the localization to other
-    const language = 'en';
-    // languages is implemented, the language selection logic has to be added here.
+    const locale = useSelector(selectLocale);
     const message = useSelector((state: MessageSystemRootState) =>
-        selectContextMessage(state, context),
+        selectContextMessageContent(state, context, locale),
     );
 
-    const { linkLabel } = useHandleMessageLink({
-        messageCTA: message?.cta,
-        language,
-    });
+    if (!message) {
+        return null;
+    }
 
-    if (!message) return null;
-
-    const msgText = message.content[language];
-    const link = message?.cta?.link;
-    const shouldDisplayLink = !!(link && linkLabel);
+    const { content, cta, variant: intent } = message;
+    const { label, link } = cta ?? {};
+    const shouldDisplayLink = !!(link && label);
 
     return (
         <InlineAlertBox
-            variant={message.variant}
+            intent={intent}
             title={
-                <Text variant="label">
-                    {msgText}
-                    {msgText && shouldDisplayLink && ' '}
+                <Text variant="body-xs">
+                    {content}
+                    {content && shouldDisplayLink && ' '}
                     {shouldDisplayLink && (
                         <Link
-                            label={linkLabel}
-                            textVariant="label"
+                            label={label}
+                            textVariant="body-xs"
                             href={link}
                             isUnderlined
-                            textColor="textDefault"
-                            textPressedColor="textSubdued"
+                            textColor="contentPrimary"
+                            textPressedColor="contentSecondary"
                         />
                     )}
                 </Text>

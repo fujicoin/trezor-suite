@@ -1,14 +1,18 @@
+import { Translation } from '@suite/intl';
+
 import { PageHeader } from 'src/components/suite/layouts/SuiteLayout';
 import { BasicName } from 'src/components/suite/layouts/SuiteLayout/PageHeader/PageNames/BasicName';
 import { useLayout } from 'src/hooks/suite';
 
-import { PasswordManager } from './PasswordManager/PasswordManager';
+import { PasswordManager } from './PasswordManager';
 
 const PasswordManagerView = () => {
     useLayout(
         'Password manager',
         <PageHeader>
-            <BasicName nameId="TR_PASSWORD_MANAGER" />
+            <BasicName>
+                <Translation id="TR_PASSWORD_MANAGER" />
+            </BasicName>
         </PageHeader>,
     );
 

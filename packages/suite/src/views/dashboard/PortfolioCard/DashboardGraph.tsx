@@ -3,16 +3,20 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import { getUnixTime } from 'date-fns';
 import styled from 'styled-components';
 
+import { Translation } from '@suite/intl';
+import { selectSelectedDevice } from '@suite-common/device';
 import { calcTicks, calcTicksFromData } from '@suite-common/suite-utils';
-import { selectBaseCurrency, selectSelectedDevice } from '@suite-common/wallet-core';
+import { selectBaseCurrency } from '@suite-common/wallet-core';
 import { BASE_CURRENCY_ZERO } from '@suite-common/wallet-utils';
-import { Button, variables } from '@trezor/components';
+import { Box, Button } from '@trezor/components';
+import { RepeatIcon } from '@trezor/icons';
+import { typography } from '@trezor/theme';
 
 import { updateGraphData } from 'src/actions/wallet/graphActions';
-import { HiddenPlaceholder, TransactionsGraph, Translation } from 'src/components/suite';
+import { HiddenPlaceholder, TransactionsGraph } from 'src/components/suite';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { Account } from 'src/types/wallet';
-import { AggregatedDashboardHistory } from 'src/types/wallet/graph';
+import { type Account } from 'src/types/wallet';
+import { type AggregatedDashboardHistory } from 'src/types/wallet/graph';
 import { getMinMaxValueFromData, prepareGraphDataAsync } from 'src/utils/wallet/graph';
 
 const Wrapper = styled.div`
@@ -24,7 +28,6 @@ const Wrapper = styled.div`
 const GraphWrapper = styled(HiddenPlaceholder)`
     display: flex;
     flex: 1 1 auto;
-    padding: 16px 0;
     height: 320px;
 `;
 
@@ -35,8 +38,8 @@ const ErrorMessage = styled.div`
     padding: 20px;
     align-items: center;
     justify-content: center;
-    color: ${({ theme }) => theme.legacy.TYPE_LIGHT_GREY};
-    font-size: ${variables.FONT_SIZE.SMALL};
+    color: ${({ theme }) => theme.contentSecondary};
+    ${typography['body-sm']}
     text-align: center;
 `;
 
@@ -116,25 +119,31 @@ export const DashboardGraph = memo(({ accounts }: DashboardGraphProps) => {
                 {allFailed ? (
                     <ErrorMessage>
                         <Translation id="TR_COULD_NOT_RETRIEVE_DATA" />
-                        <Button onClick={onRefresh} icon="repeat" variant="tertiary">
+                        <Button
+                            onClick={onRefresh}
+                            iconLeft={RepeatIcon}
+                            intent="neutral"
+                            priority="secondary"
+                        >
                             <Translation id="TR_RETRY" />
                         </Button>
                     </ErrorMessage>
                 ) : (
-                    <TransactionsGraph
-                        hideToolbar
-                        variant="all-assets"
-                        onRefresh={onRefresh}
-                        isLoading={graph.isLoading || isProcessing}
-                        localCurrency={baseCurrencyCode}
-                        xTicks={xTicks}
-                        minMaxValues={[minMaxValues[0].toNumber(), minMaxValues[1].toNumber()]}
-                        data={data}
-                        selectedRange={graph.selectedRange}
-                        receivedValueFn={receivedValueFn}
-                        sentValueFn={sentValueFn}
-                        balanceValueFn={balanceValueFn}
-                    />
+                    <Box width="100%" height="100%">
+                        <TransactionsGraph
+                            variant="all-assets"
+                            onRefresh={onRefresh}
+                            isLoading={graph.isLoading || isProcessing}
+                            localCurrency={baseCurrencyCode}
+                            xTicks={xTicks}
+                            minMaxValues={[minMaxValues[0].toNumber(), minMaxValues[1].toNumber()]}
+                            data={data}
+                            selectedRange={graph.selectedRange}
+                            receivedValueFn={receivedValueFn}
+                            sentValueFn={sentValueFn}
+                            balanceValueFn={balanceValueFn}
+                        />
+                    </Box>
                 )}
             </GraphWrapper>
         </Wrapper>

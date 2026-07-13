@@ -1,7 +1,8 @@
+import { useEffect } from 'react';
 import { Platform, Vibration } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
-    SharedValue,
+    type SharedValue,
     runOnJS,
     useAnimatedReaction,
     useAnimatedStyle,
@@ -13,9 +14,11 @@ import {
 
 import { Canvas, Circle, Path, Skia } from '@shopify/react-native-skia';
 
-import { AnimatedVStack, Text } from '@suite-native/atoms';
-import { Translation, TxKeyPath } from '@suite-native/intl';
-import { useNativeStyles } from '@trezor/styles';
+import { Translation, type TxKeyPath } from '@suite-native/intl';
+import { useNativeStyles } from '@trezor/styles-native';
+
+import { AnimatedVStack } from './Stack';
+import { Text } from './Text';
 const CANVAS_SIZE = 88;
 const CIRCLE_CENTER = CANVAS_SIZE / 2;
 const BORDER_WIDTH = 2;
@@ -32,7 +35,7 @@ const LOADER_ARC_OVAL_CONFIG = {
     height: CANVAS_SIZE - BORDER_WIDTH * 2,
 };
 
-type HoldToConfirmButtonProps = {
+export type HoldToConfirmButtonProps = {
     onSuccess: () => void;
     isDisplayed?: SharedValue<boolean>;
     buttonLabelId?: TxKeyPath;
@@ -74,13 +77,14 @@ export const HoldToConfirmButton = ({
     );
 
     const tapGesture = Gesture.LongPress()
+        .minDuration(0)
         .hitSlop({
             top: GESTURE_HIT_SLOP,
             bottom: GESTURE_HIT_SLOP,
             left: GESTURE_HIT_SLOP,
             right: GESTURE_HIT_SLOP,
         })
-        .onBegin(() => {
+        .onStart(() => {
             runOnJS(startOnHoldVibration)();
             animationProgress.value = withTiming(1, { duration: BUTTON_ANIMATION_DURATION });
         })
@@ -120,9 +124,15 @@ export const HoldToConfirmButton = ({
         };
     });
 
+    useEffect(() => () => {
+        // If the animation finished succesfully but unmounts (by .popTo in navigation for example),
+        // it will keep vibrating until app restart so we need to cancel the animation in this case.
+        Vibration.cancel();
+    });
+
     return (
         <AnimatedVStack style={buttonAnimatedStyle} alignItems="center">
-            <Text variant="callout">
+            <Text variant="body-sm-strong">
                 <Translation id={buttonLabelId} />
             </Text>
             <GestureDetector gesture={tapGesture}>
@@ -134,23 +144,23 @@ export const HoldToConfirmButton = ({
                         cx={CIRCLE_CENTER}
                         cy={CIRCLE_CENTER}
                         r={CANVAS_SIZE / 2}
-                        color={utils.colors.borderOnElevation0}
+                        color={utils.colors.borderNeutral}
                     />
                     <Circle
                         cx={CIRCLE_CENTER}
                         cy={CIRCLE_CENTER}
                         r={CANVAS_SIZE / 2 - BORDER_WIDTH}
-                        color={utils.colors.backgroundSurfaceElevationNegative}
+                        color={utils.colors.surfaceFillSunken}
                     />
                     <Circle
                         cx={CIRCLE_CENTER}
                         cy={CIRCLE_CENTER}
                         r={animatedButtonRadius}
-                        color={utils.colors.backgroundPrimaryDefault}
+                        color={utils.colors.legacyBackgroundPrimaryDefault}
                     />
                     <Path
                         path={leftLoaderArcPath}
-                        color={utils.colors.backgroundPrimaryDefault}
+                        color={utils.colors.legacyBackgroundPrimaryDefault}
                         start={0}
                         end={animationProgress}
                         strokeCap="round"
@@ -160,7 +170,7 @@ export const HoldToConfirmButton = ({
                     />
                     <Path
                         path={rightLoaderArcPath}
-                        color={utils.colors.backgroundPrimaryDefault}
+                        color={utils.colors.legacyBackgroundPrimaryDefault}
                         start={0}
                         end={animationProgress}
                         strokeCap="round"

@@ -1,14 +1,14 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 
 import { DotIndicator as DotIndicatorComponent } from './DotIndicator';
 
-const meta = {
+const meta: Meta<typeof DotIndicatorComponent> = {
     title: 'DotIndicator',
     component: DotIndicatorComponent,
-} as Meta;
+};
 export default meta;
 
-export const DotIndicator: StoryObj = {
+export const DotIndicator: StoryObj<typeof meta> = {
     args: {
         isActive: false,
     },

@@ -1,45 +1,58 @@
-import { Button, Text, VStack } from '@suite-native/atoms';
+import { useSelector } from 'react-redux';
+
+import { HStack, Loader, Text, VStack } from '@suite-native/atoms';
+import { selectBluetoothAdapterStatus } from '@suite-native/bluetooth';
+import { Icon } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
-import { getScreenHeight } from '@trezor/env-utils';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { TurnOnDeviceAnimation } from './TurnOnDeviceAnimation';
 
-const ANIMATION_HEIGHT = getScreenHeight() * 0.6;
-
 type TurnOnAndUnlockDeviceScreenContentProps = {
-    onConnectViaCable?: () => void;
+    isStatusVisible?: boolean;
 };
 
-const animationStyle = prepareNativeStyle(() => ({
-    // Both height and width has to be set https://github.com/lottie-react-native/lottie-react-native/blob/master/MIGRATION-5-TO-6.md#updating-the-style-props
-    height: ANIMATION_HEIGHT,
-    width: '100%',
+const STATUS_HEIGHT = 48;
+
+const statusStyle = prepareNativeStyle((_, { isStatusVisible }: { isStatusVisible: boolean }) => ({
+    height: STATUS_HEIGHT,
+    alignItems: 'center',
+    opacity: isStatusVisible ? 1 : 0, // use opacity to prevent layout shifts
 }));
 
 export const TurnOnAndUnlockDeviceScreenContent = ({
-    onConnectViaCable,
+    isStatusVisible = true,
 }: TurnOnAndUnlockDeviceScreenContentProps) => {
     const { applyStyle } = useNativeStyles();
 
+    const bluetoothAdapterStatus = useSelector(selectBluetoothAdapterStatus);
+
     return (
-        <VStack paddingTop="sp24" flex={1} justifyContent="space-between" alignItems="center">
-            <VStack spacing="sp32">
-                <Text variant="titleMedium" textAlign="center">
+        <VStack paddingTop="sp16" spacing="sp32" flex={1} justifyContent="space-between">
+            <VStack spacing="sp32" alignItems="center">
+                <Text variant="headline-md" textAlign="center">
                     <Translation id="moduleConnectDevice.turnOnAndUnlockScreen.title" />
                 </Text>
-                {onConnectViaCable && (
-                    <Button
-                        size="small"
-                        colorScheme="tertiaryElevation0"
-                        viewLeft="cableUsbC"
-                        onPress={onConnectViaCable}
-                    >
-                        <Translation id="moduleConnectDevice.turnOnAndUnlockScreen.connectViaCableButton" />
-                    </Button>
-                )}
+                <HStack style={applyStyle(statusStyle, { isStatusVisible })}>
+                    {bluetoothAdapterStatus === 'disabled' && (
+                        <>
+                            <Icon name="bluetoothSlash" color="contentInfo" />
+                            <Text variant="body-md" color="contentInfo">
+                                <Translation id="moduleConnectDevice.turnOnAndUnlockScreen.status.adapterDisabled" />
+                            </Text>
+                        </>
+                    )}
+                    {bluetoothAdapterStatus === 'enabled' && (
+                        <>
+                            <Loader color="contentBrand" />
+                            <Text variant="body-md" color="contentBrand">
+                                <Translation id="moduleConnectDevice.turnOnAndUnlockScreen.status.scanning" />
+                            </Text>
+                        </>
+                    )}
+                </HStack>
             </VStack>
-            <TurnOnDeviceAnimation style={applyStyle(animationStyle)} />
+            <TurnOnDeviceAnimation />
         </VStack>
     );
 };

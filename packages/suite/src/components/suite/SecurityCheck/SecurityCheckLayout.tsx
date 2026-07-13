@@ -1,10 +1,16 @@
-import { selectSelectedDevice } from '@suite-common/wallet-core';
-import { Box, Column, Grid, Image } from '@trezor/components';
-import { DeviceModelInternal } from '@trezor/device-utils';
-import { DeviceAnimation } from '@trezor/product-components';
-import { borders, spacings } from '@trezor/theme';
+import { selectSelectedDevice } from '@suite-common/device';
+import { Box, Column, Image } from '@trezor/components';
+import { DeviceModelInternal, getDeviceColorVariant } from '@trezor/device-utils';
+import type { ModelFor } from '@trezor/product-components';
+import {
+    DeviceAnimation,
+    DeviceWithScene,
+    getLargeModelImagePath,
+} from '@trezor/product-components';
+import { borders, breakpoints } from '@trezor/theme';
 
-import { useLayoutSize, useSelector } from 'src/hooks/suite';
+import { useSelector } from 'src/hooks/suite';
+import { ContentFlex } from 'src/support/suite/ContentFlex';
 
 type SecurityCheckLayoutProps = {
     isFailed?: boolean;
@@ -12,51 +18,68 @@ type SecurityCheckLayoutProps = {
     imageMode?: 'ROTATE' | 'STATIC';
 };
 
+type RotateModel = Extract<DeviceModelInternal, ModelFor<'ROTATE'>>;
+
+const isModelWithRotate = (model: DeviceModelInternal | undefined): model is RotateModel =>
+    !!model && model !== DeviceModelInternal.UNKNOWN;
+
+const getDeviceModel = (deviceModelInternal: DeviceModelInternal | undefined): RotateModel =>
+    isModelWithRotate(deviceModelInternal) ? deviceModelInternal : DeviceModelInternal.T3W1;
+
 export const SecurityCheckLayout = ({
     isFailed,
     children,
     imageMode,
 }: SecurityCheckLayoutProps) => {
     const device = useSelector(selectSelectedDevice);
-    const { isBelowTablet } = useLayoutSize();
+    const model = getDeviceModel(device?.features?.internal_model);
+    const isDeviceImageRotating = imageMode === 'ROTATE';
+    const deviceUnitColor = getDeviceColorVariant(device);
+    const image = getLargeModelImagePath(model, deviceUnitColor);
 
-    const deviceModelInternal = device?.features?.internal_model;
-    const imageVariant = isFailed ? 'GHOST' : 'LARGE';
-    const isDeviceImageRotating =
-        imageMode === 'ROTATE' &&
-        deviceModelInternal &&
-        [
-            DeviceModelInternal.T1B1,
-            DeviceModelInternal.T2T1,
-            DeviceModelInternal.T2B1,
-            DeviceModelInternal.T3B1,
-            DeviceModelInternal.T3T1,
-        ].includes(deviceModelInternal);
+    const getDeviceImage = () => {
+        if (isFailed) {
+            return (
+                <DeviceWithScene
+                    deviceModel={model}
+                    scene="ghost"
+                    width={150}
+                    unitColor={device?.features?.unit_color}
+                />
+            );
+        }
+
+        return <Image maxHeight={300} image={image} />;
+    };
 
     return (
-        <Grid columns={isBelowTablet ? '1fr' : '260px 1fr'} gap={spacings.xl} width="100%">
-            {deviceModelInternal && (
-                <Box hasBackground borderRadius={borders.radii.sm} padding={spacings.xxl}>
+        <ContentFlex breakpoint={breakpoints.tablet} gap={24} alignItems="center" width="100%">
+            {model && (
+                <Box
+                    backgroundColor="surfaceFillRaised"
+                    borderRadius={borders.radii.sm}
+                    padding={32}
+                    width="100%"
+                    maxWidth={260}
+                >
                     <Column height="100%" justifyContent="center" alignItems="center">
                         {isDeviceImageRotating ? (
                             <DeviceAnimation
                                 type="ROTATE"
-                                deviceModelInternal={deviceModelInternal}
-                                deviceUnitColor={device.features?.unit_color}
-                                height="300px" // NOTE: fill out the fixed height, we know that the video is 2x
+                                deviceModelInternal={model}
+                                deviceUnitColor={deviceUnitColor as any}
+                                height={300}
                                 sizeVariant="LARGE"
                             />
                         ) : (
-                            <Image
-                                maxHeight={300}
-                                isFilterActive={false}
-                                image={`TREZOR_${deviceModelInternal}_${imageVariant}`}
-                            />
+                            getDeviceImage()
                         )}
                     </Column>
                 </Box>
             )}
-            <Column justifyContent="space-between">{children}</Column>
-        </Grid>
+            <Column justifyContent="space-between" flex="1" width="100%" overflow="hidden">
+                {children}
+            </Column>
+        </ContentFlex>
     );
 };

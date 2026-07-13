@@ -1,13 +1,11 @@
-import { MouseEventHandler } from 'react';
-
-import { selectDeviceLabelOrNameById } from '@suite-common/wallet-core';
-import { Row, Tooltip } from '@trezor/components';
-import { DeviceModelInternal } from '@trezor/device-utils';
+import { selectDeviceLabelOrNameById } from '@suite-common/device';
+import { Row, ShortcutBadge, TOOLTIP_DELAY_LONG, Tooltip } from '@trezor/components';
+import { type DeviceModelInternal, getDeviceColorVariant } from '@trezor/device-utils';
 import { RotateDeviceImage } from '@trezor/product-components';
 import { spacings } from '@trezor/theme';
 
 import { useSelector } from 'src/hooks/suite';
-import { TrezorDevice } from 'src/types/suite';
+import { type TrezorDevice } from 'src/types/suite';
 import { DeviceDetail } from 'src/views/suite/SwitchDevice/DeviceItem/DeviceDetail';
 import { DeviceStatusText } from 'src/views/suite/SwitchDevice/DeviceItem/DeviceStatusText';
 
@@ -15,7 +13,6 @@ type DeviceStatusProps = {
     deviceModel: DeviceModelInternal;
     deviceNeedsRefresh?: boolean;
     device?: TrezorDevice;
-    handleRefreshClick?: MouseEventHandler;
     forceConnectionInfo?: boolean;
     isDeviceDetailVisible?: boolean;
 };
@@ -24,7 +21,6 @@ export const DeviceStatus = ({
     deviceModel,
     deviceNeedsRefresh = false,
     device,
-    handleRefreshClick,
     forceConnectionInfo = false,
     isDeviceDetailVisible = true,
 }: DeviceStatusProps) => {
@@ -32,36 +28,50 @@ export const DeviceStatus = ({
 
     const image = (
         <Row justifyContent="center" width={24} opacity={deviceNeedsRefresh ? 0.4 : 1}>
-            <RotateDeviceImage
-                deviceModel={deviceModel}
-                deviceColor={device?.features?.unit_color}
-                animationHeight="34px"
-            />
+            {device && (
+                <RotateDeviceImage
+                    deviceModel={deviceModel}
+                    deviceColor={getDeviceColorVariant(device)}
+                    height={34}
+                />
+            )}
         </Row>
     );
 
     const content = device && (
         <DeviceDetail label={deviceLabel}>
             <DeviceStatusText
-                onRefreshClick={handleRefreshClick}
                 device={device}
                 forceConnectionInfo={forceConnectionInfo}
+                deviceNeedsRefresh={deviceNeedsRefresh}
             />
         </DeviceDetail>
     );
 
     return (
-        <Row flex="1" gap={spacings.sm}>
+        <>
             {isDeviceDetailVisible ? (
-                <>
+                <Row justifyContent="space-between" gap={spacings.sm} overflow="hidden">
                     {image}
                     {content}
-                </>
+                </Row>
             ) : (
-                <Tooltip hasArrow cursor="inherit" placement="right" content={content}>
-                    {image}
-                </Tooltip>
+                <Row justifyContent="center">
+                    <Tooltip
+                        cursor="inherit"
+                        placement="right"
+                        delayShow={TOOLTIP_DELAY_LONG}
+                        content={
+                            <Row gap={16} alignItems="center">
+                                {content}
+                                <ShortcutBadge shortcut={['ALT', 'KEY_W']} />
+                            </Row>
+                        }
+                    >
+                        {image}
+                    </Tooltip>
+                </Row>
             )}
-        </Row>
+        </>
     );
 };

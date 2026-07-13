@@ -3,28 +3,35 @@ import { useSelector } from 'react-redux';
 
 import { useRoute } from '@react-navigation/native';
 
+import { useServices } from '@suite-common/dependency-injection';
 import {
-    AccountsRootState,
+    type AccountsRootState,
     selectAccountNetworkSymbol,
     useDisplayBaseCurrency,
 } from '@suite-common/wallet-core';
-import { EventType, analytics } from '@suite-native/analytics';
-import { ActiveView, AnimatedDoubleInput, HStack, Text, VStack } from '@suite-native/atoms';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
+import { type ActiveView, AnimatedDoubleInput, HStack, Text, VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
-import { SendStackParamList, SendStackRoutes, StackProps } from '@suite-native/navigation';
+import {
+    type SendStackParamList,
+    type SendStackRoutes,
+    type StackProps,
+} from '@suite-native/navigation';
 
 import { AmountErrorMessage } from './AmountErrorMessage';
 import { CryptoAmountInput } from './CryptoAmountInput';
 import { FiatAmountInput } from './FiatAmountInput';
-import { SendMaxButton } from './SendMaxButton';
+import { SendMaxSwitch } from './SendMaxSwitch';
 
 type AmountInputProps = {
     index: number;
+    maxSpendableAmount?: string;
 };
 
 type RouteProps = StackProps<SendStackParamList, SendStackRoutes.SendOutputs>['route'];
 
-export const AmountInputs = ({ index }: AmountInputProps) => {
+export const AmountInputs = ({ index, maxSpendableAmount }: AmountInputProps) => {
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const route = useRoute<RouteProps>();
     const { accountKey, tokenContract } = route.params;
 
@@ -36,7 +43,7 @@ export const AmountInputs = ({ index }: AmountInputProps) => {
 
     const onInputSwitch = (activeView: ActiveView) => {
         analytics.report({
-            type: EventType.SendAmountInputSwitched,
+            type: events.sendAmountInputSwitchedEvent.name,
             payload: { changedTo: activeView === 'primary' ? 'crypto' : 'fiat' },
         });
     };
@@ -47,14 +54,15 @@ export const AmountInputs = ({ index }: AmountInputProps) => {
         <VStack spacing="sp12">
             <HStack flex={1} justifyContent="space-between" alignItems="center">
                 <Animated.View layout={LinearTransition}>
-                    <Text variant="hint">
+                    <Text variant="body-sm">
                         <Translation id="moduleSend.outputs.recipients.amountLabel" />
                     </Text>
                 </Animated.View>
-                <SendMaxButton
+                <SendMaxSwitch
                     outputIndex={index}
                     accountKey={accountKey}
                     tokenContract={tokenContract}
+                    maxSpendableAmount={maxSpendableAmount}
                 />
             </HStack>
             {shallDisplayBaseCurrency ? (

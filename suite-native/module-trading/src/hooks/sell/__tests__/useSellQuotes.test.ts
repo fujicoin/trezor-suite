@@ -1,32 +1,35 @@
-import { INVITY_API_RELOAD_QUOTES_AFTER_SECONDS, tradingSellActions } from '@suite-common/trading';
 import {
-    PreloadedState,
-    TestStore,
-    act,
-    initStore,
-    renderHookWithStoreProviderAsync,
-} from '@suite-native/test-utils';
+    INVITY_API_RELOAD_QUOTES_AFTER_SECONDS,
+    tradingActions,
+    tradingSellActions,
+} from '@suite-common/trading';
+import { asAccountDescriptor } from '@suite-common/wallet-types';
+import { type TestStore, act, renderHookWithStoreProvider } from '@suite-native/test-utils-store';
+import {
+    banxaCreditCardSellQuote,
+    bnbAsset,
+    getBtcAccount,
+    getEthAccount,
+    sellQuotes,
+    usdcAsset,
+} from '@suite-native/trading-fixtures';
+import { type SellFormValues } from '@suite-native/trading-types';
 
-import { getBtcAccount } from '../../../__fixtures__/account';
-import { sellQuotes } from '../../../__fixtures__/sellQuotes';
-import { bnbAsset, usdcAsset } from '../../../__fixtures__/tradeableAssets';
-import { getWalletState } from '../../../__fixtures__/walletState';
-import { SellFormValues } from '../../../types/sell';
+import { createTradingLightStore } from '../../../__tests__/tradingTestUtils';
 import { useSellForm } from '../useSellForm';
 import { useSellQuotes } from '../useSellQuotes';
 
-let mockTimeSpent: number;
+const mockDebounce = (fn: () => unknown) => fn();
+
+const btc1Account = getBtcAccount({ descriptor: asAccountDescriptor('btc1normal') });
+const eth1Account = getEthAccount({ descriptor: asAccountDescriptor('eth1normal') });
 
 jest.mock('@trezor/react-utils', () => {
     const originalModule = jest.requireActual('@trezor/react-utils');
 
     return {
         ...originalModule,
-        useDebounce: () => (fn: () => unknown) => fn(),
-        useTimer: () => ({
-            ...originalModule.useTimer(),
-            timeSpent: { seconds: mockTimeSpent },
-        }),
+        useDebounce: () => mockDebounce,
     };
 });
 
@@ -41,19 +44,18 @@ jest.mock('@suite-common/trading', () => ({
 }));
 
 describe('useSellQuotes', () => {
-    const getInitializedStore = async () => {
-        const preloadedState: PreloadedState = {
-            wallet: getWalletState({
-                tradeType: 'sell',
-            }),
-        };
-        preloadedState.wallet!.tradingNew!.sell!.tradingAccountKey = 'btc-account-1';
-
-        return await initStore(preloadedState);
-    };
+    const getInitializedStore = () =>
+        createTradingLightStore({
+            tradeType: 'sell',
+            overrides: {
+                wallet: {
+                    trading: { sell: { tradingAccountKey: btc1Account.key } },
+                },
+            },
+        });
 
     const renderUseSellQuotes = (store: TestStore) =>
-        renderHookWithStoreProviderAsync(
+        renderHookWithStoreProvider(
             () => {
                 const form = useSellForm();
                 useSellQuotes(form);
@@ -63,22 +65,24 @@ describe('useSellQuotes', () => {
             { store },
         );
 
-    beforeEach(() => {
-        mockTimeSpent = 0;
+    afterEach(() => {
+        jest.useRealTimers();
     });
 
     it('should query quotes once all required data is selected', async () => {
-        const store = await getInitializedStore();
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result } = await renderUseSellQuotes(store);
+        const { result } = renderUseSellQuotes(store);
 
         act(() => {
             result.current.setValue('sendAsset', usdcAsset);
             result.current.setValue('fiatCurrency', 'usd');
             result.current.setValue('amountInCrypto', true);
         });
-        act(() => {
+        await act(async () => {
             result.current.setValue('cryptoStringAmount', '1');
+            // allow validations to run
+            await Promise.resolve();
         });
 
         expect(dispatchSpy).toHaveBeenCalledWith(
@@ -91,16 +95,18 @@ describe('useSellQuotes', () => {
     it.each<string>(['0', '-1'])(
         'should not query quotes when amount is zero or less',
         async amount => {
-            const store = await getInitializedStore();
+            const store = getInitializedStore();
             const dispatchSpy = jest.spyOn(store, 'dispatch');
-            const { result } = await renderUseSellQuotes(store);
+            const { result } = renderUseSellQuotes(store);
 
             act(() => {
                 result.current.setValue('sendAsset', bnbAsset);
                 result.current.setValue('fiatCurrency', 'usd');
             });
-            act(() => {
+            await act(async () => {
                 result.current.setValue('cryptoStringAmount', amount);
+                // allow validations to run
+                await Promise.resolve();
             });
 
             expect(dispatchSpy).not.toHaveBeenCalledWith(
@@ -112,17 +118,19 @@ describe('useSellQuotes', () => {
     );
 
     it('should accept amount in fiat when requested', async () => {
-        const store = await getInitializedStore();
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result } = await renderUseSellQuotes(store);
+        const { result } = renderUseSellQuotes(store);
 
         act(() => {
             result.current.setValue('sendAsset', usdcAsset);
             result.current.setValue('fiatCurrency', 'usd');
             result.current.setValue('amountInCrypto', false);
         });
-        act(() => {
+        await act(async () => {
             result.current.setValue('fiatStringAmount', '100');
+            // allow validations to run
+            await Promise.resolve();
         });
 
         expect(dispatchSpy).toHaveBeenCalledWith(
@@ -132,11 +140,11 @@ describe('useSellQuotes', () => {
         );
     });
 
-    it('should clear sell state on unmount', async () => {
-        const store = await getInitializedStore();
+    it('should clear sell state on unmount', () => {
+        const store = getInitializedStore();
         store.dispatch(tradingSellActions.saveQuotes(sellQuotes));
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { unmount } = await renderUseSellQuotes(store);
+        const { unmount } = renderUseSellQuotes(store);
 
         unmount();
 
@@ -149,19 +157,21 @@ describe('useSellQuotes', () => {
     it.each([
         ['fiatStringAmount', '1000'],
         ['country', 'CZ'],
-        ['sendAccount', getBtcAccount('btc-account-2')],
+        ['sendAccount', getBtcAccount({ descriptor: asAccountDescriptor('btcAccount2') })],
     ] as [keyof SellFormValues, SellFormValues[keyof SellFormValues]][])(
         'should re-fetch quotes on %s value change',
         async (field, value) => {
-            const store = await getInitializedStore();
+            const store = getInitializedStore();
             const dispatchSpy = jest.spyOn(store, 'dispatch');
-            const { result } = await renderUseSellQuotes(store);
+            const { result } = renderUseSellQuotes(store);
             act(() => {
                 result.current.setValue('sendAsset', usdcAsset);
                 result.current.setValue('fiatCurrency', 'usd');
             });
-            act(() => {
+            await act(async () => {
                 result.current.setValue('fiatStringAmount', '100');
+                // allow validations to run
+                await Promise.resolve();
             });
 
             dispatchSpy.mockClear();
@@ -169,8 +179,7 @@ describe('useSellQuotes', () => {
                 result.current.setValue(field, value);
             });
 
-            expect(dispatchSpy).toHaveBeenCalledTimes(1);
-            expect(dispatchSpy).toHaveBeenLastCalledWith(
+            expect(dispatchSpy).toHaveBeenCalledWith(
                 expect.objectContaining({
                     type: 'handleRequestThunkMock',
                 }),
@@ -179,21 +188,29 @@ describe('useSellQuotes', () => {
     );
 
     it('should re-fetch quotes when re-fetch time elapsed', async () => {
-        const store = await getInitializedStore();
+        jest.useFakeTimers();
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result, rerender } = await renderUseSellQuotes(store);
+        const { result } = renderUseSellQuotes(store);
         act(() => {
             result.current.setValue('sendAsset', usdcAsset);
             result.current.setValue('fiatCurrency', 'usd');
         });
 
-        act(() => {
+        await act(async () => {
             result.current.setValue('fiatStringAmount', '100');
+            // allow validations to run
+            await Promise.resolve();
         });
 
+        act(() => {
+            store.dispatch(tradingActions.setRefetchQuotesTimestamp(Date.now()));
+        });
         dispatchSpy.mockClear();
-        mockTimeSpent = INVITY_API_RELOAD_QUOTES_AFTER_SECONDS;
-        rerender({});
+
+        act(() => {
+            jest.advanceTimersByTime(INVITY_API_RELOAD_QUOTES_AFTER_SECONDS * 1000);
+        });
 
         expect(dispatchSpy).toHaveBeenCalledTimes(1);
         expect(dispatchSpy).toHaveBeenLastCalledWith(
@@ -203,26 +220,36 @@ describe('useSellQuotes', () => {
         );
     });
 
-    it('should not re-fetch quotes when re-fetch time elapsed but not all required data are available', async () => {
-        const store = await getInitializedStore();
+    it('should not re-fetch quotes when re-fetch time elapsed but not all required data are available', () => {
+        jest.useFakeTimers();
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result, rerender } = await renderUseSellQuotes(store);
+        const { result, unmount } = renderUseSellQuotes(store);
 
-        dispatchSpy.mockClear();
         act(() => {
             result.current.setValue('fiatCurrency', 'usd');
         });
 
-        mockTimeSpent = INVITY_API_RELOAD_QUOTES_AFTER_SECONDS;
-        rerender({});
+        act(() => {
+            store.dispatch(tradingActions.setRefetchQuotesTimestamp(Date.now()));
+        });
+        dispatchSpy.mockClear();
 
-        expect(dispatchSpy).not.toHaveBeenCalled();
+        act(() => {
+            jest.advanceTimersByTime(INVITY_API_RELOAD_QUOTES_AFTER_SECONDS * 1000);
+        });
+
+        expect(dispatchSpy).not.toHaveBeenCalledWith(
+            expect.objectContaining({ type: 'handleRequestThunkMock' }),
+        );
+
+        unmount();
     });
 
     it('should clear quotes when data in form becomes invalid', async () => {
-        const store = await getInitializedStore();
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result } = await renderUseSellQuotes(store);
+        const { result, unmount } = renderUseSellQuotes(store);
 
         act(() => {
             result.current.setValue('sendAsset', usdcAsset);
@@ -230,8 +257,10 @@ describe('useSellQuotes', () => {
             result.current.setValue('fiatStringAmount', '100');
         });
         // handleRequestThunk is mocked, add quotes manually
-        act(() => {
+        await act(async () => {
             store.dispatch(tradingSellActions.saveQuotes(sellQuotes));
+            // allow validations to run
+            await Promise.resolve();
         });
 
         dispatchSpy.mockClear();
@@ -240,28 +269,106 @@ describe('useSellQuotes', () => {
             result.current.setValue('fiatStringAmount', undefined);
         });
 
-        expect(dispatchSpy).toHaveBeenCalledTimes(1);
-        expect(dispatchSpy).toHaveBeenLastCalledWith({
+        expect(dispatchSpy).toHaveBeenNthCalledWith(1, {
             payload: undefined,
             type: 'tradingSell/clearQuotesAndQuotesRequest',
         });
-        expect(store.getState().wallet.tradingNew.sell.quotes).toEqual([]);
+        expect(store.getState().wallet.trading.sell.quotes).toEqual([]);
+
+        // unmount hook to avoid unintentional rerenders
+        unmount();
     });
 
-    it('should not query quotes when form contains error', async () => {
-        const store = await getInitializedStore();
+    it('should not clear quotes when error is from quote', async () => {
+        const sellQuoteWithTooHighCryptoAmount = {
+            ...banxaCreditCardSellQuote,
+            cryptoStringAmount: '2',
+        };
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result } = await renderUseSellQuotes(store);
+        const { result } = renderUseSellQuotes(store);
+
+        act(() => {
+            store.dispatch(tradingSellActions.setTradingAccountKey(eth1Account.key));
+            result.current.setValue('sendAsset', usdcAsset);
+            result.current.setValue('fiatCurrency', 'usd');
+            result.current.setValue('amountInCrypto', false);
+            result.current.setValue('fiatStringAmount', '100');
+        });
+        // handleRequestThunk is mocked, add quotes manually
+        await act(async () => {
+            store.dispatch(tradingSellActions.saveQuotes([sellQuoteWithTooHighCryptoAmount]));
+            // allow validations to run
+            await Promise.resolve();
+        });
+
+        dispatchSpy.mockClear();
+        expect(store.getState().wallet.trading.sell.quotes).toEqual([
+            sellQuoteWithTooHighCryptoAmount,
+        ]);
+        expect(result.current.getValues('quote')).toEqual(sellQuoteWithTooHighCryptoAmount);
+
+        // make sure form has an error
+        const { invalid } = result.current.getFieldState('cryptoStringAmount');
+        expect(invalid).toBe(true);
+    });
+
+    it('should not clear quotes when fiat quote exceeds max spendable amount', async () => {
+        const store = getInitializedStore();
+        const dispatchSpy = jest.spyOn(store, 'dispatch');
+        const { result } = renderUseSellQuotes(store);
 
         act(() => {
             result.current.setValue('sendAsset', usdcAsset);
             result.current.setValue('fiatCurrency', 'usd');
+            result.current.setValue('amountInCrypto', false);
+            result.current.setValue('fiatStringAmount', '100');
+        });
+        await act(async () => {
+            store.dispatch(tradingSellActions.saveQuotes(sellQuotes));
+            // allow validations to run
+            await Promise.resolve();
+        });
+
+        dispatchSpy.mockClear();
+        await act(async () => {
+            result.current.setError('cryptoStringAmount', {
+                type: 'network-reserve',
+                message: 'Not enough balance to cover fees',
+            });
+            // allow validations to run
+            await Promise.resolve();
+        });
+
+        expect(dispatchSpy).not.toHaveBeenCalledWith({
+            payload: undefined,
+            type: 'tradingSell/clearQuotesAndQuotesRequest',
+        });
+        expect(store.getState().wallet.trading.sell.quotes).toEqual(sellQuotes);
+    });
+
+    it('should not query quotes when form contains error', async () => {
+        const store = getInitializedStore();
+        const dispatchSpy = jest.spyOn(store, 'dispatch');
+        const { result } = renderUseSellQuotes(store);
+
+        await act(async () => {
+            result.current.setValue('sendAsset', usdcAsset);
+            result.current.setValue('fiatCurrency', 'usd');
             result.current.setValue('amountInCrypto', true);
             result.current.setValue('cryptoStringAmount', '1');
+            // allow validations to run
+            await Promise.resolve();
+        });
+
+        dispatchSpy.mockClear();
+        await act(async () => {
             result.current.setError('cryptoStringAmount', {
                 type: 'manual',
                 message: 'Some error',
             });
+            // allow validations to run
+            await Promise.resolve();
         });
 
         expect(dispatchSpy).not.toHaveBeenCalledWith(

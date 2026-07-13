@@ -2,11 +2,28 @@
     "extends": "../../tsconfig.base.json",
     "compilerOptions": { "outDir": "libDev" },
     "references": [
+        { "path": "../../suite-common/address" },
+        {
+            "path": "../../suite-common/dependency-injection"
+        },
+        { "path": "../../suite-common/device" },
         {
             "path": "../../suite-common/formatters"
         },
         {
-            "path": "../../suite-common/redux-utils"
+            "path": "../../suite-common/suite-sync"
+        },
+        {
+            "path": "../../suite-common/suite-utils"
+        },
+        {
+            "path": "../../suite-common/token-definitions"
+        },
+        {
+            "path": "../../suite-common/transaction-search"
+        },
+        {
+            "path": "../../suite-common/transfer-uri"
         },
         {
             "path": "../../suite-common/validators"
@@ -27,31 +44,42 @@
             "path": "../../suite-common/wallet-utils"
         },
         { "path": "../accounts" },
+        { "path": "../address" },
         { "path": "../alerts" },
         { "path": "../analytics" },
         { "path": "../atoms" },
         { "path": "../config" },
-        { "path": "../device" },
-        { "path": "../device-mutex" },
+        { "path": "../confirm-on-trezor" },
         { "path": "../formatters" },
         { "path": "../forms" },
         { "path": "../helpers" },
         { "path": "../icons" },
         { "path": "../intl" },
+        { "path": "../labeling" },
         { "path": "../link" },
         { "path": "../navigation" },
         { "path": "../qr-code" },
+        { "path": "../send" },
         { "path": "../tokens" },
         { "path": "../transaction-management" },
+        { "path": "../transactions" },
         {
             "path": "../../packages/blockchain-link-types"
         },
         { "path": "../../packages/connect" },
         { "path": "../../packages/react-utils" },
-        { "path": "../../packages/styles" },
+        {
+            "path": "../../packages/styles-native"
+        },
         { "path": "../../packages/theme" },
-        { "path": "../../packages/transport" },
-        { "path": "../../packages/utils" }
+        {
+            "path": "../../packages/transport-common"
+        },
+        { "path": "../../packages/urls" },
+        { "path": "../../packages/utils" },
+        { "path": "../test-utils" },
+        { "path": "../test-utils-store" },
+        { "path": "../../packages/requirements" }
     ],
     "include": [".", "**/*.json"]
 }

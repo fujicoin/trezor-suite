@@ -1,19 +1,28 @@
 import { useCallback, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 
+import { type RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { isFulfilled } from '@reduxjs/toolkit';
 
-import { createAndBackupWalletThunk } from '@suite-native/device';
+import { getIsIgnoredEntropyCheckError } from '@suite-common/device';
 import {
-    DeviceOnboardingStackParamList,
+    Feature,
+    type MessageSystemRootState,
+    selectIsFeatureEnabled,
+} from '@suite-common/message-system';
+import { ContinueOnTrezorScreenContent, createAndBackupWalletThunk } from '@suite-native/device';
+import {
+    type DeviceOnboardingStackParamList,
     DeviceOnboardingStackRoutes,
-    StackProps,
+    type RootStackParamList,
+    RootStackRoutes,
+    type StackToStackCompositeNavigationProps,
+    useNavigateToInitialScreen,
 } from '@suite-native/navigation';
-import { ERRORS } from '@trezor/connect';
+import { useToast } from '@suite-native/toasts';
+import { type ERRORS } from '@trezor/connect-common/src/constants';
 
-import { WalletCreationAccordionHint } from '../components/WalletCreationAccordionHint';
-import { WalletCreationBackupWarningCard } from '../components/WalletCreationBackupWarningCard';
-import { WalletInitScreenWrapper } from '../components/WalletInitScreenWrapper';
+import { DeviceOnboardingScreenWithExitButton } from '../components/DeviceOnboardingScreenWithExitButton';
 
 // Do not retry if user cancelled the flow via the app UI, or the Entropy check has failed
 const DEFINITIVE_ERRORS: ERRORS.ErrorCode[] = [
@@ -22,12 +31,28 @@ const DEFINITIVE_ERRORS: ERRORS.ErrorCode[] = [
     'Failure_EntropyCheck',
 ];
 
-export const WalletCreationScreen = ({
-    navigation,
-    route,
-}: StackProps<DeviceOnboardingStackParamList, DeviceOnboardingStackRoutes.WalletCreation>) => {
+type NavigationProp = StackToStackCompositeNavigationProps<
+    DeviceOnboardingStackParamList,
+    DeviceOnboardingStackRoutes.WalletCreation,
+    RootStackParamList
+>;
+
+type RouteProps = RouteProp<
+    DeviceOnboardingStackParamList,
+    DeviceOnboardingStackRoutes.WalletCreation
+>;
+
+export const WalletCreationScreen = () => {
+    const route = useRoute<RouteProps>();
     const { walletBackupType } = route.params;
     const dispatch = useDispatch();
+    const navigation = useNavigation<NavigationProp>();
+    const navigateToInitialScreen = useNavigateToInitialScreen();
+    const { showToast } = useToast();
+
+    const isEntropyCheckEnabled = useSelector((state: MessageSystemRootState) =>
+        selectIsFeatureEnabled(state, Feature.entropyCheckMobile, true),
+    );
 
     const handleCreateAndBackupWallet = useCallback(async () => {
         const response = await dispatch(createAndBackupWalletThunk({ walletBackupType }));
@@ -40,25 +65,47 @@ export const WalletCreationScreen = ({
                     flowType: 'create',
                 });
             }
-            if (
-                responsePayload.payload.code &&
-                DEFINITIVE_ERRORS.includes(responsePayload.payload.code)
-            ) {
+            const { code, message } = responsePayload.error;
+            const isDefinitiveError = code && DEFINITIVE_ERRORS.includes(code);
+            // inconclusive, so repeat the attempt
+            if (!isDefinitiveError || getIsIgnoredEntropyCheckError(message)) {
+                showToast({ intent: 'critical', message });
+                // This code is OK, but the eslint plugin crashes on recursive calls
+                // eslint-disable-next-line react-hooks/immutability
+                handleCreateAndBackupWallet();
+
                 return;
             }
-        }
 
-        handleCreateAndBackupWallet();
-    }, [dispatch, walletBackupType, navigation]);
+            // handle entropy check failure
+            if (isEntropyCheckEnabled && code === 'Failure_EntropyCheck') {
+                return navigation.navigate(RootStackRoutes.DeviceCompromisedModal, {
+                    failedCheck: 'entropy',
+                });
+            }
+            // canceled on device -> cancel in suite
+            else if (code === 'Failure_ActionCancelled' || code === 'Method_Interrupted') {
+                return navigateToInitialScreen();
+            }
+
+            console.error(`Unknown definitive code: '${code}'`);
+        }
+    }, [
+        dispatch,
+        walletBackupType,
+        navigation,
+        navigateToInitialScreen,
+        isEntropyCheckEnabled,
+        showToast,
+    ]);
 
     useEffect(() => {
         handleCreateAndBackupWallet();
     }, [handleCreateAndBackupWallet]);
 
     return (
-        <WalletInitScreenWrapper>
-            <WalletCreationAccordionHint />
-            <WalletCreationBackupWarningCard />
-        </WalletInitScreenWrapper>
+        <DeviceOnboardingScreenWithExitButton>
+            <ContinueOnTrezorScreenContent />
+        </DeviceOnboardingScreenWithExitButton>
     );
 };

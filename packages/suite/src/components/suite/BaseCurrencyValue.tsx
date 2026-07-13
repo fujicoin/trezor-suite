@@ -1,22 +1,24 @@
-import { JSX, ReactElement } from 'react';
+import { type JSX, type ReactElement } from 'react';
 
 import type { FormatNumberOptions } from '@formatjs/intl';
 import styled from 'styled-components';
 
+import { HiddenPlaceholder, type HiddenPlaceholderProps } from '@suite/discreet-mode';
+import { selectShouldAnimateLoadingSkeleton } from '@suite/ui-animations';
 import { useFormatters } from '@suite-common/formatters';
 import { selectIsSpecificCoinDefinitionKnown } from '@suite-common/token-definitions';
 import { CONTRACT_ADDRESS_FOR_NATIVE_TOKEN } from '@suite-common/trading';
-import { RateTypeWithoutHistoric, TokenAddress } from '@suite-common/wallet-types';
-import { asBaseCurrencyAmount } from '@suite-common/wallet-utils';
-import { SkeletonRectangle } from '@trezor/components';
+import {
+    type RateTypeWithoutHistoric,
+    type TokenAddress,
+    asBaseCurrencyAmount,
+} from '@suite-common/wallet-types';
+import { Skeleton } from '@trezor/components';
 import { BigNumber } from '@trezor/utils';
 
-import { HiddenPlaceholder } from 'src/components/suite';
-import { useLoadingSkeleton, useSelector } from 'src/hooks/suite';
+import { useSelector } from 'src/hooks/suite';
 import type { UseFiatFromCryptoValueParams } from 'src/hooks/suite/useFiatFromCryptoValue';
 import { useFiatFromCryptoValue } from 'src/hooks/suite/useFiatFromCryptoValue';
-
-import { HiddenPlaceholderProps } from './HiddenPlaceholder';
 
 // Do NOT use any prop from <HiddenPlaceholderProps>, its here just to fix types
 const SameWidthNums = styled.span<HiddenPlaceholderProps>`
@@ -29,7 +31,7 @@ interface Params {
     timestamp: number | null;
 }
 
-type BaseCurrencyValueProps = UseFiatFromCryptoValueParams & {
+export type BaseCurrencyValueProps = UseFiatFromCryptoValueParams & {
     children?: (props: Params) => ReactElement | null;
     showApproximationIndicator?: boolean;
     disableHiddenPlaceholder?: boolean;
@@ -73,7 +75,7 @@ export const BaseCurrencyValue = ({
     isLoading,
     rateType,
 }: BaseCurrencyValueProps) => {
-    const { shouldAnimate } = useLoadingSkeleton();
+    const shouldAnimate = useSelector(selectShouldAnimateLoadingSkeleton);
     const isNativeToken = !tokenAddress || tokenAddress === CONTRACT_ADDRESS_FOR_NATIVE_TOKEN;
     const { baseCurrencyCode, fiatAmount, rate, currentRate } = useFiatFromCryptoValue({
         amount,
@@ -96,13 +98,17 @@ export const BaseCurrencyValue = ({
         selectIsSpecificCoinDefinitionKnown(state, symbol, tokenAddress || ('' as TokenAddress)),
     );
 
-    if (
-        (!rate || !value || !currentRate?.lastTickerTimestamp || isLoading) &&
+    const isZeroAmount = new BigNumber(amount ?? 0).isZero();
+
+    const isLoadingSkeletonVisible =
         showLoadingSkeleton &&
+        isTokenKnown &&
+        !isZeroAmount &&
         !currentRate?.error &&
-        isTokenKnown
-    ) {
-        return <SkeletonRectangle animate={shouldAnimate} />;
+        (currentRate?.isLoading || isLoading);
+
+    if (isLoadingSkeletonVisible) {
+        return <Skeleton animate={shouldAnimate} />;
     }
 
     if (value) {

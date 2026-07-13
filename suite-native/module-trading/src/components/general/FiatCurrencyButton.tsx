@@ -1,11 +1,11 @@
 import { Pressable } from 'react-native';
 
-import { FiatCurrencyCode } from 'invity-api';
+import type { FiatCurrencyCode } from 'invity-api';
 
-import { Text } from '@suite-native/atoms';
+import { Text, buttonSizeToDimensionsMap } from '@suite-native/atoms';
 import { Icon } from '@suite-native/icons';
 import { useTranslate } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { FiatCurrencyIcon } from './FiatCurrencyIcon';
 
@@ -16,15 +16,13 @@ export type FiatCurrencyButtonProps = {
 };
 
 const buttonStyle = prepareNativeStyle(({ borders, colors, spacings }) => ({
-    height: spacings.sp40,
-    paddingHorizontal: spacings.sp8,
+    ...buttonSizeToDimensionsMap.medium,
     gap: spacings.sp8,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.backgroundSurfaceElevation1,
-    borderColor: colors.borderElevation0,
-    borderRadius: borders.radii.round,
+    backgroundColor: colors.elementFillNeutralSofter,
+    borderColor: colors.elementBorderNeutralSofter,
     borderWidth: borders.widths.small,
 }));
 
@@ -33,6 +31,7 @@ export const FiatCurrencyButton = ({ currency, onPress, testID }: FiatCurrencyBu
     const { translate } = useTranslate();
 
     const displayCurrency = (currency ?? '').toUpperCase();
+    const tickerTestID = testID ? `${testID}/ticker` : undefined;
 
     return (
         <Pressable
@@ -43,11 +42,11 @@ export const FiatCurrencyButton = ({ currency, onPress, testID }: FiatCurrencyBu
             accessibilityLabel={translate('moduleTrading.selectFiat.buttonTitle')}
             testID={testID}
         >
-            <FiatCurrencyIcon size="small" />
-            <Text variant="callout" color="textSubdued" testID={testID + '/ticker'}>
+            <FiatCurrencyIcon size="extraSmall" value={currency} />
+            <Text variant="body-sm-strong" color="contentPrimary" testID={tickerTestID}>
                 {displayCurrency}
             </Text>
-            <Icon name="caretDown" color="textSubdued" size="medium" />
+            <Icon name="caretDown" color="contentPrimary" size="medium" />
         </Pressable>
     );
 };

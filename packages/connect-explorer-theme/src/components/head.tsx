@@ -6,9 +6,9 @@ import { NextSeo } from 'next-seo';
 import { useTheme } from 'next-themes';
 import { useMounted } from 'nextra/hooks';
 
-import { useConfig } from '../contexts';
+import { useConfig } from '../contexts/useConfig';
 
-export function Head(): ReactElement {
+export function Head({ title }: { title?: string } = {}): ReactElement {
     const config = useConfig();
     const { resolvedTheme } = useTheme();
     const mounted = useMounted();
@@ -26,7 +26,7 @@ export function Head(): ReactElement {
     return (
         <>
             <NextSeo
-                title={config.title}
+                title={title ?? config.title}
                 description={frontMatter.description}
                 canonical={frontMatter.canonical}
                 openGraph={frontMatter.openGraph}

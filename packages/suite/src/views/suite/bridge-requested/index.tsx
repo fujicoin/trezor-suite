@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import { Card, Column, H3, Modal, Paragraph, Text } from '@trezor/components';
+import { Translation } from '@suite/intl';
+import { goto } from '@suite/router';
+import { selectConnectPopupCall } from '@suite-common/connect-popup';
+import { Card, Column, H3, H4, Modal, Paragraph } from '@trezor/components';
 import { isDesktop } from '@trezor/env-utils';
+import { AppWindowIcon, CaretLeftIcon } from '@trezor/icons';
 import { desktopApi } from '@trezor/suite-desktop-api';
 import { spacings } from '@trezor/theme';
 
-import { goto } from 'src/actions/suite/routerActions';
-import { Metadata, Translation } from 'src/components/suite';
-import { useDispatch, useLayout } from 'src/hooks/suite';
+import { Metadata } from 'src/components/suite';
+import { useDispatch, useLayout, useSelector } from 'src/hooks/suite';
 import { AutoStart } from 'src/views/settings/SettingsGeneral/AutoStart';
 
 import { ErrorPage } from '../ErrorPage';
@@ -17,10 +20,18 @@ import { ErrorPage } from '../ErrorPage';
  */
 export const BridgeRequested = () => {
     const [confirmGoToWallet, setConfirmGoToWallet] = useState(false);
+    const popupCall = useSelector(selectConnectPopupCall);
 
     const dispatch = useDispatch();
 
-    const goToWallet = () => dispatch(goto('wallet-index'));
+    const goToWallet = useCallback(() => dispatch(goto({ routeName: 'wallet-index' })), [dispatch]);
+
+    useEffect(() => {
+        // Popup flow started, exit the bridge requested foreground app
+        if (popupCall?.state && popupCall.state !== 'finished') {
+            goToWallet();
+        }
+    }, [popupCall, goToWallet]);
 
     const handleKeepInBackground = () => {
         if (desktopApi.available) {
@@ -42,9 +53,9 @@ export const BridgeRequested = () => {
     if (confirmGoToWallet) {
         return (
             <Modal
-                variant="warning"
-                size="small"
-                heading={<Translation id="TR_BRIDGE" />}
+                intent="warning"
+                width={600}
+                heading={<Translation id="TR_TREZOR_CONNECT" />}
                 onBackClick={() => setConfirmGoToWallet(false)}
                 bottomContent={
                     <>
@@ -52,7 +63,8 @@ export const BridgeRequested = () => {
                             <Translation id="TR_YES_CONTINUE" />
                         </Modal.Button>
                         <Modal.Button
-                            variant="tertiary"
+                            intent="neutral"
+                            priority="secondary"
                             onClick={() => setConfirmGoToWallet(false)}
                         >
                             <Translation id="TR_CANCEL" />
@@ -70,14 +82,15 @@ export const BridgeRequested = () => {
 
     return (
         <Modal
-            iconName="appWindow"
-            variant="info"
-            size="small"
+            icon={AppWindowIcon}
+            intent="info"
+            width={600}
             bottomContent={
                 <>
                     <Modal.Button
-                        icon="caretLeft"
-                        variant="tertiary"
+                        iconLeft={CaretLeftIcon}
+                        intent="neutral"
+                        priority="secondary"
                         onClick={() => setConfirmGoToWallet(true)}
                         data-testid="@bridge/goto/wallet-index"
                     >
@@ -95,17 +108,17 @@ export const BridgeRequested = () => {
             <Metadata title="Bridge | Trezor Suite" />
             <Column gap={spacings.xxs}>
                 <H3>
-                    <Translation id="TR_BRIDGE" />
+                    <Translation id="TR_TREZOR_CONNECT" />
                 </H3>
-                <Paragraph variant="tertiary">
+                <Paragraph intent="neutral" priority="secondary">
                     <Translation id="TR_BRIDGE_REQUESTED_DESCRIPTION" />
                 </Paragraph>
             </Column>
             <Card
-                label={
-                    <Text typographyStyle="label">
+                header={
+                    <H4>
                         <Translation id="TR_BRIDGE_TIP_AUTOSTART" />
-                    </Text>
+                    </H4>
                 }
                 margin={{ top: spacings.xxl }}
             >

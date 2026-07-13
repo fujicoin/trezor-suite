@@ -1,19 +1,19 @@
 import { useCallback } from 'react';
 import { useSelector } from 'react-redux';
 
-import { selectSelectedDevice } from '@suite-common/wallet-core';
+import { selectSelectedDevice } from '@suite-common/device';
 import { Box } from '@suite-native/atoms';
 import {
     ContinueOnTrezorScreenContent,
     selectShouldFactoryResetBeVisible,
 } from '@suite-native/device';
-import { Screen, ScreenHeader, useHandleHardwareBackNavigation } from '@suite-native/navigation';
+import { Screen, ScreenHeader, useInterceptNativeNavigation } from '@suite-native/navigation';
 import TrezorConnect from '@trezor/connect';
 
 export const WipeDeviceContinueOnTrezorScreen = () => {
     const shouldFactoryResetBeVisible = useSelector(selectShouldFactoryResetBeVisible);
 
-    useHandleHardwareBackNavigation(() => TrezorConnect.cancel());
+    useInterceptNativeNavigation({ onPress: TrezorConnect.cancel });
 
     const device = useSelector(selectSelectedDevice);
 

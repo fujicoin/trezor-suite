@@ -1,6 +1,6 @@
+import { Translation } from '@suite/intl';
 import { H3, Modal, Paragraph } from '@trezor/components';
-
-import { Translation } from '../../../components/suite';
+import { WarningIcon } from '@trezor/icons';
 
 type StepErrorProps = {
     onClose: () => void;
@@ -12,12 +12,12 @@ export const StepError = ({ onClose, error }: StepErrorProps) => (
         onCancel={onClose}
         data-testid="@firmware-modal"
         bottomContent={
-            <Modal.Button variant="tertiary" onClick={onClose}>
+            <Modal.Button intent="neutral" priority="secondary" onClick={onClose}>
                 <Translation id="TR_CLOSE" />
             </Modal.Button>
         }
-        iconName="warning"
-        variant="destructive"
+        icon={WarningIcon}
+        intent="critical"
     >
         <H3>
             <Translation id="TR_FW_INSTALLATION_FAILED" />

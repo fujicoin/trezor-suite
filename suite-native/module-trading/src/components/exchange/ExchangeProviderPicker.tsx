@@ -1,20 +1,15 @@
 import { useSelector } from 'react-redux';
 
-import { ExchangeTrade } from 'invity-api';
+import type { ExchangeTrade } from 'invity-api';
 
 import { invariant } from '@suite-common/suite-utils';
 import {
-    TradingRootState as TradingRootStateCommon,
+    type TradingRootState as TradingRootStateCommon,
     selectTradingProviderByNameAndTradeType,
-    selectTradingProviderKycPolicy,
 } from '@suite-common/trading';
 import { HStack, Text } from '@suite-native/atoms';
 import { useTranslate } from '@suite-native/intl';
-
-import { getKycPolicyWarningTranslation } from '../../utils/general/kycUtils';
-import { OverviewRow } from '../general/OverviewRow';
-import { OverviewValueSkeleton } from '../general/OverviewValueSkeleton';
-import { ProviderLogo } from '../general/ProviderLogo';
+import { OverviewRow, OverviewValueSkeleton, ProviderLogo } from '@suite-native/trading-atoms';
 
 type ExchangeProviderPickerRightProps = {
     isLoading: boolean;
@@ -24,6 +19,8 @@ type ExchangeProviderPickerRightProps = {
 export type ExchangeProviderPickerProps = ExchangeProviderPickerRightProps & {
     handleProviderPress: () => void;
 };
+
+const PROVIDER_PICKER_TEST_ID = '@trading/exchange/provider-picker';
 
 const ExchangeProviderPickerRight = ({
     isLoading,
@@ -46,8 +43,8 @@ const ExchangeProviderPickerRight = ({
         <HStack>
             <ProviderLogo logo={logo} />
             <Text
-                color="textSubdued"
-                variant="body"
+                color="contentPrimary"
+                variant="body-sm"
                 accessibilityLabel={translate('moduleTrading.tradingScreen.selectedProvider')}
             >
                 {companyName}
@@ -63,15 +60,9 @@ export const ExchangeProviderPicker = ({
 }: ExchangeProviderPickerProps) => {
     const { translate } = useTranslate();
 
-    const kycPolicy = useSelector((state: TradingRootStateCommon) =>
-        selectTradingProviderKycPolicy(state, selectedValue?.exchange, 'exchange'),
-    );
-
     if (!selectedValue && !isLoading) {
         return null;
     }
-
-    const warning = isLoading ? undefined : getKycPolicyWarningTranslation(kycPolicy);
 
     return (
         <>
@@ -80,7 +71,7 @@ export const ExchangeProviderPicker = ({
                 noBottomBorder
                 onPress={handleProviderPress}
                 noCaret={isLoading}
-                warning={warning}
+                testID={PROVIDER_PICKER_TEST_ID}
             >
                 <ExchangeProviderPickerRight isLoading={isLoading} selectedValue={selectedValue} />
             </OverviewRow>

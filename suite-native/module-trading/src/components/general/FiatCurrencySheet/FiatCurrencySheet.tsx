@@ -1,51 +1,54 @@
 import { memo, useCallback } from 'react';
 
-import { FiatCurrencyCode } from 'invity-api';
+import type { FiatCurrencyCode } from 'invity-api';
 
+import { type BottomSheetFlashListHandleProps, Divider } from '@suite-native/atoms';
 import { Translation, useTranslate } from '@suite-native/intl';
+import { BottomSheetSectionList, SearchableSheetHeader } from '@suite-native/trading-atoms';
+import { type FiatCurrencyItem } from '@suite-native/trading-types';
 
-import { useFiatCurrencyFilteredData } from '../../../hooks/general/useFiatCurrencyFilteredData';
-import { FiatCurrencyItem } from '../../../types/general';
-import { BottomSheetSectionList } from '../BottomSheetSectionList';
-import { SearchableSheetHeader } from '../SearchableSheetHeader';
 import { FiatCurrencyListEmptyComponent } from './FiatCurrencyListEmptyComponent';
-import { FIAT_CURRENCY_LIST_ITEM_HEIGHT, FiatCurrencyListItem } from './FiatCurrencyListItem';
+import { FiatCurrencyListItem } from './FiatCurrencyListItem';
+import { useFiatCurrencyFilteredData } from '../../../hooks/general/useFiatCurrencyFilteredData';
 
 export type FiatCurrencySheetProps = {
     isVisible: boolean;
     onClose: () => void;
     onFiatSelect: (currency: FiatCurrencyCode) => void;
     supportedFiatCurrencies: FiatCurrencyItem[];
+    searchInputTestId?: string;
 };
 
 const keyExtractor = (item: FiatCurrencyItem) => item.value;
+const ItemSeparator = () => <Divider />;
 
 export const FiatCurrencySheet = memo(
-    ({ isVisible, onClose, onFiatSelect, supportedFiatCurrencies }: FiatCurrencySheetProps) => {
+    ({
+        isVisible,
+        onClose,
+        onFiatSelect,
+        supportedFiatCurrencies,
+        searchInputTestId,
+    }: FiatCurrencySheetProps) => {
         const { filteredData, filterValue, setFilterValue } =
             useFiatCurrencyFilteredData(supportedFiatCurrencies);
         const { translate } = useTranslate();
 
-        // we need to keep stable callback reference, otherwise header will be re-mounted on every keystroke
         const renderHandle = useCallback(
-            () => (
+            ({ closeSheet }: BottomSheetFlashListHandleProps) => (
                 <SearchableSheetHeader
                     key="fiat_currency"
-                    onClose={onClose}
+                    onClose={closeSheet}
                     title={<Translation id="moduleTrading.fiatCurrencySheet.title" />}
                     onFilterChange={setFilterValue}
                     searchInputPlaceholder={translate(
                         'moduleTrading.fiatCurrencySheet.searchInputPlaceholder',
                     )}
+                    searchInputTestId={searchInputTestId}
                 />
             ),
-            [onClose, setFilterValue, translate],
+            [setFilterValue, translate, searchInputTestId],
         );
-
-        const onFiatSelectCallback = (currency: FiatCurrencyCode) => {
-            onFiatSelect(currency);
-            onClose();
-        };
 
         // re-mount FLashList component when filterValue changes (resets scroll position)
         const flashListKey = 'fiat_currencies_list-' + filterValue;
@@ -56,13 +59,20 @@ export const FiatCurrencySheet = memo(
                 onClose={onClose}
                 ListEmptyComponent={<FiatCurrencyListEmptyComponent />}
                 handleComponent={renderHandle}
-                renderItem={({ value, ...rest }) => (
-                    <FiatCurrencyListItem {...rest} onPress={() => onFiatSelectCallback(value)} />
+                renderItem={({ value, ...rest }, _config, { closeSheet }) => (
+                    <FiatCurrencyListItem
+                        {...rest}
+                        value={value}
+                        onPress={() => {
+                            onFiatSelect(value);
+                            closeSheet();
+                        }}
+                    />
                 )}
                 data={filteredData}
-                estimatedItemSize={FIAT_CURRENCY_LIST_ITEM_HEIGHT}
                 keyExtractor={keyExtractor}
                 flashListKey={flashListKey}
+                ItemSeparatorComponent={ItemSeparator}
                 noSingletonSectionHeader
             />
         );

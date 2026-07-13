@@ -1,17 +1,15 @@
+import React from 'react';
 import { useSelector } from 'react-redux';
 
 import { useSetAtom } from 'jotai';
 
-import { selectHasDeviceFirmwareInstalled } from '@suite-common/wallet-core';
 import { selectIsDeviceFirmwareSupported } from '@suite-native/device';
+import { ConfirmFirmwareUpdateScreenFooter, FirmwareVersionCard } from '@suite-native/firmware';
+import { Translation } from '@suite-native/intl';
 import {
-    ConfirmFirmwareUpdateScreenContent,
-    ConfirmFirmwareUpdateScreenFooter,
-} from '@suite-native/firmware';
-import {
-    DeviceOnboardingStackParamList,
+    type DeviceOnboardingStackParamList,
     DeviceOnboardingStackRoutes,
-    StackProps,
+    type StackProps,
 } from '@suite-native/navigation';
 
 import { updateOnboardingAnalyticsAtom } from '../../atoms';
@@ -24,7 +22,6 @@ export const ConfirmFirmwareUpdateScreen = ({
     DeviceOnboardingStackParamList,
     DeviceOnboardingStackRoutes.ConfirmFirmwareUpdate
 >) => {
-    const hasDeviceFirmwareInstalled = useSelector(selectHasDeviceFirmwareInstalled);
     const isDeviceFirmwareSupported = useSelector(selectIsDeviceFirmwareSupported);
 
     const updateOnboardingAnalytics = useSetAtom(updateOnboardingAnalyticsAtom);
@@ -33,10 +30,7 @@ export const ConfirmFirmwareUpdateScreen = ({
         useNavigateToNextScreenAfterFirmwareInstallation();
 
     const handleUpdateConfirmation = () => {
-        updateOnboardingAnalytics({
-            firmware: hasDeviceFirmwareInstalled ? 'update' : 'install',
-        });
-        navigation.navigate(DeviceOnboardingStackRoutes.FirmwareInstallation);
+        navigation.replace(DeviceOnboardingStackRoutes.FirmwareInfo);
     };
 
     const handleSkipUpdate = () => {
@@ -48,6 +42,8 @@ export const ConfirmFirmwareUpdateScreen = ({
 
     return (
         <DeviceOnboardingScreenWithExitButton
+            screenHeaderTitle={<Translation id="firmware.firmwareUpdateScreen.title" />}
+            screenHeaderSubtitle={<Translation id="firmware.firmwareUpdateScreen.subtitle" />}
             footer={
                 <ConfirmFirmwareUpdateScreenFooter
                     onUpdateConfirmation={handleUpdateConfirmation}
@@ -56,7 +52,7 @@ export const ConfirmFirmwareUpdateScreen = ({
                 />
             }
         >
-            <ConfirmFirmwareUpdateScreenContent />
+            <FirmwareVersionCard isUpdateRequired={!isDeviceFirmwareSupported} />
         </DeviceOnboardingScreenWithExitButton>
     );
 };

@@ -1,29 +1,24 @@
 import React, { useEffect, useState } from 'react';
 
-import Lottie, { LottieOptions } from 'lottie-react';
+import Lottie, { type LottieOptions } from 'lottie-react';
 import styled from 'styled-components';
 
-// TODO: suite-common imports in non-suite packages should not be allowed
-// eslint-disable-next-line @typescript-eslint/no-restricted-imports
-import { DEFAULT_FLAGSHIP_MODEL } from '@suite-common/suite-constants';
-import { DeviceModelInternal, getNarrowedDeviceModelInternal } from '@trezor/device-utils';
+import { resolveStaticPath } from '@trezor/env-utils';
 
-import { AnimationWrapper, Shape } from './AnimationPrimitives';
-import { resolveStaticPath } from '../../utils/resolveStaticPath';
+import { AnimationWrapper, type Shape } from './AnimationPrimitives';
 
 const StyledLottie = styled(Lottie)`
     width: 100%;
     height: 100%;
 `;
 
-export type LottieType = 'CONNECT' | 'BLOCK' | 'MEMPOOL';
+export type LottieType = 'BLOCK' | 'MEMPOOL';
 
 type LottieAnimationProps = {
     size?: number;
     type: LottieType;
     loop?: boolean;
     shape?: Shape;
-    deviceModelInternal?: DeviceModelInternal;
 };
 
 export const LottieAnimation = ({
@@ -31,7 +26,6 @@ export const LottieAnimation = ({
     type,
     loop = false,
     shape,
-    deviceModelInternal = DEFAULT_FLAGSHIP_MODEL,
     ...props
 }: LottieAnimationProps) => {
     const [lottieAnimationData, setLottieAnimationData] =
@@ -54,11 +48,7 @@ export const LottieAnimation = ({
             }
         };
 
-        if (type === 'CONNECT') {
-            loadAnimation(
-                `trezor_${getNarrowedDeviceModelInternal(deviceModelInternal).toLowerCase()}_connect`,
-            );
-        } else if (type === 'BLOCK') {
+        if (type === 'BLOCK') {
             loadAnimation('cubes_line');
         } else if (type === 'MEMPOOL') {
             loadAnimation('square_stack');
@@ -67,10 +57,10 @@ export const LottieAnimation = ({
         return () => {
             abortController.abort();
         };
-    }, [type, deviceModelInternal]);
+    }, [type]);
 
     return (
-        <AnimationWrapper height={`${size}px`} width={`${size}px`} shape={shape} {...props}>
+        <AnimationWrapper $height={size} $width={size} shape={shape} {...props}>
             <>
                 {lottieAnimationData && (
                     <StyledLottie animationData={lottieAnimationData} loop={loop} />

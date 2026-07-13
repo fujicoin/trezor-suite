@@ -1,15 +1,16 @@
-import { ConnectWebKey } from './types';
+import { type ConnectWebKey } from './types';
 
 // List of methods that don't work with device, so they don't need to be patched
 export const blacklist: ConnectWebKey[] = [
-    'manifest',
     'init',
-    'setTransports',
     'getSettings',
     'on',
     'off',
     'removeAllListeners',
     'uiResponse',
+    // Must not take the device lock: changeCoinVisibility awaits it before changeNetworks triggers
+    // discovery, so wrapping it in lockDevice/synchronize would deadlock that flow.
+    'updateConnectSettings',
     'blockchainGetAccountBalanceHistory',
     'blockchainGetInfo',
     'blockchainGetCurrentFiatRates',
@@ -32,6 +33,5 @@ export const blacklist: ConnectWebKey[] = [
     'getAccountInfo',
     // WebUSB methods from Connect web
     'requestWebUSBDevice',
-    'disableWebUSB',
     'bleUnpair',
 ];

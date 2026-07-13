@@ -1,8 +1,8 @@
-import http from 'http';
+import type http from 'http';
 
 import { isWhitelistedHost } from '@trezor/utils';
 
-import { InterceptorContext } from './interceptorTypes';
+import { type InterceptorContext } from './interceptorTypes';
 import { overloadHttpRequest } from './overloadHttpRequest';
 
 type OverloadWebsocketHandshakeParams = {
@@ -24,7 +24,7 @@ export const overloadWebsocketHandshake = ({
 }: OverloadWebsocketHandshakeParams) => {
     // @trezor/blockchain-link is adding an SocksProxyAgent to each connection
     // related to https://github.com/trezor/trezor-suite/issues/7689
-    // this condition should be removed once suite will stop using TrezorConnect.setProxy
+    // this condition should be removed once suite will stop using TrezorConnect.updateConnectSettings
     if (
         typeof url === 'object' &&
         isWhitelistedHost(url.host, context.notRequiredTorDomainsList) &&

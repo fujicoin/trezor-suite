@@ -1,165 +1,144 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
-import styled, { keyframes } from 'styled-components';
+import { motion, useAnimation } from 'framer-motion';
+import styled from 'styled-components';
 
+import { AccountTypeBadge, useAccountLabel } from '@suite/account';
+import { useTranslation } from '@suite/intl';
+import { Labeling } from '@suite/labeling';
 import { useDisplayBaseCurrency } from '@suite-common/wallet-core';
-import { Account } from '@suite-common/wallet-types';
-import { H2 } from '@trezor/components';
+import { type Account } from '@suite-common/wallet-types';
+import { Column, H2, Row, Text, motionEasing } from '@trezor/components';
 import { CoinLogo } from '@trezor/product-components';
-import { spacingsPx, typography, zIndices } from '@trezor/theme';
 
-import {
-    AccountLabel,
-    AmountUnitSwitchWrapper,
-    BaseCurrencyValue,
-    FormattedCryptoAmount,
-    MetadataLabeling,
-} from 'src/components/suite';
-import { useDefaultAccountLabel, useSelector } from 'src/hooks/suite';
-import { selectLabelingDataForSelectedAccount } from 'src/reducers/suite/metadataReducer';
+import { AmountUnitSwitchWrapper } from 'src/components/suite/AmountUnitSwitchWrapper';
+import { BaseCurrencyValue } from 'src/components/suite/BaseCurrencyValue';
+import { FormattedCryptoAmount } from 'src/components/suite/FormattedCryptoAmount';
+import { useIsContentBelowBreakpoint } from 'src/support/suite/ContentFlex';
 
-const LOGO_SIZE = 36;
-
-const rotateIn = keyframes`
-    from {
-        transform: translateY(100%);
-        opacity: 0;
-    }
-    to {
-        transform: 0;
-        opacity: 1;
-    }
-`;
-
-const rotateOut = keyframes`
-    from {
-        transform: translateY(-100%);
-        opacity: 0;
-    }
-    to {
-        transform: 0;
-        opacity: 1;
-    }
-`;
-
-const getAnimation = ($isBalanceShown: boolean, $shouldAnimate: boolean) => {
-    if (!$shouldAnimate) return 'none';
-
-    return $isBalanceShown ? rotateIn : rotateOut;
-};
-
-const DetailsContainer = styled.div<{ $isBalanceShown: boolean; $shouldAnimate: boolean }>`
-    display: flex;
-    gap: ${spacingsPx.sm};
-    align-items: center;
-    animation: ${({ $isBalanceShown, $shouldAnimate }) =>
-            getAnimation($isBalanceShown, $shouldAnimate)}
-        0.3s forwards;
+const DetailsContainer = styled(motion.div)`
     -webkit-app-region: no-drag;
+    overflow: hidden;
 `;
 
-// eslint-disable-next-line local-rules/no-override-ds-component
-const AccountHeading = styled(H2)<{ $isBalanceShown: boolean }>`
-    display: flex;
-    align-items: center;
-
-    ${({ $isBalanceShown }) => typography[$isBalanceShown ? 'body' : 'titleMedium']};
-`;
-
-const AccountBalance = styled.div`
-    display: flex;
-    align-items: center;
-    gap: ${spacingsPx.xxs};
-    color: ${({ theme }) => theme.textSubdued};
-`;
-
-const CryptoBalance = styled.div`
-    display: flex;
-    align-items: center;
-    gap: ${spacingsPx.xxs};
-`;
-
-// so that "to sats" button does not hide symbol and fiat
-const ForegroundWrapper = styled.div`
-    z-index: ${zIndices.base + 1};
-    display: flex;
-`;
-
-interface AccountDetailsProps {
+type AccountDetailsProps = {
     selectedAccount: Account;
     isBalanceShown: boolean;
-}
+};
 
 export const AccountDetails = ({ selectedAccount, isBalanceShown }: AccountDetailsProps) => {
-    const [shouldAnimate, setShouldAnimate] = useState(false);
-    const [hasMounted, setHasMounted] = useState(false);
-    const selectedAccountLabels = useSelector(selectLabelingDataForSelectedAccount);
-    const { getDefaultAccountLabel } = useDefaultAccountLabel();
-    const { symbol, key, path, index, accountType, formattedBalance } = selectedAccount;
+    const hasMountedRef = useRef(false);
+    const controls = useAnimation();
+    const { defaultLabel, label } = useAccountLabel({ account: selectedAccount });
+
+    const isContentBelowBreakpoint = useIsContentBelowBreakpoint();
+    const { translationString } = useTranslation();
+
+    const { symbol, key, path, accountType, formattedBalance, deviceState, networkType } =
+        selectedAccount;
     const { shallDisplayBaseCurrency } = useDisplayBaseCurrency(symbol);
 
-    useEffect(() => {
-        setHasMounted(true);
-    }, []);
+    const getTypographyStyle = () => {
+        if (isBalanceShown) {
+            return 'body-md-strong';
+        } else if (isContentBelowBreakpoint) {
+            return 'headline-sm';
+        }
+
+        return 'headline-md';
+    };
+
+    const accountNameElement = useMemo(
+        () => (
+            <Labeling
+                key={`account-label-${key}`}
+                payload={{
+                    type: 'accountLabel',
+                    entityKey: key,
+                    defaultValue: path,
+                }}
+                deviceStaticSessionId={deviceState}
+                defaultValue={defaultLabel}
+                rightAddon={
+                    <AccountTypeBadge
+                        accountType={accountType}
+                        path={path}
+                        networkType={networkType}
+                        size={isBalanceShown ? 'small' : 'medium'}
+                    />
+                }
+                gap={8}
+                placeholder={translationString('TR_LABELING_ACCOUNT_LABEL')}
+            >
+                {label}
+            </Labeling>
+        ),
+        [
+            key,
+            path,
+            label,
+            deviceState,
+            defaultLabel,
+            accountType,
+            networkType,
+            isBalanceShown,
+            translationString,
+        ],
+    );
 
     useEffect(() => {
-        if (!hasMounted) return;
+        if (!hasMountedRef.current) {
+            hasMountedRef.current = true;
 
-        setShouldAnimate(true);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isBalanceShown]);
+            return;
+        }
+
+        controls.start({
+            y: isBalanceShown ? ['100%', '0%'] : ['-100%', '0%'],
+            opacity: [0, 1],
+            transition: { duration: 0.3, ease: motionEasing.enter },
+        });
+    }, [controls, isBalanceShown]);
 
     return (
-        <DetailsContainer $isBalanceShown={isBalanceShown} $shouldAnimate={shouldAnimate}>
-            <CoinLogo size={LOGO_SIZE} symbol={symbol} type="token" />
-            <div>
-                <AccountHeading $isBalanceShown={isBalanceShown}>
-                    <MetadataLabeling
-                        accountType={accountType}
-                        networkType={selectedAccount.networkType}
-                        path={path}
-                        defaultVisibleValue={
-                            <AccountLabel
-                                account={{
-                                    ...selectedAccount,
-                                    accountLabel: selectedAccountLabels.accountLabel,
-                                }}
-                                showAccountTypeBadge
-                            />
-                        }
-                        payload={{
-                            type: 'accountLabel',
-                            entityKey: key,
-                            defaultValue: path,
-                            value: selectedAccountLabels.accountLabel,
-                        }}
-                        defaultEditableValue={getDefaultAccountLabel({
-                            accountType,
-                            symbol,
-                            index,
-                        })}
-                        updateFlag={isBalanceShown}
-                    />
-                </AccountHeading>
-                {isBalanceShown && (
-                    <AccountBalance>
-                        <CryptoBalance>
-                            <AmountUnitSwitchWrapper symbol={symbol}>
-                                <FormattedCryptoAmount value={formattedBalance} symbol={symbol} />
-                            </AmountUnitSwitchWrapper>
-                        </CryptoBalance>
-                        {shallDisplayBaseCurrency && (
-                            <ForegroundWrapper>
-                                <BaseCurrencyValue
-                                    amount={formattedBalance}
-                                    symbol={symbol}
-                                    showApproximationIndicator
-                                />
-                            </ForegroundWrapper>
-                        )}
-                    </AccountBalance>
-                )}
-            </div>
+        <DetailsContainer initial={false} animate={controls}>
+            <Row gap={4} overflow="hidden">
+                <CoinLogo size={40} symbol={symbol} type="token" />
+                <Column
+                    overflow="hidden"
+                    // To accommodate the labeling component
+                    padding={8}
+                >
+                    <H2 typographyStyle={getTypographyStyle()}>{accountNameElement}</H2>
+                    {isBalanceShown && (
+                        <Text
+                            intent="neutral"
+                            priority="secondary"
+                            typographyStyle="body-xs"
+                            as="div"
+                        >
+                            <Row gap={4}>
+                                <AmountUnitSwitchWrapper symbol={symbol}>
+                                    <FormattedCryptoAmount
+                                        data-testid="@wallet/account/crypto-balance"
+                                        value={formattedBalance}
+                                        symbol={symbol}
+                                    />
+                                </AmountUnitSwitchWrapper>
+                                {shallDisplayBaseCurrency && (
+                                    <span data-testid="@wallet/account/fiat-amount">
+                                        <BaseCurrencyValue
+                                            amount={formattedBalance}
+                                            symbol={symbol}
+                                            showApproximationIndicator
+                                        />
+                                    </span>
+                                )}
+                            </Row>
+                        </Text>
+                    )}
+                </Column>
+            </Row>
         </DetailsContainer>
     );
 };

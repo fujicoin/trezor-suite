@@ -1,17 +1,19 @@
+import { selectCoinjoinAccountByKey } from '@suite/coinjoin';
+import { Translation } from '@suite/intl';
+import { type AccountKey } from '@suite-common/wallet-types';
 import { Banner, Card, Column, Divider, LoadingContent, Modal } from '@trezor/components';
+import { WarningIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
 import { SESSION_PHASE_MESSAGES } from 'src/constants/suite/coinjoin';
 import { useCoinjoinSessionPhase } from 'src/hooks/coinjoin';
 import { useSelector } from 'src/hooks/suite';
-import { selectCoinjoinAccountByKey } from 'src/reducers/wallet/coinjoinReducer';
 
 import { AutoStopButton } from './AutoStopButton';
 import { CoinjoinPhaseProgress } from './CoinjoinPhaseProgress';
 
 type CriticalCoinjoinPhaseModalProps = {
-    relatedAccountKey: string;
+    relatedAccountKey: AccountKey;
 };
 
 export const CriticalCoinjoinPhaseModal = ({
@@ -31,18 +33,20 @@ export const CriticalCoinjoinPhaseModal = ({
 
     return (
         <Modal
-            size="tiny"
+            width={400}
             heading={<Translation id="TR_COINJOIN_RUNNING" />}
             description={
-                <LoadingContent size={14} isLoading={true}>
+                <LoadingContent size={16} isLoading={true}>
                     <Translation id={SESSION_PHASE_MESSAGES[sessionPhase]} />
                 </LoadingContent>
             }
         >
             <Column gap={spacings.md} margin={{ top: spacings.xs }}>
-                <Banner variant="warning" icon="warning">
-                    <Translation id="TR_DO_NOT_DISCONNECT_DEVICE" />
-                </Banner>
+                <Banner
+                    intent="warning"
+                    icon={WarningIcon}
+                    description={<Translation id="TR_DO_NOT_DISCONNECT_DEVICE" />}
+                />
                 <Card>
                     <CoinjoinPhaseProgress
                         roundPhase={roundPhase}

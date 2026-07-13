@@ -1,18 +1,38 @@
-import { networks } from '../../../../wallet-config/src/networksConfig';
-import { AccountsRootState } from '../accountsReducer';
-import { selectAddressByNetworkAndPath } from '../accountsSelectors';
+import type { DeviceRootState } from '@suite-common/device';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { mockSuiteDevice } from '@suite-common/suite-types/mocks';
+import { networks } from '@suite-common/wallet-config';
+import { asAccountDescriptor } from '@suite-common/wallet-types';
+import { mockAccountKey } from '@suite-common/wallet-types/mocks';
 
-const mockState: AccountsRootState = {
+import { type AccountsRootState } from '../accountsReducer';
+import {
+    selectAddressByNetworkAndPath,
+    selectVisibleDeviceAccountsMap,
+} from '../accountsSelectors';
+
+const BTC_DEVICE_SSID: `${string}@${string}:${number}` =
+    'mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@AC94BB9C1B08FE73BE1E3322:0';
+const BTC_DEVICE = mockSuiteDevice({ state: { staticSessionId: BTC_DEVICE_SSID } });
+
+const ETH_DEVICE_SSID: `${string}@${string}:${number}` = '1stTestnetAddress@device_id:0';
+const ETH_DEVICE = mockSuiteDevice({ state: { staticSessionId: ETH_DEVICE_SSID } });
+
+const mockState: AccountsRootState & DeviceRootState = {
     wallet: {
         accounts: [
             {
-                deviceState: 'mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@AC94BB9C1B08FE73BE1E3322:0',
+                deviceState: BTC_DEVICE_SSID,
                 index: 0,
                 backendType: undefined,
                 misc: undefined,
                 marker: undefined,
                 stellarCursor: undefined,
-                key: 'key',
+                key: mockAccountKey({
+                    descriptor: '1BitcoinAddress',
+                    symbol: 'btc',
+                    deviceStaticSessionId: BTC_DEVICE_SSID,
+                }),
                 accountType: 'normal',
                 empty: false,
                 visible: true,
@@ -22,7 +42,7 @@ const mockState: AccountsRootState = {
                 tokens: [],
                 symbol: 'btc',
                 path: "m/84'/0'/0'",
-                descriptor: '1BitcoinAddress',
+                descriptor: asAccountDescriptor('1BitcoinAddress'),
                 addresses: {
                     unused: [
                         {
@@ -67,9 +87,13 @@ const mockState: AccountsRootState = {
             {
                 symbol: 'eth',
                 networkType: 'ethereum',
-                descriptor: '0xEthereumAddress',
-                deviceState: '1stTestnetAddress@device_id:0',
-                key: '0xEthereumAddress-eth-deviceState',
+                descriptor: asAccountDescriptor('0xEthereumAddress'),
+                deviceState: ETH_DEVICE_SSID,
+                key: mockAccountKey({
+                    descriptor: '0xEthereumAddress',
+                    symbol: 'eth',
+                    deviceStaticSessionId: ETH_DEVICE_SSID,
+                }),
                 accountType: 'normal',
                 index: 0,
                 path: "m/44'/60'/0'/0",
@@ -99,41 +123,112 @@ const mockState: AccountsRootState = {
             },
         ],
     },
+    device: {
+        devices: [BTC_DEVICE, ETH_DEVICE],
+        persistentDeviceData: [],
+    },
 };
 
-describe(selectAddressByNetworkAndPath.name, () => {
-    it('returns unused address for BTC', () => {
-        const result = selectAddressByNetworkAndPath(mockState, networks['btc'], "m/84'/0'/0'/0/0");
-        expect(result).toBe('bc1unused');
+const getStateWithSelectedDevice = (
+    state: AccountsRootState & DeviceRootState,
+    selectedDevice: TrezorDevice,
+): AccountsRootState & DeviceRootState => ({
+    ...state,
+    device: { ...state.device, selectedDevice },
+});
+
+describe('accountsSelectors', () => {
+    describe(selectAddressByNetworkAndPath.name, () => {
+        it('returns unused address for BTC', () => {
+            const result = selectAddressByNetworkAndPath(
+                getStateWithSelectedDevice(mockState, BTC_DEVICE),
+                networks['btc'],
+                "m/84'/0'/0'/0/0",
+            );
+            expect(result).toBe('bc1unused');
+        });
+
+        it('returns used address for BTC', () => {
+            const result = selectAddressByNetworkAndPath(
+                getStateWithSelectedDevice(mockState, BTC_DEVICE),
+                networks['btc'],
+                "m/84'/0'/0'/0/1",
+            );
+            expect(result).toBe('bc1used');
+        });
+
+        it('returns change address for BTC', () => {
+            const result = selectAddressByNetworkAndPath(
+                getStateWithSelectedDevice(mockState, BTC_DEVICE),
+                networks['btc'],
+                "m/84'/0'/0'/1/0",
+            );
+            expect(result).toBe('bc1change');
+        });
+
+        it('does not return address from another device', () => {
+            const result = selectAddressByNetworkAndPath(
+                getStateWithSelectedDevice(mockState, ETH_DEVICE),
+                networks['btc'],
+                "m/84'/0'/0'/0/0",
+            );
+            expect(result).toBeUndefined();
+        });
+
+        it('returns descriptor for ETH', () => {
+            const result = selectAddressByNetworkAndPath(
+                getStateWithSelectedDevice(mockState, ETH_DEVICE),
+                networks['eth'],
+                "m/44'/60'/0'/0",
+            );
+            expect(result).toBe('0xEthereumAddress');
+        });
+
+        it('returns undefined for unknown path', () => {
+            const result = selectAddressByNetworkAndPath(
+                getStateWithSelectedDevice(mockState, BTC_DEVICE),
+                networks['btc'],
+                "m/84'/0'/0'/9/9",
+            );
+            expect(result).toBeUndefined();
+        });
+
+        it('returns undefined if network is missing', () => {
+            const result = selectAddressByNetworkAndPath(
+                getStateWithSelectedDevice(mockState, BTC_DEVICE),
+                undefined,
+                "m/84'/0'/0'/0/0",
+            );
+            expect(result).toBeUndefined();
+        });
+
+        it('returns undefined if path is missing', () => {
+            const result = selectAddressByNetworkAndPath(
+                getStateWithSelectedDevice(mockState, BTC_DEVICE),
+                networks['btc'],
+                undefined,
+            );
+            expect(result).toBeUndefined();
+        });
     });
 
-    it('returns used address for BTC', () => {
-        const result = selectAddressByNetworkAndPath(mockState, networks['btc'], "m/84'/0'/0'/0/1");
-        expect(result).toBe('bc1used');
-    });
+    describe('selectVisibleDeviceAccountsMap', () => {
+        it('should return map of accounts for selected device only', () => {
+            const btcAccount = mockState.wallet.accounts[0];
 
-    it('returns change address for BTC', () => {
-        const result = selectAddressByNetworkAndPath(mockState, networks['btc'], "m/84'/0'/0'/1/0");
-        expect(result).toBe('bc1change');
-    });
+            if (!btcAccount) {
+                throw new Error('Expected first BTC account in mockState.wallet.accounts');
+            }
 
-    it('returns descriptor for ETH', () => {
-        const result = selectAddressByNetworkAndPath(mockState, networks['eth'], "m/44'/60'/0'/0");
-        expect(result).toBe('0xEthereumAddress');
-    });
+            const result = selectVisibleDeviceAccountsMap(
+                getStateWithSelectedDevice(mockState, BTC_DEVICE),
+            );
 
-    it('returns undefined for unknown path', () => {
-        const result = selectAddressByNetworkAndPath(mockState, networks['btc'], "m/84'/0'/0'/9/9");
-        expect(result).toBeUndefined();
-    });
-
-    it('returns undefined if network is missing', () => {
-        const result = selectAddressByNetworkAndPath(mockState, undefined, "m/84'/0'/0'/0/0");
-        expect(result).toBeUndefined();
-    });
-
-    it('returns undefined if path is missing', () => {
-        const result = selectAddressByNetworkAndPath(mockState, networks['btc'], undefined);
-        expect(result).toBeUndefined();
+            expect(result).toBeInstanceOf(Map);
+            expect(result.size).toBe(1);
+            expect(result.get(btcAccount.key)).toEqual(
+                expect.objectContaining({ key: btcAccount.key }),
+            );
+        });
     });
 });

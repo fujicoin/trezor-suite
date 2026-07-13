@@ -1,23 +1,21 @@
-import { ReactElement } from 'react';
+import { type ReactElement } from 'react';
 
 import { getUnixTime } from 'date-fns';
 
+import { Translation, useTranslation } from '@suite/intl';
 import { getCurrentUTCDatetime, parseUTCdatetime } from '@suite-common/suite-utils';
 import { BTC_LOCKTIME_VALUE } from '@suite-common/wallet-constants';
-import { getInputState } from '@suite-common/wallet-utils';
 import { Input, Row, Text } from '@trezor/components';
 
-import { Translation } from 'src/components/suite';
-import { useTranslation } from 'src/hooks/suite';
 import { useSendFormContext } from 'src/hooks/wallet';
 
 export const inputName = 'bitcoinLocktimeDatetime';
 
 type LocktimeDatetimeProps = {
-    innerAddon?: ReactElement;
+    rightContent?: ReactElement;
 };
 
-export const LocktimeDatetime = ({ innerAddon }: LocktimeDatetimeProps) => {
+export const LocktimeDatetime = ({ rightContent }: LocktimeDatetimeProps) => {
     const {
         composeTransaction,
         formState: { errors },
@@ -58,12 +56,12 @@ export const LocktimeDatetime = ({ innerAddon }: LocktimeDatetimeProps) => {
 
     return (
         <Input
-            inputState={getInputState(error)}
+            hasError={!!error}
             defaultValue={inputValue}
             bottomText={
                 <Row justifyContent="space-between" width="100%">
                     <Text>{error?.message || ''}</Text>
-                    <Text variant="tertiary">
+                    <Text intent="neutral" priority="secondary">
                         <Translation
                             id="LOCKTIME_CURRENT_UTC"
                             values={{ datetime: getCurrentUTCDatetime() }}
@@ -71,8 +69,13 @@ export const LocktimeDatetime = ({ innerAddon }: LocktimeDatetimeProps) => {
                     </Text>
                 </Row>
             }
+            labelLeft={
+                <Text typographyStyle="body-sm">
+                    <Translation id="LOCKTIME_DESCRIPTION" />
+                </Text>
+            }
             placeholder="DD/MM/YYYY HH:MM"
-            innerAddon={innerAddon}
+            rightContent={rightContent}
             innerRef={inputRef}
             data-testid="locktime-datetime-input"
             {...inputField}

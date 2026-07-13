@@ -1,7 +1,6 @@
-import type { Logger } from '@trezor/transport/src/types';
-import type { TypedEmitter } from '@trezor/utils';
+import type { Logger, TypedEmitter } from '@trezor/utils';
 
-export type { Logger } from '@trezor/transport/src/types';
+export type { Logger } from '@trezor/utils';
 
 export interface TrezorBluetoothSettings {
     url: string;
@@ -16,7 +15,6 @@ export type BluetoothInfo = {
     api_version: string;
     build: string;
     adapter_info: string;
-    adapter_version: number;
 };
 
 // see: ./src/server/device.rs
@@ -47,15 +45,17 @@ export interface BluetoothDevice {
 
 export type BluetoothAdapterState = 'enabled' | 'disabled' | 'permission-denied';
 
+export type NotificationCharacteristic = 'read' | 'trezor-push-notification' | 'battery-level';
+
 export interface NotificationEvent {
     adapter_state_changed: { state: BluetoothAdapterState };
     device_discovered: { id: string; devices: BluetoothDevice[] };
     device_updated: { id: string; devices: BluetoothDevice[] };
     device_connected: { id: string; devices: BluetoothDevice[] };
-    device_connection_status: BluetoothDevice;
+    device_connection_status: { device: BluetoothDevice };
     device_disconnected: { id: string; devices: BluetoothDevice[] };
-    device_read: { id: string; data: number[] };
-    device_settings_ui: undefined; // dispatched by linux pairing process
+    device_read: { id: string; characteristic: NotificationCharacteristic; data: number[] };
+    open_bluetooth_settings: { id: string }; // see linux.rs/pair_with_timeout()
     device_removed: { id: string };
 }
 
@@ -76,14 +76,15 @@ export type DeviceConnectionStatus =
           error: string;
       };
 
-type Success<P> = P extends unknown ? { success: true } : { success: true; payload: P };
+type Success<P> = P extends undefined ? { success: true } : { success: true; payload: P };
 type Failure = { success: false; error: string };
-export type IpcResponse<P = unknown> = Success<P> | Failure;
+export type IpcResponse<P = undefined> = Success<P> | Failure;
 
 export interface BluetoothIpcEvents {
     'adapter-event': BluetoothAdapterState;
     'device-list-update': BluetoothDevice[];
     'device-update': BluetoothDevice;
+    'open-bluetooth-settings': { id: string };
 }
 
 type TypedManagerEvents = TypedEmitter<BluetoothIpcEvents>;
@@ -92,8 +93,9 @@ export interface BluetoothIpcState {
     knownDevices: BluetoothDevice[];
 }
 
-export interface BluetoothIpcApi {
+export type BluetoothIpcApi = {
     init(state?: BluetoothIpcState): Promise<IpcResponse>;
+    getInfo(): Promise<IpcResponse<BluetoothInfo>>;
     dispose(): Promise<IpcResponse>;
     startScan(): Promise<IpcResponse>;
     stopScan(): Promise<IpcResponse>;
@@ -106,4 +108,4 @@ export interface BluetoothIpcApi {
     on: TypedManagerEvents['on'];
     off: TypedManagerEvents['off'];
     removeAllListeners: TypedManagerEvents['removeAllListeners'];
-}
+};

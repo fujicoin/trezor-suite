@@ -38,6 +38,11 @@ export enum TestCategory {
     Staking = 'Staking',
     Solana = 'Solana',
     Engagement = 'Engagement',
+    Buy = 'Buy',
+    Sell = 'Sell',
+    Swap = 'Swap',
+    TrezorConnect = 'Trezor Connect',
+    WalletConnect = 'WalletConnect',
     NotCategorized = 'Not Categorized',
 }
 
@@ -58,10 +63,14 @@ export const TestPriorityColors: Record<TestPriority, string> = {
 };
 
 export enum TestStream {
-    Trends = 'Trends',
+    Trends = 'Trends', // do not use for new tests
+    Wallet = 'Wallet',
+    Trade = 'Trade',
     Foundation = 'Foundation',
-    Engagement = 'Engagement',
+    Engagement = 'Engagement', // do not use for new tests
+    Growth = 'Growth',
     Firmware = 'Firmware',
+    Connect = 'Connect',
     NotDefined = 'Not Defined',
 }
 

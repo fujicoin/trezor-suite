@@ -3,8 +3,8 @@ import { Dimensions, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { getLocales } from 'expo-localization';
 
-import { firmwareConfigPublicKey, publicKey } from './jws';
-import { EnvUtils } from './types';
+import { publicKey } from './jws';
+import { type EnvUtils } from './types';
 
 const isWeb = () => false;
 
@@ -18,22 +18,9 @@ const getUserAgent = () => '';
 
 const isChromeOs = () => false;
 
-const getBrowserName = () => '';
-
-const getBrowserVersion = () => '';
-
-const getDeviceType = () => '';
-
-// no need for async fn on native; only for the sake of consistency with Web/Desktop
-const getOsVersion = () => Promise.resolve(`${Platform.Version}`);
-
-const getCpuArch = () => Promise.resolve('');
-
 const getSuiteVersion = () => Constants.expoConfig?.version || '';
 
 const getCommitHash = () => Constants.expoConfig?.extra?.commitHash;
-
-const isFirefox = () => false;
 
 const getPlatform = () => Platform.OS;
 
@@ -75,14 +62,7 @@ const getOsName = () => {
     return '';
 };
 
-const getOsNameWeb = () => '';
-
-const getOsFamily = (): 'Linux' => 'Linux';
-
 export const getJWSPublicKey = () => (isCodesignBuild() ? publicKey.codesign : publicKey.dev);
-
-export const getFirmwareReleaseJwsPublicKey = (useCodeSignKey = false) =>
-    useCodeSignKey ? firmwareConfigPublicKey.codesign : firmwareConfigPublicKey.dev;
 
 export const envUtils: EnvUtils = {
     isWeb,
@@ -92,14 +72,8 @@ export const envUtils: EnvUtils = {
     getUserAgent,
     isAndroid,
     isChromeOs,
-    getBrowserName,
-    getBrowserVersion,
     getCommitHash,
-    getDeviceType,
-    getOsVersion,
-    getCpuArch,
     getSuiteVersion,
-    isFirefox,
     getPlatform,
     getPlatformLanguages,
     getScreenWidth,
@@ -115,8 +89,5 @@ export const envUtils: EnvUtils = {
     isLinux,
     isCodesignBuild,
     getOsName,
-    getOsNameWeb,
-    getOsFamily,
     getJWSPublicKey,
-    getFirmwareReleaseJwsPublicKey,
 };

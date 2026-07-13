@@ -1,13 +1,13 @@
-import { NetworkSymbol } from '@suite-common/wallet-config';
-import { BaseCurrencyAmount } from '@suite-common/wallet-utils';
-import { BlockchainAccountBalanceHistory, StaticSessionId } from '@trezor/connect';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { type AccountDescriptor, type BaseCurrencyAmount } from '@suite-common/wallet-types';
+import { type BlockchainAccountBalanceHistory, type StaticSessionId } from '@trezor/connect';
 
 export interface AccountHistoryWithBalance extends BlockchainAccountBalanceHistory {
     balance: string;
 }
 
 export interface AccountIdentifier {
-    descriptor: string;
+    descriptor: AccountDescriptor;
     deviceState: StaticSessionId;
     symbol: NetworkSymbol;
 }
@@ -43,8 +43,6 @@ export type GraphRange =
           endDate: null;
           groupBy: 'month' | 'day';
       };
-
-export type GraphScale = 'linear' | 'log';
 
 export type AggregatedDashboardHistory = CommonAggregatedHistory;
 

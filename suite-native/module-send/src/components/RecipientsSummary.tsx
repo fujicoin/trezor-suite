@@ -1,24 +1,24 @@
 import { useSelector } from 'react-redux';
 
 import {
-    AccountsRootState,
-    SendRootState,
-    WalletSettingsRootState,
+    type AccountsRootState,
+    type SendRootState,
+    type WalletSettingsRootState,
     selectAccountNetworkSymbol,
     selectIsAmountInSats,
     selectSendFormDraftOutputsByAccountKey,
 } from '@suite-common/wallet-core';
 import {
-    AccountKey,
-    GeneralPrecomposedTransaction,
-    Output,
-    TokenAddress,
+    type AccountKey,
+    type GeneralPrecomposedTransaction,
+    type Output,
+    type TokenAddress,
     isFinalPrecomposedTransaction,
 } from '@suite-common/wallet-types';
 import { Card, HStack, Text, VStack } from '@suite-native/atoms';
 import { CoinAmountFormatter, CoinToFiatAmountFormatter } from '@suite-native/formatters';
 import { Translation } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 type FeesRecipientsProps = {
     accountKey: AccountKey;
@@ -27,8 +27,8 @@ type FeesRecipientsProps = {
 };
 
 const cardStyle = prepareNativeStyle(utils => ({
-    borderColor: utils.colors.borderElevation0,
-    backgroundColor: utils.colors.backgroundTertiaryDefaultOnElevation1,
+    borderColor: utils.colors.borderNeutral,
+    backgroundColor: utils.colors.legacyBackgroundTertiaryDefaultOnElevation1,
     borderWidth: utils.borders.widths.small,
     paddingVertical: utils.spacings.sp12,
     ...utils.boxShadows.none,
@@ -73,11 +73,11 @@ export const RecipientsSummary = ({
                 <Card key={output.address} style={applyStyle(cardStyle)}>
                     <HStack>
                         <VStack flex={0.4} justifyContent="center" spacing="sp4">
-                            <Text variant="callout">
+                            <Text variant="body-sm-strong">
                                 <Translation id="moduleSend.fees.recipient.singular" />
                             </Text>
                             <Text
-                                variant="hint"
+                                variant="body-sm"
                                 ellipsizeMode="middle"
                                 numberOfLines={1}
                                 style={applyStyle(addressStyle)}
@@ -87,22 +87,24 @@ export const RecipientsSummary = ({
                         </VStack>
                         <VStack flex={0.6} alignItems="flex-end" spacing="sp4">
                             <CoinToFiatAmountFormatter
-                                variant="hint"
-                                color="textDefault"
+                                variant="body-sm"
+                                color="contentPrimary"
                                 value={output.amount}
                                 isBalance={isBalance}
                                 accountKey={accountKey}
                                 tokenContract={tokenContract}
+                                isDiscreetText={false}
                             />
                             <CoinAmountFormatter
-                                variant="hint"
-                                color="textSubdued"
+                                variant="body-sm"
+                                color="contentSecondary"
                                 value={output.amount}
                                 isBalance={isBalance}
                                 accountKey={accountKey}
                                 tokenContract={tokenContract}
                                 adjustsFontSizeToFit
                                 numberOfLines={1}
+                                isDiscreetText={false}
                             />
                         </VStack>
                     </HStack>

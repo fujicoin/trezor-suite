@@ -1,16 +1,16 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 import { useArgs } from 'storybook/preview-api';
 import styled from 'styled-components';
 
 import { spacingsPx } from '@trezor/theme';
 
-import { Popover as PopoverComponent, PopoverProps } from './Popover';
+import { Popover as PopoverComponent, type PopoverProps } from './Popover';
 import {
     POPOVER_PLACEMENT_ALIGNMENT,
     POPOVER_PLACEMENT_POSITION,
-    PopoverPlacement,
-    PopoverPlacementAlignment,
-    PopoverPlacementPosition,
+    type PopoverPlacement,
+    type PopoverPlacementAlignment,
+    type PopoverPlacementPosition,
 } from './utils';
 import { Card } from '../Card/Card';
 import { Button } from '../buttons/Button/Button';
@@ -27,10 +27,10 @@ const Container = styled.div`
 
 const Content = () => <Card>Lorem ipsum dolor sit amet</Card>;
 
-const meta: Meta = {
+const meta: Meta<typeof PopoverComponent> = {
     title: 'Popover',
     component: PopoverComponent,
-} as Meta;
+};
 export default meta;
 
 type PopoverStoryProps = PopoverProps & {

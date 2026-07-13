@@ -1,15 +1,13 @@
-import ReactMarkdown, { Options } from 'react-markdown';
+import ReactMarkdown, { type Options } from 'react-markdown';
 
 import styled from 'styled-components';
 
 import { typography } from '@trezor/theme';
 
-import { variables } from '../../config';
-
 const StyledMarkdown = styled.div`
-    ${typography.hint}
+    ${typography['body-sm']}
 
-    color: ${({ theme }) => theme.textSubdued};
+    color: ${({ theme }) => theme.contentPrimary};
 
     h1,
     h2,
@@ -17,18 +15,17 @@ const StyledMarkdown = styled.div`
     h4,
     h5,
     h6 {
-        color: ${({ theme }) => theme.textDefault};
-        font-weight: ${variables.FONT_WEIGHT.DEMI_BOLD};
+        color: ${({ theme }) => theme.contentPrimary};
     }
 
     h1 {
         margin: 8px 0 16px;
-        font-size: ${variables.FONT_SIZE.BIG};
+        ${typography['headline-sm']}
     }
 
     h2 {
         margin: 8px 0 12px;
-        font-size: ${variables.FONT_SIZE.NORMAL};
+        ${typography['body-md-strong']}
     }
 
     h3,
@@ -36,7 +33,7 @@ const StyledMarkdown = styled.div`
     h5,
     h6 {
         margin: 4px 0 12px;
-        font-size: ${variables.FONT_SIZE.SMALL};
+        ${typography['body-sm-strong']}
     }
 
     p,
@@ -47,18 +44,28 @@ const StyledMarkdown = styled.div`
 
     ul,
     ol {
-        padding: 0 0 0 16px;
+        padding: 0 0 0 24px;
     }
 
     li {
-        margin: 0 0 8px;
+        margin: 0 0 10px;
     }
 
     a {
-        color: ${({ theme }) => theme.textPrimaryDefault};
+        color: ${({ theme }) => theme.contentBrand};
 
         &:hover {
             text-decoration: underline;
+        }
+    }
+
+    section[data-testid='guide-banner'] {
+        p {
+            margin: 0;
+        }
+
+        a {
+            color: inherit;
         }
     }
 
@@ -67,7 +74,7 @@ const StyledMarkdown = styled.div`
     }
 
     strong {
-        font-weight: ${variables.FONT_WEIGHT.DEMI_BOLD};
+        font-weight: bold;
     }
 `;
 

@@ -1,11 +1,11 @@
 {
     "name": "@trezor/utils",
-    "version": "9.4.2",
+    "version": "10.0.0-alpha.1",
+    "type": "module",
     "author": "Trezor <info@trezor.io>",
     "homepage": "https://github.com/trezor/trezor-suite/tree/develop/packages/utils",
     "description": "A collection of typescript utils that are intended to be used across trezor-suite monorepo.",
-    "npmPublishAccess": "public",
-    "license": "SEE LICENSE IN LICENSE.md",
+    "license": "MIT",
     "repository": {
         "type": "git",
         "url": "git://github.com/trezor/trezor-suite.git"
@@ -14,34 +14,38 @@
         "url": "https://github.com/trezor/trezor-suite/issues"
     },
     "sideEffects": false,
-    "publishConfig": {
-        "main": "lib/index"
-    },
     "main": "src/index.ts",
+    "publishConfig": {
+        "main": "./lib/index.mjs",
+        "types": "./lib/index.d.mts",
+        "exports": {
+            ".": {
+                "types": "./lib/index.d.mts",
+                "default": "./lib/index.mjs"
+            },
+            "./lib/*": "./lib/*"
+        }
+    },
     "files": [
         "lib/",
-        "libESM",
-        "!**/*.map"
+        "CHANGELOG.md"
     ],
     "scripts": {
-        "test:unit": "yarn g:jest --verbose -c ./jest.config.js",
+        "test:unit": "yarn g:jest",
         "type-check": "yarn g:tsc --build tsconfig.json",
-        "build:lib": "yarn build:lib:cjs && yarn build:lib:esm",
-        "build:lib:cjs": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/replace-imports.sh ./lib",
-        "build:lib:esm": "yarn g:rimraf ./libESM && yarn g:tsc --build tsconfig.libESM.json && ../../scripts/replace-imports.sh ./libESM libESM",
-        "prepublishOnly": "yarn tsx ../../scripts/prepublishNPM.js",
-        "prepublish": "yarn tsx ../../scripts/prepublish.js"
+        "build:lib": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/publish/replace-imports.sh ./lib",
+        "depcheck": "yarn g:depcheck",
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     },
     "peerDependencies": {
         "tslib": "^2.6.2"
     },
     "devDependencies": {
         "@trezor/eslint": "workspace:*",
-        "@trezor/type-utils": "workspace:*",
-        "tsx": "^4.20.3"
+        "@trezor/type-utils": "workspace:*"
     },
     "dependencies": {
-        "bignumber.js": "^9.3.1"
+        "bignumber.js": "^11.1.2"
     },
     "browser": {
         "crypto": false

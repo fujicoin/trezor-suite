@@ -1,10 +1,13 @@
+import { debugInitialState } from '@suite/debug';
+import { lockDevice } from '@suite/locks';
+import { suiteSettingsInitialState } from '@suite/settings';
 import { connectInitThunk } from '@suite-common/connect-init';
+import { deviceReducerInitialState } from '@suite-common/device';
 import { messageSystemInitialState } from '@suite-common/message-system';
 import { testMocks } from '@suite-common/test-utils';
 import { BLOCKCHAIN_EVENT, DEVICE_EVENT, TRANSPORT_EVENT, UI_EVENT } from '@trezor/connect';
 
 import { deviceSlice } from 'src/actions/device/deviceSlice';
-import { SUITE } from 'src/actions/suite/constants';
 import suiteReducer from 'src/reducers/suite/suiteReducer';
 import { extraDependencies } from 'src/support/extraDependencies';
 import { configureStore } from 'src/support/tests/configureStore';
@@ -18,9 +21,11 @@ const getInitialState = (suite?: Partial<SuiteState>, device?: Partial<DevicesSt
         ...suiteReducer(undefined, { type: 'foo' } as any),
         ...suite,
     },
+    suiteSettings: suiteSettingsInitialState,
+    debug: debugInitialState,
     device: {
+        ...deviceReducerInitialState,
         devices: device?.devices || [],
-        isDeviceAutoEjectEnabled: false,
         isConnectionModalOpen: false,
         defaultConnectionMode: 'cable' as 'cable' | 'bluetooth',
     },
@@ -30,7 +35,7 @@ const getInitialState = (suite?: Partial<SuiteState>, device?: Partial<DevicesSt
         },
     },
     messageSystem: messageSystemInitialState,
-    firmware: { firmwareUpdateSource: 'production' },
+    firmware: { firmwareChannel: 'production' },
 });
 
 type State = ReturnType<typeof getInitialState>;
@@ -128,11 +133,11 @@ describe('TrezorConnect Actions', () => {
             type: '@suite/device/removeButtonRequests',
         });
         expect(actions.pop()).toEqual({
-            type: SUITE.LOCK_DEVICE,
+            type: lockDevice.type,
             payload: false,
         });
         expect(actions.pop()).toEqual({
-            type: SUITE.LOCK_DEVICE,
+            type: lockDevice.type,
             payload: true,
         });
     });

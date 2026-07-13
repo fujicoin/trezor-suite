@@ -2,28 +2,22 @@ import { useState } from 'react';
 
 import styled from 'styled-components';
 
-import { Account } from '@suite-common/wallet-types';
-import { Button, Card, H3, Note, Paragraph, Tooltip, variables } from '@trezor/components';
-import { spacingsPx } from '@trezor/theme';
-
-import { startCoinjoinSession } from 'src/actions/wallet/coinjoinAccountActions';
-import { Translation } from 'src/components/suite';
-import { Error } from 'src/components/suite/Error';
-import { useCoinjoinSessionBlockers } from 'src/hooks/coinjoin/useCoinjoinSessionBlockers';
-import { useDispatch, useSelector } from 'src/hooks/suite';
 import {
     selectCoinjoinClient,
     selectStartCoinjoinSessionArguments,
-} from 'src/reducers/wallet/coinjoinReducer';
+    startCoinjoinSession,
+} from '@suite/coinjoin';
+import { Translation } from '@suite/intl';
+import { type Account } from '@suite-common/wallet-types';
+import { Button, Card, H3, Note, Paragraph, Tooltip, variables } from '@trezor/components';
+import { CircuitryIcon, ClockIcon, LockKeyIcon } from '@trezor/icons';
+import { spacings, spacingsPx } from '@trezor/theme';
 
-import { Tile, TileProps } from './Tile';
+import { Error } from 'src/components/suite/Error';
+import { useCoinjoinSessionBlockers } from 'src/hooks/coinjoin/useCoinjoinSessionBlockers';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 
-// eslint-disable-next-line local-rules/no-override-ds-component
-const TopRow = styled(H3)`
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: ${spacingsPx.xxl};
-`;
+import { Tile, type TileProps } from './Tile';
 
 const TopFeeRow = styled.div`
     display: flex;
@@ -32,15 +26,10 @@ const TopFeeRow = styled.div`
 `;
 
 const FeeWrapper = styled.div`
-    border-bottom: 1px solid ${({ theme }) => theme.borderElevation1};
-    border-top: 1px solid ${({ theme }) => theme.borderElevation1};
+    border-bottom: 1px solid ${({ theme }) => theme.borderNeutral};
+    border-top: 1px solid ${({ theme }) => theme.borderNeutral};
     margin: ${spacingsPx.xl} 0;
     padding: ${spacingsPx.md} 0;
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const FeeHeading = styled(Paragraph)`
-    color: ${({ theme }) => theme.textSubdued};
 `;
 
 const Tiles = styled.div`
@@ -61,30 +50,24 @@ const Tiles = styled.div`
     }
 `;
 
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledButton = styled(Button)`
-    margin: ${spacingsPx.xl} auto 0;
-
-    &:disabled {
-        background: ${({ theme }) => theme.legacy.STROKE_GREY};
-    }
-`;
-
-const tiles: TileProps[] = [
+const tiles: Array<TileProps & { id: string }> = [
     {
+        id: 'clock',
         title: <Translation id="TR_COINJOIN_TILE_1_TITLE" />,
         description: <Translation id="TR_COINJOIN_TILE_1_DESCRIPTION" />,
-        image: 'CLOCK',
+        iconName: ClockIcon,
     },
     {
+        id: 'circuitry',
         title: <Translation id="TR_COINJOIN_TILE_2_TITLE" />,
         description: <Translation id="TR_COINJOIN_TILE_2_DESCRIPTION" />,
-        image: 'FIRMWARE',
+        iconName: CircuitryIcon,
     },
     {
+        id: 'lock',
         title: <Translation id="TR_COINJOIN_TILE_3_TITLE" />,
         description: <Translation id="TR_COINJOIN_TILE_3_DESCRIPTION" />,
-        image: 'PIN_LOCKED',
+        iconName: LockKeyIcon,
     },
 ];
 
@@ -133,20 +116,24 @@ export const CoinjoinConfirmation = ({ account }: CoinjoinConfirmationProps) => 
     return (
         <>
             <Card>
-                <TopRow>
+                <H3 margin={{ bottom: 32 }}>
                     <Translation id="TR_COINJOIN_SETUP" />
-                </TopRow>
+                </H3>
                 <Tiles>
-                    {tiles.map(tile => (
-                        <Tile key={tile.image} {...tile} />
+                    {tiles.map(({ id, ...tile }) => (
+                        <Tile key={id} {...tile} />
                     ))}
                 </Tiles>
                 <FeeWrapper>
                     <TopFeeRow>
-                        <FeeHeading typographyStyle="highlight">
+                        <Paragraph
+                            typographyStyle="body-md-strong"
+                            intent="neutral"
+                            priority="secondary"
+                        >
                             <Translation id="TR_SERVICE_FEE" />
-                        </FeeHeading>
-                        <Paragraph typographyStyle="highlight">
+                        </Paragraph>
+                        <Paragraph typographyStyle="body-md-strong">
                             {coordinatorFeePercentage}
                         </Paragraph>
                     </TopFeeRow>
@@ -157,9 +144,14 @@ export const CoinjoinConfirmation = ({ account }: CoinjoinConfirmationProps) => 
             </Card>
 
             <Tooltip content={getButtonTooltipMessage()}>
-                <StyledButton onClick={anonymize} isDisabled={isDisabled} isLoading={isLoading}>
+                <Button
+                    onClick={anonymize}
+                    isDisabled={isDisabled}
+                    isLoading={isLoading}
+                    margin={{ top: spacings.xl }}
+                >
                     <Translation id="TR_START_COINJOIN" />
-                </StyledButton>
+                </Button>
             </Tooltip>
         </>
     );

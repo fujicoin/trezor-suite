@@ -1,17 +1,14 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
+import { action } from 'storybook/actions';
 
-import { Button as ButtonComponent, ButtonProps, allowedButtonFrameProps } from './Button';
-import { variables } from '../../../config';
+import * as generatedIcons from '@trezor/icons';
+
+import { Button as ButtonComponent, type ButtonProps, allowedButtonFrameProps } from './Button';
 import { getFramePropsStory } from '../../../utils/frameProps';
-import {
-    buttonSizes,
-    buttonVariants,
-    iconAlignments,
-    subtleButtonVariants,
-} from '../buttonStyleUtils';
+import { buttonIntents, buttonPriorities, buttonSizes } from '../types';
 
 const meta: Meta<ButtonProps> = {
-    title: 'Buttons',
+    title: '🫵 Buttons',
     component: ButtonComponent,
 };
 
@@ -19,95 +16,70 @@ export default meta;
 
 export const Button: StoryObj<ButtonProps> = {
     args: {
-        children: 'Button label',
-        onClick: () => null,
-        href: undefined,
-        target: undefined,
-        variant: 'primary',
+        children: 'Placeholder',
+        onClick: action('onClick'),
+        intent: 'brand',
+        priority: 'primary',
         size: 'medium',
         isDisabled: false,
         isLoading: false,
-        isFullWidth: false,
-        isSubtle: false,
-        iconAlignment: 'start',
-        title: 'Button title',
+        isInverse: false,
+        isFloating: false,
+        shortcut: undefined,
         ...getFramePropsStory(allowedButtonFrameProps).args,
     },
     argTypes: {
         children: {
-            table: {
-                type: {
-                    summary: 'ReactNode',
-                },
-            },
+            type: 'string',
         },
         href: {
-            description: `HTML based href. This creates also anchor from button element.`,
+            type: 'string',
         },
         target: {
-            description: `HTML based target. Related only for href attribute.`,
+            type: 'string',
         },
-        variant: {
-            control: {
-                type: 'radio',
-            },
-            options: buttonVariants,
+        intent: {
+            control: { type: 'select' },
+            options: buttonIntents,
+        },
+        priority: {
+            control: { type: 'select' },
+            options: buttonPriorities,
         },
         size: {
-            control: {
-                type: 'radio',
-            },
+            control: { type: 'select' },
             options: buttonSizes,
         },
         isDisabled: {
-            control: {
-                type: 'boolean',
-            },
-        },
-        isSubtle: {
-            control: {
-                type: 'boolean',
-            },
-            description: `Available only for variants: <strong>${subtleButtonVariants.join(', ')}</strong>`,
+            type: 'boolean',
         },
         isLoading: {
-            control: {
-                type: 'boolean',
-            },
+            type: 'boolean',
         },
-        isFullWidth: {
-            control: {
-                type: 'boolean',
-            },
+        isInverse: {
+            type: 'boolean',
         },
-        icon: {
-            options: [null, ...variables.ICONS],
-            control: {
-                type: 'select',
-                labels: {
-                    'No icon': null,
-                    ...variables.ICONS.reduce((acc, icon) => ({ ...acc, [icon]: icon }), {}),
-                },
-            },
+        isFloating: {
+            type: 'boolean',
         },
-        iconSize: {
-            control: {
-                type: 'number',
-            },
+        iconLeft: {
+            options: ['none', ...Object.keys(generatedIcons)],
+            mapping: { none: undefined, ...generatedIcons },
+            control: { type: 'select' },
         },
-        iconAlignment: {
-            control: {
-                type: 'radio',
-            },
-            options: iconAlignments,
+        iconRight: {
+            options: ['none', ...Object.keys(generatedIcons)],
+            mapping: { none: undefined, ...generatedIcons },
+            control: { type: 'select' },
         },
-        title: {
-            control: { type: 'text' },
+        shortcut: {
+            control: { type: 'select' },
+            options: [undefined, 'example'],
+            mapping: {
+                undefined,
+                example: ['CTRL', 'KEY_P'],
+            },
         },
         ...getFramePropsStory(allowedButtonFrameProps).argTypes,
-    },
-
-    parameters: {
-        controls: { expanded: true },
     },
 };

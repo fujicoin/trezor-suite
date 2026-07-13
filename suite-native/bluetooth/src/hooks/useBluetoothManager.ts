@@ -1,21 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { useSelector } from 'react-redux';
 
-import { bluetoothManager } from '@trezor/transport-native-bluetooth';
+import { type BleError, BleErrorCode } from '@trezor/transport-native-bluetooth';
 
 import { selectBluetoothAdapterStatus, selectBluetoothPermissionStatus } from '../selectors';
 import { useBluetoothAlerts } from './useBluetoothAlerts';
 import { useBluetoothPermissions } from './useBluetoothPermissions';
+import { useBluetoothScanner } from './useBluetoothScanner';
 
 export const useBluetoothManager = () => {
     const { requestBluetoothPermission } = useBluetoothPermissions();
-    const { showOrHideBluetoothAlert } = useBluetoothAlerts();
+    const { showOrHideBluetoothAlert, showLocationServicesDisabledAlert } = useBluetoothAlerts();
+    const { startDeviceScan } = useBluetoothScanner();
 
     const bluetoothPermissionStatus = useSelector(selectBluetoothPermissionStatus);
     const bluetoothAdapterStatus = useSelector(selectBluetoothAdapterStatus);
 
     const [hasPermissionBeenRequested, setHasPermissionBeenRequested] = useState(false);
+
+    const scanErrorHandler = useCallback(
+        (error: BleError) => {
+            if (error.errorCode === BleErrorCode.LocationServicesDisabled) {
+                showLocationServicesDisabledAlert();
+            }
+        },
+        [showLocationServicesDisabledAlert],
+    );
 
     useEffect(() => {
         // Auto-request the permission only once when the screen is shown.
@@ -47,11 +58,7 @@ export const useBluetoothManager = () => {
 
     useEffect(() => {
         if (bluetoothAdapterStatus === 'enabled') {
-            bluetoothManager.startDeviceScan();
-
-            return () => {
-                bluetoothManager.stopDeviceScan();
-            };
+            return startDeviceScan(scanErrorHandler);
         }
-    }, [bluetoothAdapterStatus]);
+    }, [bluetoothAdapterStatus, startDeviceScan, scanErrorHandler]);
 };

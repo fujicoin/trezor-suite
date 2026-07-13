@@ -1,40 +1,44 @@
 {
     "name": "@trezor/blockchain-link-utils",
-    "version": "1.4.2",
+    "version": "10.0.0-alpha.1",
+    "type": "module",
     "license": "See LICENSE.md in repo root",
     "sideEffects": false,
     "main": "src/index.ts",
     "publishConfig": {
-        "main": "lib/index.js"
+        "main": "./lib/index.mjs",
+        "types": "./lib/index.d.mts",
+        "exports": {
+            ".": {
+                "types": "./lib/index.d.mts",
+                "default": "./lib/index.mjs"
+            },
+            "./lib/*": "./lib/*"
+        }
     },
     "files": [
         "lib/",
-        "!**/*.map"
+        "CHANGELOG.md"
     ],
     "scripts": {
-        "test:unit": "yarn g:jest -c ../../jest.config.base.js",
+        "test:unit": "yarn g:jest",
         "depcheck": "yarn g:depcheck",
         "type-check": "yarn g:tsc --build",
-        "build:lib": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/replace-imports.sh ./lib",
-        "prepublishOnly": "yarn tsx ../../scripts/prepublishNPM.js",
-        "prepublish": "yarn tsx ../../scripts/prepublish.js"
+        "build:lib": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/publish/replace-imports.sh ./lib",
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     },
     "dependencies": {
-        "@mobily/ts-belt": "^3.13.1",
-        "@stellar/stellar-sdk": "^13.3.0",
+        "@noble/hashes": "^2.0.1",
+        "@trezor/coins-solana": "workspace:*",
+        "@trezor/coins-stellar": "workspace:*",
+        "@trezor/coins-xrpl": "workspace:*",
         "@trezor/env-utils": "workspace:*",
-        "@trezor/utils": "workspace:*",
-        "xrpl": "^4.4.0"
+        "@trezor/utils": "workspace:*"
     },
     "devDependencies": {
-        "@solana/addresses": "^2.3.0",
-        "@solana/keys": "^2.3.0",
-        "@solana/rpc-api": "^2.3.0",
-        "@solana/rpc-types": "^2.3.0",
         "@trezor/blockchain-link-types": "workspace:*",
         "@trezor/eslint": "workspace:*",
-        "@trezor/type-utils": "workspace:*",
-        "tsx": "^4.20.3"
+        "@trezor/type-utils": "workspace:*"
     },
     "peerDependencies": {
         "tslib": "^2.6.2"

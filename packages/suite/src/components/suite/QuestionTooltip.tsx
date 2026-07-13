@@ -1,21 +1,13 @@
-import { JSX } from 'react';
+import { type JSX } from 'react';
 
 import styled from 'styled-components';
 
+import { type ExtendedMessageDescriptor, Translation } from '@suite/intl';
 import { H3, Tooltip } from '@trezor/components';
-
-import { Translation } from 'src/components/suite';
-import { ExtendedMessageDescriptor } from 'src/types/suite';
 
 const Wrapper = styled.div`
     display: flex;
     align-items: center;
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const Label = styled(H3)`
-    margin-right: 4px;
-    color: ${({ theme }) => theme.legacy.TYPE_DARK_GREY};
 `;
 
 // Label container to avoid jumping when tooltip appears
@@ -36,13 +28,16 @@ export const QuestionTooltip = ({ label, tooltip, className }: QuestionTooltipPr
             (tooltip ? (
                 <Tooltip
                     content={typeof tooltip === 'string' ? <Translation id={tooltip} /> : tooltip}
-                    dashed
                 >
-                    <Label>{typeof label === 'string' ? <Translation id={label} /> : label}</Label>
+                    <H3 margin={{ right: 4 }} intent="neutral" priority="secondary">
+                        {typeof label === 'string' ? <Translation id={label} /> : label}
+                    </H3>
                 </Tooltip>
             ) : (
                 <FakeTooltipContainer>
-                    <Label>{typeof label === 'string' ? <Translation id={label} /> : label}</Label>
+                    <H3 margin={{ right: 4 }} intent="neutral" priority="secondary">
+                        {typeof label === 'string' ? <Translation id={label} /> : label}
+                    </H3>
                 </FakeTooltipContainer>
             ))}
     </Wrapper>

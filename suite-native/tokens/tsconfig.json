@@ -2,6 +2,7 @@
     "extends": "../../tsconfig.base.json",
     "compilerOptions": { "outDir": "libDev" },
     "references": [
+        { "path": "../../suite-common/device" },
         {
             "path": "../../suite-common/redux-utils"
         },
@@ -18,8 +19,10 @@
             "path": "../../suite-common/wallet-types"
         },
         {
-            "path": "../../packages/blockchain-link"
+            "path": "../../suite-common/wallet-utils"
         },
-        { "path": "../../packages/utils" }
+        {
+            "path": "../../packages/blockchain-link"
+        }
     ]
 }

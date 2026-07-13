@@ -1,8 +1,9 @@
 import { useDispatch, useSelector } from 'react-redux';
 
+import { useServices } from '@suite-common/dependency-injection';
 import { UNIT_ABBREVIATIONS } from '@suite-common/suite-constants';
 import { selectBitcoinAmountUnit, setBitcoinAmountUnits } from '@suite-common/wallet-core';
-import { EventType, analytics } from '@suite-native/analytics';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { Select } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import { PROTO } from '@trezor/connect';
@@ -17,11 +18,11 @@ const bitcoinUnitsItems = [
 export const BitcoinUnitsSelector = () => {
     const dispatch = useDispatch();
     const bitcoinUnit = useSelector(selectBitcoinAmountUnit);
-
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const handleSelectUnit = (value: PROTO.AmountUnit) => {
         dispatch(setBitcoinAmountUnits(value));
         analytics.report({
-            type: EventType.SettingsChangeBtcUnit,
+            type: events.settingsChangeBtcUnitEvent.name,
             payload: { bitcoinUnit: UNIT_ABBREVIATIONS[value] },
         });
     };
@@ -32,8 +33,8 @@ export const BitcoinUnitsSelector = () => {
             title={<Translation id="moduleSettings.preferences.bitcoinUnitsLabel" />}
         >
             <Select<PROTO.AmountUnit>
-                selectValue={bitcoinUnit}
-                selectLabel={<Translation id="moduleSettings.preferences.bitcoinUnitsLabel" />}
+                value={bitcoinUnit}
+                title={<Translation id="moduleSettings.preferences.bitcoinUnitsLabel" />}
                 items={bitcoinUnitsItems}
                 onSelectItem={handleSelectUnit}
                 testID="@settings/localization/bitcoin-units-selector"

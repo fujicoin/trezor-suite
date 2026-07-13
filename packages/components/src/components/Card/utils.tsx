@@ -1,24 +1,19 @@
-import { DefaultTheme, RuleSet, css } from 'styled-components';
+import { type DefaultTheme, type RuleSet, css } from 'styled-components';
 
-import { CSSColor, Elevation, mapElevationToBackground, spacings } from '@trezor/theme';
+import { spacings } from '@trezor/theme';
 
-import { CardVariant, FillType, PaddingType } from './types';
-import { Padding } from '../../utils/frameProps';
+import { type CardType, type PaddingType } from './types';
+import { type Padding } from '../../utils/frameProps';
 
 type PaddingMapArgs = {
     paddingType: PaddingType;
     hasHeading?: boolean;
 };
 
-type FillTypeMapArgs = {
-    $fillType: FillType;
-    $elevation: Elevation;
+type CardTypeMapArgs = {
+    $type: CardType;
     $isClickable: boolean;
-    theme: DefaultTheme;
-};
-
-type VariantMapArgs = {
-    $variant: CardVariant;
+    $isSelected: boolean;
     theme: DefaultTheme;
 };
 
@@ -46,44 +41,62 @@ export const mapPaddingTypeToLabelPadding = ({ paddingType }: PaddingMapArgs): P
     return paddingMap[paddingType];
 };
 
-export const mapFillTypeToCSS = ({
-    $fillType,
-    $elevation,
+export const mapCardTypeToCSS = ({
+    $type,
     $isClickable,
+    $isSelected,
     theme,
-}: FillTypeMapArgs): RuleSet<object> => {
-    const cssMap: Record<FillType, RuleSet<object>> = {
-        default: css`
-            background: ${mapElevationToBackground({ $elevation, theme })};
-            outline: 1px solid ${theme.baseBorderSurfaceAction};
+}: CardTypeMapArgs): RuleSet<object> => {
+    const cssMap: Record<CardType, RuleSet<object>> = {
+        raised: css`
+            background: ${theme.surfaceFillRaised};
+            outline: 1px solid ${theme.surfaceBorderRaised};
 
             ${$isClickable &&
             css`
+                background: ${theme.surfaceFillAction};
+                outline-color: ${theme.surfaceBorderAction};
+
+                ${$isSelected &&
+                css`
+                    outline: 2px solid ${theme.borderBrand};
+                `}
+
+                box-shadow: ${theme.surfaceShadowAction};
+
                 &:hover {
-                    box-shadow: ${theme.boxShadowElevated};
+                    box-shadow: ${theme.surfaceShadowActionHovered};
                 }
             `}
         `,
-        flat:
-            theme.variant === 'dark'
-                ? css`
-                      background: none;
-                      outline: 1px solid ${theme.borderElevation3};
-                  `
-                : css`
-                      background: ${theme.backgroundSurfaceElevationNegative};
-                      outline: 1px solid ${theme.borderElevation0};
-                  `,
+        sunken: css`
+            background: ${theme.surfaceFillSunken};
+            outline: 1px solid ${theme.surfaceBorderSunken};
+        `,
+        flat: css`
+            background: transparent;
+            outline: 1px solid ${theme.borderNeutral};
+        `,
+        contrast: css`
+            background: ${theme.elementFillNeutralSofter};
+            outline: 1px solid ${theme.elementBorderNeutralSofterAlt};
+            outline-offset: -1px;
+
+            ${$isClickable &&
+            css`
+                ${$isSelected &&
+                css`
+                    outline: 2px solid ${theme.borderBrand};
+                `}
+
+                box-shadow: ${theme.surfaceShadowAction};
+
+                &:hover {
+                    box-shadow: ${theme.surfaceShadowActionHovered};
+                }
+            `}
+        `,
     };
 
-    return cssMap[$fillType];
-};
-
-export const mapVariantToColor = ({ $variant, theme }: VariantMapArgs): CSSColor => {
-    const colorMap: Record<CardVariant, CSSColor> = {
-        primary: theme.backgroundSecondaryDefault,
-        warning: theme.backgroundAlertYellowBold,
-    };
-
-    return colorMap[$variant];
+    return cssMap[$type];
 };

@@ -1,16 +1,16 @@
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { type RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 
 import { Box, Button, IconListTextItem, TitleHeader, VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import { useOpenLink } from '@suite-native/link';
 import {
-    DeviceCheckBackupStackParamList,
-    DeviceCheckBackupStackRoutes,
-    DeviceSettingsStackParamList,
+    type DeviceCheckBackupStackParamList,
+    type DeviceCheckBackupStackRoutes,
+    type DeviceSettingsStackParamList,
     DeviceSettingsStackRoutes,
     Screen,
     ScreenHeader,
-    StackToStackCompositeNavigationProps,
+    type StackToStackCompositeNavigationProps,
 } from '@suite-native/navigation';
 import { SUITE_WEB_DEVICE_SETTINGS_URL } from '@trezor/urls';
 
@@ -40,10 +40,10 @@ export const DeviceCheckBackupUnsupportedModelScreen = () => {
     };
 
     return (
-        <Screen header={<ScreenHeader />}>
+        <Screen header={<ScreenHeader closeActionType="close" />}>
             <Box marginTop="sp16">
                 <TitleHeader
-                    titleVariant="titleMedium"
+                    titleVariant="headline-md"
                     title={
                         <Translation id="moduleCheckBackup.checkBackupUnsupportedModelScreen.title" />
                     }
@@ -60,14 +60,18 @@ export const DeviceCheckBackupUnsupportedModelScreen = () => {
             </Box>
             <VStack justifyContent="space-between" flex={1}>
                 <VStack spacing="sp16" marginTop="sp32">
-                    <IconListTextItem textVariant="highlight" iconSize="large" icon="browsers">
+                    <IconListTextItem textVariant="body-md-strong" iconSize="large" icon="browsers">
                         <Translation id="moduleCheckBackup.checkBackupUnsupportedModelScreen.step1" />
                     </IconListTextItem>
-                    <IconListTextItem textVariant="highlight" iconSize="large" icon="trezorBackup">
+                    <IconListTextItem
+                        textVariant="body-md-strong"
+                        iconSize="large"
+                        icon="trezorBackup"
+                    >
                         <Translation id="moduleCheckBackup.checkBackupUnsupportedModelScreen.step2" />
                     </IconListTextItem>
                     <IconListTextItem
-                        textVariant="highlight"
+                        textVariant="body-md-strong"
                         iconSize="large"
                         variant="primary"
                         icon="checkCircle"
@@ -76,10 +80,14 @@ export const DeviceCheckBackupUnsupportedModelScreen = () => {
                     </IconListTextItem>
                 </VStack>
                 <VStack spacing="sp12">
-                    <Button viewLeft="arrowSquareOut" onPress={redirectToWeb}>
+                    <Button iconLeft="arrowSquareOut" onPress={redirectToWeb}>
                         <Translation id="moduleCheckBackup.checkBackupUnsupportedModelScreen.redirectButton" />
                     </Button>
-                    <Button colorScheme="tertiaryElevation0" onPress={redirectToDeviceSettings}>
+                    <Button
+                        intent="neutral"
+                        priority="secondary"
+                        onPress={redirectToDeviceSettings}
+                    >
                         <Translation id="moduleCheckBackup.checkBackupUnsupportedModelScreen.laterButton" />
                     </Button>
                 </VStack>

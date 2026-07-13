@@ -1,20 +1,17 @@
 import { useDispatch, useSelector } from 'react-redux';
 
-import {
-    selectIsDeviceAutoEjectEnabled,
-    selectIsNoPhysicalDeviceConnected,
-    toggleAutoEjectThunk,
-} from '@suite-common/wallet-core';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectIsNoPhysicalDeviceConnected } from '@suite-common/device';
+import { selectIsDeviceAutoEjectEnabled, toggleAutoEjectThunk } from '@suite-common/wallet-core';
 import { useAlert } from '@suite-native/alerts';
-import { EventType, analytics } from '@suite-native/analytics';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
+import { TouchableSwitchRow } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import { useToast } from '@suite-native/toasts';
 
-import { TouchableSwitchRow, TouchableSwitchRowDescription } from '../TouchableSwitchRow';
-
 export const AutoEjectSwitch = () => {
     const dispatch = useDispatch();
-
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const { showAlert, hideAlert } = useAlert();
 
     const { showToast } = useToast();
@@ -26,7 +23,7 @@ export const AutoEjectSwitch = () => {
     const onToggleAutoEject = () => {
         if (!isAutoEjectEnabled) {
             showToast({
-                variant: 'default',
+                intent: 'neutral',
                 message: isNoPhysicalDeviceConnected ? (
                     <Translation id="moduleSettings.viewOnly.autoEject.toast.walletsEjected" />
                 ) : (
@@ -35,7 +32,7 @@ export const AutoEjectSwitch = () => {
             });
         }
         analytics.report({
-            type: EventType.SettingsAutoEjectToggle,
+            type: events.settingsAutoEjectToggleEvent.name,
             payload: {
                 enabled: !isAutoEjectEnabled,
             },
@@ -59,9 +56,9 @@ export const AutoEjectSwitch = () => {
                 primaryButtonTitle: (
                     <Translation id="moduleSettings.viewOnly.autoEject.switch.alert.primaryButtonTitle" />
                 ),
-                primaryButtonVariant: 'redBold',
+                primaryButtonColorProps: { intent: 'critical', priority: 'primary' },
                 secondaryButtonTitle: <Translation id="generic.buttons.cancel" />,
-                secondaryButtonVariant: 'redElevation0',
+                secondaryButtonColorProps: { intent: 'critical', priority: 'secondary' },
                 onPressSecondaryButton: hideAlert,
                 onPressPrimaryButton: onToggleAutoEject,
             });
@@ -74,12 +71,8 @@ export const AutoEjectSwitch = () => {
             onChange={handleToggleAutoEject}
             accessibilityLabel="autoEjectToggle"
             text={<Translation id="moduleSettings.viewOnly.autoEject.switch.title" />}
-            description={
-                <TouchableSwitchRowDescription>
-                    <Translation id="moduleSettings.viewOnly.autoEject.switch.description" />
-                </TouchableSwitchRowDescription>
-            }
-            iconName="eject"
+            description={<Translation id="moduleSettings.viewOnly.autoEject.switch.description" />}
+            icon="eject"
             testID="@settings/auto-eject-toggle"
         />
     );

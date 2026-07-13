@@ -1,83 +1,61 @@
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 
 import { A } from '@mobily/ts-belt';
-import { atom, useSetAtom } from 'jotai';
 
-import { Account } from '@suite-common/wallet-types';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 import { Card, VStack } from '@suite-native/atoms';
+import { typedObjectEntries } from '@trezor/utils';
 
 import { AccountsListEmptyPlaceholder } from './AccountsListEmptyPlaceholder';
+import { AccountsListItem } from './AccountsListItem';
 import {
-    NativeAccountsRootState,
+    type NativeAccountsRootState,
     selectFilteredDeviceAccountsGroupedByNetworkAccountType,
 } from '../../selectors';
-import { OnSelectAccount } from '../../types';
-import { TokenSelectBottomSheet } from '../TokenSelectBottomSheet';
-import { AccountsListItem } from './AccountsListItem';
+import { type OnSelectAccount } from '../../types';
+
+const DEFAULT_NETWORK_FILTER: NetworkSymbol[] = [];
 
 type AccountsListProps = {
     onSelectAccount: OnSelectAccount;
-    filterValue?: string;
-    hideTokensIntoModal?: boolean;
-    isStakingPressable?: boolean;
-    isSendFilterEnabled?: boolean;
+    searchValue?: string;
+    isSendFlow?: boolean;
+    networkFilter?: NetworkSymbol[];
 };
 
 export const AccountsList = ({
     onSelectAccount,
-    filterValue = '',
-    hideTokensIntoModal = false,
-    isStakingPressable = false,
-    isSendFilterEnabled = false,
+    searchValue = '',
+    isSendFlow = false,
+    networkFilter = DEFAULT_NETWORK_FILTER,
 }: AccountsListProps) => {
     const groupedAccounts = useSelector((state: NativeAccountsRootState) =>
         selectFilteredDeviceAccountsGroupedByNetworkAccountType(
             state,
-            filterValue,
-            isSendFilterEnabled,
+            searchValue,
+            isSendFlow,
+            networkFilter,
         ),
     );
-    const groups = useMemo(() => Object.entries(groupedAccounts), [groupedAccounts]);
-    const bottomSheetAccountAtom = useMemo(() => atom<Account | null>(null), []);
-    const setBottomSheetAccountAtom = useSetAtom(bottomSheetAccountAtom);
-
-    const handleSetBottomSheetAccount: OnSelectAccount = useCallback(
-        params => {
-            const { account, hasAnyKnownTokens, hasStaking } = params;
-            if ((hasAnyKnownTokens || hasStaking) && hideTokensIntoModal) {
-                setBottomSheetAccountAtom(account);
-
-                return;
-            }
-            onSelectAccount(params);
-        },
-        [hideTokensIntoModal, onSelectAccount, setBottomSheetAccountAtom],
-    );
+    const groups = useMemo(() => typedObjectEntries(groupedAccounts), [groupedAccounts]);
 
     if (A.isEmpty(groups))
-        return <AccountsListEmptyPlaceholder isFilterEmpty={!filterValue?.length} />;
+        return <AccountsListEmptyPlaceholder isFilterEmpty={!searchValue?.length} />;
 
     return (
-        <>
-            <VStack marginTop="sp8" spacing="sp16">
-                {groups.map(([accountTypeHeader, networkAccounts]) => (
-                    <Card key={accountTypeHeader} noPadding>
-                        {networkAccounts.map(account => (
-                            <AccountsListItem
-                                key={account.key}
-                                account={account}
-                                onPress={handleSetBottomSheetAccount}
-                            />
-                        ))}
-                    </Card>
-                ))}
-            </VStack>
-            <TokenSelectBottomSheet
-                bottomSheetAccountAtom={bottomSheetAccountAtom}
-                onSelectAccount={onSelectAccount}
-                isStakingPressable={isStakingPressable}
-            />
-        </>
+        <VStack marginTop="sp8" spacing="sp16">
+            {groups.map(([accountTypeHeader, networkAccounts]) => (
+                <Card key={accountTypeHeader} noPadding>
+                    {networkAccounts.map(account => (
+                        <AccountsListItem
+                            key={account.key}
+                            account={account}
+                            onPress={onSelectAccount}
+                        />
+                    ))}
+                </Card>
+            ))}
+        </VStack>
     );
 };

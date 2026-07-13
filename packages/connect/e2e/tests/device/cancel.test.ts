@@ -1,4 +1,8 @@
-import TrezorConnect from '../../../src';
+// eslint-disable-next-line import/no-extraneous-dependencies
+import TrezorConnect from '@trezor/connect';
+import type { TrezorUserEnvLinkClass } from '@trezor/trezor-user-env-link';
+import { Model } from '@trezor/trezor-user-env-link';
+
 import { conditionalTest, getController, initTrezorConnect, setup } from '../../common.setup';
 
 const getAddress = (showOnTrezor: boolean, coin: string = 'regtest') =>
@@ -36,6 +40,51 @@ const assertGetAddressWorks = async () => {
         success: true,
         payload: { address: 'tb1qkvwu9g3k2pdxewfqr7syz89r3gj557l3uuf9r9' },
     });
+};
+
+const runCancelScenario = async (
+    controller: TrezorUserEnvLinkClass,
+    buildCancelParams: (callIdA: string) => { reason?: string; callId?: string } | undefined,
+    expectCallBSuccess: boolean,
+) => {
+    await setup(controller, {
+        mnemonic: 'mnemonic_all',
+        passphrase_protection: true,
+    });
+    await initTrezorConnect(controller);
+
+    // Let call A run to completion so its callId is no longer in callMethods
+    const callIdA = crypto.randomUUID();
+    TrezorConnect.on('ui-request_passphrase', passphraseHandler(''));
+    const responseA = await TrezorConnect.getAddress({
+        path: "m/84'/1'/0'/0/0",
+        coin: 'regtest',
+        showOnTrezor: true,
+        callId: callIdA,
+    });
+
+    expect(responseA.success).toBeTruthy();
+
+    const callB = TrezorConnect.getAddress({
+        path: "m/84'/1'/0'/0/0",
+        coin: 'regtest',
+        showOnTrezor: true,
+    });
+
+    await new Promise<void>(resolve => {
+        const handler = (event: any) => {
+            if (event.code === 'ButtonRequest_Address') {
+                TrezorConnect.off('button', handler);
+                resolve();
+            }
+        };
+        TrezorConnect.on('button', handler);
+    });
+
+    TrezorConnect.cancel(buildCancelParams(callIdA));
+
+    const responseB = await callB;
+    expect(responseB.success).toEqual(expectCallBSuccess);
 };
 
 describe('TrezorConnect.cancel', () => {
@@ -78,14 +127,14 @@ describe('TrezorConnect.cancel', () => {
             });
         });
 
-        TrezorConnect.cancel('Cancel reason');
+        TrezorConnect.cancel({ reason: 'Cancel reason' });
 
         const response = await getAddressCall;
 
         expect(response).toMatchObject({
             success: false,
-            payload: {
-                error: 'Cancel reason',
+            error: {
+                message: 'Cancel reason',
                 code: 'Method_Cancel',
             },
         });
@@ -115,14 +164,14 @@ describe('TrezorConnect.cancel', () => {
         // TODO: model T is happy with 1ms, model one needs more (1000 worked)
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        TrezorConnect.cancel('Cancel reason');
+        TrezorConnect.cancel({ reason: 'Cancel reason' });
 
         const response = await getAddressCall;
 
         expect(response).toMatchObject({
             success: false,
-            payload: {
-                error: 'Cancel reason',
+            error: {
+                message: 'Cancel reason',
             },
         });
 
@@ -152,13 +201,49 @@ describe('TrezorConnect.cancel', () => {
         await assertGetAddressWorks();
     });
 
+    it('Passphrase request - Cancel by callId', async () => {
+        await setup(controller, {
+            mnemonic: 'mnemonic_all',
+            passphrase_protection: true,
+        });
+        await initTrezorConnect(controller);
+
+        const callId = crypto.randomUUID();
+        const callA = TrezorConnect.getAddress({
+            path: "m/84'/1'/0'/0/0",
+            coin: 'regtest',
+            showOnTrezor: false,
+            callId,
+        });
+
+        // Wait for passphrase prompt then cancel only this call by its callId
+        await new Promise<void>(resolve => {
+            TrezorConnect.on('ui-request_passphrase', () => resolve());
+        });
+        TrezorConnect.cancel({ callId });
+
+        const responseA = await callA;
+        expect(responseA.success).toEqual(false);
+
+        // After a targeted cancel the device should still be usable
+        await assertGetAddressWorks();
+    });
+
+    it('Cancel without callId aborts the current call even after a prior callId', async () => {
+        await runCancelScenario(controller, () => undefined, false);
+    });
+
+    it('Stale callId cancel does not cancel other methods', async () => {
+        await runCancelScenario(controller, callIdA => ({ callId: callIdA }), true);
+    });
+
     conditionalTest(['2'], 'Pin request - Cancel', async () => {
         await controller.stopBridge();
         await controller.stopEmu();
         await controller.startEmu({
             wipe: true,
             version: '1-latest',
-            model: 'T1B1',
+            model: Model.T1B1,
         });
         await controller.setupEmu({
             pin: '1234',
@@ -170,7 +255,7 @@ describe('TrezorConnect.cancel', () => {
 
         // T1 needs to be restarted for settings to be applied (pin)
         await controller.stopEmu();
-        await controller.startEmu({ version: '1-latest', model: 'T1B1' });
+        await controller.startEmu({ version: '1-latest', model: Model.T1B1 });
 
         await initTrezorConnect(controller);
 
@@ -194,6 +279,7 @@ describe('TrezorConnect.cancel', () => {
 
         // assertGetAddressWorks will not work without providing pin
         const feat = await TrezorConnect.getFeatures();
+        if (!feat.success) throw new Error(feat.error.message);
         expect(feat.payload).toMatchObject({ initialized: true });
     });
 
@@ -203,7 +289,7 @@ describe('TrezorConnect.cancel', () => {
         await controller.startEmu({
             wipe: true,
             version: '1-latest',
-            model: 'T1B1',
+            model: Model.T1B1,
         });
         await controller.startBridge(
             // @ts-expect-error
@@ -217,6 +303,10 @@ describe('TrezorConnect.cancel', () => {
         const recoveryDeviceCall = TrezorConnect.recoveryDevice({
             passphrase_protection: false,
             pin_protection: false,
+            // Since Version 1.14.1 — 18th March 2026 - if `word_count` is less than 24 words it requires Matrix input,
+            // So we have to provide `word_count: 24,` so this tests stays as it is.
+            // https://github.com/trezor/trezor-firmware/blob/main/legacy/firmware/recovery.c#L481
+            word_count: 24,
         });
 
         await wordPromise;
@@ -228,6 +318,7 @@ describe('TrezorConnect.cancel', () => {
 
         // assertGetAddressWorks will not work here, device is not initialized
         const feat = await TrezorConnect.getFeatures();
+        if (!feat.success) throw new Error(feat.error.message);
         expect(feat.payload).toMatchObject({ initialized: false });
     });
 });

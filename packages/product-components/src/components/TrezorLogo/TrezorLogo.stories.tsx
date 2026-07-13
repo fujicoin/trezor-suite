@@ -1,30 +1,33 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 
-import { TrezorLogo as TrezorLogoComponent, TrezorLogoProps } from './TrezorLogo';
+import { getFramePropsStory } from '@trezor/components';
 
-const meta: Meta = {
+import {
+    TrezorLogo as TrezorLogoComponent,
+    type TrezorLogoProps,
+    allowedTrezorLogoFrameProps,
+    trezorLogoTypes,
+} from './TrezorLogo';
+
+const meta: Meta<typeof TrezorLogoComponent> = {
     title: 'TrezorLogo',
     component: TrezorLogoComponent,
-} as Meta;
+};
 export default meta;
 
 export const TrezorLogo: StoryObj<TrezorLogoProps> = {
     args: {
         type: 'horizontal',
-        width: 100,
+        ...getFramePropsStory(allowedTrezorLogoFrameProps).args,
+        width: '100px',
     },
     argTypes: {
         type: {
-            options: ['horizontal', 'suite_compact', 'suite', 'vertical', 'symbol'],
+            options: trezorLogoTypes,
             control: {
                 type: 'radio',
             },
         },
-        width: {
-            type: 'number',
-        },
-        height: {
-            control: 'number',
-        },
+        ...getFramePropsStory(allowedTrezorLogoFrameProps).argTypes,
     },
 };

@@ -1,5 +1,10 @@
 import { useState } from 'react';
 
+import { Translation, useTranslation } from '@suite/intl';
+import { Labeling } from '@suite/labeling';
+import { selectIsLegacyLabelingVisible } from '@suite/metadata';
+import { SuiteSyncWalletDebug } from '@suite/suite-sync';
+import { useWalletLabel } from '@suite/wallet';
 import {
     getAccountsByDeviceState,
     selectAllAccountsToList,
@@ -15,24 +20,24 @@ import {
     Column,
     Divider,
     Icon,
+    IconButton,
     Row,
+    TOOLTIP_DELAY_LONG,
     Text,
     Tooltip,
 } from '@trezor/components';
+import { AsteriskIcon, EjectIcon, XIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { METADATA_LABELING } from 'src/actions/suite/constants';
 import { redirectAfterWalletSelectedThunk } from 'src/actions/wallet/addWalletThunk';
-import { MetadataLabeling, Translation, WalletLabeling } from 'src/components/suite';
+import { WalletLabeling } from 'src/components/suite/labeling/WalletLabeling';
 import { FiatHeader } from 'src/components/wallet/FiatHeader';
 import { useDispatch, useSelector } from 'src/hooks/suite';
 import { useStore } from 'src/hooks/suite/useStore';
 import { useTotalFiatBalance } from 'src/hooks/wallet/useTotalFiatBalance';
-import { selectLabelingDataForWallet } from 'src/reducers/suite/metadataReducer';
-import { AcquiredDevice, ForegroundAppProps } from 'src/types/suite';
+import { type AcquiredDevice, type ForegroundAppProps } from 'src/types/suite';
 
 import { EjectConfirmation } from './EjectConfirmation';
-import { useWalletLabeling } from '../../../../components/suite/labeling/WalletLabeling';
 
 type WalletInstanceProps = {
     instance: AcquiredDevice;
@@ -49,7 +54,6 @@ export const WalletInstance = ({
     ...rest
 }: WalletInstanceProps) => {
     const [isEjecting, setIsEjecting] = useState(false);
-    const [isEjectVisible, setIsEjectVisible] = useState(false);
     const accounts = useSelector(state => state.wallet.accounts);
     const selectedAccount = useSelector(state => state.wallet.selectedAccount);
     const currentFiatRates = useSelector(selectCurrentFiatRates);
@@ -57,19 +61,15 @@ export const WalletInstance = ({
     const editing = useSelector(state => state.metadata.editing);
     const dispatch = useDispatch();
     const store = useStore();
-
-    const { defaultAccountLabelString } = useWalletLabeling();
+    const { translationString } = useTranslation();
+    const isLegacyLabelingVisible = useSelector(selectIsLegacyLabelingVisible);
+    const { defaultLabel, label } = useWalletLabel({ device: instance });
 
     const deviceAccounts = getAllAccounts(instance.state, accounts);
 
     const walletBalance = useTotalFiatBalance(deviceAccounts, baseCurrencyCode, currentFiatRates);
 
-    const { walletLabel } = useSelector(state =>
-        selectLabelingDataForWallet(state, instance.state),
-    );
     const dataTestBase = `@switch-device/wallet-on-index/${index}`;
-
-    const defaultWalletLabel = defaultAccountLabelString({ device: instance });
 
     const stopPropagation = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) =>
         e.stopPropagation();
@@ -87,8 +87,8 @@ export const WalletInstance = ({
 
             // NOTE: to determine which account is the first one, we need to filter out empty accounts
             // that are currently displayed in the UI
-            const unfilteredUIAccounGroups = selectAllAccountsToList(store.getState());
-            const currentFirstAccount = unfilteredUIAccounGroups[0];
+            const unfilteredUIAccountGroups = selectAllAccountsToList(store.getState());
+            const currentFirstAccount = unfilteredUIAccountGroups[0];
             // NOTE: attempt to determine, if the currently selected account
             // has a corresponding account in the next wallet accounts
             // if not, enforce switching URL to dashboard
@@ -111,92 +111,92 @@ export const WalletInstance = ({
         }
     };
 
+    const passphraseIcon = instance.useEmptyPassphrase === false && (
+        <Tooltip content={<Translation id="TR_WALLET_PASSPHRASE_WALLET" />}>
+            <Icon as={AsteriskIcon} size={12} />
+        </Tooltip>
+    );
+
     return (
-        <Box position={{ type: 'relative' }} width="100%">
-            <Card
-                key={`${instance.instance}${instance.state}`}
-                paddingType="small"
-                onClick={handleClick}
-                tabIndex={0}
-                data-testid={dataTestBase}
-                variant={isSelected ? 'primary' : undefined}
-                onMouseEnter={() => setIsEjectVisible(true)}
-                onMouseLeave={() => setIsEjectVisible(false)}
-                {...rest}
-            >
+        <Card
+            key={`${instance.instance}${instance.state}`}
+            paddingType="none"
+            onClick={handleClick}
+            tabIndex={0}
+            data-testid={dataTestBase}
+            isSelected={isSelected}
+            {...rest}
+        >
+            <Box padding={{ vertical: 12, right: 12, left: 16 }}>
                 <Collapsible isOpen={isEjecting}>
-                    <Column>
-                        <Text
-                            as="div"
-                            variant={isSelected ? 'default' : 'tertiary'}
-                            typographyStyle={isSelected ? 'highlight' : 'body'}
-                            ellipsisLineCount={1}
-                        >
-                            <Row justifyContent="space-between">
-                                <Row gap={spacings.xxs}>
-                                    {instance.useEmptyPassphrase === false && (
-                                        <Tooltip
-                                            content={
-                                                <Translation id="TR_WALLET_PASSPHRASE_WALLET" />
-                                            }
-                                        >
-                                            <Icon name="asterisk" size={12} />
-                                        </Tooltip>
-                                    )}
-                                    {instance.state?.staticSessionId ? (
-                                        <MetadataLabeling
-                                            defaultVisibleValue={
-                                                walletLabel === undefined ||
-                                                walletLabel.trim() === ''
-                                                    ? defaultWalletLabel
-                                                    : walletLabel
-                                            }
+                    <Column gap={8}>
+                        <Row justifyContent="space-between">
+                            <Text
+                                as="div"
+                                intent="neutral"
+                                priority={isSelected ? 'primary' : 'secondary'}
+                                typographyStyle={isSelected ? 'body-md-strong' : 'body-md'}
+                            >
+                                {instance.state?.staticSessionId ? (
+                                    <Column>
+                                        <Labeling
+                                            placeholder={translationString(
+                                                'TR_LABELING_WALLET_LABEL',
+                                            )}
+                                            maxWidth={290}
+                                            deviceStaticSessionId={instance.state.staticSessionId}
+                                            defaultValue={defaultLabel}
                                             payload={{
                                                 type: 'walletLabel',
                                                 entityKey: instance.state.staticSessionId,
                                                 defaultValue: instance.state.staticSessionId,
-                                                value: instance?.metadata[
-                                                    METADATA_LABELING.ENCRYPTION_VERSION
-                                                ]
-                                                    ? walletLabel
-                                                    : '',
                                             }}
-                                            defaultEditableValue={defaultWalletLabel}
+                                            leftAddon={passphraseIcon}
+                                        >
+                                            {label}
+                                        </Labeling>
+                                        <SuiteSyncWalletDebug
+                                            device={instance}
+                                            isLegacyLabelingVisible={isLegacyLabelingVisible}
                                         />
-                                    ) : (
+                                    </Column>
+                                ) : (
+                                    <Row gap={4}>
+                                        {passphraseIcon}
                                         <WalletLabeling device={instance} />
-                                    )}
-                                </Row>
-
-                                {isEjectVisible && !isEjecting && (
-                                    <Box
-                                        position={{
-                                            type: 'absolute',
-                                            right: spacings.sm,
-                                            top: spacings.sm,
-                                        }}
-                                    >
-                                        <Collapsible.Toggle>
-                                            <Tooltip
-                                                cursor="pointer"
-                                                content={<Translation id="TR_EJECT_HEADING" />}
-                                            >
-                                                <Icon
-                                                    data-testid={`${dataTestBase}/eject-button`}
-                                                    name="eject"
-                                                    size={18}
-                                                    variant="tertiary"
-                                                    onClick={e => {
-                                                        e.stopPropagation();
-                                                        setIsEjecting(true);
-                                                    }}
-                                                />
-                                            </Tooltip>
-                                        </Collapsible.Toggle>
-                                    </Box>
+                                    </Row>
                                 )}
-                            </Row>
-                        </Text>
+                            </Text>
+                            <Collapsible.Toggle>
+                                <IconButton
+                                    data-testid={
+                                        isEjecting
+                                            ? `@switch-device/cancelEject`
+                                            : `${dataTestBase}/eject-button`
+                                    }
+                                    icon={isEjecting ? XIcon : EjectIcon}
+                                    size="small"
+                                    intent="neutral"
+                                    priority="secondary"
+                                    onClick={e => {
+                                        e.stopPropagation();
+                                        setIsEjecting(prev => !prev);
+                                    }}
+                                    tooltip={{
+                                        delayShow: TOOLTIP_DELAY_LONG,
+                                        content: (
+                                            <Translation
+                                                id={
+                                                    isEjecting
+                                                        ? 'TR_CANCEL'
+                                                        : 'TR_SWITCH_DEVICE_EJECT_TOOLTIP'
+                                                }
+                                            />
+                                        ),
+                                    }}
+                                />
+                            </Collapsible.Toggle>
+                        </Row>
 
                         <FiatHeader
                             amount={walletBalance}
@@ -215,7 +215,7 @@ export const WalletInstance = ({
                         />
                     </Collapsible.Content>
                 </Collapsible>
-            </Card>
-        </Box>
+            </Box>
+        </Card>
     );
 };

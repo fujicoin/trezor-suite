@@ -1,26 +1,29 @@
-import { createBioAuthAPI } from './bioAuthAPIFactory';
+import { type DecryptionError, type EncryptionError } from '@suite-common/platform-encryption';
+import { type Result } from '@trezor/type-utils';
+
 import {
-    BootstrapTorEvent,
-    BridgeSettings,
-    ConnectPopupCall,
-    ConnectPopupCancel,
-    ConnectPopupResponse,
-    HandshakeClient,
-    HandshakeElectron,
-    HandshakeEvent,
-    HandshakeInit,
-    HandshakeTorModule,
-    InvokeResult,
-    LoggerConfig,
-    Status,
-    SuiteThemeVariant,
-    TorSettings,
-    TorStatusEvent,
-    TraySettings,
-    UpdateInfo,
-    UpdateProgress,
+    type BioAuthSettings,
+    type BootstrapTorEvent,
+    type BridgeSettings,
+    type ConnectPopupCall,
+    type ConnectPopupCancel,
+    type ConnectPopupResponse,
+    type HandshakeClient,
+    type HandshakeElectron,
+    type HandshakeEvent,
+    type HandshakeInit,
+    type HandshakeTorModule,
+    type InvokeResult,
+    type LoggerConfig,
+    type Status,
+    type SuiteThemeVariant,
+    type TorSettings,
+    type TorStatusEvent,
+    type TraySettings,
+    type UpdateInfo,
+    type UpdateProgress,
 } from './messages';
-import { InvokeMethod, ListenerMethod, SendMethod } from './methods';
+import { type InvokeMethod, type ListenerMethod, type SendMethod } from './methods';
 
 // Event messages from renderer to main process
 // Sent by DesktopApi.[method] via ipcRenderer.send (see ./main)
@@ -41,11 +44,6 @@ export interface MainChannels {
     'update/download': void;
     'update/install': void;
     'logger/config': LoggerConfig;
-
-    // bio auth
-    'bio-auth/request': { message: string };
-    'bio-auth/is-available': void;
-    'bio-auth/request-availability': void;
 }
 
 // Event messages from main to renderer process
@@ -53,13 +51,21 @@ export interface MainChannels {
 // Handled by DesktopApi.on/once (see ./main)
 export interface RendererChannels {
     // oauth
-    'oauth/response': { [key: string]: string };
+    'oauth/response':
+        | {
+              key: 'trezor-oauth';
+              search: string;
+          }
+        | {
+              key: 'trezor-oauth';
+              hash: string;
+          };
 
     // Update events
     'update/checking': void;
     'update/available': UpdateInfo;
     'update/not-available': UpdateInfo;
-    'update/error': Error;
+    'update/error': void;
     'update/downloading': UpdateProgress;
     'update/downloaded': UpdateInfo;
     'update/allow-prerelease': boolean;
@@ -82,23 +88,27 @@ export interface RendererChannels {
 
     'handshake/event': HandshakeEvent;
 
+    // theme
+    'theme/system-change': 'dark' | 'light';
+
     // connect
     'connect-popup/call': ConnectPopupCall;
     'connect-popup/cancel': ConnectPopupCancel;
 
     'app/auto-start/popup-request': void;
 
-    // bio auth
-    'bio-auth/request': { message: string };
-    'bio-auth/validated':
-        | {
-              success: true;
-          }
-        | {
-              success: false;
-              message: string;
-          };
-    'bio-auth/is-available': boolean;
+    'power-monitor/suspend': void;
+
+    'find:show': void;
+
+    // application menu (Help) → open the in-app guide on a specific view
+    'guide/open': void;
+    'guide/open-support-feedback': void;
+    'guide/open-shortcuts': void;
+
+    'bio-auth/validation-status-changed': boolean;
+    'bio-auth/bio-auth-availability-changed': boolean;
+    'bio-auth/settings-changed': BioAuthSettings;
 }
 
 // Invocation from renderer process
@@ -129,17 +139,42 @@ export interface InvokeChannels {
         response: 'background-always' | 'background-now' | 'quit-always' | 'quit-now',
     ) => void;
     'app/is-visible': () => boolean;
+    'app/is-fullscreen': () => boolean;
     'tray/change-settings': (payload: TraySettings) => InvokeResult;
     'tray/get-settings': () => InvokeResult<TraySettings>;
     'connect-popup/enabled': () => boolean;
     'connect-popup/set-enabled': (enabled: boolean) => void;
     'connect-popup/ready': () => void;
     'connect-popup/response': (response: ConnectPopupResponse) => void;
-    'system/open-settings': (settings: string) => InvokeResult;
+    'system/open-settings': (settings: 'bluetooth' | 'bluetooth-permissions') => InvokeResult;
+    'bio-auth/set-bio-auth-settings': (settings: BioAuthSettings) => void;
+    'bio-auth/get-bio-auth-settings': () => BioAuthSettings;
+    'bio-auth/is-bio-auth-available': () => boolean;
+    'bio-auth/validate-bio-auth': ({ message }: { message: string }) =>
+        | {
+              success: true;
+          }
+        | {
+              success: false;
+              message: string;
+          };
+    'bio-auth/get-validation-status': () => boolean;
+    'safe-storage/decrypt': (params: { value: string }) => Result<string, DecryptionError>;
+    'safe-storage/encrypt': (params: { value: string }) => Result<string, EncryptionError>;
 
-    // bio auth
-    'bio-auth/request': (options: { message: string }) => void;
-    'bio-auth/is-available': () => void;
+    // MCP server
+    'mcp/get-settings': () => {
+        enabled: boolean;
+        port: number;
+        running: boolean;
+        url: string | null;
+        token: string | null;
+    };
+    'mcp/set-enabled': (enabled: boolean) => void;
+    'mcp/regenerate-token': () => { token: string };
+
+    // Browser Window
+    'browser-window/reload': () => void;
 }
 
 type DesktopApiListener = ListenerMethod<RendererChannels>;
@@ -148,7 +183,7 @@ type DesktopApiSend<K extends keyof MainChannels> = SendMethod<{ 0: MainChannels
 
 type DesktopApiInvoke<K extends keyof InvokeChannels> = InvokeMethod<{ 0: InvokeChannels[K] }>;
 
-export interface DesktopApi extends ReturnType<typeof createBioAuthAPI> {
+export type DesktopApi = {
     available: boolean;
     on: DesktopApiListener;
     once: DesktopApiListener;
@@ -162,6 +197,7 @@ export interface DesktopApi extends ReturnType<typeof createBioAuthAPI> {
     appAutoStartPopupAck: DesktopApiInvoke<'app/auto-start/popup-ack'>;
     appAutoStartPopupResponse: DesktopApiInvoke<'app/auto-start/popup-response'>;
     appIsVisible: DesktopApiInvoke<'app/is-visible'>;
+    appIsFullScreen: DesktopApiInvoke<'app/is-fullscreen'>;
     // Auto-updater
     checkForUpdates: DesktopApiSend<'update/check'>;
     downloadUpdate: DesktopApiSend<'update/download'>;
@@ -210,4 +246,21 @@ export interface DesktopApi extends ReturnType<typeof createBioAuthAPI> {
     connectPopupResponse: DesktopApiInvoke<'connect-popup/response'>;
     //system
     openSystemSettings: DesktopApiInvoke<'system/open-settings'>;
-}
+    // bioAuth
+    setBioAuthSettings: DesktopApiInvoke<'bio-auth/set-bio-auth-settings'>;
+    getBioAuthSettings: DesktopApiInvoke<'bio-auth/get-bio-auth-settings'>;
+    isBioAuthAvailable: DesktopApiInvoke<'bio-auth/is-bio-auth-available'>;
+    validateBioAuth: DesktopApiInvoke<'bio-auth/validate-bio-auth'>;
+    getBioAuthStatus: DesktopApiInvoke<'bio-auth/get-validation-status'>;
+    // safeStorage
+    safeStoreEncrypt: DesktopApiInvoke<'safe-storage/encrypt'>;
+    safeStoreDecrypt: DesktopApiInvoke<'safe-storage/decrypt'>;
+
+    // MCP server
+    mcpGetSettings: DesktopApiInvoke<'mcp/get-settings'>;
+    mcpSetEnabled: DesktopApiInvoke<'mcp/set-enabled'>;
+    mcpRegenerateToken: DesktopApiInvoke<'mcp/regenerate-token'>;
+
+    // Browser Window
+    reloadBrowserWindow: DesktopApiInvoke<'browser-window/reload'>;
+};

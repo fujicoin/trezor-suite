@@ -1,22 +1,23 @@
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { Anchor, SettingsAnchor } from '@suite/router';
+import { selectTorOnionLinks, suiteSettingsActions } from '@suite/settings';
+import { useServices } from '@suite-common/dependency-injection';
 import { Switch } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { ActionColumn, SectionItem, TextColumn } from '@trezor/product-components';
 
-import { setOnionLinks } from 'src/actions/suite/suiteActions';
-import { SettingsSectionItem } from 'src/components/settings';
-import { ActionColumn, TextColumn, Translation } from 'src/components/suite';
-import { SettingsAnchor } from 'src/constants/suite/anchors';
 import { useDispatch, useSelector } from 'src/hooks/suite';
 
 /* keep torOnionLinks value as it is but hide this section when tor is off.
    when tor is off this value has no effect anyway (handled by ExternalLink hook) */
 export const TorOnionLinks = () => {
-    const torOnionLinks = useSelector(state => state.suite.settings.torOnionLinks);
+    const torOnionLinks = useSelector(selectTorOnionLinks);
     const dispatch = useDispatch();
-
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const handleChange = () => {
-        dispatch(setOnionLinks(!torOnionLinks));
+        dispatch(suiteSettingsActions.setOnionLinks(!torOnionLinks));
         analytics.report({
-            type: EventType.SettingsTorOnionLinks,
+            type: events.settingsTorOnionLinksEvent.name,
             payload: {
                 value: !torOnionLinks,
             },
@@ -24,18 +25,26 @@ export const TorOnionLinks = () => {
     };
 
     return (
-        <SettingsSectionItem anchorId={SettingsAnchor.TorOnionLinks}>
-            <TextColumn
-                title={<Translation id="TR_ONION_LINKS_TITLE" />}
-                description={<Translation id="TR_ONION_LINKS_DESCRIPTION" />}
-            />
-            <ActionColumn>
-                <Switch
-                    data-testid="@settings/general/onion-links-switch"
-                    isChecked={torOnionLinks}
-                    onChange={handleChange}
-                />
-            </ActionColumn>
-        </SettingsSectionItem>
+        <Anchor anchorId={SettingsAnchor.TorOnionLinks}>
+            {({ anchorId, anchorRef, shouldHighlight }) => (
+                <SectionItem
+                    data-testid={anchorId}
+                    ref={anchorRef}
+                    shouldHighlight={shouldHighlight}
+                >
+                    <TextColumn
+                        title={<Translation id="TR_ONION_LINKS_TITLE" />}
+                        description={<Translation id="TR_ONION_LINKS_DESCRIPTION" />}
+                    />
+                    <ActionColumn>
+                        <Switch
+                            data-testid="@settings/general/onion-links-switch"
+                            isChecked={torOnionLinks}
+                            onChange={handleChange}
+                        />
+                    </ActionColumn>
+                </SectionItem>
+            )}
+        </Anchor>
     );
 };

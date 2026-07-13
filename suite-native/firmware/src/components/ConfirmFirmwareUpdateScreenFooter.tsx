@@ -1,11 +1,11 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { useSelector } from 'react-redux';
 
 import { selectHasRunningDiscovery } from '@suite-common/wallet-core';
 import { Button, VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 
-import { useIsFirmwareUpdateFeatureEnabled } from '../hooks/useIsFirmwareUpdateFeatureEnabled';
+import { selectIsFirmwareUpdateFeatureEnabled } from '../hooks/useIsFirmwareUpdateFeatureEnabled';
 
 type ConfirmFirmwareUpdateScreenProps = {
     onUpdateConfirmation: () => void;
@@ -20,13 +20,14 @@ export const ConfirmFirmwareUpdateScreenFooter = ({
     onSkipUpdate,
 }: ConfirmFirmwareUpdateScreenFooterProps) => {
     const isDiscoveryRunning = useSelector(selectHasRunningDiscovery);
-    const isFirmwareUpdateEnabled = useIsFirmwareUpdateFeatureEnabled();
+    const isFirmwareUpdateEnabled = useSelector(selectIsFirmwareUpdateFeatureEnabled);
 
     return (
         <VStack spacing="sp12" marginHorizontal="sp16" marginBottom="sp16">
             <Button
                 onPress={onUpdateConfirmation}
-                colorScheme="blueBold"
+                intent={onSkipUpdate ? 'info' : 'critical'}
+                priority="primary"
                 isDisabled={isDiscoveryRunning || !isFirmwareUpdateEnabled}
                 isLoading={isDiscoveryRunning}
                 testID="@device-firmware/update-button"
@@ -39,7 +40,8 @@ export const ConfirmFirmwareUpdateScreenFooter = ({
                     testID="@firmware/skip-button"
                     isDisabled={isDiscoveryRunning || !isFirmwareUpdateEnabled}
                     isLoading={isDiscoveryRunning}
-                    colorScheme="tertiaryElevation0"
+                    intent="info"
+                    priority="secondary"
                 >
                     <Translation id="firmware.firmwareUpdateScreen.skipButton" />
                 </Button>

@@ -1,39 +1,74 @@
 import {
-    EEACountryCodeType,
+    ComprehensivelySanctionedCountryCodes,
+    type EEACountryCodeType,
     EEACountryCodes,
+    OfacSanctionedCountryCodes,
     countries as countriesRecord,
 } from '@suite-common/geolocation';
 import { isArrayMember, typedObjectValues } from '@trezor/utils';
 
-import { TradingCountryCode } from './types';
+import { type TradingCountryCode, type TradingCountryOption } from './types';
+
+type CountryItem = (typeof countriesRecord)[keyof typeof countriesRecord];
+
+const SANCTIONED_COUNTRIES = new Set([
+    ...ComprehensivelySanctionedCountryCodes,
+    ...OfacSanctionedCountryCodes,
+]);
 
 class Regional {
     readonly UNKNOWN_COUNTRY = 'unknown' as const;
+    readonly countriesOptions: TradingCountryOption[];
+    readonly countriesOptionsMap: Map<TradingCountryCode, TradingCountryOption>;
 
-    countries: [TradingCountryCode, string][] = [
-        [this.UNKNOWN_COUNTRY, '🌍 Worldwide'],
-        ...typedObjectValues(countriesRecord).map(
-            ({ code, flag, name }) => [code, `${flag} ${name}`] as [TradingCountryCode, string],
-        ),
-    ];
+    constructor(countriesFilter: (country: CountryItem) => boolean) {
+        this.countriesOptions = [
+            {
+                value: this.UNKNOWN_COUNTRY,
+                label: '🌍 Worldwide',
+                shortLabel: '🌍 Worldwide',
+                codeAlpha3: this.UNKNOWN_COUNTRY,
+                flag: '🌍',
+                name: 'Worldwide',
+            },
+            ...typedObjectValues(countriesRecord)
+                .filter(countriesFilter)
+                .map(({ code, codeAlpha3, flag, name }) => ({
+                    value: code,
+                    label: `${flag} ${name}`,
+                    shortLabel: `${flag} ${codeAlpha3}`,
+                    codeAlpha3,
+                    flag,
+                    name,
+                })),
+        ].sort((c1, c2) => c1.name.localeCompare(c2.name));
 
-    countriesMap = new Map<TradingCountryCode, string>(this.countries);
-
-    countriesOptions = this.countries
-        .map(([code, name]) => ({
-            label: name,
-            value: code,
-        }))
-        .sort((c1, c2) => {
-            const l1 = c1.label.split(' ')[1];
-            const l2 = c2.label.split(' ')[1];
-
-            return l1.localeCompare(l2);
-        });
+        this.countriesOptionsMap = new Map(
+            this.countriesOptions.map(option => [option.value, option]),
+        );
+    }
 
     isInEEA(country: string): country is EEACountryCodeType {
         return isArrayMember(country, EEACountryCodes);
     }
+
+    isSanctioned(country: string): boolean {
+        return SANCTIONED_COUNTRIES.has(country);
+    }
+
+    getCountryOptionWithWorldwideFallback(country: string): TradingCountryOption {
+        const option = this.countriesOptionsMap.get(country as TradingCountryCode);
+        if (option) {
+            return option;
+        }
+
+        return this.countriesOptionsMap.get(this.UNKNOWN_COUNTRY)!;
+    }
+
+    isWorldwideRegion(country: string): boolean {
+        return [this.UNKNOWN_COUNTRY, 'XX', 'T1'].includes(country);
+    }
 }
 
-export const regional = new Regional();
+export const regional = new Regional(() => true);
+export const nonSanctionedRegional = new Regional(({ code }) => !SANCTIONED_COUNTRIES.has(code));

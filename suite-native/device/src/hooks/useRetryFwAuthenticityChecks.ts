@@ -1,18 +1,19 @@
 import { useEffect } from 'react';
 import { useSelector } from 'react-redux';
 
-import { requestDeviceAccess } from '@suite-native/device-mutex';
-import { deviceAccessMutex } from '@suite-native/device-mutex/src/DeviceAccessMutex';
+import { deviceAccessMutex, requestDeviceAccess } from '@suite-native/device-mutex';
 import TrezorConnect, { FIRMWARE } from '@trezor/connect';
-import { TimerId } from '@trezor/type-utils';
+import { type TimerId } from '@trezor/type-utils';
 import { isArrayMember } from '@trezor/utils';
 
-import { selectFirmwareRevisionCheckErrorIfEnabled } from '../selectors';
+import { selectSelectedDeviceFirmwareRevisionCheckErrorIfEnabled } from '../selectors';
 
 const REFRESH_INTERVAL = 3_000; // [ms]
 
 export const useRetryFwAuthenticityChecks = () => {
-    const firmwareRevisionCheckError = useSelector(selectFirmwareRevisionCheckErrorIfEnabled);
+    const firmwareRevisionCheckError = useSelector(
+        selectSelectedDeviceFirmwareRevisionCheckErrorIfEnabled,
+    );
 
     const isRetriableError =
         firmwareRevisionCheckError !== null &&
@@ -26,10 +27,7 @@ export const useRetryFwAuthenticityChecks = () => {
                 if (deviceAccessMutex.taskQueue.length === 0) {
                     // any device call will cause the tests to be rerun, so getFeatures is used as the most basic one
                     // it'd be useless to await the result; what interests us is the Device state that updates, and gets propagated into redux
-                    requestDeviceAccess({
-                        deviceCallback: () =>
-                            TrezorConnect.getFeatures({ useEmptyPassphrase: true }),
-                    });
+                    requestDeviceAccess(() => TrezorConnect.getFeatures());
                 }
                 timeoutHandle = setTimeout(recheckFwRevision, REFRESH_INTERVAL);
             }

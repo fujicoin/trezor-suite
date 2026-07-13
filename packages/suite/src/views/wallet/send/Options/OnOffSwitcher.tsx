@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 
-import { Translation } from 'src/components/suite';
+import { Translation } from '@suite/intl';
 
 const Wrapper = styled.div`
     display: flex;
@@ -11,11 +11,11 @@ const Option = styled.div`
 `;
 
 const On = styled(Option)`
-    color: ${({ theme }) => theme.legacy.BG_GREEN};
+    color: ${({ theme }) => theme.contentBrand};
 `;
 
 const Off = styled(Option)`
-    color: ${({ theme }) => theme.legacy.TYPE_RED};
+    color: ${({ theme }) => theme.contentCritical};
 `;
 
 const EqualSign = styled.div`

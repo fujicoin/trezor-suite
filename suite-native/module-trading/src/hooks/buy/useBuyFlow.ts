@@ -1,68 +1,52 @@
-import { useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
-import { BuyTrade, BuyTradeResponse, FormResponse } from 'invity-api';
 
+import { useServices } from '@suite-common/dependency-injection';
+import { invariant } from '@suite-common/suite-utils';
 import {
-    TradingRootState,
+    type TradingRootState,
     buyThunks,
     selectTradingBuyIsLoading,
     selectTradingCoinInfoByCryptoId,
     tradingBuyActions,
 } from '@suite-common/trading';
-import { EventType, analytics } from '@suite-native/analytics';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import {
-    RootStackParamList,
+    type RootStackParamList,
     RootStackRoutes,
-    StackNavigationProps,
-    StackToStackCompositeNavigationProps,
-    TradingStackParamList,
-    TradingStackRoutes,
+    type StackToStackCompositeNavigationProps,
+    type TradingStackParamList,
+    type TradingStackRoutes,
 } from '@suite-native/navigation';
-import { useTimer } from '@trezor/react-utils';
+import { getSymbolFromTradeableAsset } from '@suite-native/trading-atoms';
+import { buildTradingUrl, useBrowserAuth } from '@suite-native/trading-browser-auth';
+import { type BuyFormType } from '@suite-native/trading-types';
 
-import { clearBuyFormQuoteData } from './useBuyForm';
-import { BuyFormType } from '../../types/buy';
+import { getAnalyticsTradingBuyPayload } from '../../utils/buy/quotesUtils';
 import {
-    buildTradingUrl,
-    getAnalyticsTradingBuyPayload,
-    getSourceForForm,
-} from '../../utils/general/formUtils';
-import { getSymbolFromTradeableAsset } from '../../utils/general/tradeableAssetUtils';
-import { useConsent } from '../general/useConsent';
+    getReceiveAccountAddressText,
+    isFullySelectedReceiveAccount,
+} from '../../utils/general/receiveAccountUtils';
 
 type NavigationProps = StackToStackCompositeNavigationProps<
     TradingStackParamList,
-    TradingStackRoutes.ReceiveAccounts,
+    TradingStackRoutes.Trading,
     RootStackParamList
 >;
 
-const reportTradeConfirmation = () => {
-    analytics.report({
-        type: EventType.TradingConfirmTrade,
-        payload: {
-            type: 'buy',
-        },
-    });
-};
-
 export const useBuyFlow = (form: BuyFormType) => {
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const dispatch = useDispatch();
     const isLoading = useSelector(selectTradingBuyIsLoading);
-
-    const timer = useTimer();
-    const navigation = useNavigation<NavigationProps>();
-    const rootNavigation =
-        useNavigation<StackNavigationProps<RootStackParamList, RootStackRoutes>>();
-
-    const { isConsentRequested, waitForConsent, resolveConsent } = useConsent();
-
     const [asset, candidateQuote, receiveAccount] = form.watch([
         'asset',
         'quote',
         'receiveAccount',
     ]);
+
+    const navigation = useNavigation<NavigationProps>();
+
     const coinInfo = useSelector((state: TradingRootState) =>
         selectTradingCoinInfoByCryptoId(state, candidateQuote?.receiveCurrency),
     );
@@ -74,93 +58,16 @@ export const useBuyFlow = (form: BuyFormType) => {
         coinInfo,
     });
 
+    const { openBrowserForFormData } = useBrowserAuth('buy');
+
     const selectReceiveAccount = () => {
         const selectedNetworkSymbol = getSymbolFromTradeableAsset(asset);
         if (selectedNetworkSymbol) {
-            navigation.navigate(TradingStackRoutes.ReceiveAccounts, {
+            navigation.navigate(RootStackRoutes.ReceiveAccounts, {
                 symbol: selectedNetworkSymbol,
                 tradingType: 'buy',
             });
         }
-    };
-
-    const handleConsent = useMemo(
-        () => ({
-            give: () => {
-                resolveConsent(true);
-
-                analytics.report({
-                    type: EventType.TradingBuy,
-                    payload: {
-                        step: 'buy-terms-modal',
-                        action: 'continue',
-                        ...quoteAnalyticsData,
-                    },
-                });
-            },
-            cancel: () => {
-                resolveConsent(false);
-
-                analytics.report({
-                    type: EventType.TradingBuy,
-                    payload: {
-                        step: 'buy-terms-modal',
-                        action: 'cancel',
-                        ...quoteAnalyticsData,
-                    },
-                });
-            },
-            request: (_provider: string, _cryptoCurrency: string) => waitForConsent(),
-        }),
-        [quoteAnalyticsData, resolveConsent, waitForConsent],
-    );
-
-    const handleWebview = (formData: FormResponse['form'], returnUrl: string) => {
-        const source = getSourceForForm(formData);
-        if (!source) {
-            return;
-        }
-
-        rootNavigation.navigate(RootStackRoutes.TradingWebView, {
-            closeCallbackUrl: returnUrl,
-            source,
-            orderId: candidateQuote?.orderId,
-        });
-    };
-
-    const handleTradeResponse = (response: BuyTradeResponse, returnUrl: string) => {
-        if (response.trade.paymentId) {
-            dispatch(tradingBuyActions.saveTransactionId(response.trade.paymentId));
-        }
-
-        if (response.tradeForm) {
-            handleWebview(response.tradeForm.form, returnUrl);
-        }
-
-        clearBuyFormQuoteData(form);
-    };
-
-    const confirmTrade = async (quote: BuyTrade, address: string) => {
-        if (!receiveAccount) {
-            return;
-        }
-
-        const returnUrl = buildTradingUrl({
-            actionType: 'trade',
-            tradeType: 'buy',
-            orderId: quote.orderId,
-            exchange: quote.exchange,
-        });
-
-        await dispatch(
-            buyThunks.confirmTradeThunk({
-                address,
-                returnUrl,
-                account: receiveAccount.account,
-                processResponseData: response => handleTradeResponse(response, returnUrl),
-                triggerAnalyticsTradeConfirmation: reportTradeConfirmation,
-            }),
-        );
     };
 
     const selectQuote = async () => {
@@ -169,7 +76,7 @@ export const useBuyFlow = (form: BuyFormType) => {
         }
 
         analytics.report({
-            type: EventType.TradingBuy,
+            type: events.tradingBuyEvent.name,
             payload: {
                 step: 'buy-form',
                 action: 'continue',
@@ -177,11 +84,11 @@ export const useBuyFlow = (form: BuyFormType) => {
             },
         });
 
-        if (!receiveAccount || (!!receiveAccount.account.addresses && !receiveAccount.address)) {
+        if (!isFullySelectedReceiveAccount(receiveAccount)) {
             selectReceiveAccount();
 
             analytics.report({
-                type: EventType.TradingBuy,
+                type: events.tradingBuyEvent.name,
                 payload: {
                     step: 'account-selection',
                     action: 'continue',
@@ -192,25 +99,27 @@ export const useBuyFlow = (form: BuyFormType) => {
             return;
         }
 
+        const addressText = getReceiveAccountAddressText(receiveAccount);
+        invariant(addressText, 'addressText is not defined');
+
+        dispatch(tradingBuyActions.setReceiveAddress(addressText));
+        dispatch(tradingBuyActions.setReceiveAccountKey(receiveAccount.account.key));
+
         const returnUrl = buildTradingUrl({
             actionType: 'quote',
             tradeType: 'buy',
             orderId: candidateQuote.orderId,
-            exchange: candidateQuote.exchange,
         });
 
         await dispatch(
             buyThunks.selectQuoteThunk({
                 quote: candidateQuote,
-                timer,
                 returnUrl,
-                loginRequest: formResponse => handleWebview(formResponse, returnUrl),
-                userConsent: handleConsent.request,
+                loginRequest: formResponse =>
+                    openBrowserForFormData(formResponse, returnUrl, candidateQuote.orderId),
                 nextStep: () => {
-                    confirmTrade(
-                        candidateQuote,
-                        receiveAccount.address?.address ?? receiveAccount.account.descriptor,
-                    );
+                    navigation.navigate(RootStackRoutes.TradingBuyPreview);
+                    form.reset();
                 },
             }),
         );
@@ -219,8 +128,5 @@ export const useBuyFlow = (form: BuyFormType) => {
     return {
         canProceed,
         selectQuote,
-        isConsentRequested,
-        giveConsent: handleConsent.give,
-        cancelConsent: handleConsent.cancel,
     };
 };

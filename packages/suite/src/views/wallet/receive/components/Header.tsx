@@ -1,10 +1,10 @@
 import styled from 'styled-components';
 
+import { Translation } from '@suite/intl';
 import { getNetworkDisplaySymbol } from '@suite-common/wallet-config';
 import { H2, Paragraph } from '@trezor/components';
 
-import { Translation } from 'src/components/suite';
-import { Account } from 'src/types/wallet';
+import { type Account } from 'src/types/wallet';
 
 const Content = styled.div`
     margin: 0 0 24px;
@@ -36,7 +36,7 @@ export const Header = ({ account }: HeaderProps) => {
         return (
             <Content>
                 <H2>{title}</H2>
-                <Paragraph typographyStyle="label">
+                <Paragraph typographyStyle="body-xs">
                     <Translation id="RECEIVE_DESC_ETHEREUM" />
                 </Paragraph>
             </Content>

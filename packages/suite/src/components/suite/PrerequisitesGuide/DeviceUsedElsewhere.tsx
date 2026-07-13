@@ -1,28 +1,27 @@
-import { MouseEventHandler } from 'react';
+import { type MouseEventHandler } from 'react';
 
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
 import { isDesktop } from '@trezor/env-utils';
+import { TrezorBodyIcon } from '@trezor/icons';
 
-import { Translation, TroubleshootingTips } from 'src/components/suite';
+import { TroubleshootingTips } from 'src/components/suite/troubleshooting/TroubleshootingTips';
 import {
     TROUBLESHOOTING_TIP_CLOSE_ALL_TABS,
     TROUBLESHOOTING_TIP_RECONNECT,
 } from 'src/components/suite/troubleshooting/tips';
-import { useDevice, useSelector } from 'src/hooks/suite';
-import { selectSuiteFlags } from 'src/selectors/suite/suiteSelectors';
 
 import { AcquireDeviceButton } from '../AcquireDeviceButton';
+import { type TroubleshootingTipsItem } from '../troubleshooting/TroubleshootingTipsItem';
 
 export const DeviceUsedElsewhere = () => {
     const { device } = useDevice();
-    const { isBluetoothEnabled } = useSelector(selectSuiteFlags);
 
     const handleClick: MouseEventHandler = e => {
         e.stopPropagation();
     };
 
-    const isBluetoothExpected = isBluetoothEnabled && isDesktop();
-
-    const tips = [
+    const tips: TroubleshootingTipsItem[] = [
         {
             key: 'device-used-elsewhere',
             heading: <Translation id="TR_DEVICE_CONNECTED_UNACQUIRED" />,
@@ -34,6 +33,7 @@ export const DeviceUsedElsewhere = () => {
                     }}
                 />
             ),
+            icon: TrezorBodyIcon,
         },
         TROUBLESHOOTING_TIP_CLOSE_ALL_TABS,
         TROUBLESHOOTING_TIP_RECONNECT,
@@ -44,8 +44,9 @@ export const DeviceUsedElsewhere = () => {
             label={<Translation id="TR_ACQUIRE_DEVICE_TITLE" />}
             cta={<AcquireDeviceButton onClick={handleClick} />}
             items={tips}
+            intent="info"
             toggleText={
-                isBluetoothExpected ? <Translation id="TR_TROUBLE_SHOOTING_BLUETOOTH" /> : undefined
+                isDesktop() ? <Translation id="TR_TROUBLE_SHOOTING_BLUETOOTH" /> : undefined
             }
         />
     );

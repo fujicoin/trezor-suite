@@ -1,7 +1,7 @@
 import chalk from 'chalk';
-import fs from 'fs';
 import fsExtra from 'fs-extra';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import prettier from 'prettier';
 import sortPackageJson from 'sort-package-json';
 
@@ -33,16 +33,16 @@ const scopes = {
     },
 } as const;
 
-const exitWithErrorMessage = (errorMessage: string) => {
+function exitWithErrorMessage(errorMessage: string): never {
     console.error(errorMessage);
     process.exit(1);
-};
+}
 
 const isValidScope = (scope: string): scope is keyof typeof scopes =>
     Object.keys(scopes).includes(scope);
 
 // Get the directory of the current file
-const currentDir = path.dirname(__filename);
+const currentDir = import.meta.dirname;
 const rootDir = path.resolve(currentDir, '..');
 
 (async () => {
@@ -55,7 +55,14 @@ const rootDir = path.resolve(currentDir, '..');
         );
     }
 
-    const [packageScope, packageName] = newPackage.split('/');
+    const packageScope = newPackage.split('/')[0];
+    const packageName = newPackage.split('/')[1];
+
+    if (!packageScope || !packageName) {
+        exitWithErrorMessage(
+            chalk.bold.red('Package name must be in the format @scope/package-name'),
+        );
+    }
 
     if (!isValidScope(packageScope)) {
         exitWithErrorMessage(
@@ -67,11 +74,7 @@ const rootDir = path.resolve(currentDir, '..');
         );
     }
 
-    const {
-        path: scopePath,
-        templatePath,
-        templatePackageJson,
-    } = scopes[packageScope as keyof typeof scopes];
+    const { path: scopePath, templatePath, templatePackageJson } = scopes[packageScope];
     const packagePath = path.join(rootDir, scopePath, packageName);
 
     const workspacesNames = Object.keys(getWorkspacesList());

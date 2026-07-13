@@ -1,10 +1,12 @@
+import type { MessagesSchema as PROTO } from '@trezor/protobuf';
+import type { VersionArray } from '@trezor/utils/src/versionUtils';
+
 import { isDeviceInBootloaderMode } from './modeUtils';
 import {
-    FirmwareSource,
+    type FirmwareSource,
     FirmwareType,
-    FirmwareVersionString,
-    PartialDevice,
-    VersionArray,
+    type FirmwareVersionString,
+    type PartialDevice,
 } from './types';
 
 export const getFirmwareSource = (device?: PartialDevice): FirmwareSource => {
@@ -23,33 +25,36 @@ export const getFirmwareSource = (device?: PartialDevice): FirmwareSource => {
 
 export const getFirmwareRevision = (device?: PartialDevice) => device?.features?.revision || '';
 
+/**
+ * Gets the firmware/bootloader version from device features, depending on the mode (it does not distinguish normal | bootloader).
+ */
+export const getFirmwareOrBootloaderVersionArray = (features: PROTO.Features): VersionArray => [
+    features.major_version,
+    features.minor_version,
+    features.patch_version,
+];
+
 export const getFirmwareVersionArray = (device?: PartialDevice): VersionArray | null => {
     if (!device?.features) {
         return null;
     }
     const { features } = device;
 
+    // `fw_version` is the firmware version when in bootloader mode, in firmware mode it will be [null, null, null]
     if (isDeviceInBootloaderMode(device)) {
         return features.fw_major
             ? ([features.fw_major, features.fw_minor, features.fw_patch] as VersionArray)
             : null;
     }
 
-    return [features.major_version, features.minor_version, features.patch_version];
+    // `version` is bootloader version when in bootloader mode, in firmware mode it is firmware version.
+    return getFirmwareOrBootloaderVersionArray(features);
 };
 
 export const getFirmwareVersion = (device?: PartialDevice): '' | FirmwareVersionString => {
-    if (!device?.features) {
-        return '';
-    }
-    const { features } = device;
-    if (isDeviceInBootloaderMode(device)) {
-        return features.fw_major
-            ? `${features.fw_major}.${features.fw_minor!}.${features.fw_patch!}`
-            : '';
-    }
+    const versionArray = getFirmwareVersionArray(device);
 
-    return `${features.major_version}.${features.minor_version}.${features.patch_version}`;
+    return versionArray === null ? '' : (versionArray.join('.') as FirmwareVersionString);
 };
 
 // This can give a false negative in bootloader mode for T1B1 and T2T1.

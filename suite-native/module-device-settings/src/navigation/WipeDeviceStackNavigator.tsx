@@ -1,38 +1,48 @@
-import { useSelector } from 'react-redux';
+import { useCallback, useState } from 'react';
 
+import { useFocusEffect } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { selectIsDeviceConnected } from '@suite-common/wallet-core';
+import { useWipeDevice } from '@suite-native/device';
 import {
-    WipeDeviceStackParamList,
+    DeviceConnectionGuardScreen,
+    useDeviceConnectionGuard,
+} from '@suite-native/device-authorization';
+import {
+    type WipeDeviceStackParamList,
     WipeDeviceStackRoutes,
     stackNavigationOptionsConfig,
 } from '@suite-native/navigation';
 
-import { useDeviceConnectionGuard } from '../hooks/useDeviceConnectionGuard';
 import { FactoryResetScreen } from '../screens/FactoryResetScreen';
 import { WipeDeviceContinueOnTrezorScreen } from '../screens/WipeDeviceContinueOnTrezorScreen';
 import { WipeDeviceLoadingScreen } from '../screens/WipeDeviceLoadingScreen';
-import { WipeDeviceScreen } from '../screens/WipeDeviceScreen';
 
 const WipeDeviceStack = createNativeStackNavigator<WipeDeviceStackParamList>();
 
 export const WipeDeviceStackNavigator = () => {
-    const isDeviceConnected = useSelector(selectIsDeviceConnected);
+    const { isDeviceConnectionGuardVisible } = useDeviceConnectionGuard();
+    const [isWipeDeviceStarted, setIsWipeDeviceStarted] = useState(false);
 
-    useDeviceConnectionGuard();
+    const { wipeDevice } = useWipeDevice();
 
-    if (!isDeviceConnected) return;
+    useFocusEffect(
+        useCallback(() => {
+            if (!isDeviceConnectionGuardVisible && !isWipeDeviceStarted) {
+                setIsWipeDeviceStarted(true);
+                wipeDevice();
+            }
+        }, [isDeviceConnectionGuardVisible, isWipeDeviceStarted, wipeDevice]),
+    );
 
     return (
-        <WipeDeviceStack.Navigator
-            initialRouteName={WipeDeviceStackRoutes.WipeDevice}
-            screenOptions={stackNavigationOptionsConfig}
-        >
-            <WipeDeviceStack.Screen
-                name={WipeDeviceStackRoutes.WipeDevice}
-                component={WipeDeviceScreen}
-            />
+        <WipeDeviceStack.Navigator screenOptions={stackNavigationOptionsConfig}>
+            {isDeviceConnectionGuardVisible && (
+                <WipeDeviceStack.Screen
+                    name={WipeDeviceStackRoutes.DeviceConnectionGuard}
+                    component={DeviceConnectionGuardScreen}
+                />
+            )}
             <WipeDeviceStack.Screen
                 name={WipeDeviceStackRoutes.ContinueOnTrezor}
                 component={WipeDeviceContinueOnTrezorScreen}

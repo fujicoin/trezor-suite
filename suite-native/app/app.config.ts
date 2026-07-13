@@ -1,5 +1,6 @@
 /* eslint-disable import/no-default-export */
 /* eslint-disable import/no-anonymous-default-export */
+import { execFileSync } from 'child_process';
 import { createHash } from 'crypto';
 import { ConfigContext, ExpoConfig } from 'expo/config';
 
@@ -39,10 +40,10 @@ const appIconsAndroid = {
 } as const;
 
 const appNames = {
-    debug: 'Trezor Suite Lite Debug',
-    preview: 'Trezor Suite Lite Preview',
-    develop: 'Trezor Suite Lite Develop',
-    production: 'Trezor Suite Lite',
+    debug: 'Trezor Suite Debug',
+    preview: 'Trezor Suite Preview',
+    develop: 'Trezor Suite Develop',
+    production: 'Trezor Suite',
 } as const satisfies Record<BuildType, string>;
 
 const appSlugs = {
@@ -67,6 +68,15 @@ const projectIds = {
 } as const satisfies Record<BuildType, string>;
 
 const buildType = (process.env.EXPO_PUBLIC_ENVIRONMENT as BuildType) ?? 'debug';
+
+// This is used only as a fallback for the local development.
+const getLocalCommitHash = (): string => {
+    try {
+        return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf-8' }).trim();
+    } catch {
+        return 'unknown';
+    }
+};
 
 // Generate a hash of active EXPO_PUBLIC env variables
 const getExpoPublicEnvHash = () => {
@@ -125,14 +135,20 @@ const getPlugins = (): ExpoPlugins => {
                 android: {
                     minSdkVersion: 28,
                     // this fixes expo-updates build error
-                    kotlinVersion: '2.0.21',
+                    kotlinVersion: '2.1.20',
+                    ndkVersion: '27.0.12077973',
+                    // react-native-quick-crypto (since v1) and expo-sqlite both bundle their
+                    // own OpenSSL libcrypto.so, which collides during mergeDebugNativeLibs.
+                    // pickFirst resolves the duplicate-.so packaging conflict.
+                    packagingOptions: {
+                        pickFirst: ['**/libcrypto.so'],
+                    },
                 },
                 ios: {
-                    deploymentTarget: '15.1',
+                    deploymentTarget: '16.4',
                 },
             },
         ],
-        ['./plugins/minSdkProjectGradlePatch.js', {}], // Without this patch, the Android properties are not applied correctly in build.gradle when using Expo SDK 53.
         '@trezor/react-native-usb/plugins/withUSBDevice.js',
         [
             './plugins/withAndroidMainActivityAttributes.js',
@@ -164,6 +180,19 @@ const getPlugins = (): ExpoPlugins => {
                 iosPermissions: ['Bluetooth'],
             },
         ],
+        ['expo-localization'],
+        [
+            'expo-sqlite',
+            {
+                useSQLCipher: true,
+            },
+        ],
+        [
+            'expo-dev-client',
+            {
+                toolsButton: false,
+            },
+        ],
     ];
 
     return [
@@ -184,11 +213,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     return {
         ...config,
         name,
-        scheme: buildType === 'production' ? undefined : 'trezorsuitelite',
+        scheme: 'trezorsuite',
         slug: appSlugs[buildType],
         owner: appOwners[buildType],
         version: suiteNativeVersion,
-        runtimeVersion: '40',
+        runtimeVersion: '49',
         ...(buildType === 'production'
             ? {}
             : {
@@ -218,12 +247,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
                                   {
                                       scheme: 'https',
                                       host: 'connect.trezor.io',
-                                      pathPattern: '/9/deeplink/.*',
+                                      // Universal pattern to match any Connect version (e.g. /9/deeplink/..., /10/deeplink/...).
+                                      // Android pathPattern only supports '.' (any char) and '*' (repeat), not character classes.
+                                      pathPattern: '/.*/deeplink/.*',
                                   },
                                   {
                                       scheme: 'https',
                                       host: 'trezor.io',
                                       pathPattern: '/setup/.*',
+                                  },
+                                  {
+                                      scheme: 'https',
+                                      host: 'trezor.io',
+                                      pathPattern: '/suite/deeplinks/.*',
                                   },
                               ]
                             : [
@@ -287,12 +323,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         },
         plugins: getPlugins(),
         extra: {
-            commitHash: process.env.EAS_BUILD_GIT_COMMIT_HASH || process.env.COMMIT_HASH || '',
+            // FIXME: Fingerprint is always changed between commits because of this. We need to find a better solution.
+            commitHash:
+                process.env.EAS_BUILD_GIT_COMMIT_HASH ||
+                process.env.COMMIT_HASH ||
+                getLocalCommitHash(),
             expoPublicEnvHash: getExpoPublicEnvHash(), // Only to change fingerprint of the build on environment variables change
             eas: {
                 projectId,
             },
         },
-        newArchEnabled: false,
     };
 };

@@ -1,59 +1,47 @@
 import { useRef } from 'react';
 
-import styled, { useTheme } from 'styled-components';
-
+import { useTranslation } from '@suite/intl';
 import { Icon, Input } from '@trezor/components';
-import { borders } from '@trezor/theme';
+import { MagnifyingGlassIcon } from '@trezor/icons';
 
-import { useAccountSearch, useTranslation } from 'src/hooks/suite';
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledInput = styled(Input)`
-    input {
-        /* to line up with the coin filter  */
-        padding-left: 46px;
-        min-height: 38px;
-        background-color: ${({ theme }) => theme.backgroundSurfaceElevationNegative};
-        border-radius: ${borders.radii.full};
-        border-color: ${({ theme }) => theme.backgroundSurfaceElevationNegative};
-    }
-`;
+import { useAccountSearch } from 'src/hooks/suite';
 
 export const AccountSearchBox = () => {
-    const theme = useTheme();
     const inputRef = useRef<HTMLInputElement | null>(null);
     const { translationString } = useTranslation();
     const { setCoinFilter, searchString, setSearchString } = useAccountSearch();
 
     const onClear = () => {
         setSearchString(undefined);
-        setCoinFilter(undefined);
+        setCoinFilter([]);
     };
 
     return (
-        <StyledInput
+        <Input
             value={searchString ?? ''}
+            isClean
             onChange={e => {
                 setSearchString(e.target.value);
             }}
-            innerAddon={
+            leftContent={
                 <Icon
-                    name="magnifyingGlass"
+                    as={MagnifyingGlassIcon}
+                    margin={{ left: 12, right: 20 }}
                     size={16}
-                    color={theme.iconDefault}
+                    intent="neutral"
                     onClick={() => {
                         inputRef?.current?.select();
                     }}
                     cursor="pointer"
                 />
             }
-            innerAddonAlign="start"
             size="small"
             placeholder={translationString('TR_WALLET')}
-            showClearButton="always"
+            showClearButton={true}
             onClear={onClear}
             data-testid="@account-menu/search-input"
             innerRef={inputRef}
+            width="100%"
         />
     );
 };

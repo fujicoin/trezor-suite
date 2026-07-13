@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 
+import { selectRouteName } from '@suite/router';
 import { selectBaseCurrency, selectCurrentFiatRates } from '@suite-common/wallet-core';
 import {
     BASE_CURRENCY_ZERO,
@@ -11,20 +12,19 @@ import { Column } from '@trezor/components';
 import { borders, spacings, spacingsPx } from '@trezor/theme';
 
 import { useSelector } from 'src/hooks/suite';
-import { selectRouteName } from 'src/reducers/suite/routerReducer';
-import { Account, AccountItemType } from 'src/types/wallet';
+import { useResponsiveContext } from 'src/support/suite/ResponsiveContext';
+import { type Account } from 'src/types/wallet';
 
-import { AccountItem } from './AccountItem/AccountItem';
-import { useIsSidebarCollapsed } from '../../../suite/layouts/SuiteLayout/Sidebar/utils';
+import { AccountItem, type AccountItemProps } from './AccountItem/AccountItem';
 
 const Section = styled.div<{ $selected?: boolean; $isSidebarCollapsed?: boolean }>`
     display: flex;
     flex-direction: column;
     position: relative;
-    border-radius: ${borders.radii.md};
+    border-radius: ${borders.radii.sm};
 
     outline: 1px solid
-        ${({ theme, $selected }) => ($selected ? theme.borderElevation0 : 'transparent')};
+        ${({ theme, $selected }) => ($selected ? theme.elementBorderNeutralSofter : 'transparent')};
     padding: ${spacingsPx.xxs};
     margin: 0 -${spacingsPx.xxs};
 
@@ -34,7 +34,8 @@ const Section = styled.div<{ $selected?: boolean; $isSidebarCollapsed?: boolean 
         top: 24px;
         bottom: 28px;
         left: ${({ $isSidebarCollapsed }) => ($isSidebarCollapsed ? '50%' : '24px')};
-        border-left: 2px dotted ${({ theme }) => theme.borderDashed};
+        border-left: 2px dotted ${({ theme }) => theme.elementBorderNeutralSofter};
+        transform: translateX(-50%);
     }
 `;
 
@@ -45,7 +46,7 @@ interface AccountItemsGroupProps {
     showStaking: boolean;
     tokens?: Account['tokens'];
     dataTestKey?: string;
-    onItemClick?: (account: Account, type: AccountItemType) => void;
+    onItemClick?: AccountItemProps['onClick'];
 }
 
 export const AccountItemsGroup = ({
@@ -57,7 +58,7 @@ export const AccountItemsGroup = ({
     dataTestKey,
     onItemClick,
 }: AccountItemsGroupProps) => {
-    const isSidebarCollapsed = useIsSidebarCollapsed();
+    const { isSidebarCollapsed } = useResponsiveContext();
     const stakingBalance = getAccountTotalStakingBalance(account);
 
     const routeName = useSelector(selectRouteName);
@@ -69,7 +70,12 @@ export const AccountItemsGroup = ({
         ? BASE_CURRENCY_ZERO
         : getAccountTokensFiatBalance(account, baseCurrencyCode, rates, tokens);
 
-    const tokensRoutes = ['wallet-tokens', 'wallet-tokens-hidden'];
+    const tokensRoutes = [
+        'wallet-tokens',
+        'wallet-tokens-hidden',
+        'wallet-tokens-inactive',
+        'wallet-tokens-defi',
+    ];
 
     return (
         <Section $selected={selected} $isSidebarCollapsed={isSidebarCollapsed}>
@@ -84,8 +90,6 @@ export const AccountItemsGroup = ({
                             (routeName === 'wallet-staking' && !showStaking))
                     }
                     formattedBalance={account.formattedBalance}
-                    isGroup
-                    isGroupSelected={selected}
                     dataTestKey={dataTestKey}
                     onClick={onItemClick}
                 />
@@ -96,8 +100,6 @@ export const AccountItemsGroup = ({
                         type="staking"
                         isSelected={selected && routeName === 'wallet-staking'}
                         formattedBalance={stakingBalance ?? '0'}
-                        isGroup
-                        isGroupSelected={selected}
                         dataTestKey={`${dataTestKey}/staking`}
                         onClick={onItemClick}
                     />
@@ -109,8 +111,6 @@ export const AccountItemsGroup = ({
                         type="tokens"
                         isSelected={selected && tokensRoutes.includes(routeName || '')}
                         formattedBalance={account.formattedBalance}
-                        isGroup
-                        isGroupSelected={selected}
                         customFiatValue={tokensFiatBalance}
                         tokens={tokens}
                         dataTestKey={`${dataTestKey}/tokens`}

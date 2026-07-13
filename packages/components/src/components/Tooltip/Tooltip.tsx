@@ -1,44 +1,43 @@
-import { MutableRefObject, ReactNode } from 'react';
+import { type MutableRefObject, type ReactNode } from 'react';
 
-import { Placement, ShiftOptions } from '@floating-ui/react';
-import { transparentize } from 'polished';
+import { type Placement, type ShiftOptions } from '@floating-ui/react';
 import styled, { ThemeProvider } from 'styled-components';
 
-import { ZIndexValues, spacings, spacingsPx, zIndices } from '@trezor/theme';
+import { QuestionIcon } from '@trezor/icons';
+import { type ZIndexValues, spacingsPx, zIndices } from '@trezor/theme';
 
 import { TooltipArrow } from './TooltipArrow';
-import { TooltipBox, TooltipBoxProps } from './TooltipBox';
-import { TOOLTIP_DELAY_SHORT, TooltipDelay } from './TooltipDelay';
+import { TooltipBox, type TooltipBoxProps } from './TooltipBox';
+import { TOOLTIP_DELAY_SHORT, type TooltipDelay } from './TooltipDelay';
 import { TooltipContent, TooltipFloatingUi, TooltipTrigger } from './TooltipFloatingUi';
 import { intermediaryTheme } from '../../config/colors';
 import {
-    FrameProps,
-    FramePropsKeys,
+    type FrameProps,
+    type FramePropsKeys,
     pickAndPrepareFrameProps,
     withFrameProps,
 } from '../../utils/frameProps';
-import { TransientProps } from '../../utils/transientProps';
+import { type TransientProps } from '../../utils/transientProps';
 import { Icon } from '../Icon/Icon';
 
 export type TooltipInteraction = 'none' | 'hover';
 
-export const allowedTooltipFrameProps = ['cursor'] as const satisfies FramePropsKeys[];
+export const allowedTooltipFrameProps = [
+    'cursor',
+    'display',
+    'margin',
+    'width',
+    'maxWidth',
+    'minWidth',
+    'flex',
+] as const satisfies FramePropsKeys[];
 export type AllowedFrameProps = Pick<FrameProps, (typeof allowedTooltipFrameProps)[number]>;
 
-const Wrapper = styled.div<{ $isFullWidth: boolean }>`
-    width: ${({ $isFullWidth }) => ($isFullWidth ? '100%' : 'auto')};
-`;
-
-const Content = styled.div<
-    { $dashed: boolean; $isInline: boolean } & TransientProps<AllowedFrameProps>
->`
-    display: ${({ $isInline }) => ($isInline ? 'inline-flex' : 'flex')};
+const Content = styled.div<TransientProps<AllowedFrameProps>>`
+    display: flex;
     align-items: center;
-    justify-content: flex-start;
     gap: ${spacingsPx.xxs};
-    cursor: ${({ $cursor }) => $cursor};
-    border-bottom: ${({ $dashed, theme }) =>
-        $dashed && `1.5px dotted ${transparentize(0.66, theme.textSubdued)}`};
+    text-decoration: inherit;
 
     ${withFrameProps}
 `;
@@ -60,18 +59,15 @@ type UnmanagedModeProps = {
 type TooltipUiProps = {
     isActive?: boolean;
     children: ReactNode;
-    className?: string;
-    dashed?: boolean;
     offset?: number;
     shift?: ShiftOptions;
-    isFullWidth?: boolean;
     placement?: Placement;
     hasArrow?: boolean;
     hasIcon?: boolean;
     appendTo?: HTMLElement | null | MutableRefObject<HTMLElement | null>;
     zIndex?: ZIndexValues;
-    isInline?: boolean;
     disableFlip?: boolean;
+    as?: 'div' | 'span';
 } & AllowedFrameProps;
 
 export type ManagedTooltipProps = ManagedModeProps & TooltipUiProps & TooltipBoxProps;
@@ -83,79 +79,77 @@ export const Tooltip = ({
     isActive = true,
     placement = 'top',
     children,
-    isLarge = false,
-    dashed = false,
     delayShow = TOOLTIP_DELAY_SHORT,
     delayHide = TOOLTIP_DELAY_SHORT,
-    maxWidth = 400,
-    offset = spacings.sm,
+    tooltipMaxWidth = 400,
+    offset = 12,
     content,
     addon,
     title,
-    headerIcon,
-    className,
-    isFullWidth = false,
-    isInline = false,
     isOpen,
-    hasArrow,
+    hasArrow = true,
     hasIcon = false,
     appendTo,
     shift,
     zIndex = zIndices.tooltip,
     disableFlip = false,
+    as = 'div',
     ...rest
 }: TooltipProps) => {
-    const frameProps = pickAndPrepareFrameProps(rest, allowedTooltipFrameProps);
+    const frameProps = pickAndPrepareFrameProps(
+        rest,
+        allowedTooltipFrameProps,
+    ) as TransientProps<AllowedFrameProps>;
 
     if (!content || !children) {
         return <>{children}</>;
     }
 
     const delayConfiguration = { open: delayShow, close: delayHide };
-    const elType = isInline ? 'span' : 'div';
+    const tooltipTheme = { variant: 'dark' as const, ...intermediaryTheme.dark };
 
     return (
-        <Wrapper $isFullWidth={isFullWidth} className={className} as={elType}>
-            <TooltipFloatingUi
-                isActive={isActive}
-                placement={placement}
-                isOpen={isOpen}
-                offset={offset}
-                shift={shift}
-                delay={delayConfiguration}
-                disableFlip={disableFlip}
-            >
-                <TooltipTrigger>
-                    <Content
-                        $dashed={dashed}
-                        $isInline={isInline}
-                        as={elType}
-                        {...frameProps}
-                        $cursor={frameProps.$cursor ?? 'inherit'}
-                    >
-                        {children}
-                        {hasIcon && <Icon name="question" size="medium" />}
-                    </Content>
-                </TooltipTrigger>
+        <TooltipFloatingUi
+            isActive={isActive}
+            placement={placement}
+            isOpen={isOpen}
+            offset={offset}
+            shift={shift}
+            delay={delayConfiguration}
+            disableFlip={disableFlip}
+        >
+            <TooltipTrigger>
+                <Content as={as} {...frameProps}>
+                    {children}
+                    {hasIcon && isActive && <Icon as={QuestionIcon} size={16} />}
+                </Content>
+            </TooltipTrigger>
 
+            <ThemeProvider theme={tooltipTheme}>
                 <TooltipContent
                     data-testid="@tooltip"
                     style={{ zIndex }}
-                    arrowRender={hasArrow ? TooltipArrow : undefined}
+                    arrowRender={
+                        hasArrow
+                            ? props => (
+                                  <TooltipArrow
+                                      {...props}
+                                      fill={tooltipTheme.surfaceFillModelessNeutralDark}
+                                  />
+                              )
+                            : undefined
+                    }
                     appendTo={appendTo}
+                    onClick={e => e.stopPropagation()}
                 >
-                    <ThemeProvider theme={{ variant: 'dark', ...intermediaryTheme.dark }}>
-                        <TooltipBox
-                            content={content}
-                            addon={addon}
-                            headerIcon={headerIcon}
-                            isLarge={isLarge}
-                            maxWidth={maxWidth}
-                            title={title}
-                        />
-                    </ThemeProvider>
+                    <TooltipBox
+                        content={content}
+                        addon={addon}
+                        tooltipMaxWidth={tooltipMaxWidth}
+                        title={title}
+                    />
                 </TooltipContent>
-            </TooltipFloatingUi>
-        </Wrapper>
+            </ThemeProvider>
+        </TooltipFloatingUi>
     );
 };

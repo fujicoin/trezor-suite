@@ -1,23 +1,25 @@
 import { useEffect } from 'react';
 
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
 import {
     connectPopupActions,
     connectPopupVerifyAddressThunk,
     getPermissionDeferred,
     selectConnectPopupCall,
 } from '@suite-common/connect-popup';
-import { selectSelectedDeviceLabelOrName } from '@suite-common/wallet-core';
+import { selectSelectedDeviceLabelOrName } from '@suite-common/device';
 import { Badge, Button, Card, Column, H3, Icon, Modal, Paragraph, Row } from '@trezor/components';
-import { TypedError } from '@trezor/connect/src/constants/errors';
+import { TypedError } from '@trezor/connect-common/src/constants/errors';
 import { DeviceModelInternal } from '@trezor/device-utils';
-import { ConfirmOnDevice, mapTrezorModelToIcon } from '@trezor/product-components';
+import { CheckCircleIcon, CheckIcon, WarningIcon } from '@trezor/icons';
+import { ConfirmOnDevicePill, mapTrezorModelToIcon } from '@trezor/product-components';
 import { spacings } from '@trezor/theme';
 
 import { ConnectCallSource } from 'src/components/suite/ConnectCallSource';
 import { ConnectModalBackdrop } from 'src/components/suite/ConnectModalBackdrop';
-import { Translation } from 'src/components/suite/Translation';
-import { WalletLabeling } from 'src/components/suite/labeling';
-import { useDevice, useDispatch, useSelector } from 'src/hooks/suite';
+import { WalletLabeling } from 'src/components/suite/labeling/WalletLabeling';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 
 export const ConnectAddressConfirmation = () => {
     const { device } = useDevice();
@@ -61,21 +63,23 @@ export const ConnectAddressConfirmation = () => {
 
     if (!popupCall || popupCall?.state !== 'address-confirmation') return null;
 
+    const isPublicKeyMethod =
+        popupCall?.method === 'getPublicKey' || popupCall?.method.endsWith('GetPublicKey');
+
     return (
         <ConnectModalBackdrop onClick={onFinish} canSwitchDevice={!popupCall.exported}>
-            <ConfirmOnDevice
+            <ConfirmOnDevicePill
                 title={<Translation id="TR_CONFIRM_ON_TREZOR" />}
                 deviceModelInternal={device?.features?.internal_model}
                 deviceUnitColor={device?.features?.unit_color}
                 isConfirmed={!isLoading}
             />
             <Modal.ModalBase
-                variant="primary"
+                intent="brand"
                 bottomContent={
                     <>
                         {!popupCall.exported && (
                             <Modal.Button
-                                variant="primary"
                                 onClick={onConfirm}
                                 size="medium"
                                 data-testid="@connect-address-confirmation/confirm-button"
@@ -84,7 +88,8 @@ export const ConnectAddressConfirmation = () => {
                             </Modal.Button>
                         )}
                         <Modal.Button
-                            variant="tertiary"
+                            intent="neutral"
+                            priority="secondary"
                             onClick={onFinish}
                             size="medium"
                             data-testid="@connect-address-confirmation/close-button"
@@ -98,8 +103,8 @@ export const ConnectAddressConfirmation = () => {
                 <Column gap={spacings.xs}>
                     {popupCall.exported ? (
                         <Row alignItems="center" gap={spacings.sm}>
-                            <Icon name="checkCircle" size={32} variant="primary" />
-                            <H3 variant="primary">
+                            <Icon as={CheckCircleIcon} size={32} intent="brand" />
+                            <H3 intent="brand">
                                 <Translation id="TR_CONNECT_ADDRESS_CONFIRMATION_SUCCESS" />
                             </H3>
                         </Row>
@@ -133,7 +138,16 @@ export const ConnectAddressConfirmation = () => {
                         />
                     </Paragraph>
 
-                    <Card header={<Translation id="TR_ADDRESSES" />} margin={{ top: spacings.md }}>
+                    <Card
+                        header={
+                            isPublicKeyMethod ? (
+                                <Translation id="TR_PUBLIC_KEYS" />
+                            ) : (
+                                <Translation id="TR_ADDRESSES" />
+                            )
+                        }
+                        margin={{ top: spacings.md }}
+                    >
                         <Column gap={spacings.sm}>
                             {popupCall?.addresses.map((address, index) => (
                                 <Row
@@ -142,14 +156,19 @@ export const ConnectAddressConfirmation = () => {
                                     justifyContent="space-between"
                                     gap={spacings.sm}
                                 >
-                                    <Row gap={spacings.sm} alignItems="center" flex="1">
-                                        <Paragraph wordBreak="break-all">
+                                    <Row
+                                        gap={spacings.sm}
+                                        alignItems="center"
+                                        flex="1"
+                                        minWidth={0}
+                                    >
+                                        <Paragraph overflowWrap="anywhere">
                                             {address.address}
                                         </Paragraph>
                                         {address.validated === 'valid' && (
                                             <Badge
-                                                variant="primary"
-                                                icon="check"
+                                                intent="brand"
+                                                iconLeft={CheckIcon}
                                                 size="small"
                                                 data-testid={`@connect-address-confirmation/verified-badge/${index}`}
                                             >
@@ -158,8 +177,8 @@ export const ConnectAddressConfirmation = () => {
                                         )}
                                         {address.validated === 'failed' && (
                                             <Badge
-                                                variant="warning"
-                                                icon="warning"
+                                                intent="warning"
+                                                iconLeft={WarningIcon}
                                                 size="small"
                                                 data-testid={`@connect-address-confirmation/error-badge/${index}`}
                                             >
@@ -169,9 +188,10 @@ export const ConnectAddressConfirmation = () => {
                                     </Row>
                                     <Button
                                         data-testid={`@connect-address-confirmation/verify-button/${index}`}
-                                        variant="tertiary"
+                                        intent="neutral"
+                                        priority="secondary"
                                         onClick={() => onVerify(index)}
-                                        icon={
+                                        iconLeft={
                                             mapTrezorModelToIcon[
                                                 device?.features?.internal_model ||
                                                     DeviceModelInternal.UNKNOWN

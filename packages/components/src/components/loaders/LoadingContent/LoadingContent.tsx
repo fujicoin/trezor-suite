@@ -1,8 +1,9 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 
 import styled, { css } from 'styled-components';
 
 import { Spinner } from '../Spinner/Spinner';
+import type { SpinnerSize } from '../Spinner/Spinner';
 
 const LoadingWrapper = styled.div`
     display: flex;
@@ -24,7 +25,7 @@ const LoaderCell = styled.div<{ $size: number; $isLoading: boolean }>`
               `}
 
     svg {
-        fill: ${({ theme }) => theme.iconPrimaryDefault};
+        fill: ${({ theme }) => theme.contentBrand};
     }
 `;
 
@@ -46,15 +47,22 @@ const ContentCell = styled.div<{ $size: number; $isLoading: boolean }>`
 export type LoadingContentProps = {
     children: ReactNode;
     isLoading?: boolean;
-    size?: number;
+    size?: SpinnerSize;
     isSuccessful?: boolean;
+    isLoadingPositionReversed?: boolean;
+    /**
+     * If true, `children` will slide to the right when loading starts and are initially placed at -{size}px.
+     */
+    slideContent?: boolean;
 };
 
 export const LoadingContent = ({
     children,
     isLoading = false,
-    size = 25,
+    size = 24,
     isSuccessful = true,
+    isLoadingPositionReversed = false,
+    slideContent = true,
 }: LoadingContentProps) => {
     const [isSpinnerVisible, setIsSpinnerVisible] = useState(false);
 
@@ -65,22 +73,32 @@ export const LoadingContent = ({
         }
     }, [isLoading]);
 
+    const SpinnerContainer = () => (
+        <LoaderCell $isLoading={isLoading} $size={size}>
+            {isSpinnerVisible ? (
+                <Spinner
+                    size={size}
+                    isDisabled={true}
+                    data-testid="@loading-content/loader"
+                    /* eslint-disable-next-line no-nested-ternary */
+                    variant={!isLoading ? (isSuccessful ? 'success' : 'error') : 'loading'}
+                    hasStartAnimation
+                />
+            ) : null}
+        </LoaderCell>
+    );
+
     return (
         <LoadingWrapper>
-            <LoaderCell $isLoading={isLoading} $size={size}>
-                {isSpinnerVisible && (
-                    <Spinner
-                        size={size}
-                        data-testid="@loading-content/loader"
-                        hasStartAnimation
-                        hasFinished={!isLoading && isSuccessful}
-                        hasError={!isLoading && !isSuccessful}
-                    />
-                )}
-            </LoaderCell>
-            <ContentCell $isLoading={isLoading} $size={size}>
-                {children}
-            </ContentCell>
+            {!isLoadingPositionReversed && <SpinnerContainer />}
+            {slideContent ? (
+                <ContentCell $isLoading={isLoading} $size={size}>
+                    {children}
+                </ContentCell>
+            ) : (
+                children
+            )}
+            {isLoadingPositionReversed && <SpinnerContainer />}
         </LoadingWrapper>
     );
 };

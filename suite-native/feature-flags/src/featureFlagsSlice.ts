@@ -1,18 +1,16 @@
-import { PayloadAction, createSlice } from '@reduxjs/toolkit';
+import { type PayloadAction, createSlice } from '@reduxjs/toolkit';
 
-import { isAndroid } from '@trezor/env-utils';
+import { isIOs } from '@trezor/env-utils';
 
 export const FeatureFlag = {
-    IsDeviceConnectEnabled: 'isDeviceConnectEnabled',
-    IsBluetoothEnabled: 'isBluetoothEnabled',
     AreDebugOnlyNetworksEnabled: 'areDebugOnlyNetworksEnabled',
+    AreExperimentalOnlyNetworksEnabled: 'areExperimentalOnlyNetworksEnabled',
     IsCardanoSendEnabled: 'isCardanoSendEnabled',
-    IsConnectPopupEnabled: 'isConnectPopupEnabled',
     IsDebugKeysAllowed: 'isDebugKeysAllowed',
-    IsWalletConnectEnabled: 'isWalletConnectEnabled_v2', // v2: after changing default value for Android
-    IsTradingBuyEnabled: 'isTradingBuyEnabled',
-    IsTradingExchangeEnabled: 'isTradingExchangeEnabled',
-    IsTradingSellEnabled: 'isTradingSellEnabled',
+    IsTradingResidenceCheckEnabled: 'isTradingResidenceCheckEnabled',
+    IsTradingDebugEnabled: 'isTradingDebugEnabled',
+    IsTradingSlip24Enabled: 'isTradingSlip24Enabled',
+    IsN4w1BackupEnabled: 'isN4w1BackupEnabled',
 } as const;
 
 export type FeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];
@@ -24,37 +22,31 @@ export type FeatureFlagsRootState = {
 };
 
 export const featureFlagsInitialState: FeatureFlagsState = {
-    [FeatureFlag.IsDeviceConnectEnabled]:
-        process.env.EXPO_PUBLIC_FF_IS_DEVICE_CONNECT_ENABLED === 'true' ||
-        (isAndroid() && process.env.EXPO_PUBLIC_FF_IS_DEVICE_CONNECT_ENABLED !== 'false'),
-    [FeatureFlag.IsBluetoothEnabled]: process.env.EXPO_PUBLIC_FF_IS_BLUETOOTH_ENABLED === 'true',
     [FeatureFlag.AreDebugOnlyNetworksEnabled]:
         process.env.EXPO_PUBLIC_FF_ARE_DEBUG_ONLY_NETWORKS_ENABLED === 'true',
+    [FeatureFlag.AreExperimentalOnlyNetworksEnabled]:
+        process.env.EXPO_PUBLIC_FF_ARE_EXPERIMENTAL_ONLY_NETWORKS_ENABLED === 'true',
     [FeatureFlag.IsCardanoSendEnabled]:
         process.env.EXPO_PUBLIC_FF_IS_CARDANO_SEND_ENABLED === 'true',
-    [FeatureFlag.IsConnectPopupEnabled]:
-        process.env.EXPO_PUBLIC_FF_IS_CONNECT_POPUP_ENABLED === 'true',
     [FeatureFlag.IsDebugKeysAllowed]: process.env.EXPO_PUBLIC_FF_IS_DEBUG_KEYS_ALLOWED === 'true',
-    [FeatureFlag.IsWalletConnectEnabled]:
-        process.env.EXPO_PUBLIC_FF_IS_WALLET_CONNECT_ENABLED === 'true' ||
-        (isAndroid() && process.env.EXPO_PUBLIC_FF_IS_WALLET_CONNECT_ENABLED !== 'false'),
-    [FeatureFlag.IsTradingBuyEnabled]: process.env.EXPO_PUBLIC_FF_IS_TRADING_BUY_ENABLED === 'true',
-    [FeatureFlag.IsTradingExchangeEnabled]:
-        process.env.EXPO_PUBLIC_FF_IS_TRADING_SWAP_ENABLED === 'true',
-    [FeatureFlag.IsTradingSellEnabled]:
-        process.env.EXPO_PUBLIC_FF_IS_TRADING_SELL_ENABLED === 'true',
+    [FeatureFlag.IsTradingResidenceCheckEnabled]:
+        process.env.EXPO_PUBLIC_FF_IS_TRADING_RESIDENCE_CHECK_ENABLED === 'true' ||
+        (isIOs() && process.env.EXPO_PUBLIC_FF_IS_TRADING_RESIDENCE_CHECK_ENABLED !== 'false'),
+    [FeatureFlag.IsTradingDebugEnabled]:
+        process.env.EXPO_PUBLIC_FF_IS_TRADING_DEBUG_ENABLED === 'true',
+    [FeatureFlag.IsTradingSlip24Enabled]:
+        process.env.EXPO_PUBLIC_FF_IS_TRADING_SLIP24_ENABLED === 'true',
+    [FeatureFlag.IsN4w1BackupEnabled]: process.env.EXPO_PUBLIC_FF_IS_N4W1_BACKUP_ENABLED === 'true',
 };
 
 export const featureFlagsPersistedKeys: Array<keyof FeatureFlagsState> = [
-    FeatureFlag.IsDeviceConnectEnabled,
-    FeatureFlag.IsBluetoothEnabled,
     FeatureFlag.AreDebugOnlyNetworksEnabled,
+    FeatureFlag.AreExperimentalOnlyNetworksEnabled,
     FeatureFlag.IsCardanoSendEnabled,
-    FeatureFlag.IsConnectPopupEnabled,
-    FeatureFlag.IsWalletConnectEnabled,
-    FeatureFlag.IsTradingBuyEnabled,
-    FeatureFlag.IsTradingExchangeEnabled,
-    FeatureFlag.IsTradingSellEnabled,
+    FeatureFlag.IsTradingResidenceCheckEnabled,
+    FeatureFlag.IsTradingDebugEnabled,
+    FeatureFlag.IsTradingSlip24Enabled,
+    FeatureFlag.IsN4w1BackupEnabled,
 ];
 
 export const featureFlagsSlice = createSlice({

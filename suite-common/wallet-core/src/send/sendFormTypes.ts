@@ -1,25 +1,18 @@
-import { TrezorDevice } from '@suite-common/suite-types';
-import { Network, NetworkSymbol } from '@suite-common/wallet-config';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
 import {
-    Account,
-    ExcludedUtxos,
-    FeeInfo,
-    FormState,
-    PrecomposedTransactionFinal,
-    WalletAccountTransaction,
+    type Account,
+    type ComposeActionContext,
+    type FormState,
+    type PrecomposedTransactionFinal,
+    type WalletAccountTransaction,
 } from '@suite-common/wallet-types';
-import { ERRORS as CONNECT_ERRORS, PROTO, TokenInfo, Unsuccessful } from '@trezor/connect';
+import { type PROTO, type TokenInfo } from '@trezor/connect';
+import { type ERRORS as CONNECT_ERRORS } from '@trezor/connect-common/src/constants';
+import { type SerializedError } from '@trezor/connect-common/src/constants/errors';
+import { type Err } from '@trezor/type-utils';
 
 export type SerializedTx = { tx: string; symbol: NetworkSymbol };
-
-// TODO: is this still needed?
-export interface ComposeActionContext {
-    account: Account;
-    network: Network;
-    feeInfo: FeeInfo;
-    excludedUtxos?: ExcludedUtxos;
-    prison?: Record<string, unknown>;
-}
 
 export type EthTransactionData = {
     token?: TokenInfo;
@@ -37,6 +30,7 @@ export type TransactionType = WalletAccountTransaction['type'];
 export type ComposeTransactionThunkArguments = {
     formState: FormState;
     composeContext: ComposeActionContext;
+    isNetworkReserveEnabled?: boolean;
 };
 
 export type SignTransactionThunkArguments = {
@@ -65,8 +59,8 @@ export type SignTransactionTimeoutError = {
 };
 
 export type PushTransactionError = {
-    error: 'push-transaction-failed';
-    metadata: Unsuccessful;
+    error: 'push-transaction-failed' | 'push-transaction-pending-conflict';
+    metadata: Err<SerializedError>;
 };
 
 export type SendFormError =

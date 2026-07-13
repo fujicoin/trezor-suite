@@ -1,24 +1,19 @@
 import { useCallback } from 'react';
 import { useSelector } from 'react-redux';
 
-import {
-    AccountsRootState,
-    selectAccountByKey,
-    selectIsDeviceBackupRequired,
-    selectSelectedDevice,
-    showXpubOnDevice,
-} from '@suite-common/wallet-core';
-import { isAddressBasedNetwork } from '@suite-common/wallet-utils';
+import { selectIsDeviceBackupRequired, selectSelectedDevice } from '@suite-common/device';
+import { type AccountsRootState, selectAccountByKey } from '@suite-common/wallet-core';
+import { type AccountKey } from '@suite-common/wallet-types';
 import { useAlert } from '@suite-native/alerts';
 import { Button, useBottomSheetModal } from '@suite-native/atoms';
-import { selectHasFirmwareAuthenticityCheckHardFailed } from '@suite-native/device';
+import { selectHasFirmwareAuthenticityCheckHardFailedForSelectedDevice } from '@suite-native/device';
 import { Translation, useTranslate } from '@suite-native/intl';
-import { SUITE_LITE_SUPPORT_URL, useOpenLink } from '@suite-native/link';
+import { SUITE_MOBILE_SUPPORT_URL, useOpenLink } from '@suite-native/link';
 import { WalletBackupNotSetWarningBottomSheet } from '@suite-native/module-device-onboarding';
 import { XpubQRCodeBottomSheet } from '@suite-native/qr-code';
 import { convertTaprootXpub } from '@trezor/utils';
 
-export const AccountSettingsShowXpubButton = ({ accountKey }: { accountKey: string }) => {
+export const AccountSettingsShowXpubButton = ({ accountKey }: { accountKey: AccountKey }) => {
     const openLink = useOpenLink();
     const { showAlert } = useAlert();
     const { translate } = useTranslate();
@@ -38,7 +33,7 @@ export const AccountSettingsShowXpubButton = ({ accountKey }: { accountKey: stri
     } = useBottomSheetModal();
 
     const hasFirmwareAuthenticityCheckHardFailed = useSelector(
-        selectHasFirmwareAuthenticityCheckHardFailed,
+        selectHasFirmwareAuthenticityCheckHardFailedForSelectedDevice,
     );
 
     const isDeviceBackupRequired = useSelector(selectIsDeviceBackupRequired);
@@ -47,7 +42,6 @@ export const AccountSettingsShowXpubButton = ({ accountKey }: { accountKey: stri
     const showXpub = useCallback(() => {
         if (!device || !account) return;
 
-        showXpubOnDevice(device, account);
         if (isDeviceBackupRequired) {
             openWalletBackupWarningSheet();
         } else {
@@ -62,10 +56,10 @@ export const AccountSettingsShowXpubButton = ({ accountKey }: { accountKey: stri
                 description: translate('generic.banners.deviceDanger.compromised.subtitle'),
                 icon: 'warning',
                 primaryButtonTitle: translate('generic.banners.deviceDanger.compromised.cta'),
-                primaryButtonVariant: 'redBold',
-                onPressPrimaryButton: () => openLink(SUITE_LITE_SUPPORT_URL),
+                primaryButtonColorProps: { intent: 'critical', priority: 'primary' },
+                onPressPrimaryButton: () => openLink(SUITE_MOBILE_SUPPORT_URL),
                 secondaryButtonTitle: translate('generic.buttons.cancel'),
-                secondaryButtonVariant: 'redElevation0',
+                secondaryButtonColorProps: { intent: 'critical', priority: 'secondary' },
             }),
         [openLink, showAlert, translate],
     );
@@ -77,18 +71,6 @@ export const AccountSettingsShowXpubButton = ({ accountKey }: { accountKey: stri
         convertTaprootXpub({ xpub: account.descriptor, direction: 'apostrophe-to-h' }) ??
         account.descriptor;
 
-    const isAddressBased = isAddressBasedNetwork(account.networkType);
-
-    const buttonTitle = (
-        <Translation
-            id={
-                isAddressBased
-                    ? 'moduleAccountManagement.accountSettingsScreen.xpubBottomSheet.address.showButton'
-                    : 'moduleAccountManagement.accountSettingsScreen.xpubBottomSheet.xpub.showButton'
-            }
-        />
-    );
-
     return (
         <>
             {isDeviceBackupRequired && (
@@ -97,26 +79,26 @@ export const AccountSettingsShowXpubButton = ({ accountKey }: { accountKey: stri
                         openXpubQRSheet();
                         closeWalletBackupWarningSheet();
                     }}
-                    onClose={closeXpubQRSheet}
+                    onClose={closeWalletBackupWarningSheet}
                     ref={walletBackupWarningSheetRef}
                 />
             )}
             <Button
-                size="large"
                 onPress={
                     hasFirmwareAuthenticityCheckHardFailed
                         ? showFirmwareAuthenticityCheckAlert
                         : showXpub
                 }
-                colorScheme="tertiaryElevation0"
+                intent="neutral"
+                priority="secondary"
             >
-                {buttonTitle}
+                <Translation id="moduleAccountManagement.accountSettingsScreen.xpubBottomSheet.xpub.showButton" />
             </Button>
             <XpubQRCodeBottomSheet
                 ref={xpubQRSheetRef}
                 onClose={closeXpubQRSheet}
-                symbol={account.symbol}
                 qrCodeData={accountXpub}
+                accountKey={accountKey}
             />
         </>
     );

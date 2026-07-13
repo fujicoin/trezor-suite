@@ -1,24 +1,33 @@
-import { Network, getMainnets, getTestnets } from '@suite-common/wallet-config';
-import { selectDeviceSupportedNetworks, selectSelectedDevice } from '@suite-common/wallet-core';
+import { selectIsDebugModeActive } from '@suite/debug';
+import { selectHasExperimentalFeature, selectIsTestnetNetworksEnabled } from '@suite/settings';
+import { selectSelectedDevice } from '@suite-common/device';
+import { type Network, getMainnets, getTestnets } from '@suite-common/wallet-config';
+import { selectDeviceSupportedNetworks } from '@suite-common/wallet-core';
 import { DeviceModelInternal, hasBitcoinOnlyFirmware } from '@trezor/device-utils';
 import { arrayPartition } from '@trezor/utils';
 
 import { useSelector } from 'src/hooks/suite';
-import { selectIsDebugModeActive } from 'src/selectors/suite/suiteSelectors';
 
 export const useNetworkSupport = () => {
     const device = useSelector(selectSelectedDevice);
     const isDebug = useSelector(selectIsDebugModeActive);
+    const useExperimentalNetworks = useSelector(
+        selectHasExperimentalFeature('experimental-networks'),
+    );
+    const useTestnetNetworks = useSelector(selectIsTestnetNetworksEnabled);
     const deviceSupportedNetworkSymbols = useSelector(selectDeviceSupportedNetworks);
 
-    const mainnets = getMainnets(isDebug);
-    const testnets = getTestnets(isDebug);
+    const mainnets = getMainnets({
+        debug: isDebug,
+        useExperimentalNetworks,
+    });
+    const testnets = getTestnets({ debug: isDebug, useExperimentalNetworks, useTestnetNetworks });
 
     const isNetworkSupported = (network: Network) =>
         deviceSupportedNetworkSymbols.includes(network.symbol);
 
     const [supportedMainnets, unsupportedMainnets] = arrayPartition(mainnets, isNetworkSupported);
-    const supportedTestnets = testnets.filter(isNetworkSupported);
+    const [supportedTestnets, unsupportedTestnets] = arrayPartition(testnets, isNetworkSupported);
 
     const showUnsupportedCoins =
         device?.features?.internal_model === DeviceModelInternal.T1B1 &&
@@ -28,6 +37,7 @@ export const useNetworkSupport = () => {
         supportedMainnets,
         unsupportedMainnets,
         supportedTestnets,
+        unsupportedTestnets,
         showUnsupportedCoins,
     };
 };

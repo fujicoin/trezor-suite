@@ -1,75 +1,91 @@
-import { useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
-import { exchangeThunks, selectTradingExchangeIsLoading } from '@suite-common/trading';
 import {
-    RootStackParamList,
-    StackToStackCompositeNavigationProps,
-    TradingStackParamList,
-    TradingStackRoutes,
+    type ApprovalStatus,
+    type TradingRootState,
+    exchangeThunks,
+    getApprovalStatus,
+    requiresTokenApproval,
+    selectTradingExchangeDexQuoteApprovalPrefetchLoadingByQuoteId,
+    selectTradingExchangeIsLoading,
+    tradingExchangeActions,
+} from '@suite-common/trading';
+import { useWatch } from '@suite-native/forms';
+import {
+    type RootStackParamList,
+    RootStackRoutes,
+    type StackToStackCompositeNavigationProps,
+    type TradingStackParamList,
+    type TradingStackRoutes,
 } from '@suite-native/navigation';
-import { useTimer } from '@trezor/react-utils';
-
-import { clearExchangeFormQuoteData } from './useExchangeForm';
+import { useExchangeAnalyticReportCallback } from '@suite-native/trading-analytics';
+import { getSymbolFromTradeableAsset } from '@suite-native/trading-atoms';
 import {
     selectExchangeSelectedReceiveAccount,
     selectExchangeSelectedSendAccount,
-} from '../../selectors/exchangeSelectors';
-import { ExchangeFormType } from '../../types/exchange';
-import { getSymbolFromTradeableAsset } from '../../utils/general/tradeableAssetUtils';
-import { useConsent } from '../general/useConsent';
+} from '@suite-native/trading-state';
+import { type ExchangeFormType } from '@suite-native/trading-types';
+import { exhaustive } from '@trezor/type-utils';
+
+import { clearExchangeFormQuoteData } from './useExchangeForm';
+import { isFullySelectedReceiveAccount } from '../../utils/general/receiveAccountUtils';
 
 type NavigationProps = StackToStackCompositeNavigationProps<
     TradingStackParamList,
-    TradingStackRoutes.ReceiveAccounts,
+    TradingStackRoutes.Trading,
     RootStackParamList
 >;
 
 export const useExchangeSelectQuote = (form: ExchangeFormType) => {
     const dispatch = useDispatch();
-    const timer = useTimer();
+    const candidateQuote = useWatch({ name: 'quote', control: form.control });
+    const receiveAsset = useWatch({ name: 'receiveAsset', control: form.control });
 
     const isLoading = useSelector(selectTradingExchangeIsLoading);
-
+    const isDexQuoteApprovalPrefetchLoadingForCandidateQuote = useSelector(
+        (state: TradingRootState) =>
+            selectTradingExchangeDexQuoteApprovalPrefetchLoadingByQuoteId(
+                state,
+                candidateQuote?.quoteId,
+            ),
+    );
     const sendAccount = useSelector(selectExchangeSelectedSendAccount);
     const receiveAccount = useSelector(selectExchangeSelectedReceiveAccount);
 
     const navigation = useNavigation<NavigationProps>();
 
-    const [candidateQuote, receiveAsset] = form.watch(['quote', 'receiveAsset']);
+    const analyticsReportCallback = useExchangeAnalyticReportCallback(candidateQuote);
+    const isCandidateQuotePrefetchBlocked =
+        !!candidateQuote &&
+        requiresTokenApproval(candidateQuote) &&
+        isDexQuoteApprovalPrefetchLoadingForCandidateQuote;
 
-    const { isConsentRequested, waitForConsent, resolveConsent } = useConsent();
-
-    const canProceed = !isLoading && !!candidateQuote && !!sendAccount;
+    const canProceed =
+        !isLoading && !isCandidateQuotePrefetchBlocked && !!candidateQuote && !!sendAccount;
 
     const selectReceiveAccount = () => {
         const selectedNetworkSymbol = getSymbolFromTradeableAsset(receiveAsset);
         if (selectedNetworkSymbol) {
-            navigation.navigate(TradingStackRoutes.ReceiveAccounts, {
+            navigation.navigate(RootStackRoutes.ReceiveAccounts, {
                 symbol: selectedNetworkSymbol,
                 tradingType: 'exchange',
             });
         }
     };
 
-    const handleConsent = useMemo(
-        () => ({
-            give: () => resolveConsent(true),
-            cancel: () => resolveConsent(false),
-            request: () => waitForConsent(),
-        }),
-        [resolveConsent, waitForConsent],
-    );
-
-    const selectQuote = async () => {
-        if (!candidateQuote || isLoading) {
+    const dispatchSelectQuote = async (
+        analyticsAction: 'continue' | 'revoke',
+        nextStep: (approvalStatus: ApprovalStatus) => void,
+    ) => {
+        if (!candidateQuote || isLoading || isCandidateQuotePrefetchBlocked) {
             return;
         }
 
-        if (!receiveAccount) {
+        if (!isFullySelectedReceiveAccount(receiveAccount)) {
             selectReceiveAccount();
+            analyticsReportCallback('account-selection', analyticsAction);
 
             return;
         }
@@ -77,16 +93,69 @@ export const useExchangeSelectQuote = (form: ExchangeFormType) => {
         await dispatch(
             exchangeThunks.selectQuoteThunk({
                 quote: candidateQuote,
-                timer,
-                userConsent: handleConsent.request,
                 nextStep: () => {
                     clearExchangeFormQuoteData(form);
-                    navigation.navigate(TradingStackRoutes.TradingExchangePreview);
+                    nextStep(getApprovalStatus(candidateQuote));
                 },
-                onCancel: () => {},
             }),
         );
     };
+
+    const selectQuote = () =>
+        dispatchSelectQuote('continue', approvalStatus => {
+            // selectExchangeQuoteThunk skips saveSelectedQuote for DEX ERC-20 quotes in pre-CONFIRM
+            // status to preserve desktop behavior. The approval/revoke screens read selectedQuote,
+            // so persist it explicitly here.
+            dispatch(tradingExchangeActions.saveSelectedQuote(candidateQuote));
+
+            switch (approvalStatus) {
+                case 'approved':
+                case 'not_needed':
+                    return navigation.navigate(RootStackRoutes.TradingExchangePreview, {});
+
+                case 'needs_increase':
+                    return navigation.navigate(RootStackRoutes.TradingExchangeApproval, {
+                        shouldIncreaseLimit: true,
+                    });
+
+                case 'needs_revoke':
+                    return navigation.navigate(RootStackRoutes.TradingExchangeRevoke, {
+                        shouldIncreaseLimit: true,
+                    });
+
+                case 'needs_approval':
+                    return navigation.navigate(RootStackRoutes.TradingExchangeApproval, {});
+
+                case null:
+                    // do nothing (should not happen when quote is defined)
+                    return;
+
+                default:
+                    return exhaustive(approvalStatus);
+            }
+        });
+
+    const selectQuoteForRevoke = () =>
+        dispatchSelectQuote('revoke', approvalStatus => {
+            switch (approvalStatus) {
+                case 'not_needed':
+                case 'needs_approval':
+                case null:
+                    return;
+
+                case 'needs_increase':
+                case 'needs_revoke':
+                case 'approved':
+                    dispatch(tradingExchangeActions.saveSelectedQuote(candidateQuote));
+
+                    return navigation.navigate(RootStackRoutes.TradingExchangeRevoke, {
+                        shouldIncreaseLimit: false,
+                    });
+
+                default:
+                    return exhaustive(approvalStatus);
+            }
+        });
 
     return {
         canProceed,
@@ -94,10 +163,9 @@ export const useExchangeSelectQuote = (form: ExchangeFormType) => {
         sendAccount,
         receiveAccount,
         isLoading,
-        isConsentRequested,
+        isDexQuoteApprovalPrefetchLoadingForCandidateQuote,
         selectReceiveAccount,
         selectQuote,
-        giveConsent: handleConsent.give,
-        cancelConsent: handleConsent.cancel,
+        selectQuoteForRevoke,
     };
 };

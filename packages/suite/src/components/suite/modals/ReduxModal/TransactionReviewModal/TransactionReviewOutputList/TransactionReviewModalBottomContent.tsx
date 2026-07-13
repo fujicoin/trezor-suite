@@ -1,25 +1,36 @@
 import { useDispatch, useSelector } from 'react-redux';
 
+import {
+    type TransactionCreatedEventAction,
+    events,
+    selectDesktopAnalyticsDep,
+} from '@suite/analytics';
+import { type ExtendedMessageDescriptor, Translation } from '@suite/intl';
 import { selectConnectPopupCall } from '@suite-common/connect-popup';
-import { ExtendedMessageDescriptor } from '@suite-common/intl-types';
+import { useServices } from '@suite-common/dependency-injection';
 import { notificationsActions } from '@suite-common/toast-notifications';
-import { SendState, StakeState } from '@suite-common/wallet-core';
-import { Account, FormState, RbfTransactionType, ReviewOutput } from '@suite-common/wallet-types';
-import { isRbfCancelTransaction, isRbfTransaction } from '@suite-common/wallet-utils';
-import { StakeType } from '@trezor/blockchain-link-types';
+import {
+    type Account,
+    type FormState,
+    type RbfTransactionType,
+    type ReviewOutput,
+} from '@suite-common/wallet-types';
+import {
+    getTxValidityTimeoutInMs,
+    isRbfCancelTransaction,
+    isRbfTransaction,
+} from '@suite-common/wallet-utils';
+import { type StakeType } from '@trezor/blockchain-link-types';
 import { Modal } from '@trezor/components';
 import { copyToClipboard, download } from '@trezor/dom-utils';
-import { EventType, TransactionCreatedEvent, analytics } from '@trezor/suite-analytics';
-import { Deferred } from '@trezor/utils';
+import { type Deferred } from '@trezor/utils';
 
-import { Translation } from 'src/components/suite/Translation';
+import { type TxInfoState, getTxType, hasTxValidityExpired } from '../utils';
 
-import { getTxType } from '../TransactionReviewModalBody';
-
-const mapRbfTypeToReporting: Record<
-    RbfTransactionType,
-    TransactionCreatedEvent['payload']['action']
-> = { 'bump-fee': 'replaced', cancel: 'canceled' };
+const mapRbfTypeToReporting: Record<RbfTransactionType, TransactionCreatedEventAction> = {
+    'bump-fee': 'replaced',
+    cancel: 'canceled',
+};
 
 type TransactionReviewModalBottomContentProps = {
     decision: Deferred<boolean, string | number | undefined> | undefined;
@@ -27,11 +38,9 @@ type TransactionReviewModalBottomContentProps = {
     onSend: (send: boolean) => void;
     onCancel: () => void;
     handleTryAgain: (close: boolean) => void;
-    txInfoState: SendState | StakeState;
-    areDetailsVisible: boolean;
+    txInfoState: TxInfoState;
     actionTranslation: ExtendedMessageDescriptor;
-    isTxExpired: boolean;
-    hasTxExpired: boolean;
+    hasTxReviewExpired: boolean;
     stakeType?: StakeType;
     isRbfConfirmedError?: boolean;
     account: Account;
@@ -47,15 +56,14 @@ export const TransactionReviewModalBottomContent = ({
     onCancel,
     handleTryAgain,
     txInfoState,
-    areDetailsVisible,
     actionTranslation,
-    isTxExpired,
-    hasTxExpired,
+    hasTxReviewExpired,
     stakeType,
     account,
     precomposedForm,
     outputs,
 }: TransactionReviewModalBottomContentProps) => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const dispatch = useDispatch();
     const connectPopupCall = useSelector(selectConnectPopupCall);
     const { precomposedTx, serializedTx } = txInfoState;
@@ -70,10 +78,12 @@ export const TransactionReviewModalBottomContent = ({
 
     const createdTxTimestamp = txInfoState?.precomposedTx?.createdTimestamp ?? 0;
     const shouldCheckTxTimeValidity = account?.networkType === 'solana' && createdTxTimestamp !== 0;
+    const deadline = createdTxTimestamp + getTxValidityTimeoutInMs(account.networkType);
+    const hasTxDeadlineExpired = shouldCheckTxTimeValidity && hasTxValidityExpired(deadline);
 
-    const reportTransactionCreatedEvent = (action: TransactionCreatedEvent['payload']['action']) =>
+    const reportTransactionCreatedEvent = (action: TransactionCreatedEventAction) =>
         analytics.report({
-            type: EventType.TransactionCreated,
+            type: events.transactionCreatedEvent.name,
             payload: {
                 action,
                 symbol,
@@ -84,13 +94,13 @@ export const TransactionReviewModalBottomContent = ({
                 outputsCount: precomposedForm.outputs.length,
                 broadcast: isBroadcastEnabled,
                 bitcoinLocktime: !!options.includes('bitcoinLocktime'),
-                ethereumData: !!options.includes('ethereumData'),
+                transactionData: !!options.includes('transactionData'),
                 ethereumNonce: !!options.includes('ethereumNonce'),
                 destinationTag: !!options.includes('destinationTag'),
                 selectedFee: selectedFee || 'normal',
                 isCoinControlEnabled: precomposedForm.isCoinControlEnabled,
                 hasCoinControlBeenOpened: precomposedForm.hasCoinControlBeenOpened,
-                txType: txType as 'stake' | 'trade' | undefined,
+                txType,
             },
         });
 
@@ -103,13 +113,13 @@ export const TransactionReviewModalBottomContent = ({
             decision.resolve(true);
             reportTransactionCreatedEvent(
                 isRbfTransaction(precomposedTx!)
-                    ? mapRbfTypeToReporting[precomposedTx!.rbfType]
+                    ? mapRbfTypeToReporting[precomposedTx.rbfType]
                     : 'sent',
             );
 
             if (stakeType) {
                 return analytics.report({
-                    type: EventType.StakingConfirm,
+                    type: events.stakingConfirmEvent.name,
                     payload: { action: stakeType, networkSymbol: symbol },
                 });
             }
@@ -133,27 +143,23 @@ export const TransactionReviewModalBottomContent = ({
 
     if (isRbfConfirmedError) {
         return (
-            <Modal.Button variant="tertiary" onClick={onCancel}>
+            <Modal.Button intent="neutral" priority="secondary" onClick={onCancel}>
                 <Translation id="TR_CLOSE" />
             </Modal.Button>
         );
     }
 
-    if (shouldCheckTxTimeValidity && isTxExpired && !isSending) {
+    if (shouldCheckTxTimeValidity && hasTxReviewExpired && !isSending) {
         return (
             <>
-                <Modal.Button variant="primary" onClick={() => handleTryAgain(false)}>
+                <Modal.Button onClick={() => handleTryAgain(false)}>
                     <Translation id="TR_TRY_AGAIN" />
                 </Modal.Button>
-                <Modal.Button variant="tertiary" onClick={onCancel}>
+                <Modal.Button intent="neutral" priority="secondary" onClick={onCancel}>
                     <Translation id="TR_CLOSE" />
                 </Modal.Button>
             </>
         );
-    }
-
-    if (areDetailsVisible) {
-        return null;
     }
 
     if (connectPopupCall?.state === 'ongoing') {
@@ -164,9 +170,9 @@ export const TransactionReviewModalBottomContent = ({
         return (
             <Modal.Button
                 data-testid="@modal/send"
-                isDisabled={!serializedTx || hasTxExpired}
+                isDisabled={!serializedTx || hasTxDeadlineExpired}
                 isLoading={isSending}
-                variant={isCancelRbfAction ? 'destructive' : 'primary'}
+                intent={isCancelRbfAction ? 'critical' : 'brand'}
                 onClick={handleSend}
             >
                 <Translation {...actionTranslation} />
@@ -183,7 +189,12 @@ export const TransactionReviewModalBottomContent = ({
             >
                 <Translation id="COPY_TRANSACTION_TO_CLIPBOARD" />
             </Modal.Button>
-            <Modal.Button variant="tertiary" isDisabled={!serializedTx} onClick={handleDownload}>
+            <Modal.Button
+                intent="neutral"
+                priority="secondary"
+                isDisabled={!serializedTx}
+                onClick={handleDownload}
+            >
                 <Translation id="DOWNLOAD_TRANSACTION" />
             </Modal.Button>
         </>

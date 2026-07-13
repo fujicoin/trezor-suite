@@ -21,12 +21,11 @@ export const prepareEthereumTransaction = [
         },
     },
     {
-        // https://eth1.trezor.io/tx/0xdcaf3eba690a3cdbad8c2926a8f5a95cd20003c5ba2aace91d8c5fe8048e395b
+        // https://eth.trezor.io/tx/0xdcaf3eba690a3cdbad8c2926a8f5a95cd20003c5ba2aace91d8c5fe8048e395b
         description: 'erc20',
         txInfo: {
             token: {
-                type: 'ERC20',
-                standard: 'ERC20',
+                standard: 'ERC20' as const,
                 symbol: 'gnt',
                 decimals: 18,
                 contract: '0xa74476443119A942dE498590Fe1f2454d7D4aC0d',
@@ -38,7 +37,6 @@ export const prepareEthereumTransaction = [
             nonce: '11',
             gasLimit: '200000',
             gasPrice: '5',
-            data: 'deadbeef-not-used',
         },
         result: {
             to: '0xa74476443119A942dE498590Fe1f2454d7D4aC0d',
@@ -79,8 +77,7 @@ export const prepareEthereumTransaction = [
         description: 'erc20 with eip1559 fees',
         txInfo: {
             token: {
-                type: 'ERC20',
-                standard: 'ERC20',
+                standard: 'ERC20' as const,
                 symbol: 'gnt',
                 decimals: 18,
                 contract: '0xa74476443119A942dE498590Fe1f2454d7D4aC0d',
@@ -92,7 +89,6 @@ export const prepareEthereumTransaction = [
             nonce: '11',
             gasLimit: '200000',
             gasPrice: '5',
-            data: 'deadbeef-not-used',
             maxFeePerGas: '1',
             maxPriorityFeePerGas: '0.5',
         },
@@ -112,8 +108,7 @@ export const prepareEthereumTransaction = [
         description: 'bep20 with eip1559 fees',
         txInfo: {
             token: {
-                type: 'BEP20',
-                standard: 'BEP20',
+                standard: 'BEP20' as const,
                 symbol: 'ETH',
                 decimals: 18,
                 contract: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8',
@@ -125,7 +120,6 @@ export const prepareEthereumTransaction = [
             nonce: '11',
             gasLimit: '200000',
             gasPrice: '5',
-            data: 'deadbeef-not-used',
             maxFeePerGas: '1',
             maxPriorityFeePerGas: '0.5',
         },

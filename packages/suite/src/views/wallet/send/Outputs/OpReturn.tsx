@@ -1,40 +1,14 @@
 import { useEffect } from 'react';
 
-import styled from 'styled-components';
-
+import { Translation, useTranslation } from '@suite/intl';
 import { formInputsMaxLength } from '@suite-common/validators';
-import { getInputState, isHexValid } from '@suite-common/wallet-utils';
-import { IconButton, Row, Textarea, Tooltip, variables } from '@trezor/components';
-import { spacingsPx } from '@trezor/theme';
+import { isHexValid } from '@suite-common/wallet-utils';
+import { Column, Flex, IconButton, Row, Text, Textarea, Tooltip } from '@trezor/components';
+import { XIcon } from '@trezor/icons';
 
 import { OpenGuideFromTooltip } from 'src/components/guide';
-import { Translation } from 'src/components/suite';
-import { useTranslation } from 'src/hooks/suite';
+import { useLayoutSize } from 'src/hooks/suite';
 import { useSendFormContext } from 'src/hooks/wallet';
-
-const Inputs = styled.div`
-    display: flex;
-    margin-top: ${spacingsPx.md};
-
-    ${variables.SCREEN_QUERY.BELOW_TABLET} {
-        flex-direction: column;
-    }
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledTextarea = styled(Textarea)`
-    > :nth-child(1) {
-        border-color: ${({ theme }) => theme.borderElevation2};
-    }
-`;
-
-const Space = styled.div`
-    display: flex;
-    justify-content: center;
-    min-width: 65px;
-    align-self: center;
-    padding-bottom: ${spacingsPx.lg};
-`;
 
 export const OpReturn = ({ outputId }: { outputId: number }) => {
     const {
@@ -45,7 +19,7 @@ export const OpReturn = ({ outputId }: { outputId: number }) => {
         removeOpReturn,
         watch,
     } = useSendFormContext();
-
+    const { isBelowTablet } = useLayoutSize();
     const { translationString } = useTranslation();
 
     const inputAsciiName = `outputs.${outputId}.dataAscii` as const;
@@ -84,7 +58,7 @@ export const OpReturn = ({ outputId }: { outputId: number }) => {
     }, [inputAsciiName, hexValue, hexError, setValue]);
 
     return (
-        <div>
+        <Column gap={16}>
             <Row justifyContent="space-between">
                 <Tooltip
                     addon={
@@ -97,36 +71,39 @@ export const OpReturn = ({ outputId }: { outputId: number }) => {
                 </Tooltip>
 
                 <IconButton
-                    variant="tertiary"
-                    icon="x"
-                    onClick={() => removeOpReturn(outputId)}
+                    intent="neutral"
+                    priority="secondary"
+                    icon={XIcon}
                     size="small"
+                    onClick={() => removeOpReturn(outputId)}
+                    tooltip={{ content: <Translation id="TR_REMOVE" /> }}
                 />
             </Row>
-
-            <Inputs>
-                <StyledTextarea
-                    inputState={getInputState(asciiError)}
+            <Flex direction={isBelowTablet ? 'column' : 'row'} gap={16} alignItems="center">
+                <Textarea
+                    hasError={!!asciiError}
                     data-testid={inputAsciiName}
                     defaultValue={asciiValue}
                     maxLength={formInputsMaxLength.opReturn}
                     bottomText={asciiError?.message || null}
                     label={<Translation id="OP_RETURN_HUMAN" />}
                     innerRef={asciiRef}
+                    flex="1"
                     {...asciiField}
                 />
-                <Space> = </Space>
-                <StyledTextarea
-                    inputState={getInputState(hexError)}
+                <Text>=</Text>
+                <Textarea
+                    hasError={!!hexError}
                     data-testid={inputHexName}
                     defaultValue={hexValue}
                     maxLength={formInputsMaxLength.opReturn}
                     bottomText={hexError?.message || null}
                     label={<Translation id="OP_RETURN_HEX" />}
                     innerRef={hexRef}
+                    flex="1"
                     {...hexField}
                 />
-            </Inputs>
-        </div>
+            </Flex>
+        </Column>
     );
 };

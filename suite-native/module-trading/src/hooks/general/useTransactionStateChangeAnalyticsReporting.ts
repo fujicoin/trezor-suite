@@ -1,16 +1,16 @@
 import { useEffect, useRef } from 'react';
 
-import { TradingTransaction } from '@suite-common/trading';
-import { EventType, analytics } from '@suite-native/analytics';
-
-import { getTradeStatusStep } from '../../utils/general/utils';
+import { useServices } from '@suite-common/dependency-injection';
+import { type TradingTransaction } from '@suite-common/trading';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
+import { getTradeStatusStep } from '@suite-native/trading-quote-utils';
 
 export const useTransactionStateChangeAnalyticsReporting = (deviceTrades: TradingTransaction[]) => {
     // Track previous status for each trade to report analytics on status changes
     const previousStatuses = useRef<Map<string, ReturnType<typeof getTradeStatusStep> | undefined>>(
         new Map(),
     );
-
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     // Report analytics for status changes
     useEffect(() => {
         deviceTrades.forEach(trade => {
@@ -33,7 +33,7 @@ export const useTransactionStateChangeAnalyticsReporting = (deviceTrades: Tradin
                 // Only report if we have a previous status (not on first render - the refresh is triggered by the useWatchAllTrades hook) and current status is defined
                 if (previousStatus !== undefined && currentStatus !== undefined) {
                     analytics.report({
-                        type: EventType.TradingStatus,
+                        type: events.tradingStatusEvent.name,
                         payload: { type: trade.tradeType, status: currentStatus },
                     });
                 }
@@ -41,5 +41,5 @@ export const useTransactionStateChangeAnalyticsReporting = (deviceTrades: Tradin
                 previousStatuses.current.set(tradeKey, currentStatus);
             }
         });
-    }, [deviceTrades]);
+    }, [deviceTrades, analytics]);
 };

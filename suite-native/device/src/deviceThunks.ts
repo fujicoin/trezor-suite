@@ -1,70 +1,48 @@
-import { Feature, selectIsFeatureEnabled } from '@suite-common/message-system';
-import { createThunk } from '@suite-common/redux-utils';
-import { BackupType } from '@suite-common/suite-types';
 import {
-    deviceActions,
-    failEntropyCheckThunk,
     selectDevicePath,
     selectIsDeviceInitialized,
     selectSelectedDevice,
-} from '@suite-common/wallet-core';
+    selectSimulatedEntropyCheckFail,
+} from '@suite-common/device';
+import { Feature, selectIsFeatureEnabled } from '@suite-common/message-system';
+import { createThunk } from '@suite-common/redux-utils';
+import { type BackupType } from '@suite-common/suite-types';
+import { processEntropyCheckResultThunk } from '@suite-common/wallet-core';
 import { requestPrioritizedDeviceAccess } from '@suite-native/device-mutex';
-import TrezorConnect, { PROTO } from '@trezor/connect';
-import { exhaustive } from '@trezor/type-utils';
+import TrezorConnect, { type OkWithDevice, PROTO } from '@trezor/connect';
+import { type SerializedError } from '@trezor/connect-common/src/constants/errors';
+import { type Err, exhaustive } from '@trezor/type-utils';
 
 const NATIVE_DEVICE_MODULE_PREFIX = 'nativeDevice';
-
-export const setTemporaryRememberedDeviceThunk = createThunk(
-    `${NATIVE_DEVICE_MODULE_PREFIX}/setTemporaryRememberedDevice`,
-    (
-        { temporaryRemember }: { temporaryRemember: boolean },
-        { getState, rejectWithValue, dispatch },
-    ) => {
-        const device = selectSelectedDevice(getState());
-        if (!device) {
-            return rejectWithValue('Device not found');
-        }
-
-        dispatch(
-            deviceActions.setTemporaryRememberedDevice({
-                device,
-                temporaryRemember,
-            }),
-        );
-
-        // if the device is not connected and it was remembered only temporarily, we need to forget it
-        if (!device.connected && device.temporaryRemember && !temporaryRemember) {
-            dispatch(deviceActions.forgetDevice({ device }));
-        }
-
-        return;
-    },
-);
 
 const getResetDeviceConfig = (walletBackupType: BackupType): PROTO.ResetDevice => {
     switch (walletBackupType) {
         case 'shamir-single':
             return {
-                backup_type: 3,
+                backup_type: PROTO.Enum_BackupType.Slip39_Single_Extendable,
                 strength: 128,
             };
         case 'shamir-advanced':
             return {
-                backup_type: 4,
+                backup_type: PROTO.Enum_BackupType.Slip39_Basic_Extendable,
                 strength: 128,
             };
         case '12-words':
-            return { backup_type: PROTO.BackupType.Bip39, strength: 128 };
+            return { backup_type: PROTO.Enum_BackupType.Bip39, strength: 128 };
         case '24-words':
-            return { backup_type: PROTO.BackupType.Bip39, strength: 256 };
+            return { backup_type: PROTO.Enum_BackupType.Bip39, strength: 256 };
         default:
             return exhaustive(walletBackupType);
     }
 };
 
-export const createAndBackupWalletThunk = createThunk(
+export const createAndBackupWalletThunk = createThunk<
+    Err<SerializedError> | OkWithDevice<PROTO.Success>,
+    { walletBackupType: BackupType },
+    { rejectValue: string }
+>(
     `${NATIVE_DEVICE_MODULE_PREFIX}/createAndBackupWalletThunk`,
-    async ({ walletBackupType }: { walletBackupType: BackupType }, { getState, dispatch }) => {
+    async ({ walletBackupType }, { getState, dispatch, fulfillWithValue, rejectWithValue }) => {
         const device = selectSelectedDevice(getState());
         const devicePath = selectDevicePath(getState());
         const isDeviceInitialized = selectIsDeviceInitialized(getState());
@@ -73,9 +51,11 @@ export const createAndBackupWalletThunk = createThunk(
             Feature.entropyCheckMobile,
             true,
         );
+        // Used only in tests! See deviceReducer for the property definition.
+        const simulatedFailResult = selectSimulatedEntropyCheckFail(getState());
 
-        if (!device || !device.features || !devicePath) {
-            throw new Error('Device not found');
+        if (!device?.features || !devicePath) {
+            return rejectWithValue('Device not found');
         }
 
         // If the device already has a seed, backup is created.
@@ -90,44 +70,43 @@ export const createAndBackupWalletThunk = createThunk(
                       }
                     : {};
 
-            const deviceResponse = await requestPrioritizedDeviceAccess({
-                deviceCallback: () =>
-                    TrezorConnect.backupDevice({
-                        ...backupParams,
-                        device: {
-                            path: device.path,
-                        },
-                    }),
-            });
-
-            if (!deviceResponse.success) {
-                throw new Error(deviceResponse.error);
-            }
-
-            return deviceResponse.payload;
-        }
-
-        const deviceResponse = await requestPrioritizedDeviceAccess({
-            deviceCallback: () =>
-                TrezorConnect.resetDevice({
-                    device: { path: devicePath },
-                    skip_backup: false,
-                    ...getResetDeviceConfig(walletBackupType),
-                    //Entropy check can be toggled via message system config so it should be always last to avoid unintentional disabling.
-                    entropy_check: isEntropyCheckEnabled,
+            const deviceResponse = await requestPrioritizedDeviceAccess(() =>
+                TrezorConnect.backupDevice({
+                    ...backupParams,
+                    device: { path: device.path },
                 }),
-        });
+            );
+            // error from device-mutex
+            if (!deviceResponse.success) return rejectWithValue(deviceResponse.error);
 
-        if (!deviceResponse.success) {
-            throw new Error(deviceResponse.error);
+            // full response from connect, which is either success or error
+            return fulfillWithValue(deviceResponse.payload);
         }
 
+        const deviceResponse = await requestPrioritizedDeviceAccess(() =>
+            TrezorConnect.resetDevice({
+                device: { path: devicePath },
+                skip_backup: false,
+                ...getResetDeviceConfig(walletBackupType),
+                //Entropy check can be toggled via message system config so it should be always last to avoid unintentional disabling.
+                entropy_check: isEntropyCheckEnabled,
+            }),
+        );
+        // error from device-mutex
+        if (!deviceResponse.success) return rejectWithValue(deviceResponse.error);
+
+        // full response from connect, which is either success or error
         const result = deviceResponse.payload;
-        if (!result.success && result.payload.code === 'Failure_EntropyCheck') {
-            dispatch(failEntropyCheckThunk({ device, error: result.payload }));
+        if (isEntropyCheckEnabled) {
+            if (simulatedFailResult) {
+                dispatch(processEntropyCheckResultThunk({ device, result: simulatedFailResult }));
+
+                return fulfillWithValue(simulatedFailResult);
+            }
+            dispatch(processEntropyCheckResultThunk({ device, result }));
         }
 
-        return result;
+        return fulfillWithValue(result);
     },
 );
 
@@ -136,9 +115,9 @@ export const recoverWalletThunk = createThunk(
     async (_, { getState }) => {
         const devicePath = selectDevicePath(getState());
 
-        const deviceResponse = await requestPrioritizedDeviceAccess({
-            deviceCallback: () => TrezorConnect.recoveryDevice({ device: { path: devicePath } }),
-        });
+        const deviceResponse = await requestPrioritizedDeviceAccess(() =>
+            TrezorConnect.recoveryDevice({ device: { path: devicePath } }),
+        );
 
         if (!deviceResponse.success) {
             throw new Error(deviceResponse.error);

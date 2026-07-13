@@ -2,51 +2,48 @@ import { FreeFocusInside } from 'react-focus-lock';
 
 import styled from 'styled-components';
 
-import { Icon, useElevation } from '@trezor/components';
-import { Elevation, mapElevationToBackground, mapElevationToBorder, zIndices } from '@trezor/theme';
+import { Translation } from '@suite/intl';
+import { IconButton, Row, ShortcutBadge, TOOLTIP_DELAY_LONG } from '@trezor/components';
+import { LifebuoyIcon } from '@trezor/icons';
+import { borders, spacingsPx, zIndices } from '@trezor/theme';
 
 import { useGuide } from 'src/hooks/guide';
 
-const Wrapper = styled.button<{ $isGuideOpen: boolean; $elevation: Elevation }>`
-    display: flex;
-    justify-content: center;
-    align-items: center;
+const Wrapper = styled.div<{ $isGuideOpen: boolean }>`
     position: fixed;
     z-index: ${zIndices.guideButton};
-    bottom: 15px;
-    right: 15px;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    cursor: pointer;
-    border: solid 1px ${mapElevationToBorder};
-    background: ${mapElevationToBackground};
-    box-shadow: ${({ theme, $elevation }) => ($elevation === 1 ? theme.boxShadowBase : undefined)};
-    transition: opacity 0.3s ease 0.3s;
-    opacity: ${({ $isGuideOpen }) => ($isGuideOpen ? 0 : 1)};
-
-    &:focus {
-        transition: opacity 0.1s ease; /* hide button faster on guide open to prevent overlap */
-    }
-
-    > img {
-        display: block;
-    }
+    bottom: ${spacingsPx.md};
+    right: ${spacingsPx.md};
+    border-radius: ${borders.radii.sm};
+    backdrop-filter: blur(10px);
+    transition: ${({ $isGuideOpen }) => ($isGuideOpen ? 'none' : 'all 0.3s ease 0.3s')};
+    opacity: ${({ $isGuideOpen }) => ($isGuideOpen ? '0' : '1')};
 `;
 
 export const GuideButton = () => {
     const { openGuide, isGuideOpen } = useGuide();
-    const { elevation } = useElevation();
 
     return (
         <FreeFocusInside>
-            <Wrapper
-                data-testid="@guide/button-open"
-                onClick={openGuide}
-                $isGuideOpen={isGuideOpen}
-                $elevation={elevation}
-            >
-                <Icon size={18} name="lightbulb" />
+            <Wrapper $isGuideOpen={isGuideOpen}>
+                <IconButton
+                    data-testid="@guide/button-open"
+                    onClick={openGuide}
+                    icon={LifebuoyIcon}
+                    intent="neutral"
+                    priority="secondary"
+                    size="large"
+                    tooltip={{
+                        content: (
+                            <Row gap={8}>
+                                <Translation id="TR_GUIDE_SUPPORT_AND_FEEDBACK" />
+                                <ShortcutBadge shortcut={['F1']} />
+                            </Row>
+                        ),
+                        placement: 'top',
+                        delayShow: TOOLTIP_DELAY_LONG,
+                    }}
+                />
             </Wrapper>
         </FreeFocusInside>
     );

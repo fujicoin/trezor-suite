@@ -1,58 +1,29 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
-import { BackendType, NetworkSymbol } from '@suite-common/wallet-config';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useTranslation } from '@suite/intl';
+import { isOnionUrl } from '@suite/tor';
+import { useServices } from '@suite-common/dependency-injection';
+import {
+    type NetworkSymbol,
+    type ServerType,
+    getNetwork,
+    getServerAddressExample,
+    validateServerAddress,
+} from '@suite-common/wallet-config';
 import { blockchainActions } from '@suite-common/wallet-core';
-import { BackendSettings } from '@suite-common/wallet-types';
-import { isElectrumUrl } from '@suite-common/wallet-utils';
-import { EventType, analytics } from '@trezor/suite-analytics';
-import { isUrlWithQuery } from '@trezor/utils';
+import { type BackendSettings } from '@suite-common/wallet-types';
+import TrezorConnect from '@trezor/connect';
 
-import { useDispatch, useSelector, useTranslation } from 'src/hooks/suite';
-import { isOnionUrl } from 'src/utils/suite/tor';
-
-export type BackendOption = BackendType | 'default';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 
 type BackendsFormData = {
-    type: BackendOption;
+    type: ServerType;
     urls: string[];
 };
 
-const validateUrl = (type: BackendOption, value: string) => {
-    switch (type) {
-        case 'blockbook':
-            return isUrlWithQuery(value);
-        case 'blockfrost':
-            return isUrlWithQuery(value);
-        case 'electrum':
-            return isElectrumUrl(value);
-        case 'solana':
-            return isUrlWithQuery(value);
-        case 'ripple':
-            return isUrlWithQuery(value);
-        case 'stellar':
-            return isUrlWithQuery(value);
-        default:
-            return false;
-    }
-};
-
-const getUrlPlaceholder = (symbol: NetworkSymbol, type: BackendOption) => {
-    switch (type) {
-        case 'blockbook':
-            return `https://${symbol}1.trezor.io/`;
-        case 'blockfrost':
-            return `wss://blockfrost.io`;
-        case 'electrum':
-            return `electrum.example.com:50001:t`;
-        case 'solana':
-            return 'https://';
-        default:
-            return '';
-    }
-};
-
-const useBackendUrlInput = (symbol: NetworkSymbol, type: BackendOption, currentUrls: string[]) => {
+const useBackendUrlInput = (symbol: NetworkSymbol, type: ServerType, currentUrls: string[]) => {
     const {
         register,
         watch,
@@ -65,19 +36,16 @@ const useBackendUrlInput = (symbol: NetworkSymbol, type: BackendOption, currentU
 
     const name = 'url' as const;
     const validate = (value: string) => {
-        // Check if URL is valid
-        if (!validateUrl(type, value)) {
+        if (!validateServerAddress(type, value)) {
             return translationString('TR_CUSTOM_BACKEND_INVALID_URL');
         }
-
-        // Check if already exists
-        if (currentUrls.find(url => url === value)) {
+        if (currentUrls.includes(value)) {
             return translationString('TR_CUSTOM_BACKEND_BACKEND_ALREADY_ADDED');
         }
     };
 
     const placeholder = translationString('SETTINGS_ADV_COIN_URL_INPUT_PLACEHOLDER', {
-        url: getUrlPlaceholder(symbol, type),
+        url: getServerAddressExample(symbol, type),
     });
 
     return {
@@ -93,7 +61,7 @@ const useBackendUrlInput = (symbol: NetworkSymbol, type: BackendOption, currentU
 
 const getStoredState = (
     symbol: NetworkSymbol,
-    type?: BackendOption,
+    type?: ServerType,
     urls?: BackendSettings['urls'],
 ): BackendsFormData => ({
     type: type ?? (symbol === 'regtest' ? 'blockbook' : 'default'),
@@ -101,13 +69,25 @@ const getStoredState = (
 });
 
 export const useBackendsForm = (symbol: NetworkSymbol) => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const backends = useSelector(state => state.wallet.blockchain[symbol].backends);
     const dispatch = useDispatch();
-    const initial = getStoredState(symbol, backends.selected, backends.urls);
-    const [currentValues, setCurrentValues] = useState(initial);
+    const { translationString } = useTranslation();
+    const [currentValues, setCurrentValues] = useState(() =>
+        getStoredState(symbol, backends.selected, backends.urls),
+    );
+    const [isValidating, setIsValidating] = useState(false);
+    const [validationError, setValidationError] = useState<string | null>(null);
 
-    const changeType = (type: BackendOption) => {
+    useEffect(() => {
+        setCurrentValues(getStoredState(symbol, backends.selected, backends.urls));
+        setValidationError(null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [symbol]);
+
+    const changeType = (type: ServerType) => {
         setCurrentValues(getStoredState(symbol, type, backends.urls));
+        setValidationError(null);
     };
 
     const addUrl = (url: string) => {
@@ -115,6 +95,7 @@ export const useBackendsForm = (symbol: NetworkSymbol) => {
             type,
             urls: [...urls, url],
         }));
+        setValidationError(null);
     };
 
     const removeUrl = (url: string) => {
@@ -122,6 +103,7 @@ export const useBackendsForm = (symbol: NetworkSymbol) => {
             type,
             urls: urls.filter(u => u !== url),
         }));
+        setValidationError(null);
     };
 
     const input = useBackendUrlInput(symbol, currentValues.type, currentValues.urls);
@@ -138,14 +120,80 @@ export const useBackendsForm = (symbol: NetworkSymbol) => {
         return !!urls.length && urls.every(isOnionUrl);
     };
 
-    const save = () => {
+    const validateEvmRpcUrls = async (urls: string[]): Promise<boolean> => {
+        setIsValidating(true);
+        setValidationError(null);
+
+        const network = getNetwork(symbol);
+        const expectedChainId = network.chainId;
+
+        if (!expectedChainId) {
+            setValidationError(translationString('TR_CUSTOM_BACKEND_NETWORK_MISSING_CHAIN_ID'));
+            setIsValidating(false);
+
+            return false;
+        }
+
+        for (const url of urls) {
+            try {
+                const result = await TrezorConnect.blockchainValidateEvmRpcUrl({
+                    url,
+                    chainId: expectedChainId,
+                });
+
+                if (!result.success) {
+                    setValidationError(
+                        translationString('TR_CUSTOM_BACKEND_CONNECTION_ERROR', { url }),
+                    );
+                    setIsValidating(false);
+
+                    return false;
+                }
+
+                if (!result.payload.valid) {
+                    const { actualChainId } = result.payload;
+                    setValidationError(
+                        translationString('TR_CUSTOM_BACKEND_CHAIN_MISMATCH', {
+                            url,
+                            expected: `${network.name} (${expectedChainId})`,
+                            actual: actualChainId?.toString() || 'unknown',
+                        }),
+                    );
+                    setIsValidating(false);
+
+                    return false;
+                }
+            } catch {
+                setValidationError(
+                    translationString('TR_CUSTOM_BACKEND_VALIDATION_ERROR', { url }),
+                );
+                setIsValidating(false);
+
+                return false;
+            }
+        }
+
+        setIsValidating(false);
+
+        return true;
+    };
+
+    const save = async (): Promise<boolean> => {
         const { type } = currentValues;
         const urls = type === 'default' ? [] : getUrls();
+
+        if (type === 'evm-rpc' && urls.length > 0) {
+            const isValid = await validateEvmRpcUrls(urls);
+            if (!isValid) {
+                return false;
+            }
+        }
+
         dispatch(blockchainActions.setBackend({ symbol, type, urls }));
         const totalOnion = urls.filter(isOnionUrl).length;
 
         analytics.report({
-            type: EventType.SettingsCoinsBackend,
+            type: events.settingsCoinsBackendEvent.name,
             payload: {
                 symbol,
                 type,
@@ -153,10 +201,11 @@ export const useBackendsForm = (symbol: NetworkSymbol) => {
                 totalOnion,
             },
         });
+
+        return true;
     };
 
     return {
-        maxUrlLength: 2048,
         type: currentValues.type,
         urls: currentValues.urls,
         input,
@@ -165,5 +214,9 @@ export const useBackendsForm = (symbol: NetworkSymbol) => {
         removeUrl,
         changeType,
         save,
-    };
+        isValidating,
+        validationError,
+    } as const;
 };
+
+export type BackendsForm = ReturnType<typeof useBackendsForm>;

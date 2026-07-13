@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 
-import { selectFirmwareChangelog } from '@suite-common/wallet-core';
-import { BottomSheetModal, BottomSheetModalRef, Button, Text } from '@suite-native/atoms';
+import { selectFirmwareChangelog } from '@suite-common/device';
+import { BottomSheetModal, type BottomSheetModalRef, Button, Text } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 type FirmwareChangelogProps = {
     onClose: () => void;
@@ -12,7 +12,7 @@ type FirmwareChangelogProps = {
 };
 
 const changelogSectionTitleTextStyle = prepareNativeStyle(utils => ({
-    ...utils.typography.highlight,
+    ...utils.typography['body-md-strong'],
     paddingTop: utils.spacings.sp24,
 }));
 
@@ -34,7 +34,7 @@ export const FirmwareChangelog = ({ ref, onClose }: FirmwareChangelogProps) => {
         if (!firmwareChangelog) {
             return (
                 <Text>
-                    <Translation id="firmware.firmwareUpdateScreen.changelog.changelogUnavailable" />
+                    <Translation id="firmware.changelog.changelogUnavailable" />
                 </Text>
             );
         }
@@ -70,16 +70,17 @@ export const FirmwareChangelog = ({ ref, onClose }: FirmwareChangelogProps) => {
 
     return (
         <BottomSheetModal ref={ref}>
-            <Text variant="titleSmall" color="textDefault">
-                <Translation id="firmware.firmwareUpdateScreen.changelog.title" />
+            <Text variant="headline-sm" color="contentPrimary">
+                <Translation id="firmware.changelog.title" />
             </Text>
             {formattedChangelog}
             <Button
                 onPress={onClose}
                 style={applyStyle(buttonContainerStyle)}
-                colorScheme="tertiaryElevation0"
+                intent="neutral"
+                priority="secondary"
             >
-                <Translation id="firmware.firmwareUpdateScreen.changelog.closeButton" />
+                <Translation id="generic.buttons.close" />
             </Button>
         </BottomSheetModal>
     );

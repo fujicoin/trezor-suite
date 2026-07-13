@@ -1,10 +1,9 @@
-import { Fragment, JSX } from 'react';
+import { Fragment, type JSX } from 'react';
 
+import { type ExtendedMessageDescriptor, Translation } from '@suite/intl';
 import { Icon, Row, Text } from '@trezor/components';
+import { CaretRightIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
-
-import { Translation } from 'src/components/suite';
-import { ExtendedMessageDescriptor } from 'src/types/suite';
 
 export interface TradingSelectedOfferStepperItemProps {
     step: string;
@@ -22,12 +21,15 @@ export const TradingSelectedOfferStepper = ({ steps }: TradingSelectedOfferStepp
         {steps.map((step, index) => (
             <Fragment key={index}>
                 <Row flex="1" justifyContent="center">
-                    <Text variant={step.isActive ? 'primary' : 'tertiary'}>
+                    <Text
+                        intent={step.isActive ? 'brand' : 'neutral'}
+                        priority={step.isActive ? 'primary' : 'secondary'}
+                    >
                         <Translation id={step.translationId} />
                     </Text>
                 </Row>
                 {index < steps.length - 1 && (
-                    <Icon name="caretRight" variant="tertiary" size={20} />
+                    <Icon as={CaretRightIcon} intent="neutral" priority="secondary" size={20} />
                 )}
             </Fragment>
         ))}

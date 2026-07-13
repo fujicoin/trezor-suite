@@ -3,7 +3,7 @@ import { Translation } from '@suite-native/intl';
 
 export const UninitializedDeviceModalAppendix = () => (
     <VStack>
-        <Text variant="callout">
+        <Text variant="body-sm-strong">
             <Translation id="moduleDevice.noSeedModal.appendix.title" />
         </Text>
         <VStack spacing="sp16" paddingTop="sp24">
@@ -19,8 +19,8 @@ export const UninitializedDeviceModalAppendix = () => (
 
             <BottomSheetListItem
                 iconName="checkCircle"
-                iconColor="iconDefaultInverted"
-                iconBackgroundColor="backgroundPrimaryDefault"
+                iconColor="contentPrimaryInverse"
+                iconBackgroundColor="legacyBackgroundPrimaryDefault"
                 translationKey="moduleDevice.noSeedModal.appendix.lines.3"
             />
         </VStack>

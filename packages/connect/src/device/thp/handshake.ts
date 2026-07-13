@@ -1,25 +1,24 @@
-import { randomBytes } from 'crypto';
+import { randomBytes } from '@noble/hashes/utils.js';
 
-import { encodeMessage } from '@trezor/protobuf';
-import { ThpPairingMethod, thp as protocolThp } from '@trezor/protocol';
+import { ERRORS } from '@trezor/connect-common/src/constants';
+import { protobufManager } from '@trezor/protobuf';
+import type { ThpPairingMethod } from '@trezor/protocol';
+import { thp as protocolThp } from '@trezor/protocol';
 
 import { thpCall } from './thpCall';
-import { ERRORS } from '../../constants';
-import { DataManager } from '../../data/DataManager';
-import type { Device } from '../Device';
+import * as settingsStore from '../../data/settingsStore';
+import type { IDevice } from '../../types/idevice';
 
 // intersection of device acceptable methods and host acceptable methods
-const enumFromString = (dm: ThpPairingMethod | keyof typeof ThpPairingMethod) =>
-    typeof dm === 'string' ? protocolThp.ThpPairingMethod[dm] : dm;
-
 const getPairingMethods = (
     deviceMethods?: (ThpPairingMethod | keyof typeof ThpPairingMethod)[],
     settingsMethods?: (ThpPairingMethod | keyof typeof ThpPairingMethod)[],
 ) =>
     deviceMethods?.flatMap(dm => {
-        const value = enumFromString(dm);
-        const isRequested =
-            settingsMethods && settingsMethods.find(sm => value === enumFromString(sm));
+        const value = protocolThp.getThpPairingMethod(dm);
+        const isRequested = settingsMethods?.find(
+            sm => value === protocolThp.getThpPairingMethod(sm),
+        );
 
         return isRequested ? value : [];
     });
@@ -27,7 +26,7 @@ const getPairingMethods = (
 // State HH0
 // TODO: link-to-public-docs
 // https://www.notion.so/satoshilabs/THP-Specification-2-1-203dc5260606804192aecaa58fb961ca
-export const createThpChannel = async (device: Device) => {
+export const createThpChannel = async (device: IDevice) => {
     const thpState = device.getThpState();
     if (!thpState) {
         throw ERRORS.TypedError('Device_ThpStateMissing');
@@ -35,7 +34,7 @@ export const createThpChannel = async (device: Device) => {
 
     // set default channel and create random nonce
     thpState.setChannel(protocolThp.constants.THP_DEFAULT_CHANNEL);
-    const nonce = randomBytes(8);
+    const nonce = Buffer.from(randomBytes(8));
     const createChannel = await thpCall(device, 'ThpCreateChannelRequest', { nonce });
 
     const { properties, ...resp } = createChannel.message;
@@ -48,7 +47,7 @@ export const createThpChannel = async (device: Device) => {
     }
 
     // find common pairing methods
-    const settings = DataManager.getSettings('thp');
+    const settings = settingsStore.get('thp');
     const pairingMethods = getPairingMethods(properties.pairing_methods, settings?.pairingMethods);
     if (!pairingMethods?.length) {
         throw ERRORS.TypedError('Device_ThpPairingMethodsException');
@@ -68,29 +67,26 @@ export const createThpChannel = async (device: Device) => {
 // State HH1 and HH2
 // TODO: link-to-public-docs
 // https://www.notion.so/satoshilabs/THP-Specification-2-1-203dc5260606804192aecaa58fb961ca
-export const thpHandshake = async (device: Device) => {
+export const thpHandshake = async (device: IDevice, unlockPin = false) => {
     const thpState = device.getThpState();
     if (!thpState?.handshakeCredentials) {
         throw ERRORS.TypedError('Device_ThpStateMissing');
     }
 
-    const settings = DataManager.getSettings('thp');
-    // get staticKey from settings or create new random
-    const staticKey = settings?.staticKey
-        ? Buffer.from(settings.staticKey, 'hex')
-        : randomBytes(32);
-    const hostStaticKeys = protocolThp.getCurve25519KeyPair(staticKey);
+    const settings = settingsStore.get('thp');
     // sort credentials by autoconnect field
     const knownCredentials = (settings?.knownCredentials || []).sort(cre =>
         cre.autoconnect ? -1 : 1,
     );
+    const tryToUnlock = unlockPin ? 1 : 0;
 
     // 1. Generate a new ephemeral X25519 key pair (host_ephemeral_privkey, host_ephemeral_pubkey).
-    const hostEphemeralKeys = protocolThp.getCurve25519KeyPair(randomBytes(32));
+    const hostEphemeralKeys = protocolThp.getCurve25519KeyPair(Buffer.from(randomBytes(32)));
 
     // 2. Send the message HandshakeInitiationReq(host_ephemeral_pubkey) to the host.
     const handshakeInit = await thpCall(device, 'ThpHandshakeInitRequest', {
         key: hostEphemeralKeys.publicKey,
+        tryToUnlock,
     });
 
     const { trezorEncryptedStaticPubkey } = handshakeInit.message;
@@ -99,10 +95,10 @@ export const thpHandshake = async (device: Device) => {
     const handshakeCredentials = protocolThp.handleHandshakeInit({
         handshakeInitResponse: handshakeInit.message,
         thpState,
-        hostStaticKeys,
         hostEphemeralKeys,
         knownCredentials,
-        protobufEncoder: (name, data) => encodeMessage(device.transport.getMessages(), name, data),
+        tryToUnlock,
+        protobufEncoder: (name, data) => protobufManager.encode(name, data),
     });
 
     // update thpState
@@ -113,8 +109,8 @@ export const thpHandshake = async (device: Device) => {
         handshakeHash: handshakeCredentials.handshakeHash,
         trezorKey,
         hostKey,
-        staticKey,
-        hostStaticPublicKey: hostStaticKeys.publicKey,
+        staticKey: handshakeCredentials.staticKey,
+        hostStaticPublicKey: handshakeCredentials.hostStaticKeys.publicKey,
     });
 
     thpState.setPairingCredentials(handshakeCredentials.allCredentials);
@@ -124,10 +120,22 @@ export const thpHandshake = async (device: Device) => {
         encryptedPayload: handshakeCredentials.encryptedPayload,
     });
 
-    thpState.setIsPaired(!!handshakeCompletion.message.state);
+    if (!handshakeCompletion.message.state && handshakeCredentials.credentials) {
+        // Known credentials was used but not accepted by device -> throw them away
+        thpState.removePairingCredential(handshakeCredentials.credentials);
+
+        const { credential } = handshakeCredentials.credentials;
+        const index = settings?.knownCredentials?.findIndex(c => c.credential === credential) ?? -1;
+        if (index >= 0) {
+            settings?.knownCredentials?.splice(index, 1);
+        }
+    }
+
+    thpState.setIsPaired(handshakeCompletion.message.state !== 0);
     thpState.setPhase('pairing');
 
-    if (thpState.isPaired && thpState.isAutoconnectPaired) {
+    if (thpState.isAutoconnectPaired || handshakeCompletion.message.state === 2) {
+        // State HC1 -> HC2 pairing complete
         // finish pairing. device is ready to communicate without further interaction
         await thpCall(device, 'ThpEndRequest', {});
         thpState.setPhase('paired');

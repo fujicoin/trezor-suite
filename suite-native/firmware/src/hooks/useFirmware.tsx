@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import {
-    FirmwareUpdateResult,
-    UseFirmwareInstallationParams,
-    useFirmwareInstallation,
-} from '@suite-common/firmware';
-import { selectIsBluetoothDevice } from '@suite-common/wallet-core';
-import { TxKeyPath, useTranslate } from '@suite-native/intl';
-import { getFirmwareVersion } from '@trezor/device-utils';
+import { selectIsDeviceConnectedViaBluetooth } from '@suite-common/device';
+import { type FirmwareUpdateResult, useFirmwareInstallation } from '@suite-common/firmware';
+import { type TxKeyPath, useTranslate } from '@suite-native/intl';
 import { setPriorityMode } from '@trezor/react-native-usb';
 
 import { nativeFirmwareActions } from '../nativeFirmwareSlice';
@@ -17,11 +12,7 @@ import { useFirmwareAnalytics } from './useFirmwareAnalytics';
 // If progress doesn't change for 1 minute
 const MAYBE_STUCKED_TIMEOUT = 1 * 60 * 1000; // 1 minute
 
-export const useFirmware = (
-    params?: UseFirmwareInstallationParams & {
-        navigationLocation: 'settings' | 'onboarding';
-    },
-) => {
+export const useFirmware = (params?: { navigationLocation: 'settings' | 'onboarding' }) => {
     const dispatch = useDispatch();
     const {
         firmwareUpdate: firmwareUpdateCommon,
@@ -30,8 +21,9 @@ export const useFirmware = (
         status,
         error,
         progress,
+        setStatus,
         ...firmwareInstallation
-    } = useFirmwareInstallation(params);
+    } = useFirmwareInstallation();
     const { translate } = useTranslate();
     const [mayBeStucked, setMayBeStucked] = useState(false);
     const mayBeStuckedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,12 +32,12 @@ export const useFirmware = (
         targetFirmwareType: firmwareInstallation.targetFirmwareType,
         navigationLocation: params?.navigationLocation,
     });
-    const [isInitialFirmwareInstallationRunning, setIsInitialFirmwareInstallationRunning] =
-        useState<boolean>(false);
 
     // When the device is restarted after FW installation via Bluetooth, this flag changes to false
     // for a moment which triggers firmwareUpdate again. => Use ref to prevent this.
-    const isBluetoothDeviceRef = useRef(useSelector(selectIsBluetoothDevice));
+    const isDeviceConnectedViaBluetoothRef = useRef(
+        useSelector(selectIsDeviceConnectedViaBluetooth),
+    );
 
     const setIsFirmwareInstallationRunning = useCallback(
         (isRunning: boolean) => {
@@ -80,7 +72,7 @@ export const useFirmware = (
     }, [progress, status, setMayBeStuckedTimeout, resetMayBeStuckedTimeout]);
 
     const firmwareUpdate = useCallback(async () => {
-        if (!isBluetoothDeviceRef.current) {
+        if (!isDeviceConnectedViaBluetoothRef.current) {
             setPriorityMode(true);
         }
         const result = await firmwareUpdateCommon({ ignoreBaseUrl: true })
@@ -94,7 +86,7 @@ export const useFirmware = (
             })
             .then(({ connectResponse }) => connectResponse)
             .finally(() => {
-                if (!isBluetoothDeviceRef.current) {
+                if (!isDeviceConnectedViaBluetoothRef.current) {
                     setPriorityMode(false);
                 }
                 resetMayBeStuckedTimeout();
@@ -108,8 +100,6 @@ export const useFirmware = (
         // This is needed for firmware reinstall to show Confirm on device correctly
         firmwareInstallation.buttonEvent?.code === 'ButtonRequest_Other';
 
-    const originalFirmwareVersion = getFirmwareVersion(firmwareInstallation.originalDevice);
-
     const translatedText = useMemo(() => {
         let text: { title: TxKeyPath; subtitle?: TxKeyPath } = {
             title: 'firmware.firmwareUpdateProgress.initializing.title',
@@ -118,7 +108,7 @@ export const useFirmware = (
 
         const isInitialState = (status === 'started' && operation === null) || status === 'initial';
 
-        if (status === 'error' && !isInitialFirmwareInstallationRunning) {
+        if (status === 'error') {
             text = {
                 title: 'firmware.firmwareUpdateProgress.error.title',
             };
@@ -132,21 +122,14 @@ export const useFirmware = (
                 title: 'firmware.firmwareUpdateProgress.confirming.title',
                 subtitle: 'firmware.firmwareUpdateProgress.generalSubtitle',
             };
-        } else if (operation === 'restarting') {
-            text = {
-                title: 'firmware.firmwareUpdateProgress.restarting.title',
-                subtitle: 'firmware.firmwareUpdateProgress.generalSubtitle',
-            };
-        } else if (operation === 'completed' || operation === 'thp' || status === 'done') {
+        } else if (operation === 'completed' || status === 'thp-pairing' || status === 'done') {
             text = {
                 title: 'firmware.firmwareUpdateProgress.completed.title',
                 subtitle: 'firmware.firmwareUpdateProgress.completed.subtitle',
             };
-        } else if (operation === 'installing') {
+        } else if (operation === 'restarting') {
             text = {
-                title: originalFirmwareVersion
-                    ? 'firmware.firmwareUpdateProgress.installing.title'
-                    : 'firmware.firmwareUpdateProgress.installing.title',
+                title: 'firmware.firmwareUpdateProgress.restarting.title',
                 subtitle: 'firmware.firmwareUpdateProgress.generalSubtitle',
             };
         }
@@ -155,15 +138,7 @@ export const useFirmware = (
             title: translate(text.title),
             subtitle: text.subtitle ? translate(text.subtitle) : error,
         };
-    }, [
-        status,
-        operation,
-        isInitialFirmwareInstallationRunning,
-        confirmOnDevice,
-        translate,
-        error,
-        originalFirmwareVersion,
-    ]);
+    }, [status, operation, confirmOnDevice, translate, error]);
 
     return {
         ...firmwareInstallation,
@@ -174,9 +149,8 @@ export const useFirmware = (
         operation,
         status,
         error,
-        isInitialFirmwareInstallationRunning,
-        setIsInitialFirmwareInstallationRunning,
         mayBeStucked,
         progress,
+        setStatus,
     };
 };

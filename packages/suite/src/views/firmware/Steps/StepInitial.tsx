@@ -1,12 +1,14 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import { FirmwareStatus } from '@suite-common/suite-types';
-import { selectDevices, selectSelectedDevice } from '@suite-common/wallet-core';
+import { Translation } from '@suite/intl';
+import { selectDevices, selectSelectedDevice } from '@suite-common/device';
+import { type FirmwareStatus } from '@suite-common/suite-types';
 import { Modal, Tooltip } from '@trezor/components';
+import { unique } from '@trezor/utils';
 
-import { updateAnalytics } from '../../../actions/onboarding/onboardingActions';
-import { PrerequisitesGuide, Translation } from '../../../components/suite';
-import { useSelector } from '../../../hooks/suite';
+import { updateAnalytics } from 'src/actions/onboarding/onboardingActions';
+import { PrerequisitesGuide } from 'src/components/suite';
+import { useSelector } from 'src/hooks/suite';
 
 type StepInitialProps = {
     onClose: () => void;
@@ -29,7 +31,7 @@ export const StepInitial = ({
 
     const devices = useSelector(selectDevices);
     const devicesConnected = devices.filter(device => device?.connected);
-    const multipleDevicesConnected = [...new Set(devicesConnected.map(d => d.path))].length > 1;
+    const multipleDevicesConnected = unique(devicesConnected.map(d => d.path)).length > 1;
     const shouldCheckSeed = device?.mode !== 'initialize';
 
     if (!device?.connected || !device?.features) {
@@ -68,7 +70,7 @@ export const StepInitial = ({
                             <Translation id={shouldCheckSeed ? 'TR_CONTINUE' : 'TR_INSTALL'} />
                         </Modal.Button>
                     </Tooltip>
-                    <Modal.Button variant="tertiary" onClick={onClose}>
+                    <Modal.Button intent="neutral" priority="secondary" onClick={onClose}>
                         <Translation id="TR_CANCEL" />
                     </Modal.Button>
                 </>

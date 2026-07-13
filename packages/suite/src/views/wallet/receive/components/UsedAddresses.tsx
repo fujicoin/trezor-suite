@@ -1,32 +1,27 @@
 import { useState } from 'react';
 
-import styled from 'styled-components';
-
-import { NetworkSymbol } from '@suite-common/wallet-config';
+import { Address, selectAddressLabelsForAccount } from '@suite/address';
+import { Translation, useTranslation } from '@suite/intl';
+import { Labeling } from '@suite/labeling';
+import {
+    selectCurrentFreshAddress,
+    selectReceiveRevealedAddresses,
+    showAddressThunk,
+    useReceiveDisabled,
+} from '@suite/receive';
+import { getUsedAddressesList } from '@suite-common/address';
+import { type MetadataAddPayload } from '@suite-common/metadata-types';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { type Account } from '@suite-common/wallet-types';
 import { formatNetworkAmount } from '@suite-common/wallet-utils';
-import { Button, Card, Column, GradientOverlay, Row, Table, Text } from '@trezor/components';
-import { AccountAddress } from '@trezor/connect';
+import { Button, Card, Column, Row, Table, Text } from '@trezor/components';
+import { type AccountAddress } from '@trezor/connect';
+import { getAddressPathIndex } from '@trezor/crypto-utils';
+import { CaretDownIcon, CaretUpIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { showAddress } from 'src/actions/wallet/receiveActions';
-import { FormattedCryptoAmount, MetadataLabeling, Translation } from 'src/components/suite';
-import { useDispatch, useSelector } from 'src/hooks/suite/';
-import { useReceiveDisabled } from 'src/hooks/suite/useReceiveDisabled';
-import { selectLabelingDataForSelectedAccount } from 'src/reducers/suite/metadataReducer';
-import { AppState } from 'src/types/suite';
-import { MetadataAddPayload } from 'src/types/suite/metadata';
-
-const AddressActions = styled.div<{ $isVisible?: boolean }>`
-    opacity: ${({ $isVisible }) => ($isVisible ? '1' : '0')};
-`;
-
-const AddressWrapper = styled.div`
-    white-space: nowrap;
-    overflow: hidden;
-    position: relative;
-    font-variant-numeric: tabular-nums slashed-zero;
-    user-select: none;
-`;
+import { FormattedCryptoAmount } from 'src/components/suite';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 
 const DEFAULT_LIMIT = 10;
 
@@ -37,57 +32,64 @@ type ItemProps = {
     symbol: NetworkSymbol;
     metadataPayload: MetadataAddPayload;
     onClick: () => void;
+    account: Account;
 };
 
-const Item = ({ addr, locked, symbol, onClick, metadataPayload, index }: ItemProps) => {
+const Item = ({ account, addr, locked, symbol, onClick, metadataPayload, index }: ItemProps) => {
     const { isReceiveDisabled, ReceiveDisabledWrapper } = useReceiveDisabled();
-    const [isHovered, setIsHovered] = useState(false);
+    const { translationString } = useTranslation();
 
     const amount = formatNetworkAmount(addr.received || '0', symbol);
     const fresh = !addr.transfers;
-    const address = addr.address.substring(0, 20);
     const isDisabled = locked || isReceiveDisabled;
+    const addressPathIndex = getAddressPathIndex(addr.path);
 
     return (
-        <Table.Row onHover={setIsHovered}>
+        <Table.Row>
             <Table.Cell>
-                <Text typographyStyle="hint" data-testid={`@wallet/receive/used-address/${index}`}>
-                    <MetadataLabeling
+                <Row
+                    gap={spacings.xxs}
+                    alignItems="center"
+                    data-testid={`@wallet/receive/used-address/${index}`}
+                >
+                    {addressPathIndex !== undefined && (
+                        <Text typographyStyle="body-md" intent="neutral" priority="secondary">
+                            {addressPathIndex} /
+                        </Text>
+                    )}
+                    <Labeling
                         payload={{
                             ...metadataPayload,
                         }}
-                        visible={isHovered}
-                        // if metadata is present, confirm on device option will become available in dropdown
-                        defaultVisibleValue={
-                            <AddressWrapper>
-                                <GradientOverlay hiddenFrom="120px" />
-                                {address}
-                            </AddressWrapper>
-                        }
-                    />
-                </Text>
+                        deviceStaticSessionId={account.deviceState}
+                        displayValue={<Address value={addr.address} isTruncated />}
+                        placeholder={translationString('TR_LABELING_ADDRESS_LABEL')}
+                        minHeight={28}
+                        maxWidth={300}
+                    >
+                        {metadataPayload.value}
+                    </Labeling>
+                </Row>
             </Table.Cell>
             <Table.Cell align="end">
-                <AddressActions $isVisible={isHovered}>
-                    <ReceiveDisabledWrapper>
-                        <Button
-                            data-testid={`@wallet/receive/reveal-address-button/${index}`}
-                            variant="tertiary"
-                            isDisabled={isDisabled}
-                            isLoading={locked}
-                            onClick={onClick}
-                            size="tiny"
-                        >
-                            <Translation id="TR_REVEAL_ADDRESS" />
-                        </Button>
-                    </ReceiveDisabledWrapper>
-                </AddressActions>
+                <ReceiveDisabledWrapper>
+                    <Button
+                        data-testid={`@wallet/receive/reveal-address-button/${index}`}
+                        intent="neutral"
+                        priority="secondary"
+                        isDisabled={isDisabled}
+                        isLoading={locked}
+                        onClick={onClick}
+                        size="small"
+                    >
+                        <Translation id="RECEIVE_ADDRESS_REVEAL" />
+                    </Button>
+                </ReceiveDisabledWrapper>
             </Table.Cell>
-
             <Table.Cell align="end">
-                <Text typographyStyle="hint">
+                <Text typographyStyle="body-sm">
                     {fresh ? (
-                        <Text variant="tertiary">
+                        <Text intent="neutral" priority="secondary">
                             <Translation id="RECEIVE_TABLE_NOT_USED" />
                         </Text>
                     ) : (
@@ -100,26 +102,32 @@ const Item = ({ addr, locked, symbol, onClick, metadataPayload, index }: ItemPro
 };
 
 interface UsedAddressesProps {
-    account: AppState['wallet']['selectedAccount']['account'];
-    addresses: AppState['wallet']['receive'];
+    account: Account;
     locked: boolean;
     pendingAddresses: string[];
 }
 
-export const UsedAddresses = ({
-    account,
-    addresses,
-    pendingAddresses,
-    locked,
-}: UsedAddressesProps) => {
+export const UsedAddresses = ({ account, pendingAddresses, locked }: UsedAddressesProps) => {
     const [limit, setLimit] = useState(DEFAULT_LIMIT);
     const dispatch = useDispatch();
-    const { addressLabels } = useSelector(selectLabelingDataForSelectedAccount);
+    const currentFreshAddress = useSelector(state => selectCurrentFreshAddress(state, account.key));
+    const revealedAddresses = useSelector(state =>
+        selectReceiveRevealedAddresses(state, account.key),
+    );
 
-    if (!account) {
-        return null;
-    }
+    const accountAddresses = account.addresses
+        ? account.addresses.used.concat(account.addresses.unused).map(({ address }) => address)
+        : [];
 
+    const addressLabels = useSelector(state =>
+        selectAddressLabelsForAccount(state, {
+            addresses: accountAddresses,
+            accountKey: account.key,
+            deviceStaticId: account.deviceState,
+        }),
+    );
+
+    // For account based networks, the unuses addresses does not make sense.
     if (
         (account.networkType !== 'bitcoin' && account.networkType !== 'cardano') ||
         !account.addresses
@@ -127,21 +135,13 @@ export const UsedAddresses = ({
         return null;
     }
 
-    const { used, unused } = account.addresses;
-    // find revealed addresses in `unused` list
-    const revealed = unused.reduce(
-        (result, addr) => {
-            const r = addresses.find(u => u.path === addr.path);
-            const p = pendingAddresses.find(u => u === addr.address);
-            const f = r || p;
-
-            return f ? result.concat(addr) : result;
-        },
-        [] as typeof unused,
-    );
-    // TODO: add skipped addresses?
-    // add revealed addresses to `used` list
-    const list = used.concat(revealed).reverse();
+    const list = getUsedAddressesList({
+        account,
+        revealedAddresses,
+        pendingAddresses,
+        addressLabels,
+        currentFreshAddress,
+    });
 
     if (list.length < 1) {
         return null;
@@ -152,7 +152,7 @@ export const UsedAddresses = ({
     const actionHideVisible = limit > DEFAULT_LIMIT;
 
     return (
-        <Card overflow="hidden" paddingType="none">
+        <Card paddingType="none">
             <Column gap={spacings.md}>
                 <Table margin={{ top: spacings.xs, bottom: spacings.xs }}>
                     <Table.Header>
@@ -160,8 +160,7 @@ export const UsedAddresses = ({
                             <Table.Cell>
                                 <Translation id="RECEIVE_TABLE_ADDRESS" />
                             </Table.Cell>
-                            <Table.Cell />
-                            <Table.Cell align="end">
+                            <Table.Cell align="end" colSpan={2}>
                                 <Translation id="RECEIVE_TABLE_RECEIVED" />
                             </Table.Cell>
                         </Table.Row>
@@ -169,6 +168,7 @@ export const UsedAddresses = ({
                     <Table.Body>
                         {list.slice(0, limit).map((addr, index) => (
                             <Item
+                                account={account}
                                 index={index}
                                 key={addr.path}
                                 addr={addr}
@@ -178,9 +178,18 @@ export const UsedAddresses = ({
                                     type: 'addressLabel',
                                     entityKey: account.key,
                                     defaultValue: addr.address,
-                                    value: addressLabels[addr.address],
+                                    networkSymbol: account.symbol,
+                                    accountDescriptor: account.descriptor,
+                                    value: addressLabels[addr.address] ?? undefined,
                                 }}
-                                onClick={() => dispatch(showAddress(addr.path, addr.address))}
+                                onClick={() =>
+                                    dispatch(
+                                        showAddressThunk({
+                                            path: addr.path,
+                                            address: addr.address,
+                                        }),
+                                    )
+                                }
                             />
                         ))}
                     </Table.Body>
@@ -190,9 +199,9 @@ export const UsedAddresses = ({
                     <Row justifyContent="center" gap={spacings.md} margin={{ bottom: spacings.md }}>
                         {actionShowVisible && (
                             <Button
-                                variant="tertiary"
-                                icon="caretDown"
-                                iconAlignment="end"
+                                intent="neutral"
+                                priority="secondary"
+                                iconRight={CaretDownIcon}
                                 onClick={() => setLimit(limit + 20)}
                                 data-testid="@wallet/receive/used-address/show-more"
                             >
@@ -202,8 +211,9 @@ export const UsedAddresses = ({
 
                         {actionHideVisible && (
                             <Button
-                                variant="tertiary"
-                                icon="caretUp"
+                                intent="neutral"
+                                priority="secondary"
+                                iconLeft={CaretUpIcon}
                                 onClick={() => setLimit(DEFAULT_LIMIT)}
                             >
                                 <Translation id="TR_SHOW_LESS" />

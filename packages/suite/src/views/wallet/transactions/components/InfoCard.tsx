@@ -1,52 +1,10 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import styled from 'styled-components';
-
-import { Card, Column, SkeletonRectangle, variables } from '@trezor/components';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { Card, Column, H4, Row, Skeleton, Text } from '@trezor/components';
+import { BigNumber } from '@trezor/utils';
 
 import { FormattedCryptoAmount, HiddenPlaceholder, Sign } from 'src/components/suite';
-import { Account } from 'src/types/wallet';
-
-const Title = styled.div`
-    font-size: ${variables.FONT_SIZE.TINY};
-    font-weight: ${variables.FONT_WEIGHT.DEMI_BOLD};
-    color: ${({ theme }) => theme.legacy.TYPE_LIGHT_GREY};
-    text-transform: uppercase;
-    margin-bottom: 10px;
-`;
-
-const Value = styled.div`
-    display: flex;
-    font-size: ${variables.FONT_SIZE.NORMAL};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-    color: ${({ theme }) => theme.legacy.TYPE_DARK_GREY};
-    white-space: nowrap;
-    line-height: 1.5;
-`;
-
-const SecondaryValueWrapper = styled.div`
-    font-size: ${variables.FONT_SIZE.SMALL};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-    color: ${({ theme }) => theme.legacy.TYPE_LIGHT_GREY};
-    font-variant-numeric: tabular-nums;
-
-    /* margin-left: 1ch; */
-    line-height: 1.57;
-`;
-
-const StyledHiddenPlaceholder = styled(HiddenPlaceholder)`
-    display: flex;
-`;
-
-const StyledFormattedValue = styled(FormattedCryptoAmount)`
-    display: flex;
-    font-size: ${variables.FONT_SIZE.NORMAL};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
-    color: ${({ theme }) => theme.legacy.TYPE_DARK_GREY};
-    white-space: nowrap;
-    line-height: 1.5;
-`;
+import { type Account } from 'src/types/wallet';
 
 type InfoCardProps = {
     title: ReactNode;
@@ -65,15 +23,24 @@ export const InfoCard = (props: InfoCardProps) => {
     bigValue = bigValue?.isNaN() ? null : bigValue;
 
     return (
-        <Card minHeight={100}>
+        <Card height="100%" minHeight={100}>
             <Column>
-                <Title data-testid="@wallet/transactions/summary-card/title">{props.title}</Title>
-                {props.isLoading && <SkeletonRectangle width="160px" />}
+                <H4
+                    typographyStyle="body-xs"
+                    intent="neutral"
+                    priority="secondary"
+                    data-testid="@wallet/transactions/summary-card/title"
+                    case="uppercase"
+                    margin={{ bottom: 12 }}
+                >
+                    {props.title}
+                </H4>
+                {props.isLoading && <Skeleton width={160} />}
 
                 {!props.isLoading && (
                     <>
                         {bigValue && props.symbol && (
-                            <StyledFormattedValue
+                            <FormattedCryptoAmount
                                 data-testid="@wallet/transactions/summary-card/value"
                                 signValue={bigValue}
                                 value={bigValue.abs().toFixed()}
@@ -82,26 +49,37 @@ export const InfoCard = (props: InfoCardProps) => {
                         )}
 
                         {!bigValue && (
-                            <Value data-testid="@wallet/transactions/summary-card/value">
+                            <Row data-testid="@wallet/transactions/summary-card/value">
                                 {props.value}
-                            </Value>
+                            </Row>
                         )}
 
                         {props.isNumeric && props.secondaryValue && (
-                            <StyledHiddenPlaceholder>
-                                <Value data-testid="@wallet/transactions/summary-card/secondary-value">
+                            <HiddenPlaceholder>
+                                <Row data-testid="@wallet/transactions/summary-card/secondary-value">
                                     <Sign value="positive" placeholderOnly />
-                                    <SecondaryValueWrapper>
+                                    <Text
+                                        intent="neutral"
+                                        priority="secondary"
+                                        typographyStyle="body-sm"
+                                        as="div"
+                                    >
                                         {props.secondaryValue}
-                                    </SecondaryValueWrapper>
-                                </Value>
-                            </StyledHiddenPlaceholder>
+                                    </Text>
+                                </Row>
+                            </HiddenPlaceholder>
                         )}
 
                         {!props.isNumeric && props.secondaryValue && (
-                            <SecondaryValueWrapper data-testid="@wallet/transactions/summary-card/secondary-value">
+                            <Text
+                                intent="neutral"
+                                priority="secondary"
+                                typographyStyle="body-sm"
+                                as="div"
+                                data-testid="@wallet/transactions/summary-card/secondary-value"
+                            >
                                 {props.secondaryValue}
-                            </SecondaryValueWrapper>
+                            </Text>
                         )}
                     </>
                 )}

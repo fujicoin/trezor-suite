@@ -1,5 +1,5 @@
-import { forwardRef, useRef } from 'react';
-import { View, ViewProps } from 'react-native';
+import { forwardRef, useLayoutEffect, useRef } from 'react';
+import { View, type ViewProps } from 'react-native';
 import Animated, {
     interpolateColor,
     useAnimatedStyle,
@@ -11,7 +11,7 @@ import Animated, {
 import { A, G } from '@mobily/ts-belt';
 import { atom, useAtom } from 'jotai';
 
-import { useNativeStyles } from '@trezor/styles';
+import { useNativeStyles } from '@trezor/styles-native';
 
 import { Text } from './Text';
 
@@ -62,13 +62,15 @@ export const DebugView = forwardRef<View, ViewProps>(({ style, children, ...prop
         }),
     );
 
-    flashState.value = flashState.value === 0 ? 1 : 0;
+    useLayoutEffect(() => {
+        flashState.value = flashState.value === 0 ? 1 : 0;
+    });
 
     const rStyle = useAnimatedStyle(() => {
         const backgroundColor = interpolateColor(
             progress.value,
             [0, 1],
-            [originalBackgroundColor, utils.colors.backgroundAlertRedBold],
+            [originalBackgroundColor, utils.colors.legacyBackgroundAlertRedBold],
         );
 
         return {
@@ -89,7 +91,7 @@ export const DebugView = forwardRef<View, ViewProps>(({ style, children, ...prop
                         borderWidth: 1,
                     }}
                 >
-                    <Text variant="hint">{++rerenderCount.current}</Text>
+                    <Text variant="body-sm">{++rerenderCount.current}</Text>
                 </View>
             )}
         </Animated.View>

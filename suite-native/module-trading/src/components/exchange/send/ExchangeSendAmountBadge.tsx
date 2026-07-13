@@ -2,16 +2,15 @@ import { useSelector } from 'react-redux';
 
 import { invariant } from '@suite-common/suite-utils';
 import { selectTradingExchangeIsLoading } from '@suite-common/trading';
-import { FiatRatesRootState, WalletSettingsRootState } from '@suite-common/wallet-core';
+import { type FiatRatesRootState, type WalletSettingsRootState } from '@suite-common/wallet-core';
 import { Badge } from '@suite-native/atoms';
 import { useField } from '@suite-native/forms';
+import { getSymbolFromTradeableAsset } from '@suite-native/trading-atoms';
+import { type TradingRootState, selectAmountInBaseFiatCurrency } from '@suite-native/trading-state';
+import { type TradeableAsset } from '@suite-native/trading-types';
 
 import { useExchangeFormContext } from '../../../hooks/exchange/useExchangeFormContext';
 import { useConvertFormValueToBaseUnit } from '../../../hooks/general/useConvertFormValueToBaseUnit';
-import { TradingRootState } from '../../../reducers';
-import { selectAmountInBaseFiatCurrency } from '../../../selectors/commonSelectors';
-import { TradeableAsset } from '../../../types/general';
-import { getSymbolFromTradeableAsset } from '../../../utils/general/tradeableAssetUtils';
 import { FiatAmountBadge } from '../../general/FiatAmountBadge';
 
 type ExchangeSendFiatAmountBadgeProps = {
@@ -41,7 +40,7 @@ export const ExchangeSendAmountBadge = () => {
 
     const { errorMessage, hasError, value } = useField({ name: 'sendCryptoAmount' });
     if (!isLoading && hasError) {
-        return <Badge label={errorMessage} variant="red" size="small" />;
+        return <Badge label={errorMessage} intent="critical" size="small" />;
     }
 
     const asset = watch('sendAsset');

@@ -1,11 +1,11 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import { Icon, IconName } from '@suite-native/icons';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { Icon, type IconName } from '@suite-native/icons';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { Box } from '../Box';
 import { Card } from '../Card/Card';
-import { InlineAlertBox, InlineAlertBoxProps } from '../InlineAlertBox/InlineAlertBox';
+import { InlineAlertBox, type InlineAlertBoxProps } from '../InlineAlertBox/InlineAlertBox';
 import { HStack, VStack } from '../Stack';
 import { Text } from '../Text';
 
@@ -14,11 +14,12 @@ const contentStyle = prepareNativeStyle(() => ({
     flexShrink: 1,
 }));
 
-type CardWithIconLayoutProps = {
+export type CardWithIconLayoutProps = {
     icon: IconName;
     title: ReactNode;
     children: ReactNode;
-    alertBoxProps?: Omit<InlineAlertBoxProps, 'borderRadius'>;
+    alertBoxProps?: InlineAlertBoxProps;
+    testID?: string;
 };
 
 export const CardWithIconLayout = ({
@@ -26,17 +27,18 @@ export const CardWithIconLayout = ({
     title,
     children,
     alertBoxProps,
+    testID,
 }: CardWithIconLayoutProps) => {
     const { applyStyle } = useNativeStyles();
 
     return (
-        <Card borderColor="borderElevation1" noPadding>
+        <Card borderColor="borderNeutral" noPadding testID={testID}>
             <HStack margin="sp16" spacing="sp12">
                 <Box marginVertical="sp2">
                     <Icon name={icon} size="mediumLarge" />
                 </Box>
                 <VStack spacing={0} style={applyStyle(contentStyle)}>
-                    <Text variant="highlight">{title}</Text>
+                    <Text variant="body-md-strong">{title}</Text>
                     {children}
                 </VStack>
             </HStack>

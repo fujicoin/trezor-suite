@@ -1,61 +1,58 @@
+import { useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from '@react-navigation/native';
 import { isFulfilled } from '@reduxjs/toolkit';
-import { useSetAtom } from 'jotai';
 
-import { selectSelectedDevice, wipeDeviceThunk } from '@suite-common/wallet-core';
+import { events } from '@suite-common/analytics';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectSelectedDevice } from '@suite-common/device';
+import { wipeDeviceThunk } from '@suite-common/wallet-core';
+import { selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { requestPrioritizedDeviceAccess } from '@suite-native/device-mutex';
+import { setWasDeviceOnboardingCancelled } from '@suite-native/device-onboarding';
 import {
-    DeviceSettingsStackParamList,
+    type DeviceSettingsStackParamList,
     DeviceSettingsStackRoutes,
-    RootStackParamList,
-    RootStackRoutes,
-    WipeDeviceStackParamList,
+    type StackNavigationProps,
     WipeDeviceStackRoutes,
 } from '@suite-native/navigation';
 
-import { wasDeviceOnboardingCancelledAtom } from '../deviceAtoms';
-
-type NavigationProps = CompositeNavigationProp<
-    NativeStackNavigationProp<WipeDeviceStackParamList, WipeDeviceStackRoutes.WipeDevice>,
-    CompositeNavigationProp<
-        NativeStackNavigationProp<DeviceSettingsStackParamList>,
-        NativeStackNavigationProp<RootStackParamList>
-    >
+type NavigationProps = StackNavigationProps<
+    DeviceSettingsStackParamList,
+    DeviceSettingsStackRoutes.WipeDeviceStack
 >;
 
 export const useWipeDevice = () => {
     const dispatch = useDispatch();
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const navigation = useNavigation<NavigationProps>();
+
     const device = useSelector(selectSelectedDevice);
-    const setWasDeviceOnboardingCancelled = useSetAtom(wasDeviceOnboardingCancelledAtom);
+
+    const navigateToWipeDeviceStack = useCallback(() => {
+        navigation.navigate(DeviceSettingsStackRoutes.WipeDeviceStack);
+    }, [navigation]);
 
     const wipeDevice = async () => {
         if (!device) return;
 
         // After wipe, device gets changed and reconnected. That would trigger redirect to device onboarding which is
         // not wanted here. We want to treat it differently since it was wiped so user goes to onboarding through homescreen.
-        setWasDeviceOnboardingCancelled(true);
+        dispatch(setWasDeviceOnboardingCancelled(true));
 
-        navigation.navigate(RootStackRoutes.DeviceSettingsStack, {
-            screen: DeviceSettingsStackRoutes.WipeDeviceStack,
-            params: {
-                screen: WipeDeviceStackRoutes.ContinueOnTrezor,
-            },
-        });
+        navigation.navigate(DeviceSettingsStackRoutes.WipeDeviceStack);
 
-        const response = await requestPrioritizedDeviceAccess({
-            deviceCallback: async () => await dispatch(wipeDeviceThunk()),
-        });
+        const response = await requestPrioritizedDeviceAccess(
+            async () => await dispatch(wipeDeviceThunk()),
+        );
 
         if (response.success && isFulfilled(response.payload)) {
-            navigation.navigate(RootStackRoutes.DeviceSettingsStack, {
-                screen: DeviceSettingsStackRoutes.WipeDeviceStack,
-                params: {
-                    screen: WipeDeviceStackRoutes.WipeDeviceLoadingScreen,
-                },
+            analytics.report({
+                type: events.settingsDeviceWipeEvent.name,
+            });
+            navigation.navigate(DeviceSettingsStackRoutes.WipeDeviceStack, {
+                screen: WipeDeviceStackRoutes.WipeDeviceLoadingScreen,
             });
         } else {
             if (navigation.canGoBack()) {
@@ -64,5 +61,5 @@ export const useWipeDevice = () => {
         }
     };
 
-    return { wipeDevice };
+    return { navigateToWipeDeviceStack, wipeDevice };
 };

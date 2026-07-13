@@ -1,8 +1,13 @@
-import { DataManager } from '../../data/DataManager';
-import { parseConnectSettings } from '../../data/connectSettings';
+import { parseConnectSettings } from '@trezor/connect-common/src/data/connectSettings';
+import { noopCreateLogger, noopLogger } from '@trezor/connect-common/src/utils/debug';
+
+import { initializeFirmwareConfig } from '../../data/firmwareInfo';
+import * as firmwareReleaseStore from '../../data/firmwareReleaseStore';
+import { loadProtobufModules } from '../../data/protobufLoader';
+import * as settingsStore from '../../data/settingsStore';
 import { DeviceList } from '../DeviceList';
 
-const { createTestTransport } = global.JestMocks;
+const { createTestTransport, createTestTransportClass } = global.JestMocks;
 
 const waitForNthEventOfType = (
     emitter: { on: (...args: any[]) => any },
@@ -22,9 +27,10 @@ const waitForNthEventOfType = (
 describe('DeviceList', () => {
     beforeAll(async () => {
         // todo: I don't get it. If we pass empty messages: {} (see getDeviceListParams), tests behave differently.
-        await DataManager.load({
-            ...parseConnectSettings({}),
-        });
+        const settings = { ...parseConnectSettings({}) };
+        settingsStore.set(settings);
+        await firmwareReleaseStore.init(settings.firmwareChannel, true, initializeFirmwareConfig);
+        await loadProtobufModules();
     });
 
     let list: DeviceList;
@@ -33,8 +39,7 @@ describe('DeviceList', () => {
     beforeEach(() => {
         list = new DeviceList({
             ...parseConnectSettings({}),
-            priority: 0,
-            messages: DataManager.getProtobufMessages(),
+            createLogger: noopCreateLogger,
         });
         eventsSpy = jest.fn();
         list.on('transport-start', ({ apiType }) => eventsSpy('transport-start', apiType));
@@ -57,6 +62,18 @@ describe('DeviceList', () => {
         list.dispose();
     });
 
+    it('builds the transport logger through injected createLogger', () => {
+        const createLogger = jest.fn(() => noopLogger);
+        const local = new DeviceList({
+            ...parseConnectSettings({}),
+            createLogger,
+        });
+
+        expect(createLogger).toHaveBeenCalledWith('@trezor/transport');
+
+        return local.dispose();
+    });
+
     it('.init() throws error on unknown transport (string)', async () => {
         await expect(() =>
             list.init({
@@ -76,8 +93,7 @@ describe('DeviceList', () => {
     });
 
     it('.init() accepts transports in form of transport class', async () => {
-        const transport = createTestTransport();
-        const classConstructor = transport.constructor as unknown as typeof transport;
+        const classConstructor = createTestTransportClass();
         await expect(list.init({ transports: [classConstructor] })).resolves.not.toThrow();
     });
 
@@ -118,7 +134,8 @@ describe('DeviceList', () => {
 
     it('.init() with pendingTransportEvent (unacquired device)', async () => {
         const transport = createTestTransport({
-            openDevice: () => Promise.resolve({ success: false, error: 'wrong previous session' }),
+            openDevice: () =>
+                Promise.resolve({ success: false, error: { code: 'wrong previous session' } }),
         });
 
         list.init({ transports: [transport], pendingTransportEvent: true });
@@ -130,7 +147,8 @@ describe('DeviceList', () => {
 
     it('.init() with pendingTransportEvent (disconnected device)', async () => {
         const transport = createTestTransport({
-            openDevice: () => Promise.resolve({ success: false, error: 'device not found' }),
+            openDevice: () =>
+                Promise.resolve({ success: false, error: { code: 'device not found' } }),
         });
 
         list.init({ transports: [transport], pendingTransportEvent: true });
@@ -193,12 +211,10 @@ describe('DeviceList', () => {
             }),
             openDevice: (path: string) =>
                 path === '2'
-                    ? Promise.resolve({ success: false, error: 'device not found' })
+                    ? Promise.resolve({ success: false, error: { code: 'device not found' } })
                     : Promise.resolve({ success: true, payload: [{ path }] }),
+            type: 'usb2',
         });
-
-        // @ts-expect-error
-        transportB.apiType = 'usb2';
 
         list.init({ transports: [transportA, transportB], pendingTransportEvent: true });
 
@@ -269,10 +285,18 @@ describe('DeviceList', () => {
                     res = '3f2323000300000000000000000000000000000000';
                 } else if (readCount === 1) {
                     // features
-                    res = '3f232300110000000c1002180020006000aa010154'; // 2.0.0;
+                    res =
+                        // headers
+                        `3f2323001100000017` +
+                        // { major_version: 2, minor_version: 0, patch_version: 0, model: 'T', initialized: false, device_id: 'device-id' }
+                        `10021800200${0}32096465766963652d69646000aa010154`;
                 } else {
                     // features
-                    res = `3f232300110000000c10021800200${1}6000aa010154`; // 2.0.1
+                    res =
+                        // headers
+                        `3f2323001100000017` +
+                        // { major_version: 2, minor_version: 0, patch_version: 1, model: 'T', initialized: false, device_id: 'device-id' }
+                        `10021800200${1}32096465766963652d69646000aa010154`;
                 }
                 readCount++;
 

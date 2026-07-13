@@ -3,10 +3,23 @@
     "compilerOptions": { "outDir": "libDev" },
     "references": [
         {
+            "path": "../../suite-common/dependency-injection"
+        },
+        {
             "path": "../../suite-common/formatters"
         },
+        {
+            "path": "../../suite-common/redux-utils"
+        },
+        {
+            "path": "../../suite-common/test-utils"
+        },
+        { "path": "../analytics" },
         { "path": "../intl" },
-        { "path": "../../packages/styles" },
+        { "path": "../services" },
+        {
+            "path": "../../packages/styles-native"
+        },
         { "path": "../../packages/theme" }
     ]
 }

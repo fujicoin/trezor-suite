@@ -1,19 +1,34 @@
 import { combineReducers } from '@reduxjs/toolkit';
-import { CryptoId, ExchangeTrade } from 'invity-api';
+import { type CryptoId, type ExchangeTrade } from 'invity-api';
 
 import { createThunk } from '@suite-common/redux-utils';
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
 import { getNetwork } from '@suite-common/wallet-config';
-import { Account } from '@suite-common/wallet-types';
+import { type Account, type AccountKey } from '@suite-common/wallet-types';
 
-import { exchangeThunks, tradingThunks } from '../../';
 import { MIN_MAX_QUOTES_OK } from '../../../__fixtures__/exchangeUtils';
 import { accountBtc } from '../../../__fixtures__/utils';
-import { TradingExchangeState } from '../../../reducers/exchangeReducer';
-import { initialState, prepareTradingReducer } from '../../../reducers/tradingReducer';
-import { TradingTransactionExchange } from '../../../types';
+import { type TradingExchangeState } from '../../../reducers/exchangeReducer';
+import { initialState } from '../../../reducers/tradingCommonReducer';
+import { prepareTradingReducer } from '../../../reducers/tradingReducer';
+import { type TradingTransactionExchange } from '../../../types';
+import { tradingThunks } from '../../common';
+import { exchangeThunks } from '../index';
+import { sendDexTransactionThunk } from '../sendDexTransactionThunk';
 
-const tradingReducer = prepareTradingReducer(extraDependenciesMock);
+jest.mock('../sendDexTransactionThunk', () => {
+    const actual = jest.requireActual('../sendDexTransactionThunk');
+
+    return {
+        ...actual,
+        sendDexTransactionThunk: Object.assign(
+            jest.fn(actual.sendDexTransactionThunk),
+            actual.sendDexTransactionThunk,
+        ),
+    };
+});
+
+const tradingReducer = prepareTradingReducer(extraDependenciesCommonMock);
 
 describe('sendTransactionThunk', () => {
     beforeEach(() => {
@@ -37,6 +52,7 @@ describe('sendTransactionThunk', () => {
 
     const getQuote = () => {
         const quoteNotTyped = MIN_MAX_QUOTES_OK[0];
+        if (!quoteNotTyped) throw new Error('Missing test fixture');
         const quote = {
             ...quoteNotTyped,
             send: quoteNotTyped.send as CryptoId,
@@ -61,12 +77,12 @@ describe('sendTransactionThunk', () => {
             extra: {},
             reducer: combineReducers({
                 wallet: combineReducers({
-                    tradingNew: tradingReducer,
+                    trading: tradingReducer,
                 }),
             }),
             preloadedState: {
                 wallet: {
-                    tradingNew: {
+                    trading: {
                         ...initialState,
                         exchange: {
                             ...initialState.exchange,
@@ -89,8 +105,8 @@ describe('sendTransactionThunk', () => {
                 ...getQuote(),
                 sendAddress: '1',
             },
-            sendAccountKey: 'xxx',
-            receiveAccountKey: 'yyy',
+            sendAccountKey: 'xxx' as AccountKey, // Todo: create properly via `createAccountKey()`
+            receiveAccountKey: 'yyy' as AccountKey, // Todo: create properly via `createAccountKey()`
         };
 
         return {
@@ -109,11 +125,11 @@ describe('sendTransactionThunk', () => {
             },
         });
 
-        (exchangeThunks.sendDexTransactionThunk as unknown as jest.Mock) = jest
-            .fn()
-            .mockImplementation(
-                createThunk('@trading-exchange/thunk/sendDexTransactionThunk', () => undefined),
-            );
+        const sendDexTransactionThunkSpy = (
+            sendDexTransactionThunk as unknown as jest.Mock
+        ).mockImplementation(
+            createThunk('@trading-exchange/thunk/sendDexTransactionThunk', () => undefined),
+        );
 
         const result = await store
             .dispatch(
@@ -132,8 +148,8 @@ describe('sendTransactionThunk', () => {
             )
             .unwrap();
 
-        expect(store.getState().wallet.tradingNew.modalAccountKey).toBe(account.key);
-        expect(exchangeThunks.sendDexTransactionThunk).toHaveBeenCalledTimes(1);
+        expect(store.getState().wallet.trading.modalAccountKey).toBe(account.key);
+        expect(sendDexTransactionThunkSpy).toHaveBeenCalledTimes(1);
         expect(tradingThunks.recomposeAndSignTxThunk).toHaveBeenCalledTimes(0);
         expect(result).toBeUndefined();
     });
@@ -150,14 +166,14 @@ describe('sendTransactionThunk', () => {
             error: { id: 'TR_TRADING_CANNOT_SEND_TRANSACTION' },
         };
 
-        (exchangeThunks.sendDexTransactionThunk as unknown as jest.Mock) = jest
-            .fn()
-            .mockImplementation(
-                createThunk(
-                    '@trading-exchange/thunk/sendDexTransactionThunk',
-                    (_, { rejectWithValue }) => rejectWithValue(rejectValue),
-                ),
-            );
+        const sendDexTransactionThunkSpy = (
+            sendDexTransactionThunk as unknown as jest.Mock
+        ).mockImplementation(
+            createThunk(
+                '@trading-exchange/thunk/sendDexTransactionThunk',
+                (_, { rejectWithValue }) => rejectWithValue(rejectValue),
+            ),
+        );
 
         const result = await store.dispatch(
             exchangeThunks.sendTransactionThunk({
@@ -174,8 +190,8 @@ describe('sendTransactionThunk', () => {
             }),
         );
 
-        expect(store.getState().wallet.tradingNew.modalAccountKey).toBe(account.key);
-        expect(exchangeThunks.sendDexTransactionThunk).toHaveBeenCalledTimes(1);
+        expect(store.getState().wallet.trading.modalAccountKey).toBe(account.key);
+        expect(sendDexTransactionThunkSpy).toHaveBeenCalledTimes(1);
         expect(tradingThunks.recomposeAndSignTxThunk).toHaveBeenCalledTimes(0);
         expect(result.meta.requestStatus).toBe('rejected');
         expect(result.payload).toEqual(rejectValue);
@@ -192,6 +208,7 @@ describe('sendTransactionThunk', () => {
             ],
         ])('%s', async (_, tradeTest) => {
             const { store, returnUrl, account } = getMocks();
+            const sendDexTransactionThunkSpy = sendDexTransactionThunk as unknown as jest.Mock;
 
             const result = await store.dispatch(
                 exchangeThunks.sendTransactionThunk({
@@ -209,8 +226,8 @@ describe('sendTransactionThunk', () => {
                 }),
             );
 
-            expect(store.getState().wallet.tradingNew.modalAccountKey).toBe(account.key);
-            expect(exchangeThunks.sendDexTransactionThunk).toHaveBeenCalledTimes(0);
+            expect(store.getState().wallet.trading.modalAccountKey).toBe(account.key);
+            expect(sendDexTransactionThunkSpy).toHaveBeenCalledTimes(0);
             expect(tradingThunks.recomposeAndSignTxThunk).toHaveBeenCalledTimes(0);
             expect(result.meta.requestStatus).toEqual('rejected');
             expect(result.payload).toEqual({
@@ -230,6 +247,7 @@ describe('sendTransactionThunk', () => {
         ])('%s', async (_, recomposeAndSignPayload) => {
             const { store, returnUrl, account, trade } = getMocks();
 
+            const sendDexTransactionThunkSpy = sendDexTransactionThunk as unknown as jest.Mock;
             (tradingThunks.recomposeAndSignTxThunk as unknown as jest.Mock) = jest
                 .fn()
                 .mockImplementation(
@@ -252,8 +270,8 @@ describe('sendTransactionThunk', () => {
                 }),
             );
 
-            expect(store.getState().wallet.tradingNew.modalAccountKey).toBe(account.key);
-            expect(exchangeThunks.sendDexTransactionThunk).toHaveBeenCalledTimes(0);
+            expect(store.getState().wallet.trading.modalAccountKey).toBe(account.key);
+            expect(sendDexTransactionThunkSpy).toHaveBeenCalledTimes(0);
             expect(tradingThunks.recomposeAndSignTxThunk).toHaveBeenCalledTimes(1);
             expect(result.meta.requestStatus).toEqual('rejected');
             expect(result.payload).toEqual(
@@ -280,6 +298,7 @@ describe('sendTransactionThunk', () => {
         const mockNextStep = jest.fn();
         const dateString = new Date().toISOString();
         jest.spyOn(Date.prototype, 'toISOString').mockImplementation(() => dateString);
+        const sendDexTransactionThunkSpy = sendDexTransactionThunk as unknown as jest.Mock;
 
         const result = await store.dispatch(
             exchangeThunks.sendTransactionThunk({
@@ -298,10 +317,22 @@ describe('sendTransactionThunk', () => {
             }),
         );
 
-        expect(store.getState().wallet.tradingNew.modalAccountKey).toBe(account.key);
-        expect(exchangeThunks.sendDexTransactionThunk).toHaveBeenCalledTimes(0);
+        expect(store.getState().wallet.trading.modalAccountKey).toBe(account.key);
+        expect(sendDexTransactionThunkSpy).toHaveBeenCalledTimes(0);
         expect(tradingThunks.recomposeAndSignTxThunk).toHaveBeenCalledTimes(1);
-        expect(store.getState().wallet.tradingNew.trades).toEqual([
+        const recomposeCallArg = (tradingThunks.recomposeAndSignTxThunk as unknown as jest.Mock)
+            .mock.calls[0][0];
+        expect(recomposeCallArg).toEqual(
+            expect.objectContaining({
+                address: '1',
+                amount: '1200000000',
+                destinationTag: undefined,
+            }),
+        );
+        expect(recomposeCallArg.transactionData).toBeUndefined();
+        expect(recomposeCallArg.ethereumAdjustGasLimit).toBeUndefined();
+        expect(recomposeCallArg.recalculateCustomLimit).toBeUndefined();
+        expect(store.getState().wallet.trading.trades).toEqual([
             {
                 tradeType: 'exchange',
                 date: dateString,
@@ -313,7 +344,7 @@ describe('sendTransactionThunk', () => {
                 key: trade.data.orderId,
             },
         ]);
-        expect(store.getState().wallet.tradingNew.exchange.transactionId).toBe(trade.data.orderId);
+        expect(store.getState().wallet.trading.exchange.transactionId).toBe(trade.data.orderId);
         expect(mockNextStep).toHaveBeenCalledTimes(1);
         expect(result.meta.requestStatus).toEqual('fulfilled');
     });

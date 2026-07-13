@@ -1,12 +1,9 @@
 import { useSelector } from 'react-redux';
 
-import {
-    selectIsDeviceInViewOnlyMode,
-    selectIsPortfolioTrackerDevice,
-} from '@suite-common/wallet-core';
+import { selectIsDeviceInViewOnlyMode, selectIsPortfolioTrackerDevice } from '@suite-common/device';
 import { Text, VStack } from '@suite-native/atoms';
-import { Translation, TxKeyPath } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { Translation, type TxKeyPath } from '@suite-native/intl';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 type NoAccountsComponentProps = {
     isBottomRounded: boolean;
@@ -16,7 +13,7 @@ const contentStyle = prepareNativeStyle<{ isBottomRounded: boolean }>(
     (utils, { isBottomRounded }) => ({
         padding: utils.spacings.sp16,
         flex: 1,
-        backgroundColor: utils.colors.backgroundSurfaceElevation1,
+        backgroundColor: utils.colors.surfaceFillRaised,
         borderTopLeftRadius: utils.borders.radii.r16,
         borderTopRightRadius: utils.borders.radii.r16,
         alignContent: 'center',
@@ -65,10 +62,10 @@ export const NoAccountsComponent = ({ isBottomRounded }: NoAccountsComponentProp
 
     return (
         <VStack style={applyStyle(contentStyle, { isBottomRounded })}>
-            <Text variant="body" color="textDefault" textAlign="center">
+            <Text variant="body-md" color="contentPrimary" textAlign="center">
                 <Translation id={title} />
             </Text>
-            <Text variant="hint" color="textSubdued" textAlign="center">
+            <Text variant="body-sm" color="contentSecondary" textAlign="center">
                 <Translation id={description} />
             </Text>
         </VStack>

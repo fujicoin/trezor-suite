@@ -1,11 +1,10 @@
-import { NetworkSymbol, getNetworkDisplaySymbol } from '@suite-common/wallet-config';
-import { ComposeActionContext } from '@suite-common/wallet-core';
+import { type NetworkSymbol, getNetworkDisplaySymbol } from '@suite-common/wallet-config';
 import {
-    EstimatedFee,
-    ExternalOutput,
-    PrecomposedLevels,
-    PrecomposedTransaction,
-    StakeFormState,
+    type ComposeActionContext,
+    type ExternalOutput,
+    type PrecomposedLevels,
+    type PrecomposedTransaction,
+    type StakeFormState,
 } from '@suite-common/wallet-types';
 import {
     calculateMax,
@@ -13,8 +12,9 @@ import {
     convertAmountSubunitsToUnits,
     getExternalComposeOutput,
 } from '@suite-common/wallet-utils';
-import { FeeLevel } from '@trezor/connect';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import type { EstimatedFee } from '@trezor/coins-solana/types';
+import { type FeeLevel } from '@trezor/connect';
+import { BigNumber } from '@trezor/utils';
 
 type StakingParams = {
     feeInBaseUnits: string;
@@ -42,7 +42,11 @@ export const calculate = (
     let amount: string;
     let max: string | undefined;
 
-    if (output.type === 'send-max' || output.type === 'send-max-noaddress') {
+    const isSendMax = output.type === 'send-max' || output.type === 'send-max-noaddress';
+
+    if (output.amount !== undefined) {
+        amount = output.amount;
+    } else if (isSendMax) {
         const minAmountWithFeeInBaseUnits = new BigNumber(minBalanceForStakingInBaseUnits).plus(
             feeInBaseUnits,
         );
@@ -57,7 +61,7 @@ export const calculate = (
 
         amount = max;
     } else {
-        amount = output.amount;
+        throw new Error('Missing amount for non send-max output');
     }
 
     const totalSpent = new BigNumber(calculateTotal(amount, feeInBaseUnits));
@@ -149,14 +153,15 @@ export const composeStakingTransaction = (
         ),
     );
     response.forEach((tx, index) => {
-        const feeLabel = predefinedLevels[index].label as FeeLevel['label'];
+        const level = predefinedLevels[index];
+        if (!level) return;
+        const feeLabel = level.label;
         wrappedResponse[feeLabel] = tx;
     });
 
     // format max (calculate sends it as satoshi)
     // update errorMessage values (symbol)
-    Object.keys(wrappedResponse).forEach(key => {
-        const tx = wrappedResponse[key];
+    Object.entries(wrappedResponse).forEach(([_key, tx]) => {
         if (tx.type !== 'error') {
             tx.max = tx.max ? convertAmountSubunitsToUnits(tx.max, decimals) : undefined;
             tx.estimatedFeeLimit = customFeeLimit ?? tx.estimatedFeeLimit;

@@ -1,7 +1,6 @@
-import { TranslationKey } from '@suite-common/intl-types';
-import { Network, NetworkSymbol } from '@suite-common/wallet-config';
-import { BaseCurrencyCode } from '@trezor/blockchain-link-types';
-import {
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { type BaseCurrencyCode } from '@trezor/blockchain-link-types';
+import type {
     AccountAddress,
     AccountTransaction,
     AccountUtxo,
@@ -17,29 +16,55 @@ import {
     StaticSessionId,
     TokenInfo,
 } from '@trezor/connect';
-import { RequiredKey } from '@trezor/type-utils';
+import { type Branded, type ObjectValues, type RequiredKey } from '@trezor/type-utils';
 
-import { Account } from './account';
-import { FormStateTradingCryptoCurrency, FormStateTradingFiatCurrency } from './sendForm';
+import { type AccountDescriptor } from './account';
 
 export type { PrecomposedTransactionFinalCardano } from '@trezor/connect';
+
+const COMMON_PRECOMPOSE_ERRORS = {
+    AMOUNT_NOT_ENOUGH_CURRENCY_FEE: 'AMOUNT_NOT_ENOUGH_CURRENCY_FEE',
+    AMOUNT_IS_NOT_ENOUGH: 'AMOUNT_IS_NOT_ENOUGH',
+    AMOUNT_IS_TOO_LOW: 'AMOUNT_IS_TOO_LOW',
+    AMOUNT_IS_LESS_THAN_RESERVE: 'AMOUNT_IS_LESS_THAN_RESERVE',
+    REMAINING_BALANCE_LESS_THAN_RENT: 'REMAINING_BALANCE_LESS_THAN_RENT',
+    AMOUNT_NOT_ENOUGH_CURRENCY_FEE_WITH_ETH_AMOUNT:
+        'AMOUNT_NOT_ENOUGH_CURRENCY_FEE_WITH_ETH_AMOUNT',
+} as const satisfies Record<string, string>;
+
+/**
+ * @trezor/suite (packages/suite) errors
+ */
+export const SUITE_PRECOMPOSE_ERRORS = {
+    ...COMMON_PRECOMPOSE_ERRORS,
+    TR_NOT_ENOUGH_SELECTED: 'TR_NOT_ENOUGH_SELECTED',
+    TR_NOT_ENOUGH_ANONYMIZED_FUNDS_WARNING: 'TR_NOT_ENOUGH_ANONYMIZED_FUNDS_WARNING',
+    TR_GENERIC_ERROR_TITLE: 'TR_GENERIC_ERROR_TITLE',
+} as const satisfies Record<string, string>;
+
+type SuitePrecomposeError = ObjectValues<typeof SUITE_PRECOMPOSE_ERRORS>;
+
+/**
+ * @suite-native/* errors
+ */
+export const SUITE_NATIVE_PRECOMPOSE_ERRORS = {
+    ...COMMON_PRECOMPOSE_ERRORS,
+    TR_STAKE_NOT_ENOUGH_FUNDS: 'TR_STAKE_NOT_ENOUGH_FUNDS',
+} as const satisfies Record<string, string>;
+
+type SuiteNativePrecomposeError = ObjectValues<typeof SUITE_NATIVE_PRECOMPOSE_ERRORS>;
+
+type PrecomposeError = SuiteNativePrecomposeError | SuitePrecomposeError;
 
 // extend errors from @trezor/connect + @trezor/utxo-lib with errors from sendForm actions
 type PrecomposedTransactionErrorExtended =
     | PrecomposedTransactionConnectResponseError
     | {
           type: 'error';
-          error:
-              | 'AMOUNT_NOT_ENOUGH_CURRENCY_FEE'
-              | 'AMOUNT_IS_NOT_ENOUGH'
-              | 'AMOUNT_IS_TOO_LOW'
-              | 'AMOUNT_IS_LESS_THAN_RESERVE'
-              | 'TR_STAKE_NOT_ENOUGH_FUNDS'
-              | 'REMAINING_BALANCE_LESS_THAN_RENT'
-              | 'AMOUNT_NOT_ENOUGH_CURRENCY_FEE_WITH_ETH_AMOUNT';
+          error: PrecomposeError;
       };
 
-export type PrecomposedTransactionCardanoNonFinal =
+type PrecomposedTransactionCardanoNonFinal =
     PrecomposedTransactionCardanoConnectResponseNonFinal & {
         max?: string;
         feeLimit?: string;
@@ -48,6 +73,12 @@ export type PrecomposedTransactionCardanoNonFinal =
     };
 
 export type BaseCurrencyOption = { value: BaseCurrencyCode | ''; label: string };
+
+/**
+ * Target is the unified term for both Inputs and Outputs on the transaction.
+ */
+export type TxTargetId = string | Branded<'TxTargetId'>;
+export const asTxTargetId = (value: string) => value as TxTargetId;
 
 export type Output = {
     type: 'payment' | 'opreturn';
@@ -99,21 +130,32 @@ export type ExternalOutput = Exclude<ComposeOutput, { type: 'opreturn' } | { add
 
 type ComposeError = {
     errorMessage?: {
-        id: TranslationKey;
+        id: PrecomposeError;
         values?: Record<string, string>;
     };
 };
 
 export type PrecomposedTransactionError = PrecomposedTransactionErrorExtended & ComposeError;
 
-export type PrecomposedTransactionCardanoError = PrecomposedTransactionCardanoConnectResponseError &
+type PrecomposedTransactionCardanoError = PrecomposedTransactionCardanoConnectResponseError &
     ComposeError;
 
-export type PrecomposedTransactionNonFinal = PrecomposedTransactionConnectResponseNonFinal & {
+export type SolanaTxMeta = {
+    deviceAmountLamports: string;
+    feeLamports: string;
+    rentLamports: string;
+    feeIncludingRentLamports: string;
+};
+
+type PrecomposedTransactionNonFinal = PrecomposedTransactionConnectResponseNonFinal & {
     max: string | undefined;
     feeLimit?: string;
     estimatedFeeLimit?: string;
     token?: TokenInfo;
+    energyConsumed?: number;
+    accountActivationFee?: string;
+    memoFee?: string;
+    solanaTxMeta?: SolanaTxMeta;
 };
 
 // base of PrecomposedTransactionFinal
@@ -122,10 +164,17 @@ type PrecomposedTransactionBase = PrecomposedTransactionConnectResponseFinal & {
     feeLimit?: string;
     estimatedFeeLimit?: string;
     token?: TokenInfo;
+    energyConsumed?: number;
+    accountActivationFee?: string;
+    memoFee?: string;
+    /** override the network's native token
+     * used with EVMs that are used via Connect, but not natively supported in Suite */
+    nativeToken?: TokenInfo;
     isTokenKnown?: boolean;
     createdTimestamp?: number;
     maxFeePerGas?: string;
     maxPriorityFeePerGas?: string;
+    solanaTxMeta?: SolanaTxMeta;
 };
 
 // base of PrecomposedTransactionFinal
@@ -178,7 +227,9 @@ export type GeneralPrecomposedTransactionFinal = Extract<
 >;
 
 export type PrecomposedLevels = Record<string, PrecomposedTransaction>;
+
 export type PrecomposedLevelsCardano = Record<string, PrecomposedTransactionCardano>;
+
 export type GeneralPrecomposedLevels = PrecomposedLevels | PrecomposedLevelsCardano;
 
 export interface RbfTransactionParamsBitcoin {
@@ -205,7 +256,16 @@ export interface RbfTransactionParamsBitcoin {
     locktime?: number;
 }
 
-export type EvmTransactionPurpose = 'transfer' | 'approval' | 'revoke';
+export type EvmTransactionPurpose =
+    | 'transfer'
+    | 'approve'
+    | 'revoke'
+    | 'unknown'
+    | 'deposit'
+    | 'withdraw'
+    | 'redeem'
+    | 'claim'
+    | '';
 
 export interface RbfTransactionParamsEthereum {
     type: 'ethereum';
@@ -218,7 +278,7 @@ export interface RbfTransactionParamsEthereum {
         token?: string;
     }>;
     ethereumNonce: number;
-    ethereumData: string;
+    transactionData: string;
     gasPrice: string;
     maxFeePerGas: string;
     maxPriorityFeePerGas: string;
@@ -228,7 +288,7 @@ export type RbfTransactionParams = RbfTransactionParamsBitcoin | RbfTransactionP
 
 export interface WalletAccountTransaction extends AccountTransaction {
     deviceState: StaticSessionId;
-    descriptor: string;
+    descriptor: AccountDescriptor;
     symbol: NetworkSymbol;
     rbfParams?: RbfTransactionParams;
     /**
@@ -247,111 +307,9 @@ export interface ChainedTransactions {
     others: WalletAccountTransaction[];
 }
 
-export interface SignTransactionData {
-    account: Account;
-    address: string;
-    amount: string;
-    network: Network;
-    destinationTag?: string;
-    transactionInfo: PrecomposedTransactionFinal | null;
-}
-
-export interface ComposeTransactionData {
-    account: Account;
-    amount: string;
-    feeInfo: FeeInfo;
-    feePerUnit: string;
-    feeLimit: string;
-    network: Network;
-    selectedFee: FeeLevel['label'];
-    isMaxActive: boolean;
-    address?: string;
-    token?: string;
-    ethereumDataHex?: string;
-    isInvity?: boolean;
-}
-
-export interface SignedTx {
-    tx: string;
-    coin: string;
-}
-
-export interface ReviewTransactionData {
-    signedTx: SignedTx | undefined;
-    transactionInfo: PrecomposedTransactionFinal;
-    extraFields?: {
-        destinationTag?: string;
-    };
-}
-
-export type TransactionFiatRateUpdatePayload = {
-    txid: string;
-    account: Account;
-    updateObject: Partial<WalletAccountTransaction>;
-    ts: number;
-};
-
 export type TransactionType = Pick<WalletAccountTransaction, 'type'>['type'];
 
 export type ExportFileType = 'csv' | 'pdf' | 'json';
-
-export type ReviewOutput =
-    | {
-          type:
-              | 'opreturn'
-              | 'data'
-              | 'locktime'
-              | 'fee'
-              | 'destination-tag'
-              | 'signing-with'
-              | 'network'
-              | 'timebounds'
-              | 'txid'
-              | 'address'
-              | 'amount'
-              | 'gas'
-              | 'contract'
-              | 'regular_legacy'
-              | 'approve_data'
-              | 'recipient_name';
-          label?: string;
-          value: string;
-          value2?: string;
-          token?: TokenInfo;
-          send?: undefined;
-          receive?: undefined;
-      }
-    | {
-          type: 'fee-replace';
-          label?: undefined;
-          value: string;
-          value2: string;
-          token?: undefined;
-          send?: undefined;
-          receive?: undefined;
-      }
-    | {
-          type: 'reduce-output';
-          label: string;
-          value: string;
-          value2: string;
-          token?: undefined;
-          send?: undefined;
-          receive?: undefined;
-      }
-    | {
-          type: 'traded_assets';
-          value: string;
-          value2: string;
-          label?: undefined;
-          token?: undefined;
-          send: FormStateTradingCryptoCurrency;
-          receive: FormStateTradingCryptoCurrency | FormStateTradingFiatCurrency;
-      };
-
-export type ReviewOutputType = ReviewOutput['type'];
-
-export type ReviewOutputState = 'active' | 'success' | undefined;
 
 export type ExcludedUtxos = Record<string, 'low-anonymity' | 'dust' | undefined>;
 

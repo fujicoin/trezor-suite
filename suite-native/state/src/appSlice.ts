@@ -1,4 +1,4 @@
-import { PayloadAction, createSlice } from '@reduxjs/toolkit';
+import { type PayloadAction, createSlice } from '@reduxjs/toolkit';
 
 type AppSliceState = {
     isAppReady: boolean;
@@ -8,7 +8,7 @@ type AppSliceRootState = {
     app: AppSliceState;
 };
 
-const appSliceInitialState: AppSliceState = {
+export const appSliceInitialState: AppSliceState = {
     isAppReady: false,
 };
 

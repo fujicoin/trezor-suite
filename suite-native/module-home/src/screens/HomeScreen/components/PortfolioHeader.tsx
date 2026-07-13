@@ -1,6 +1,6 @@
 import { useSelector } from 'react-redux';
 
-import { BaseCurrencyAmount } from '@suite-common/wallet-utils';
+import { type BaseCurrencyAmount } from '@suite-common/wallet-types';
 import { Box, VStack } from '@suite-native/atoms';
 import {
     GraphBaseCurrencyBalance,
@@ -10,12 +10,13 @@ import {
 import {
     percentageChangeAtom,
     referencePointAtom,
-    selectedPointAtom,
+    selectedPointFiatValueAtom,
+    selectedPointTimestampAtom,
 } from '../portfolioGraphAtoms';
 
 type PortfolioHeaderProps = {
     isLoading: boolean;
-    totalFiatBalance: BaseCurrencyAmount;
+    totalFiatBalance?: BaseCurrencyAmount;
 };
 
 export const PortfolioHeader = ({ isLoading, totalFiatBalance }: PortfolioHeaderProps) => {
@@ -25,7 +26,8 @@ export const PortfolioHeader = ({ isLoading, totalFiatBalance }: PortfolioHeader
         <Box testID="@home/portfolio/header">
             <VStack spacing="sp4" alignItems="center">
                 <GraphBaseCurrencyBalance
-                    selectedPointAtom={selectedPointAtom}
+                    selectedPointFiatValueAtom={selectedPointFiatValueAtom}
+                    selectedPointTimestampAtom={selectedPointTimestampAtom}
                     referencePointAtom={referencePointAtom}
                     percentageChangeAtom={percentageChangeAtom}
                     showChange={hasDeviceHistoryEnabledAccounts}
@@ -36,3 +38,5 @@ export const PortfolioHeader = ({ isLoading, totalFiatBalance }: PortfolioHeader
         </Box>
     );
 };
+
+PortfolioHeader.displayName = 'PortfolioHeader';

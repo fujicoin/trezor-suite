@@ -7,11 +7,21 @@
             "path": "../../suite-common/wallet-config"
         },
         {
+            "path": "../../suite-common/wallet-types"
+        },
+        {
             "path": "../../suite-common/wallet-utils"
         },
+        { "path": "../intl" },
+        { "path": "../theme" },
         { "path": "../../packages/asset-utils" },
         { "path": "../../packages/device-utils" },
-        { "path": "../../packages/styles" },
-        { "path": "../../packages/theme" }
+        { "path": "../../packages/react-utils" },
+        {
+            "path": "../../packages/styles-native"
+        },
+        { "path": "../../packages/theme" },
+        { "path": "../../packages/utils" },
+        { "path": "../test-utils" }
     ]
 }

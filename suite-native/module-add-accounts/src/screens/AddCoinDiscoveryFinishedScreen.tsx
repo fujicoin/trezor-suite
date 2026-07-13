@@ -1,26 +1,24 @@
 import { useSelector } from 'react-redux';
 
+import type { DeviceRootState } from '@suite-common/device';
 import { getNetwork } from '@suite-common/wallet-config';
 import {
-    AccountsRootState,
-    DeviceRootState,
+    type AccountsRootState,
     selectDeviceAccountsByNetworkSymbol,
 } from '@suite-common/wallet-core';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
 import { AccountsListItem } from '@suite-native/accounts';
+import { AccountTypeDecisionBottomSheet, useAddCoinAccount } from '@suite-native/add-coin-account';
 import { Box, Button, Card, Text, TextDivider } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 import {
-    AddCoinAccountStackParamList,
-    AddCoinAccountStackRoutes,
+    type AddCoinAccountStackParamList,
+    type AddCoinAccountStackRoutes,
     Screen,
     ScreenHeader,
-    StackProps,
+    type StackProps,
 } from '@suite-native/navigation';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-
-import { AccountTypeDecisionBottomSheet } from '../components/AccountTypeDecisionBottomSheet';
-import { useAddCoinAccount } from '../hooks/useAddCoinAccount';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 const accountsStyle = prepareNativeStyle(_ => ({ paddingHorizontal: 0, paddingTop: 0 }));
 
@@ -68,7 +66,7 @@ export const AddCoinDiscoveryFinishedScreen = ({
     return (
         <Screen header={<ScreenHeader closeActionType="close" />}>
             <Box paddingTop="sp24" paddingHorizontal="sp8" paddingBottom="sp32">
-                <Text variant="titleMedium">
+                <Text variant="headline-md">
                     <Translation
                         id={titleKey}
                         values={{
@@ -88,16 +86,17 @@ export const AddCoinDiscoveryFinishedScreen = ({
                 ))}
                 <TextDivider
                     title="moduleAddAccounts.coinDiscoveryFinishedScreen.orSeparator"
-                    lineColor="borderElevation0"
-                    textColor="textSubdued"
+                    lineColor="borderNeutral"
+                    textColor="contentSecondary"
                 />
                 <Box paddingTop="sp8" paddingHorizontal="sp16">
                     <Button
-                        colorScheme="tertiaryElevation0"
+                        intent="neutral"
+                        priority="secondary"
                         onPress={handleAddAccount}
                         testID="@add-account/after-discovery/button-add-new"
                     >
-                        <Translation id="moduleAddAccounts.coinDiscoveryFinishedScreen.addNewButton" />
+                        <Translation id="moduleAddAccounts.coinDiscoveryFinishedScreen.addButton" />
                     </Button>
                 </Box>
             </Card>

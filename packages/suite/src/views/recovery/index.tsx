@@ -1,26 +1,29 @@
 import { useState } from 'react';
 import { useIntl } from 'react-intl';
 
+import { useDevice } from '@suite/device';
+import { Translation, messages } from '@suite/intl';
+import { MODAL_CONTEXT_DEVICE, selectModalRequestId } from '@suite/modal';
+import {
+    type RecoveryType,
+    type SeedInputStatus,
+    type WordCount,
+    checkSeedThunk,
+    isStandardRecoveryDisabled,
+    recoveryActions,
+    selectRecovery,
+} from '@suite/recovery';
+import { usePin } from '@suite-common/device';
 import { isDeviceAcquired } from '@suite-common/suite-utils';
-import { usePin } from '@suite-common/wallet-core';
 import { Box, H2, Image, Modal, Paragraph } from '@trezor/components';
-import TrezorConnect, { UI } from '@trezor/connect';
+import TrezorConnect, { UI_REQUEST } from '@trezor/connect';
 import { DeviceModelInternal } from '@trezor/device-utils';
-import { ConfirmOnDevice } from '@trezor/product-components';
+import { CheckIcon, WarningIcon } from '@trezor/icons';
+import { ConfirmOnDevicePill } from '@trezor/product-components';
 import { spacings } from '@trezor/theme';
 
-import {
-    SeedInputStatus,
-    checkSeed,
-    setAdvancedRecovery,
-    setStatus,
-    setWordsCount,
-} from 'src/actions/recovery/recoveryActions';
-import { MODAL } from 'src/actions/suite/constants';
-import { Loading, PinMatrix, Translation, WordInputAdvanced } from 'src/components/suite';
-import { useDevice, useDispatch, useSelector } from 'src/hooks/suite';
-import messages from 'src/support/messages';
-import type { RecoveryType, WordCount } from 'src/types/recovery';
+import { Loading, PinMatrix, WordInputAdvanced } from 'src/components/suite';
+import { useDispatch, useSelector } from 'src/hooks/suite';
 import type { ForegroundAppProps } from 'src/types/suite';
 
 import { EnterOnDeviceStep } from './steps/EnterOnDeviceStep';
@@ -31,7 +34,7 @@ import { SelectWordCountStep } from './steps/SelectWordCountStep';
 import { WordInputStep } from './steps/WordInputStep';
 
 export const Recovery = ({ onCancel }: ForegroundAppProps) => {
-    const recovery = useSelector(state => state.recovery);
+    const recovery = useSelector(selectRecovery);
     const modal = useSelector(state => state.modal);
     const dispatch = useDispatch();
     const { device, isLocked } = useDevice();
@@ -39,7 +42,8 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
     const [wordCount, setWordCount] = useState<WordCount | undefined>();
     const [recoveryType, setRecoveryType] = useState<RecoveryType | undefined>();
     const intl = useIntl();
-    const { pin, setPin, handlePinSubmit } = usePin(device?.buttonRequests ?? []);
+    const pinRequestId = useSelector(selectModalRequestId);
+    const { pin, setPin, handlePinSubmit } = usePin(device?.buttonRequests ?? [], pinRequestId);
 
     const deviceModelInternal = device?.features?.internal_model;
     const isT1B1 = deviceModelInternal === DeviceModelInternal.T1B1;
@@ -58,14 +62,17 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
 
     const handleClose = () => {
         if (['in-progress', 'waiting-for-confirmation'].includes(recovery.status)) {
-            TrezorConnect.cancel(intl.formatMessage(messages.TR_CANCELLED));
+            TrezorConnect.cancel({ reason: intl.formatMessage(messages.TR_CANCELLED) });
         } else {
             onCancel();
         }
     };
 
     const handleBackClick = () => {
-        dispatch(setStatus(statesInProgressBar[statesInProgressBar.indexOf(recovery.status) - 1]));
+        const previousIndex = statesInProgressBar.indexOf(recovery.status) - 1;
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const previousState: SeedInputStatus = statesInProgressBar[previousIndex];
+        dispatch(recoveryActions.setStatus(previousState));
     };
 
     if (!isDeviceAcquired(device) || !deviceModelInternal) {
@@ -74,7 +81,7 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
                 heading={<Translation id="TR_RECONNECT_HEADER" />}
                 onCancel={onCancel}
                 data-testid="@recovery/no-device"
-                size="tiny"
+                width={400}
             >
                 <Image image="CONNECT_DEVICE" />
             </Modal>
@@ -100,7 +107,7 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
             case 'in-progress':
                 // When T1B1 requests PIN confirmation, the status is still 'waiting-for-confirmation'
                 // so we need to check the modal context to know if we should show the loading indicator
-                if (modal.context !== MODAL.CONTEXT_DEVICE) {
+                if (modal.context !== MODAL_CONTEXT_DEVICE) {
                     return (
                         <Box padding={spacings.xxl}>
                             <Loading />
@@ -112,7 +119,7 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
                 // and we want to allow devices that have unsupported FW to be able to check the seed.
                 if (isT1B1) {
                     switch (modal.windowType) {
-                        case UI.REQUEST_PIN:
+                        case UI_REQUEST.REQUEST_PIN:
                             return (
                                 <PinMatrix
                                     pin={pin}
@@ -140,8 +147,9 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
                             <Translation id="TR_SEED_CHECK_SUCCESS_TITLE" />
                         </H2>
                         <Paragraph
-                            typographyStyle="hint"
-                            variant="tertiary"
+                            typographyStyle="body-sm"
+                            intent="neutral"
+                            priority="secondary"
                             margin={{ top: spacings.xs }}
                         >
                             <Translation id="TR_SEED_CHECK_SUCCESS_DESC" />
@@ -153,8 +161,9 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
                             <Translation id="TR_SEED_CHECK_FAIL_TITLE" />
                         </H2>
                         <Paragraph
-                            typographyStyle="hint"
-                            variant="tertiary"
+                            typographyStyle="body-sm"
+                            intent="neutral"
+                            priority="secondary"
                             margin={{ top: spacings.xs }}
                         >
                             <Translation
@@ -174,8 +183,8 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
                     <Modal.Button
                         onClick={() =>
                             isT1B1
-                                ? dispatch(setStatus('select-word-count'))
-                                : dispatch(checkSeed())
+                                ? dispatch(recoveryActions.setStatus('select-word-count'))
+                                : dispatch(checkSeedThunk())
                         }
                         isDisabled={!isUnderstood || isLocked()}
                         data-testid="@recovery/start-button"
@@ -190,8 +199,22 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
                         onClick={() => {
                             if (!wordCount) return;
 
-                            dispatch(setWordsCount(wordCount));
-                            dispatch(setStatus('select-recovery-type'));
+                            dispatch(recoveryActions.setWordsCount(wordCount));
+
+                            // For T1B1 with 12 or 18 words, skip recovery type selection and use Advanced recovery
+                            // For 24 words, show the recovery type selection
+                            const shouldSkipSelection = isStandardRecoveryDisabled(
+                                deviceModelInternal,
+                                wordCount,
+                                'standard',
+                            );
+
+                            if (shouldSkipSelection) {
+                                dispatch(recoveryActions.setAdvancedRecovery(true));
+                                dispatch(checkSeedThunk());
+                            } else {
+                                dispatch(recoveryActions.setStatus('select-recovery-type'));
+                            }
                         }}
                         data-testid="@recovery/continue-button"
                     >
@@ -203,8 +226,10 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
                     <Modal.Button
                         isDisabled={!recoveryType}
                         onClick={() => {
-                            dispatch(setAdvancedRecovery(recoveryType === 'advanced'));
-                            dispatch(checkSeed());
+                            dispatch(
+                                recoveryActions.setAdvancedRecovery(recoveryType === 'advanced'),
+                            );
+                            dispatch(checkSeedThunk());
                         }}
                         data-testid="@recovery/continue-button"
                     >
@@ -214,8 +239,8 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
             case 'waiting-for-confirmation':
                 if (
                     isT1B1 &&
-                    modal.context === MODAL.CONTEXT_DEVICE &&
-                    modal.windowType === UI.REQUEST_PIN
+                    modal.context === MODAL_CONTEXT_DEVICE &&
+                    modal.windowType === UI_REQUEST.REQUEST_PIN
                 ) {
                     return (
                         <Modal.Button onClick={handlePinSubmit} data-testid="@pin/submit-button">
@@ -226,39 +251,39 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
         }
     };
 
-    const getIconName = () => {
+    const getIcon = () => {
         if (recovery.status === 'finished') {
-            return hasError ? 'warning' : 'check';
+            return hasError ? WarningIcon : CheckIcon;
         }
 
         return undefined;
     };
 
-    const getVariant = () => {
+    const getIntent = () => {
         if (recovery.status === 'in-progress') {
             return 'info';
         }
 
-        return hasError ? 'warning' : 'primary';
+        return hasError ? 'warning' : 'brand';
     };
 
-    const getSize = () => {
+    const getWidth = () => {
         switch (recovery.status) {
             case 'initial':
-                return 'medium';
+                return 680;
             case 'waiting-for-confirmation':
-                return 'tiny';
+                return 400;
             case 'in-progress':
-                return isT1B1 ? 'tiny' : 'small';
+                return isT1B1 ? 400 : 600;
             default:
-                return 'small';
+                return 600;
         }
     };
 
     return (
         <Modal.Backdrop>
             {['in-progress', 'waiting-for-confirmation'].includes(recovery.status) && (
-                <ConfirmOnDevice
+                <ConfirmOnDevicePill
                     title={<Translation id="TR_CONFIRM_ON_TREZOR" />}
                     deviceModelInternal={device.features.internal_model}
                     deviceUnitColor={device.features.unit_color}
@@ -281,19 +306,18 @@ export const Recovery = ({ onCancel }: ForegroundAppProps) => {
                 bottomContent={
                     <>
                         {getBottomContentPrimaryButton()}
-                        <Modal.Button
-                            variant={hasFinished ? undefined : 'tertiary'}
-                            onClick={handleClose}
-                        >
-                            <Translation id={hasFinished ? 'TR_CLOSE' : 'TR_CANCEL'} />
-                        </Modal.Button>
+                        {hasFinished && (
+                            <Modal.Button priority="primary" onClick={handleClose}>
+                                <Translation id="TR_CLOSE" />
+                            </Modal.Button>
+                        )}
                     </>
                 }
                 onBackClick={hasBackClick ? handleBackClick : undefined}
                 onCancel={handleClose}
-                variant={getVariant()}
-                iconName={getIconName()}
-                size={getSize()}
+                intent={getIntent()}
+                icon={getIcon()}
+                width={getWidth()}
             >
                 {getStep()}
             </Modal.ModalBase>

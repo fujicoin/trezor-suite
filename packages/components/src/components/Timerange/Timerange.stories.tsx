@@ -1,7 +1,7 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 import styled from 'styled-components';
 
-import { Timerange as TimerangeComponent, TimerangeProps } from './Timerange';
+import { Timerange as TimerangeComponent, type TimerangeProps } from './Timerange';
 
 const Center = styled.div`
     display: flex;
@@ -10,10 +10,10 @@ const Center = styled.div`
     padding: 100px 0;
 `;
 
-const meta: Meta = {
+const meta: Meta<typeof TimerangeComponent> = {
     title: 'Timerange',
     component: TimerangeComponent,
-} as Meta;
+};
 export default meta;
 
 export const Timerange: StoryObj<TimerangeProps> = {

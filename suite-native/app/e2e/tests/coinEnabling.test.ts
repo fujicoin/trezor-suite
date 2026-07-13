@@ -1,47 +1,51 @@
 import { expect as detoxExpect } from 'detox';
 
-import { conditionalDescribe } from '@suite-common/test-utils';
-
-import { onboardingCompleted } from '../fixtures/onboardingCompleted';
+import { onboardingCompletedState } from '../fixtures/onboardingCompletedState';
 import { onCoinEnabling } from '../pageObjects/coinEnablingActions';
+import { onDeviceConnecting } from '../pageObjects/deviceConnectingActions';
+import { onHome } from '../pageObjects/homeActions';
 import { onSettings } from '../pageObjects/settingsActions';
 import { onTabBar } from '../pageObjects/tabBarActions';
-import { disconnectTrezorUserEnv, openApp, prepareTrezorEmulator } from '../utils';
+import { openApp, preparePreloadedReduxState, prepareTrezorEmulator } from '../support/setup';
+import { waitForVisible } from '../support/utils';
 
-conditionalDescribe(device.getPlatform() === 'android', 'Coin enabling', () => {
-    beforeAll(async () => {
+const preloadedState = preparePreloadedReduxState(onboardingCompletedState);
+
+describe('Coin enabling [@androidOnly @T3T1 @T3W1]', () => {
+    beforeEach(async () => {
         await prepareTrezorEmulator();
-        await openApp({ newInstance: true, args: { preloadedState: onboardingCompleted } });
-    });
-
-    afterAll(async () => {
-        await disconnectTrezorUserEnv();
-        await device.terminateApp();
+        await openApp({ args: { preloadedState } });
     });
 
     it('Coin Enabling', async () => {
+        await onHome.waitForScreen();
+        await onHome.tapGetStartedButton();
+
         await onCoinEnabling.waitForInitScreen();
         await onCoinEnabling.toggleNetwork('btc');
         await onCoinEnabling.clickOnConfirmButton();
-        await detoxExpect(element(by.id('@home/portfolio/header'))).toExist();
+
+        await onDeviceConnecting.waitForDeviceConnectingScreen();
+        await onHome.waitForScreen();
+        await onHome.scrollScreenToBottom();
+        await waitForVisible(by.text('Bitcoin'));
 
         await onTabBar.navigateToSettings();
-        await onSettings.tapCoinEnabling();
+        await onSettings.openSection('coin-enabling');
         await onCoinEnabling.toggleNetwork('eth');
 
         await device.pressBack();
         await onTabBar.navigateToHome();
 
-        const ethereumTextElement = element(by.text('Ethereum'));
-
-        await detoxExpect(ethereumTextElement).toExist();
+        await onHome.scrollScreenToBottom();
+        await waitForVisible(by.text('Ethereum'));
 
         await onTabBar.navigateToSettings();
-        await onSettings.tapCoinEnabling();
+        await onSettings.openSection('coin-enabling');
         await onCoinEnabling.toggleNetwork('eth');
         await device.pressBack();
         await onTabBar.navigateToHome();
 
-        await detoxExpect(ethereumTextElement).not.toExist();
+        await detoxExpect(element(by.text('Ethereum'))).not.toExist();
     });
 });

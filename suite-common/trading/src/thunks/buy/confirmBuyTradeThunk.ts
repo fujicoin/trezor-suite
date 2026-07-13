@@ -1,19 +1,20 @@
-import { BuyTradeResponse } from 'invity-api';
+import { type BuyTrade, type BuyTradeResponse } from 'invity-api';
 
 import { createThunk } from '@suite-common/redux-utils';
-import { notificationsActions } from '@suite-common/toast-notifications';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
 
 import { TRADING_BUY_THUNK_PREFIX } from '../../constants';
 import { invityAPI } from '../../invityAPI';
 import { tradingBuyActions } from '../../reducers/buyReducer';
-import { tradingActions } from '../../reducers/tradingReducer';
+import { tradingActions } from '../../reducers/tradingCommonReducer';
 import {
     selectTradingBuyReceiveAccountKey,
     selectTradingBuySelectedQuote,
 } from '../../selectors/tradingSelectors';
+import { logErrorThunk } from '../common/logErrorThunk';
 
 export type ConfirmTradeThunkProps = {
+    quote?: BuyTrade;
     returnUrl: string;
     address: string;
     account: Account;
@@ -26,6 +27,7 @@ export const confirmBuyTradeThunk = createThunk(
     `${TRADING_BUY_THUNK_PREFIX}/confirmTrade`,
     async (
         {
+            quote,
             returnUrl,
             address,
             account,
@@ -37,14 +39,18 @@ export const confirmBuyTradeThunk = createThunk(
         const selectedQuote = selectTradingBuySelectedQuote(getState());
         const receiveAccountKey = selectTradingBuyReceiveAccountKey(getState());
 
-        if (!selectedQuote) return;
+        const buyTrade = quote ?? selectedQuote;
+
+        if (!buyTrade) {
+            return undefined;
+        }
 
         dispatch(tradingBuyActions.setIsLoading(true));
 
         triggerAnalyticsTradeConfirmation();
 
         const trade = {
-            ...selectedQuote,
+            ...buyTrade,
             receiveAddress: address,
         };
 
@@ -53,36 +59,48 @@ export const confirmBuyTradeThunk = createThunk(
             returnUrl,
         });
 
-        if (!response || !response.trade || !response.trade.paymentId) {
+        if (!response?.trade?.paymentId) {
             dispatch(
-                notificationsActions.addToast({
-                    type: 'error',
-                    error: 'No response from the server',
-                }),
-            );
-        } else if (response.trade.error) {
-            dispatch(
-                notificationsActions.addToast({
-                    type: 'error',
-                    error: response.trade.error,
-                }),
-            );
-        } else {
-            dispatch(
-                tradingActions.saveTrade({
-                    tradeType: 'buy',
-                    date: new Date().toISOString(),
-                    key: response.trade.paymentId,
-                    data: response.trade,
-                    receiveAccountKey,
-                    selectedAccountKey: account.key,
+                logErrorThunk({
+                    errorMessage: 'No response from the server',
+                    tradingType: 'buy',
                 }),
             );
 
-            // response.tradeForm.form should be processed in this callback
-            processResponseData(response);
+            dispatch(tradingBuyActions.setIsLoading(false));
+
+            return undefined;
         }
 
+        if (response.trade.error) {
+            dispatch(
+                logErrorThunk({
+                    errorMessage: response.trade.error,
+                    tradingType: 'buy',
+                }),
+            );
+
+            dispatch(tradingBuyActions.setIsLoading(false));
+
+            return undefined;
+        }
+
+        dispatch(
+            tradingActions.saveTrade({
+                tradeType: 'buy',
+                date: new Date().toISOString(),
+                key: response.trade.paymentId,
+                data: response.trade,
+                receiveAccountKey,
+                selectedAccountKey: account.key,
+            }),
+        );
+
+        // response.tradeForm.form should be processed in this callback
+        processResponseData(response);
+
         dispatch(tradingBuyActions.setIsLoading(false));
+
+        return response.trade;
     },
 );

@@ -1,19 +1,19 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 
 import {
     InfoSegments as InfoSegmentsComponent,
-    InfoSegmentsProps,
+    type InfoSegmentsProps,
     allowedInfoSegmentsFrameProps,
     allowedInfoSegmentsTextProps,
 } from './InfoSegments';
 import { getFramePropsStory } from '../../utils/frameProps';
-import { textVariants } from '../typography/Text/Text';
+import { textIntents } from '../typography/Text/Text';
 import { getTextPropsStory } from '../typography/utils';
 
-const meta: Meta = {
+const meta: Meta<typeof InfoSegmentsComponent> = {
     title: 'InfoSegments',
     component: InfoSegmentsComponent,
-} as Meta;
+};
 export default meta;
 
 export const InfoSegments: StoryObj<InfoSegmentsProps> = {
@@ -23,11 +23,11 @@ export const InfoSegments: StoryObj<InfoSegmentsProps> = {
         ...getTextPropsStory(allowedInfoSegmentsTextProps).args,
     },
     argTypes: {
-        variant: {
+        intent: {
             control: {
                 type: 'select',
             },
-            options: textVariants,
+            options: textIntents,
         },
         ...getFramePropsStory(allowedInfoSegmentsFrameProps).argTypes,
         ...getTextPropsStory(allowedInfoSegmentsTextProps).argTypes,

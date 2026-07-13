@@ -2,12 +2,15 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 
+import { events } from '@suite-common/analytics';
 import { bluetoothActions, parseManufacturerData } from '@suite-common/bluetooth';
-import { FeatureFlag, useFeatureFlag } from '@suite-native/feature-flags';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { useTranslate } from '@suite-native/intl';
 import { useToast } from '@suite-native/toasts';
+import { asBluetoothDeviceId } from '@trezor/connect';
 import {
-    BluetoothDevice as TransportBluetoothDevice,
+    type BluetoothDevice as TransportBluetoothDevice,
     bluetoothManager,
 } from '@trezor/transport-native-bluetooth';
 
@@ -17,21 +20,26 @@ import {
     selectKnownBluetoothDevices,
     selectKnownConnectableBluetoothDevices,
 } from '../selectors';
+import { useBluetoothAlerts } from './useBluetoothAlerts';
 import { useBluetoothDevice } from './useBluetoothDevice';
 import { useBluetoothPermissions } from './useBluetoothPermissions';
+import { useBluetoothScanner } from './useBluetoothScanner';
 
 const toBluetoothDevice = (device: TransportBluetoothDevice) => ({
     ...device,
+    id: asBluetoothDeviceId(device.id),
     manufacturerData: parseManufacturerData(device.manufacturerData),
 });
 
 export const useBluetoothAdapter = () => {
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const dispatch = useDispatch();
     const { showToast } = useToast();
     const { translate } = useTranslate();
 
-    const isBluetoothEnabled = useFeatureFlag(FeatureFlag.IsBluetoothEnabled);
     const { checkBluetoothPermission } = useBluetoothPermissions();
+    const { showPairingFailedAlert } = useBluetoothAlerts();
+    const { startDeviceScan } = useBluetoothScanner();
     const { connectBluetoothDevice } = useBluetoothDevice();
 
     const bluetoothPermissionStatus = useSelector(selectBluetoothPermissionStatus);
@@ -40,10 +48,6 @@ export const useBluetoothAdapter = () => {
     const knownConnectableBluetoothDevices = useSelector(selectKnownConnectableBluetoothDevices);
 
     useEffect(() => {
-        if (!isBluetoothEnabled) {
-            return;
-        }
-
         checkBluetoothPermission();
 
         // check the required permissions every time the app becomes active
@@ -56,7 +60,7 @@ export const useBluetoothAdapter = () => {
         return () => {
             subscription.remove();
         };
-    }, [isBluetoothEnabled, checkBluetoothPermission]);
+    }, [checkBluetoothPermission]);
 
     useEffect(() => {
         if (bluetoothPermissionStatus !== 'granted') {
@@ -75,12 +79,23 @@ export const useBluetoothAdapter = () => {
                     );
                 }),
                 bluetoothManager.onDeviceConnectionStatusChange(event => {
-                    dispatch(bluetoothActions.updateDeviceConnectionStatus(event));
-                    if (event.connectionStatus.type === 'pairing-error') {
+                    dispatch(
+                        bluetoothActions.updateDeviceConnectionStatus({
+                            ...event,
+                            deviceId: asBluetoothDeviceId(event.deviceId),
+                        }),
+                    );
+                    if (['paired', 'connected'].includes(event.connectionStatus.type)) {
+                        analytics.report({
+                            type: events.deviceConnectionDevicePairedEvent.name,
+                        });
+                    } else if (event.connectionStatus.type === 'pairing-canceled') {
                         showToast({
                             message: translate('bluetooth.toasts.pairingCanceled'),
-                            variant: 'default',
+                            intent: 'neutral',
                         });
+                    } else if (event.connectionStatus.type === 'pairing-error') {
+                        showPairingFailedAlert();
                     }
                 }),
             ];
@@ -89,26 +104,20 @@ export const useBluetoothAdapter = () => {
                 subscriptions.forEach(subscription => subscription.remove());
             };
         }
-    }, [bluetoothPermissionStatus, dispatch, showToast, translate]);
+    }, [
+        bluetoothPermissionStatus,
+        dispatch,
+        analytics,
+        showPairingFailedAlert,
+        showToast,
+        translate,
+    ]);
 
     useEffect(() => {
         if (bluetoothAdapterStatus === 'enabled' && knownBluetoothDevices.length > 0) {
-            bluetoothManager.startDeviceScan();
-
-            const subscription = AppState.addEventListener('change', nextAppState => {
-                if (nextAppState === 'active') {
-                    bluetoothManager.startDeviceScan();
-                } else {
-                    bluetoothManager.stopDeviceScan();
-                }
-            });
-
-            return () => {
-                subscription.remove();
-                bluetoothManager.stopDeviceScan();
-            };
+            return startDeviceScan();
         }
-    }, [bluetoothAdapterStatus, knownBluetoothDevices]);
+    }, [bluetoothAdapterStatus, knownBluetoothDevices, startDeviceScan]);
 
     useEffect(() => {
         knownConnectableBluetoothDevices.forEach(connectBluetoothDevice);

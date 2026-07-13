@@ -4,29 +4,29 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { isRejected } from '@reduxjs/toolkit';
 
+import { sendFormActions } from '@suite-common/wallet-core';
 import {
-    AccountsRootState,
-    DeviceRootState,
-    SendRootState,
-    selectIsDeviceRemembered,
-    sendFormActions,
-} from '@suite-common/wallet-core';
-import { GeneralPrecomposedTransactionFinal, TokenAddress } from '@suite-common/wallet-types';
+    type AccountKey,
+    type GeneralPrecomposedTransactionFinal,
+    type TokenAddress,
+} from '@suite-common/wallet-types';
 import { useAlert } from '@suite-native/alerts';
 import { Translation } from '@suite-native/intl';
 import {
-    RootStackParamList,
+    type RootStackParamList,
     RootStackRoutes,
-    SendStackParamList,
-    SendStackRoutes,
-    StackToStackCompositeNavigationProps,
+    type SendStackParamList,
+    type SendStackRoutes,
+    type StackToStackCompositeNavigationProps,
 } from '@suite-native/navigation';
-import { TRANSPORT_ERROR } from '@trezor/transport';
+import { signTransactionNativeThunk } from '@suite-native/send';
+import {
+    type TransactionReviewOutputsState,
+    selectIsTransactionReviewInProgress,
+    useShowReviewCancellationAlert,
+} from '@suite-native/transaction-management';
 
-import { useShowDeviceDisconnectedAlert } from './useShowDeviceDisconnectedAlert';
-import { selectIsTransactionReviewInProgress } from '../selectors';
-import { signTransactionNativeThunk } from '../sendFormThunks';
-import { useShowReviewCancellationAlert } from './useShowReviewCancellationAlert';
+import { useHandleCommonSignRejection } from './useHandleCommonSignRejection';
 
 type NavigationProps = StackToStackCompositeNavigationProps<
     SendStackParamList,
@@ -35,9 +35,9 @@ type NavigationProps = StackToStackCompositeNavigationProps<
 >;
 
 type HandleOnDeviceTransactionReviewProps = {
-    accountKey: string;
+    accountKey: AccountKey;
     tokenContract?: TokenAddress;
-    transaction: GeneralPrecomposedTransactionFinal;
+    transaction: GeneralPrecomposedTransactionFinal | null;
 };
 
 export const useHandleOnDeviceTransactionReview = ({
@@ -48,14 +48,12 @@ export const useHandleOnDeviceTransactionReview = ({
     const dispatch = useDispatch();
     const navigation = useNavigation<NavigationProps>();
     const { showAlert } = useAlert();
-    const isViewOnlyDevice = useSelector(selectIsDeviceRemembered);
 
     const showReviewCancellationAlert = useShowReviewCancellationAlert();
-    const showDeviceDisconnectedAlert = useShowDeviceDisconnectedAlert();
+    const handleCommonSignRejection = useHandleCommonSignRejection({ accountKey, tokenContract });
 
-    const isTransactionReviewInProgress = useSelector(
-        (state: AccountsRootState & DeviceRootState & SendRootState) =>
-            selectIsTransactionReviewInProgress(state, accountKey, tokenContract),
+    const isTransactionReviewInProgress = useSelector((state: TransactionReviewOutputsState) =>
+        selectIsTransactionReviewInProgress(state, 'send', accountKey, tokenContract),
     );
 
     useEffect(() => {
@@ -73,9 +71,13 @@ export const useHandleOnDeviceTransactionReview = ({
         });
 
         return unsubscribe;
-    });
+    }, [navigation, isTransactionReviewInProgress, showReviewCancellationAlert, dispatch]);
 
     const handleOnDeviceTransactionReview = useCallback(async () => {
+        if (!transaction) {
+            return;
+        }
+
         const response = await dispatch(
             signTransactionNativeThunk({
                 accountKey,
@@ -85,21 +87,15 @@ export const useHandleOnDeviceTransactionReview = ({
         );
 
         if (isRejected(response)) {
-            const errorCode = response.payload?.errorCode;
-            const message = response.payload?.message;
-
-            if (
-                errorCode === 'Failure_PinCancelled' || // User cancelled the pin entry on device
-                errorCode === 'Method_Cancel' || // User canceled the pin entry in the app UI.
-                errorCode === 'Failure_ActionCancelled' // User canceled the review on device OR device got locked before the review was finished.
-            ) {
-                navigation.popTo(SendStackRoutes.SendFees, {
-                    accountKey,
-                    tokenContract,
-                });
-
+            if (response.payload?.error === 'sign-transaction-timeout') {
                 return;
             }
+
+            if (handleCommonSignRejection(response.payload)) {
+                return;
+            }
+
+            const errorCode = response.payload?.errorCode;
 
             if (
                 errorCode === 'Device_InvalidState' || // Incorrect Passphrase submitted.
@@ -109,28 +105,8 @@ export const useHandleOnDeviceTransactionReview = ({
                     title: <Translation id="modulePassphrase.featureAuthorizationError" />,
                     pictogramVariant: 'critical',
                     primaryButtonTitle: <Translation id="generic.buttons.close" />,
-                    primaryButtonVariant: 'redBold',
+                    primaryButtonColorProps: { intent: 'critical', priority: 'primary' },
                 });
-
-                return;
-            }
-
-            // Device disconnected during the review.
-            if (
-                message === TRANSPORT_ERROR.DEVICE_DISCONNECTED_DURING_ACTION ||
-                message === TRANSPORT_ERROR.UNEXPECTED_ERROR
-            ) {
-                if (isViewOnlyDevice) {
-                    navigation.popTo(SendStackRoutes.SendFees, {
-                        accountKey,
-                        tokenContract,
-                    });
-                }
-
-                // Timeout needed so the navigation back to home screen of not remembered device is not interrupted by the alert.
-                setTimeout(() => {
-                    showDeviceDisconnectedAlert();
-                }, 1500);
 
                 return;
             }
@@ -145,9 +121,8 @@ export const useHandleOnDeviceTransactionReview = ({
         accountKey,
         tokenContract,
         transaction,
-        isViewOnlyDevice,
         navigation,
-        showDeviceDisconnectedAlert,
+        handleCommonSignRejection,
         dispatch,
         showAlert,
     ]);

@@ -1,17 +1,18 @@
-import BlockchainLink, {
+import type {
     BlockchainLinkParams,
     ServerInfo,
     SubscriptionAccountInfo,
 } from '@trezor/blockchain-link';
+import { BlockchainLink } from '@trezor/blockchain-link';
+import type { CoinInfo, CoreEventMessage, Proxy, PushTransaction } from '@trezor/connect-common';
+import { BLOCKCHAIN, createBlockchainMessage } from '@trezor/connect-common';
+import { ERRORS } from '@trezor/connect-common/src/constants';
 
-import { ERRORS } from '../constants';
-import { BLOCKCHAIN, CoreEventMessage, createBlockchainMessage } from '../events';
-import type { CoinInfo, Proxy } from '../types';
-import { PushTransaction } from '../types/api/pushTransaction';
 import {
     BlockbookWorker,
     BlockfrostWorker,
     ElectrumWorker,
+    EvmRpcWorker,
     RippleWorker,
     SolanaWorker,
     StellarWorker,
@@ -31,6 +32,8 @@ const getWorker = (type: string) => {
             return SolanaWorker;
         case 'stellar':
             return StellarWorker;
+        case 'evm-rpc':
+            return EvmRpcWorker;
         default:
             return null;
     }
@@ -179,8 +182,8 @@ export class Blockchain {
         return this.initPromise;
     }
 
-    getTransactions(txs: string[]) {
-        return Promise.all(txs.map(id => this.link.getTransaction(id)));
+    getTransactions(txs: string[], descriptor?: string) {
+        return Promise.all(txs.map(txid => this.link.getTransaction({ txid, descriptor })));
     }
 
     getTransactionHexes(txids: string[]) {
@@ -189,6 +192,10 @@ export class Blockchain {
 
     getCurrentFiatRates(params: { currencies?: string[]; token?: string }) {
         return this.link.getCurrentFiatRates(params);
+    }
+
+    getContractInfo(params: BlockchainLinkParams<'getContractInfo'>) {
+        return this.link.getContractInfo(params);
     }
 
     getFiatRatesForTimestamps(params: {

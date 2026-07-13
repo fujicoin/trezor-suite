@@ -1,6 +1,6 @@
 {
     "name": "@trezor/transport-bridge",
-    "version": "3.1.0",
+    "version": "3.2.1",
     "main": "src/index",
     "license": "See LICENSE.md in repo root",
     "private": true,
@@ -12,17 +12,18 @@
         "build:node:bin": "yarn esbuild ./src/bin.ts --bundle --outfile=dist/bin.js --platform=node --target=node18 --external:usb",
         "build:node:module": "yarn esbuild ./src/index.ts --bundle --outfile=dist/index.js --platform=node --target=node18 --external:usb",
         "build:node": "yarn build:node:bin && yarn build:node:module",
-        "build:ui": "TS_NODE_PROJECT=\"tsconfig.json\" webpack --config ./webpack/ui.webpack.config.ts",
+        "build:ui": "TS_NODE_PROJECT=\"webpack/tsconfig.json\" webpack --config ./webpack/ui.webpack.config.ts",
         "build:js": "yarn g:rimraf -rf dist && yarn build:node && yarn build:ui",
         "build": "yarn build:js",
-        "build:lib": "yarn build:js"
+        "build:lib": "yarn build:js",
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     },
     "devDependencies": {
-        "@types/json-stable-stringify": "^1",
-        "esbuild": "^0.25.2",
+        "esbuild": "^0.28.0",
         "html-inline-script-webpack-plugin": "^3.2.1",
-        "html-webpack-plugin": "^5.6.3",
-        "webpack": "5.100.0"
+        "html-webpack-plugin": "5.6.7",
+        "rimraf": "^6.1.2",
+        "webpack": "5.107.2"
     },
     "dependencies": {
         "@trezor/components": "workspace:*",
@@ -31,12 +32,12 @@
         "@trezor/protocol": "workspace:*",
         "@trezor/theme": "workspace:*",
         "@trezor/transport": "workspace:*",
+        "@trezor/transport-common": "workspace:*",
         "@trezor/utils": "workspace:*",
-        "json-stable-stringify": "^1.2.1",
-        "react": "19.0.0",
-        "react-dom": "19.0.0",
-        "react-intl": "^7.1.11",
-        "styled-components": "^6.1.19",
-        "usb": "^2.15.0"
+        "react": "19.2.3",
+        "react-dom": "19.2.3",
+        "react-intl": "^8.1.3",
+        "styled-components": "^6.3.9",
+        "usb": "^2.17.0"
     }
 }

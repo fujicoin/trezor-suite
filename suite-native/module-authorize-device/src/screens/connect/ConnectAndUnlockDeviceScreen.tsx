@@ -1,77 +1,81 @@
-import { useCallback, useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import { useCallback } from 'react';
+import { Platform } from 'react-native';
 
-import { useIsFocused } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 
-import { selectIsDeviceAuthorized, selectIsDeviceConnected } from '@suite-common/wallet-core';
+import { useAlert } from '@suite-native/alerts';
+import { IconListTextItem, VStack } from '@suite-native/atoms';
 import { ConnectAndUnlockDeviceScreenContent } from '@suite-native/device';
-import { FeatureFlag, useFeatureFlag } from '@suite-native/feature-flags';
-import {
-    AuthorizeDeviceStackParamList,
-    AuthorizeDeviceStackRoutes,
-    RootStackParamList,
-    Screen,
-    StackToStackCompositeScreenProps,
-} from '@suite-native/navigation';
+import { Translation } from '@suite-native/intl';
+import { useOpenLink } from '@suite-native/link';
+import { TREZOR_SUPPORT_DEVICE_URL } from '@trezor/urls';
 
-import { ConnectDeviceScreenHeader } from '../../components/connect/ConnectDeviceScreenHeader';
+import { ConnectDeviceScreen } from '../../components/connect/ConnectDeviceScreen';
+import { HINTS_ALERT_DELAY } from '../../constants';
 
-export const ConnectAndUnlockDeviceScreen = ({
-    route: { params },
-    navigation,
-}: StackToStackCompositeScreenProps<
-    AuthorizeDeviceStackParamList,
-    AuthorizeDeviceStackRoutes.ConnectAndUnlockDevice,
-    RootStackParamList
->) => {
-    const isBluetoothEnabled = useFeatureFlag(FeatureFlag.IsBluetoothEnabled);
+export const ConnectAndUnlockDeviceScreen = () => {
+    const { showAlert, hideAlert } = useAlert();
+    const openLink = useOpenLink();
 
-    const isDeviceAuthorized = useSelector(selectIsDeviceAuthorized);
-    const isFocused = useIsFocused();
-    const isDeviceConnected = useSelector(selectIsDeviceConnected);
+    const showConnectDeviceHintsAlert = useCallback(
+        () =>
+            showAlert({
+                type: 'connectDevice',
+                title: <Translation id="moduleConnectDevice.helpModal.connect.title" />,
+                textAlign: 'left',
+                primaryButtonTitle: <Translation id="generic.buttons.gotIt" />,
+                primaryButtonColorProps: { intent: 'info', priority: 'primary' },
+                secondaryButtonTitle: (
+                    <Translation id="moduleConnectDevice.helpModal.connect.contactSupportButton" />
+                ),
+                secondaryButtonColorProps: { intent: 'info', priority: 'secondary' },
+                onPressSecondaryButton: () => openLink(`${TREZOR_SUPPORT_DEVICE_URL}#open-chat`),
+                appendix: (
+                    <VStack spacing="sp12">
+                        <IconListTextItem
+                            icon="trezorPassword"
+                            iconSize="large"
+                            variant="blue"
+                            textVariant="body-md"
+                        >
+                            <Translation id="moduleConnectDevice.helpModal.connect.hint1" />
+                        </IconListTextItem>
+                        <IconListTextItem
+                            icon="cableUsbC"
+                            iconSize="large"
+                            variant="blue"
+                            textVariant="body-md"
+                        >
+                            <Translation id="moduleConnectDevice.helpModal.connect.hint2" />
+                        </IconListTextItem>
+                        <IconListTextItem
+                            icon="arrowsClockwise"
+                            iconSize="large"
+                            variant="blue"
+                            textVariant="body-md"
+                        >
+                            <Translation id="moduleConnectDevice.helpModal.connect.hint3" />
+                        </IconListTextItem>
+                    </VStack>
+                ),
+            }),
+        [showAlert, openLink],
+    );
 
-    const navigateBack = useCallback(() => {
-        if (navigation.canGoBack()) {
-            navigation.goBack();
-        }
-    }, [navigation]);
+    useFocusEffect(
+        useCallback(() => {
+            const timeoutId = setTimeout(showConnectDeviceHintsAlert, HINTS_ALERT_DELAY);
 
-    const navigateToTurnOnAndUnlockDeviceScreen = () => {
-        navigation.replace(AuthorizeDeviceStackRoutes.TurnOnAndUnlockDevice);
-    };
-
-    useEffect(() => {
-        if (!isFocused || !isDeviceConnected) return;
-
-        if (isDeviceAuthorized) {
-            // When selected device become connected, we need to navigate out of this screen.
-            navigateBack();
-        } else {
-            console.warn(' == meow == authorize device thnk needs to be replaced here ');
-            // If user cancelled the authorization, we need to authorize the device again.
-            // requestPrioritizedDeviceAccess({
-            //     deviceCallback: () => dispatch(authorizeDeviceThunk()),
-            // });
-        }
-    }, [isDeviceAuthorized, isDeviceConnected, isFocused, navigateBack]);
+            return () => {
+                clearTimeout(timeoutId);
+                hideAlert('connectDevice');
+            };
+        }, [showConnectDeviceHintsAlert, hideAlert]),
+    );
 
     return (
-        <Screen
-            header={
-                <ConnectDeviceScreenHeader
-                    onCancelNavigationTarget={params?.onCancelNavigationTarget}
-                />
-            }
-            noHorizontalPadding
-            noBottomPadding
-            hasBottomInset={false}
-            isScrollable={false}
-        >
-            <ConnectAndUnlockDeviceScreenContent
-                onConnectViaBluetooth={
-                    isBluetoothEnabled ? navigateToTurnOnAndUnlockDeviceScreen : undefined
-                }
-            />
-        </Screen>
+        <ConnectDeviceScreen closeActionType={Platform.select({ android: 'back' })}>
+            <ConnectAndUnlockDeviceScreenContent />
+        </ConnectDeviceScreen>
     );
 };

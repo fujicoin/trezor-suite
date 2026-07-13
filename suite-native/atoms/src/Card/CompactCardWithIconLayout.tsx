@@ -1,63 +1,66 @@
-import { ReactNode } from 'react';
-import { TouchableOpacity, TouchableOpacityProps } from 'react-native';
+import { type ReactNode } from 'react';
+import { Platform, View } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
 
-import { Icon, IconName } from '@suite-native/icons';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
-import { Color } from '@trezor/theme';
+import { Icon, type IconName } from '@suite-native/icons';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+import { type Color } from '@trezor/theme';
 
-import { Card } from './Card';
 import { Box } from '../Box';
-import { InlineAlertBox, InlineAlertBoxProps } from '../InlineAlertBox/InlineAlertBox';
+import { InlineAlertBox, type InlineAlertBoxProps } from '../InlineAlertBox/InlineAlertBox';
 import { Loader } from '../Loader';
-import { RoundedIcon } from '../RoundedIcon';
+import { RoundedIcon, type RoundedIconIntent } from '../RoundedIcon';
 import { HStack, VStack } from '../Stack';
 import { Text } from '../Text';
+import { useTapGesture } from '../useTapGesture';
+import { AnimatedContainerCard, type CardProps } from './Card';
 
-type CardVariant = 'normal' | 'danger';
+export const COMPACT_CARD_VARIANTS = ['normal', 'danger', 'primary'] as const;
+type CompactCardVariant = (typeof COMPACT_CARD_VARIANTS)[number];
+
 export type CompactCardWithIconLayoutProps = {
     icon: IconName;
     title: ReactNode;
     subtitle?: ReactNode;
     isDisabled?: boolean;
-    alertBoxProps?: Omit<InlineAlertBoxProps, 'borderRadius'>;
-    onPress?: () => void;
-    variant?: CardVariant;
-    noShadow?: boolean;
+    alertBoxProps?: InlineAlertBoxProps;
+    onPress: () => void;
+    variant?: CompactCardVariant;
     borderColor?: Color | null;
-} & TouchableOpacityProps;
+} & Omit<CardProps, 'children' | 'borderColor'>;
 
 type CardColorScheme = {
-    iconWrapperBackgroundColor: Color;
-    iconColor: Color;
+    iconIntent: RoundedIconIntent;
     titleColor: Color;
     subtitleColor: Color;
+    caretColor: Color;
 };
 
 export const cardVariantToColorsMap = {
     normal: {
-        iconWrapperBackgroundColor: 'backgroundTertiaryDefaultOnElevation1',
-        iconColor: 'iconDefault',
-        titleColor: 'textDefault',
-        subtitleColor: 'textSubdued',
+        iconIntent: 'neutral',
+        titleColor: 'contentPrimary',
+        subtitleColor: 'contentSecondary',
+        caretColor: 'contentSecondary',
     },
     danger: {
-        iconWrapperBackgroundColor: 'backgroundAlertRedSubtleOnElevation1',
-        iconColor: 'iconAlertRed',
-        titleColor: 'textAlertRed',
-        subtitleColor: 'textAlertRed',
+        iconIntent: 'critical',
+        titleColor: 'contentCritical',
+        subtitleColor: 'contentCritical',
+        caretColor: 'contentSecondary',
     },
-} as const satisfies Record<CardVariant, CardColorScheme>;
+    primary: {
+        iconIntent: 'brand',
+        titleColor: 'contentBrand',
+        subtitleColor: 'contentBrand',
+        caretColor: 'contentBrand',
+    },
+} as const satisfies Record<CompactCardVariant, CardColorScheme>;
 
 const contentStyle = prepareNativeStyle(() => ({
     flexGrow: 1,
     flexShrink: 1,
 }));
-
-const touchableOpacityStyle = prepareNativeStyle<Pick<CompactCardWithIconLayoutProps, 'noShadow'>>(
-    (utils, { noShadow }) => ({
-        ...(noShadow ? {} : utils.boxShadows.small),
-    }),
-);
 
 export const CompactCardWithIconLayout = ({
     icon,
@@ -65,56 +68,57 @@ export const CompactCardWithIconLayout = ({
     subtitle,
     alertBoxProps,
     onPress,
+    noShadow,
+    testID,
     isDisabled = false,
     variant = 'normal',
-    noShadow = false,
-    borderColor = 'borderElevation1',
-    ...pressableProps
+    borderColor = 'borderNeutral',
+    ...cardProps
 }: CompactCardWithIconLayoutProps) => {
     const { applyStyle } = useNativeStyles();
+    const { caretColor, iconIntent, titleColor, subtitleColor } = cardVariantToColorsMap[variant];
+
+    const { tapGesture, animatedStyle } = useTapGesture({ onPress, isDisabled });
 
     return (
-        <TouchableOpacity
-            style={applyStyle(touchableOpacityStyle, { noShadow })}
-            disabled={isDisabled}
-            onPress={onPress}
-            {...pressableProps}
-        >
-            <Card noPadding noShadow borderColor={borderColor ?? undefined}>
-                <HStack
-                    paddingHorizontal="sp16"
-                    paddingVertical="sp12"
-                    spacing="sp12"
-                    alignItems="center"
+        <GestureDetector gesture={tapGesture}>
+            <View collapsable={false} testID={testID}>
+                <AnimatedContainerCard
+                    noPadding
+                    borderColor={borderColor ?? undefined}
+                    animatedStyle={animatedStyle}
+                    // Android shadow does not work well with the Reanimated opacity animation.
+                    noShadow={Platform.OS === 'android' ? true : noShadow}
+                    {...cardProps}
                 >
-                    <RoundedIcon
-                        backgroundColor={cardVariantToColorsMap[variant].iconWrapperBackgroundColor}
-                        color={cardVariantToColorsMap[variant].iconColor}
-                        name={icon}
-                    />
-                    <VStack spacing="sp2" style={applyStyle(contentStyle)}>
-                        <Text color={cardVariantToColorsMap[variant].titleColor}>{title}</Text>
-                        {subtitle && (
-                            <Text
-                                color={cardVariantToColorsMap[variant].subtitleColor}
-                                variant="hint"
-                            >
-                                {subtitle}
-                            </Text>
+                    <HStack
+                        paddingHorizontal="sp16"
+                        paddingVertical="sp12"
+                        spacing="sp12"
+                        alignItems="center"
+                    >
+                        <RoundedIcon intent={iconIntent} name={icon} />
+                        <VStack spacing="sp2" style={applyStyle(contentStyle)}>
+                            <Text color={titleColor}>{title}</Text>
+                            {subtitle && (
+                                <Text color={subtitleColor} variant="body-sm">
+                                    {subtitle}
+                                </Text>
+                            )}
+                        </VStack>
+                        {isDisabled ? (
+                            <Loader />
+                        ) : (
+                            <Icon name="caretRight" size="mediumLarge" color={caretColor} />
                         )}
-                    </VStack>
-                    {isDisabled ? (
-                        <Loader />
-                    ) : (
-                        <Icon name="caretRight" size="mediumLarge" color="iconSubdued" />
+                    </HStack>
+                    {alertBoxProps && (
+                        <Box margin="sp4">
+                            <InlineAlertBox {...alertBoxProps} />
+                        </Box>
                     )}
-                </HStack>
-                {alertBoxProps && (
-                    <Box margin="sp4">
-                        <InlineAlertBox {...alertBoxProps} />
-                    </Box>
-                )}
-            </Card>
-        </TouchableOpacity>
+                </AnimatedContainerCard>
+            </View>
+        </GestureDetector>
     );
 };

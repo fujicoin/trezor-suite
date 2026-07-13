@@ -4,16 +4,27 @@ export enum RootStackRoutes {
     DeviceOnboardingStack = 'DeviceOnboardingStack',
     AccountsImport = 'AccountsImport',
     AuthorizeDeviceStack = 'AuthorizeDeviceStack',
+    AccountAssets = 'AccountAssets',
     AccountDetail = 'AccountDetail',
     StakingDetail = 'StakingDetail',
-    DevUtilsStack = 'DevUtilsStack',
+    StakingManagement = 'StakingManagement',
+    StakingInsufficientBalance = 'StakingInsufficientBalance',
+    HowStakeWorksScreen = 'HowStakeWorksScreen',
+    YieldNavigator = 'YieldNavigator',
+    YieldInsufficientBalance = 'YieldInsufficientBalance',
+    EarnForm = 'EarnForm',
+    EarnConsents = 'EarnConsents',
+    EarnTransactionDataReview = 'EarnTransactionDataReview',
+    ClaimReview = 'ClaimReview',
+    ClaimTransactionDataReview = 'ClaimTransactionDataReview',
+    DevUtils = 'DevUtils',
+    MessageSystemManager = 'MessageSystemManager',
     AccountSettings = 'AccountSettings',
-    TransactionDetail = 'TransactionDetail',
+    TransactionDetailStack = 'TransactionDetailStack',
     ReceiveStack = 'ReceiveStack',
     SendStack = 'SendStack',
     DeviceSettingsStack = 'DeviceSettingsStack',
     AddCoinAccountStack = 'AddCoinAccountStack',
-    CoinEnablingInit = 'CoinEnablingInit',
     ConnectPopup = 'ConnectPopup',
     ConnectPermissions = 'ConnectPermissions',
     WalletConnectSessionPopup = 'WalletConnectSessionPopup',
@@ -22,14 +33,32 @@ export enum RootStackRoutes {
     SettingsScreenStack = 'SettingsScreenStack',
     DeviceCompromisedModal = 'DeviceCompromisedModal',
     BackupFailedModal = 'BackupFailedModal',
-    TradingWebView = 'TradingWebView',
     BootloaderMode = 'BootloaderMode',
+    TradingLocationModal = 'TradingLocationModal',
+    DemoAccountQuestionnaireStack = 'DemoAccountQuestionnaireStack',
+    Storybook = 'Storybook',
+    PassphraseStack = 'PassphraseStack',
+    StellarManageTokenStack = 'StellarManageTokenStack',
+    FeatureFeedbackModal = 'FeatureFeedbackModal',
+    UnstakeFlow = 'UnstakeFlow',
+    UnstakeTransactionDataReview = 'UnstakeTransactionDataReview',
+    TradingExchangePreview = 'TradingExchangePreview',
+    TradingExchangeApproval = 'TradingExchangeApproval',
+    TradingExchangeRevoke = 'TradingExchangeRevoke',
+    TradingSellPreview = 'TradingSellPreview',
+    TradingConfirming = 'TradingConfirming',
+    TradingSellOutputsReview = 'TradingSellOutputsReview',
+    TradingExchangeOutputsReview = 'TradingExchangeOutputsReview',
+    ReceiveAccounts = 'ReceiveAccounts',
+    TradingHistory = 'TradingHistory',
+    TradingBuyPreview = 'TradingBuyPreview',
 }
 
 export enum AppTabsRoutes {
     HomeStack = 'HomeStack',
     AccountsStack = 'AccountsStack',
     TradeStack = 'TradeStack',
+    EarnStack = 'EarnStack',
     Settings = 'Settings',
 }
 
@@ -37,13 +66,15 @@ export enum OnboardingStackRoutes {
     Welcome = 'Welcome',
     AnalyticsConsent = 'AnalyticsConsent',
     Biometrics = 'Biometrics',
+    TradingLocation = 'TradingLocation',
 }
 
 export enum DeviceOnboardingStackRoutes {
-    ConnectAndUnlockDevice = 'ConnectAndUnlockDevice',
+    DeviceDisconnected = 'DeviceDisconnected',
     UninitializedDeviceLanding = 'UninitializedDeviceLanding',
     SuspiciousDevice = 'SuspiciousDevice',
     SecurityCheck = 'SecurityCheck',
+    FirmwareInfo = 'FirmwareInfo',
     ConfirmFirmwareUpdate = 'ConfirmFirmwareUpdate',
     FirmwareInstallation = 'FirmwareInstallation',
     ThpPairingInfo = 'ThpPairingInfo',
@@ -63,6 +94,7 @@ export enum DeviceOnboardingStackRoutes {
     WalletRecovery = 'WalletRecovery',
     WalletRecoveryRecap = 'WalletRecoveryRecap',
     CreatePin = 'CreatePin',
+    Congratulations = 'Congratulations',
 }
 
 export enum AccountsImportStackRoutes {
@@ -74,59 +106,95 @@ export enum AccountsImportStackRoutes {
 
 export enum DeviceSettingsStackRoutes {
     DeviceSettings = 'DeviceSettings',
-    PinProtection = 'PinProtection',
-    DevicePinProtectionStack = 'DevicePinProtectionStack',
+    DeviceNameStack = 'DeviceNameStack',
+    DeviceFirmware = 'DeviceFirmware',
     FirmwareUpdateStack = 'FirmwareUpdateStack',
+    FirmwareLanguageStack = 'FirmwareLanguageStack',
+    DeviceConnection = 'DeviceConnection',
+    DeviceAutoConnectStack = 'DeviceAutoConnectStack',
+    ForgetDevice = 'ForgetDevice',
+    ForgetDeviceStack = 'ForgetDeviceStack',
+    DevicePinProtection = 'DevicePinProtection',
+    DevicePinProtectionStack = 'DevicePinProtectionStack',
+    DeviceBackupAndPassphrase = 'DeviceBackupAndPassphrase',
+    DeviceCheckBackupStack = 'DeviceCheckBackupStack',
+    DevicePassphraseStack = 'DevicePassphraseStack',
     DeviceAuthenticity = 'DeviceAuthenticity',
     DeviceAuthenticityStack = 'DeviceAuthenticityStack',
-    ContinueOnTrezor = 'ContinueOnTrezor',
+    WipeDevice = 'WipeDevice',
     WipeDeviceStack = 'WipeDeviceStack',
-    DeviceNameStack = 'DeviceNameStack',
-    DeviceCheckBackupStack = 'DeviceCheckBackupStack',
+}
+
+export enum DeviceNameStackRoutes {
+    DeviceConnectionGuard = 'DeviceConnectionGuard',
+    DeviceName = 'DeviceName',
+    ContinueOnTrezor = 'ContinueOnTrezor',
+    DeviceNameLoadingScreen = 'DeviceNameLoadingScreen',
+}
+
+export enum FirmwareUpdateStackRoutes {
+    DeviceConnectionGuard = 'DeviceConnectionGuard',
+    ConfirmFirmwareUpdate = 'ConfirmFirmwareUpdate',
+    FirmwareInstallation = 'FirmwareInstallation',
+    ThpConfirmation = 'ThpConfirmation',
+}
+
+export enum FirmwareLanguageStackRoutes {
+    DeviceConnectionGuard = 'DeviceConnectionGuard',
+    ConfirmLanguageChange = 'ConfirmLanguageChange',
+}
+
+export enum DeviceAutoConnectStackRoutes {
+    DeviceConnectionGuard = 'DeviceConnectionGuard',
+    ConfirmAutoConnect = 'ConfirmAutoConnect',
+}
+
+export enum ForgetDeviceStackRoutes {
+    ForgetDeviceConfirmation = 'ForgetDeviceConfirmation',
+    ForgetDeviceGuide = 'ForgetDeviceGuide',
+    ForgetDeviceFinish = 'ForgetDeviceFinish',
 }
 
 export enum DevicePinProtectionStackRoutes {
+    DeviceConnectionGuard = 'DeviceConnectionGuard',
     ContinueOnTrezor = 'ContinueOnTrezor',
     EnterCurrentPin = 'EnterCurrentPin',
     EnterNewPin = 'EnterNewPin',
     ConfirmNewPin = 'ConfirmNewPin',
 }
 
-export enum FirmwareUpdateStackRoutes {
-    ConfirmFirmwareUpdate = 'ConfirmFirmwareUpdate',
-    FirmwareInstallation = 'FirmwareInstallation',
-    ThpConfirmation = 'ThpConfirmation',
-}
-
 export enum DeviceCheckBackupStackRoutes {
+    UnsupportedModel = 'UnsupportedModel',
+    DeviceConnectionGuard = 'DeviceConnectionGuard',
     CheckBackupTutorial = 'CheckBackupTutorial',
     CheckBackup = 'CheckBackup',
     CheckBackupSuccess = 'CheckBackupSuccess',
     CheckBackupRecap = 'CheckBackupRecap',
-    UnsupportedModel = 'UnsupportedModel',
     CheckBackupFail = 'CheckBackupFail',
     CheckBackupSupport = 'CheckBackupSupport',
 }
 
+export enum DevicePassphraseStackRoutes {
+    DeviceConnectionGuard = 'DeviceConnectionGuard',
+    ContinueOnTrezor = 'ContinueOnTrezor',
+}
+
 export enum DeviceAuthenticityStackRoutes {
+    DeviceConnectionGuard = 'DeviceConnectionGuard',
     AuthenticityCheck = 'AuthenticityCheck',
     AuthenticitySuccess = 'AuthenticitySuccess',
 }
 
 export enum WipeDeviceStackRoutes {
-    WipeDevice = 'WipeDevice',
+    DeviceConnectionGuard = 'DeviceConnectionGuard',
     ContinueOnTrezor = 'ContinueOnTrezor',
     WipeDeviceLoadingScreen = 'WipeDeviceLoadingScreen',
     FactoryReset = 'FactoryReset',
 }
 
-export enum DeviceNameStackRoutes {
-    DeviceName = 'DeviceName',
-    ContinueOnTrezor = 'ContinueOnTrezor',
-    DeviceNameLoadingScreen = 'DeviceNameLoadingScreen',
-}
-
 export enum AuthorizeDeviceStackRoutes {
+    DeviceConnectionGuard = 'DeviceConnectionGuard',
+    ConnectDeviceCrossroads = 'ConnectDeviceCrossroads',
     ConnectAndUnlockDevice = 'ConnectAndUnlockDevice',
     TurnOnAndUnlockDevice = 'TurnOnAndUnlockDevice',
     ConnectBluetoothDevice = 'ConnectBluetoothDevice',
@@ -136,30 +204,59 @@ export enum AuthorizeDeviceStackRoutes {
     ThpCodeEntry = 'ThpCodeEntry',
     ConnectingDevice = 'ConnectingDevice',
     PassphraseForm = 'PassphraseForm',
+    PassphraseEnterOnTrezor = 'PassphraseEnterOnTrezor',
     PassphraseConfirmOnTrezor = 'PassphraseConfirmOnTrezor',
+    CoinEnablingInit = 'CoinEnablingInit',
+    ContinueOnTrezor = 'ContinueOnTrezor',
+}
+
+export enum PassphraseStackRoutes {
+    PassphraseForm = 'PassphraseForm',
     PassphraseLoading = 'PassphraseLoading',
+    PassphraseEnterOnTrezor = 'PassphraseEnterOnTrezor',
+    PassphraseConfirmOnTrezor = 'PassphraseConfirmOnTrezor',
     PassphraseRedirecting = 'PassphraseRedirecting',
     PassphraseDuplicateAlert = 'PassphraseDuplicateAlert',
     PassphraseMismatchAlert = 'PassphraseMismatchAlert',
-    PassphraseConfirmFeatureUnlockOnTrezor = 'PassphraseConfirmFeatureUnlockOnTrezor',
     PassphraseEmptyWallet = 'PassphraseEmptyWallet',
     PassphraseVerifyEmptyWallet = 'PassphraseVerifyEmptyWallet',
-    PassphraseEnterOnTrezor = 'PassphraseEnterOnTrezor',
-    PassphraseEnableOnDevice = 'PassphraseEnableOnDevice',
-    PassphraseFeatureUnlockForm = 'PassphraseFeatureUnlockForm',
-}
-
-export enum DevUtilsStackRoutes {
-    DevUtils = 'DevUtils',
-    Demo = 'Demo',
 }
 
 export enum HomeStackRoutes {
     Home = 'Home',
 }
 
+export enum DemoAccountQuestionnaireStackRoutes {
+    Intro = 'Intro',
+    Reason = 'Reason',
+    SuiteAction = 'SuiteAction',
+    Success = 'Success',
+}
+
 export enum AccountsStackRoutes {
     Accounts = 'Accounts',
+}
+
+export enum EarnStackRoutes {
+    Earn = 'Earn',
+}
+
+export enum YieldStackRoutes {
+    HowYieldWorks = 'HowYieldWorks',
+    YieldConsents = 'YieldConsents',
+    YieldClaim = 'YieldClaim',
+    YieldClaimReview = 'YieldClaimReview',
+    YieldClaimComplete = 'YieldClaimComplete',
+    YieldDepositApproval = 'YieldDepositApproval',
+    YieldDeposit = 'YieldDeposit',
+    YieldDepositRevoke = 'YieldDepositRevoke',
+    YieldWithdraw = 'YieldWithdraw',
+    YieldDepositApprovalReview = 'YieldDepositApprovalReview',
+    YieldDepositRevokeReview = 'YieldDepositRevokeReview',
+    YieldDepositReview = 'YieldDepositReview',
+    YieldWithdrawReview = 'YieldWithdrawReview',
+    YieldDepositComplete = 'YieldDepositComplete',
+    YieldWithdrawComplete = 'YieldWithdrawComplete',
 }
 
 export enum ReceiveStackRoutes {
@@ -170,7 +267,6 @@ export enum ReceiveStackRoutes {
 export enum SendStackRoutes {
     SendAccounts = 'SendAccounts',
     SendOutputs = 'SendOutputs',
-    SendFees = 'SendFees',
     SendUtxo = 'SendUtxo',
     SendDestinationTagReview = 'SendDestinationTagReview',
     SendAddressReview = 'SendAddressReview',
@@ -189,17 +285,30 @@ export enum SettingsStackRoutes {
     SettingsPrivacy = 'SettingsPrivacy',
     SettingsViewOnly = 'SettingsViewOnly',
     SettingsSupport = 'SettingsSupport',
-    SettingsCoinEnabling = 'SettingsCoinEnabling',
-    SettingsDeviceChecks = 'SettingsDeviceChecks',
+    SettingsAppLog = 'SettingsAppLog',
+    SettingsNetworks = 'SettingsNetworks',
+    SettingsNetworkBackends = 'SettingsNetworkBackends',
+    SettingsSuiteSync = 'SettingsSuiteSync',
+    SettingsSecurity = 'SettingsSecurity',
+    SettingsAdvanced = 'SettingsAdvanced',
+    SettingsDustPhishing = 'SettingsDustPhishing',
+    SettingsExperimental = 'SettingsExperimental',
     TurnOffDeviceAuthenticityCheck = 'TurnOffDeviceAuthenticityCheck',
     TurnOffFirmwareAuthenticityCheck = 'TurnOffFirmwareAuthenticityCheck',
+    SettingsTradingLocation = 'SettingsTradingLocation',
 }
 
 export enum TradingStackRoutes {
     Trading = 'Trading',
-    ReceiveAccounts = 'ReceiveAccounts',
-    TradingHistory = 'TradingHistory',
-    TradingExchangePreview = 'TradingExchangePreview',
-    TradingExchangeApproval = 'TradingExchangeApproval',
-    TradingExchangeRevoke = 'TradingExchangeRevoke',
+}
+
+export enum TransactionDetailStackRoutes {
+    TransactionDetail = 'TransactionDetail',
+    TransactionDetailOverview = 'TransactionDetailOverview',
+}
+
+export enum StellarManageTokenStackRoutes {
+    ManualTokenInput = 'ManualTokenInput',
+    ActivationFee = 'ActivationFee',
+    DeactivationFee = 'DeactivationFee',
 }

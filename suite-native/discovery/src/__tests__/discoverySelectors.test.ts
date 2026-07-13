@@ -1,8 +1,21 @@
+import { type StateFromReducersMapObject } from '@reduxjs/toolkit';
+
+import { deviceInitialState } from '@suite-common/device';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { networks } from '@suite-common/wallet-config';
+import { accountsInitialState, initialWalletSettingsState } from '@suite-common/wallet-core';
 import { featureFlagsInitialState } from '@suite-native/feature-flags';
 import { appSettingsInitialState } from '@suite-native/settings';
-import { PreloadedState, initStore } from '@suite-native/test-utils';
+import {
+    type PreloadedStatePartial,
+    createLightStore,
+    createStaticReducer,
+} from '@suite-native/test-utils-store';
 
-import { selectDiscoverySupportedNetworks } from '../discoverySelectors';
+import {
+    selectDiscoveryNetworkGroups,
+    selectDiscoverySupportedNetworks,
+} from '../discoverySelectors';
 
 // Mock the dependencies
 jest.mock('@suite-native/config', () => ({
@@ -19,23 +32,51 @@ jest.mock('@suite-common/wallet-config', () => ({
     })),
 }));
 
-describe('selectDiscoverySupportedNetworks', () => {
-    const createMockState = (overrides: Partial<PreloadedState> = {}): PreloadedState => ({
-        appSettings: {
-            ...appSettingsInitialState,
-            areTestnetsEnabled: false,
-            ...overrides?.appSettings,
+const reducer = {
+    appSettings: createStaticReducer(appSettingsInitialState),
+    device: createStaticReducer(deviceInitialState),
+    featureFlags: createStaticReducer(featureFlagsInitialState),
+    wallet: createStaticReducer({
+        accounts: accountsInitialState,
+        settings: initialWalletSettingsState,
+    }),
+} as const;
+
+const createMockState = (
+    overrides: PreloadedStatePartial<StateFromReducersMapObject<typeof reducer>> = {},
+): StateFromReducersMapObject<typeof reducer> => ({
+    appSettings: {
+        ...appSettingsInitialState,
+        ...overrides.appSettings,
+    },
+    device: {
+        ...deviceInitialState,
+        selectedDevice: overrides.device?.selectedDevice as TrezorDevice,
+    },
+    featureFlags: {
+        ...featureFlagsInitialState,
+        ...overrides.featureFlags,
+    },
+    wallet: {
+        accounts: overrides.wallet?.accounts ?? accountsInitialState,
+        settings: {
+            ...initialWalletSettingsState,
+            ...overrides.wallet?.settings,
         },
-        featureFlags: {
-            ...featureFlagsInitialState,
-            areDebugOnlyNetworksEnabled: false,
-            ...overrides.featureFlags,
-        },
+    },
+});
+
+const createTestStore = (
+    overrides?: PreloadedStatePartial<StateFromReducersMapObject<typeof reducer>>,
+) =>
+    createLightStore({
+        reducer,
+        preloadedState: createMockState(overrides),
     });
 
-    it('should be stable (return same reference for same inputs)', async () => {
-        const state = createMockState();
-        const store = await initStore(state);
+describe('selectDiscoverySupportedNetworks', () => {
+    it('should be stable (return same reference for same inputs)', () => {
+        const store = createTestStore();
 
         const firstCall = selectDiscoverySupportedNetworks(store.getState());
         const secondCall = selectDiscoverySupportedNetworks(store.getState());
@@ -43,11 +84,10 @@ describe('selectDiscoverySupportedNetworks', () => {
         expect(firstCall).toBe(secondCall);
     });
 
-    it('should filter out testnet networks when testnets are disabled', async () => {
-        const state = createMockState({
+    it('should filter out testnet networks when testnets are disabled', () => {
+        const store = createTestStore({
             appSettings: { areTestnetsEnabled: false },
         });
-        const store = await initStore(state);
 
         const result = selectDiscoverySupportedNetworks(store.getState());
         const networkSymbols = result.map(n => n.symbol);
@@ -55,21 +95,19 @@ describe('selectDiscoverySupportedNetworks', () => {
         // Test networks should be filtered out
         expect(networkSymbols).not.toContain('test');
         expect(networkSymbols).not.toContain('tsep');
-        expect(networkSymbols).not.toContain('thol');
+        expect(networkSymbols).not.toContain('thod');
         expect(networkSymbols).not.toContain('txrp');
         expect(networkSymbols).not.toContain('txlm');
-        expect(networkSymbols).not.toContain('tada');
         expect(networkSymbols).not.toContain('dsol');
         // Mainnet networks should still be included
         expect(networkSymbols).toContain('btc');
         expect(networkSymbols).toContain('eth');
     });
 
-    it('should include testnet networks when testnets are enabled', async () => {
-        const state = createMockState({
+    it('should include testnet networks when testnets are enabled', () => {
+        const store = createTestStore({
             appSettings: { areTestnetsEnabled: true },
         });
-        const store = await initStore(state);
 
         const result = selectDiscoverySupportedNetworks(store.getState());
         const networkSymbols = result.map(n => n.symbol);
@@ -77,21 +115,19 @@ describe('selectDiscoverySupportedNetworks', () => {
         // Test networks should be included
         expect(networkSymbols).toContain('test');
         expect(networkSymbols).toContain('tsep');
-        expect(networkSymbols).toContain('thol');
+        expect(networkSymbols).toContain('thod');
         expect(networkSymbols).toContain('txrp');
         expect(networkSymbols).toContain('txlm');
-        expect(networkSymbols).toContain('tada');
         expect(networkSymbols).toContain('dsol');
         // Mainnet networks should also be included
         expect(networkSymbols).toContain('btc');
         expect(networkSymbols).toContain('eth');
     });
 
-    it('should filter out debug-only networks when debug networks feature flag is disabled', async () => {
-        const state = createMockState({
+    it('should filter out debug-only networks when debug networks feature flag is disabled', () => {
+        const store = createTestStore({
             featureFlags: { areDebugOnlyNetworksEnabled: false },
         });
-        const store = await initStore(state);
 
         const result = selectDiscoverySupportedNetworks(store.getState());
         const networkSymbols = result.map(n => n.symbol);
@@ -103,11 +139,10 @@ describe('selectDiscoverySupportedNetworks', () => {
         expect(networkSymbols).toContain('eth');
     });
 
-    it('should include debug-only networks when debug networks feature flag is enabled', async () => {
-        const state = createMockState({
+    it('should include debug-only networks when debug networks feature flag is enabled', () => {
+        const store = createTestStore({
             featureFlags: { areDebugOnlyNetworksEnabled: true },
         });
-        const store = await initStore(state);
 
         const result = selectDiscoverySupportedNetworks(store.getState());
         const networkSymbols = result.map(n => n.symbol);
@@ -118,11 +153,10 @@ describe('selectDiscoverySupportedNetworks', () => {
         expect(networkSymbols).toContain('eth');
     });
 
-    it('should respect forced testnet setting parameter', async () => {
-        const state = createMockState({
+    it('should respect forced testnet setting parameter', () => {
+        const store = createTestStore({
             appSettings: { areTestnetsEnabled: false },
         });
-        const store = await initStore(state);
 
         // Force testnets enabled even though app setting is false
         const result = selectDiscoverySupportedNetworks(store.getState(), true);
@@ -131,13 +165,77 @@ describe('selectDiscoverySupportedNetworks', () => {
         // Test networks should be included due to forced parameter
         expect(networkSymbols).toContain('test');
         expect(networkSymbols).toContain('tsep');
-        expect(networkSymbols).toContain('thol');
+        expect(networkSymbols).toContain('thod');
         expect(networkSymbols).toContain('txrp');
         expect(networkSymbols).toContain('txlm');
-        expect(networkSymbols).toContain('tada');
         expect(networkSymbols).toContain('dsol');
         // Mainnet networks should also be included
         expect(networkSymbols).toContain('btc');
         expect(networkSymbols).toContain('eth');
+    });
+});
+
+describe(selectDiscoveryNetworkGroups.name, () => {
+    it('return only mainnets when testnets networks feature flag is disabled', () => {
+        const store = createTestStore();
+
+        const { supportedMainnets, supportedTestnets, unsupportedMainnets, unsupportedTestnets } =
+            selectDiscoveryNetworkGroups(store.getState());
+
+        expect(supportedMainnets).toContain(networks.btc);
+        expect(supportedTestnets).toEqual([]);
+        expect(unsupportedMainnets).toEqual([]);
+        expect(unsupportedTestnets).toEqual([]);
+    });
+
+    it('returns testnets when testnets networks feature flag is enabled', () => {
+        const store = createTestStore({
+            appSettings: { areTestnetsEnabled: true },
+        });
+
+        const { supportedMainnets, supportedTestnets, unsupportedMainnets, unsupportedTestnets } =
+            selectDiscoveryNetworkGroups(store.getState());
+
+        expect(supportedMainnets).toContain(networks.btc);
+        expect(supportedTestnets).toContain(networks.test);
+        expect(supportedTestnets).not.toContain(networks.regtest);
+        expect(unsupportedMainnets).toEqual([]);
+        expect(unsupportedTestnets).toEqual([]);
+    });
+
+    it('returns also debug-only testnets when testnet+debug-only networks feature flags are enabled', () => {
+        const store = createTestStore({
+            appSettings: { areTestnetsEnabled: true },
+            featureFlags: { areDebugOnlyNetworksEnabled: true },
+        });
+
+        const { supportedMainnets, supportedTestnets, unsupportedMainnets, unsupportedTestnets } =
+            selectDiscoveryNetworkGroups(store.getState());
+
+        expect(supportedMainnets).toContain(networks.btc);
+        expect(supportedTestnets).toContain(networks.test);
+        expect(supportedTestnets).toContain(networks.regtest);
+        expect(unsupportedMainnets).toEqual([]);
+        expect(unsupportedTestnets).toEqual([]);
+    });
+
+    it('returns both supported and unsupported networks based on device unavailable capabilities', () => {
+        const store = createTestStore({
+            appSettings: { areTestnetsEnabled: true },
+            featureFlags: { areDebugOnlyNetworksEnabled: true },
+            device: {
+                selectedDevice: {
+                    unavailableCapabilities: { eth: 'no-support', tsep: 'no-support' },
+                },
+            },
+        });
+
+        const { supportedMainnets, supportedTestnets, unsupportedMainnets, unsupportedTestnets } =
+            selectDiscoveryNetworkGroups(store.getState());
+
+        expect(supportedMainnets).toContain(networks.btc);
+        expect(supportedTestnets).toContain(networks.test);
+        expect(unsupportedMainnets).toContain(networks.eth);
+        expect(unsupportedTestnets).toContain(networks.tsep);
     });
 });

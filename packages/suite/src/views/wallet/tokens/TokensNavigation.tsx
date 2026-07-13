@@ -1,59 +1,107 @@
-import { Dispatch, SetStateAction, useEffect, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect } from 'react';
 
-import { Route } from '@suite-common/suite-types';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { selectIsDebugModeActive } from '@suite/debug';
+import { Translation, type TranslationKey, useTranslation } from '@suite/intl';
+import { openModal } from '@suite/modal';
+import { type Route, goto, selectRouteName } from '@suite/router';
+import { useServices } from '@suite-common/dependency-injection';
 import { selectCoinDefinitions, selectNftDefinitions } from '@suite-common/token-definitions';
-import { SelectedAccountLoaded } from '@suite-common/wallet-types';
-import { IconButton, IconName, InputButton, Row, SubTabs } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { type NetworkType } from '@suite-common/wallet-config';
+import { type SelectedAccountLoaded } from '@suite-common/wallet-types';
+import { isErc4626 } from '@suite-common/wallet-utils';
+import {
+    Button,
+    Icon,
+    IconButton,
+    type IconComponent,
+    Input,
+    Row,
+    SubTabs,
+} from '@trezor/components';
+import {
+    CoinSlashIcon,
+    CoinsIcon,
+    EyeSlashIcon,
+    MagnifyingGlassIcon,
+    PercentIcon,
+    PictureFrameIcon,
+    PlusIcon,
+} from '@trezor/icons';
 import { spacings } from '@trezor/theme';
+import { arrayPartition } from '@trezor/utils';
 
-import { openModal } from 'src/actions/suite/modalActions';
-import { goto } from 'src/actions/suite/routerActions';
-import { Translation } from 'src/components/suite';
-import { useDispatch, useSelector, useTranslation } from 'src/hooks/suite';
-import { selectRouteName } from 'src/reducers/suite/routerReducer';
-import { selectIsDebugModeActive } from 'src/selectors/suite/suiteSelectors';
-import { GetTokensOutputType, getTokens } from 'src/utils/wallet/tokenUtils';
-
-import { TranslationKey } from '../../../components/suite/Translation';
+import { useDispatch, useSelector } from 'src/hooks/suite';
+import { type GetTokensOutputType, getTokens } from 'src/utils/wallet/tokenUtils';
 
 type SubTabConfig = {
     isNft: boolean;
     tokens: GetTokensOutputType;
     goToRoute: (route: Route['name']) => () => void;
+    networkType: NetworkType;
 };
 
 type SubTabItem = {
     id: string;
-    iconName: IconName;
+    iconName: IconComponent;
     onClick: () => void;
-    count: number;
+    count?: number;
     labelId: TranslationKey;
 };
 
-const getSubTabConfig = ({ isNft, tokens, goToRoute }: SubTabConfig) =>
-    [
+const getSubTabConfig = ({ isNft, tokens, goToRoute, networkType }: SubTabConfig) => {
+    const [erc4626Tokens, normalTokens] = arrayPartition(tokens.shownWithBalance, isErc4626);
+    // DeFi section is relevant only for EVM networks, but there it is always available.
+    const showDefiTab = !isNft && networkType === 'ethereum';
+
+    const baseConfig: SubTabItem[] = [
         {
             id: isNft ? 'wallet-nfts' : 'wallet-tokens',
-            iconName: isNft ? 'pictureFrame' : 'coins',
+            iconName: isNft ? PictureFrameIcon : CoinsIcon,
             onClick: goToRoute(isNft ? 'wallet-nfts' : 'wallet-tokens'),
-            count: tokens.shownWithBalance.length,
+            count: normalTokens.length,
             labelId: isNft ? 'TR_NAV_COLLECTIONS' : 'TR_NAV_TOKENS',
         },
+        ...(showDefiTab
+            ? [
+                  {
+                      id: 'wallet-tokens-defi',
+                      iconName: PercentIcon,
+                      onClick: goToRoute('wallet-tokens-defi'),
+                      count: erc4626Tokens.length,
+                      labelId: 'TR_DEFI',
+                  } as const,
+              ]
+            : []),
         {
             id: isNft ? 'wallet-nfts-hidden' : 'wallet-tokens-hidden',
-            iconName: 'eyeSlash',
+            iconName: EyeSlashIcon,
             onClick: goToRoute(isNft ? 'wallet-nfts-hidden' : 'wallet-tokens-hidden'),
             count: tokens.hiddenWithBalance.length,
             labelId: 'TR_HIDDEN',
         },
-    ] satisfies SubTabItem[];
+    ];
+
+    // Add inactive tokens tab for Stellar network only
+    if (networkType === 'stellar' && !isNft) {
+        baseConfig.push({
+            id: 'wallet-tokens-inactive',
+            iconName: CoinSlashIcon,
+            onClick: goToRoute('wallet-tokens-inactive'),
+            labelId: 'TR_NAV_INACTIVE_TOKENS',
+        });
+    }
+
+    return baseConfig;
+};
 
 interface TokensNavigationProps {
     selectedAccount: SelectedAccountLoaded;
     searchQuery: string;
     setSearchQuery: Dispatch<SetStateAction<string>>;
     isNft?: boolean;
+    onManualActivation?: () => void;
+    showManualActivation?: boolean;
 }
 
 export const TokensNavigation = ({
@@ -61,10 +109,12 @@ export const TokensNavigation = ({
     searchQuery,
     setSearchQuery,
     isNft = false,
+    onManualActivation,
+    showManualActivation = false,
 }: TokensNavigationProps) => {
     const { account } = selectedAccount;
-    const [isExpanded, setExpanded] = useState(false);
     const routeName = useSelector(selectRouteName);
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const tokenDefinitions = useSelector(state =>
         isNft
             ? selectNftDefinitions(state, selectedAccount.account.symbol)
@@ -80,12 +130,13 @@ export const TokensNavigation = ({
         tokenDefinitions,
         isNft,
     });
-    const showAddToken = ['ethereum'].includes(account.networkType) && isDebug && !isNft;
+    const { networkType } = account;
+    const showAddToken = ['ethereum'].includes(networkType) && isDebug && !isNft;
 
     const handleAddToken = () => {
         if (account.symbol) {
             analytics.report({
-                type: EventType.AccountsActions,
+                type: events.accountsActionsEvent.name,
                 payload: { symbol: account.symbol, action: 'add-token' },
             });
         }
@@ -93,22 +144,21 @@ export const TokensNavigation = ({
     };
 
     const goToRoute = (route: Route['name']) => () => {
-        dispatch(goto(route, { preserveParams: true }));
+        dispatch(goto({ routeName: route, preserveParams: true }));
     };
 
     useEffect(() => {
         setSearchQuery('');
-        setExpanded(false);
     }, [account.symbol, account.index, account.accountType, setSearchQuery]);
 
     return (
         <Row alignItems="center" justifyContent="space-between">
             <SubTabs activeItemId={routeName} size="medium">
-                {getSubTabConfig({ isNft, tokens, goToRoute }).map(tab => (
+                {getSubTabConfig({ isNft, tokens, goToRoute, networkType }).map(tab => (
                     <SubTabs.Item
                         key={tab.id}
                         id={tab.id}
-                        iconName={tab.iconName}
+                        icon={tab.iconName}
                         onClick={tab.onClick}
                         count={tab.count}
                     >
@@ -117,23 +167,42 @@ export const TokensNavigation = ({
                 ))}
             </SubTabs>
             <Row gap={spacings.sm}>
-                <InputButton
+                {showManualActivation && onManualActivation && (
+                    <Button
+                        intent="neutral"
+                        priority="secondary"
+                        size="medium"
+                        onClick={onManualActivation}
+                    >
+                        <Translation id="TR_ACTIVATE_MANUALLY" />
+                    </Button>
+                )}
+                <Input
+                    data-testid="@wallet/accounts/search-icon"
                     placeholder={translationString(
                         isNft ? 'TR_SEARCH_COLLECTIONS' : 'TR_SEARCH_TOKENS',
                     )}
-                    isExpanded={isExpanded}
                     value={searchQuery}
-                    setExpanded={setExpanded}
-                    setValue={setSearchQuery}
-                    onChange={setSearchQuery}
-                    data-testid="@wallet/accounts/search-icon"
+                    onChange={event => setSearchQuery(event.target.value)}
+                    onClear={() => setSearchQuery('')}
+                    size="small"
+                    leftContent={
+                        <Icon
+                            as={MagnifyingGlassIcon}
+                            intent="neutral"
+                            priority="secondary"
+                            size={16}
+                        />
+                    }
                 />
                 {showAddToken && (
                     <IconButton
-                        icon="plus"
-                        size="small"
-                        variant="tertiary"
+                        icon={PlusIcon}
+                        size="medium"
+                        intent="neutral"
+                        priority="secondary"
                         onClick={handleAddToken}
+                        tooltip={{ content: <Translation id="TR_ADD_TOKEN_SUBMIT" /> }}
                     />
                 )}
             </Row>

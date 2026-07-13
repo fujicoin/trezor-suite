@@ -2,20 +2,21 @@ import { createAction } from '@reduxjs/toolkit';
 
 import { getNetwork } from '@suite-common/wallet-config';
 import {
-    Account,
-    AccountBackendSpecific,
-    AccountFailureSpecific,
-    SelectedAccountStatus,
+    type Account,
+    type AccountBackendSpecific,
+    type AccountFailureSpecific,
+    type SelectedAccountStatus,
+    asAccountDescriptor,
+    createAccountKey,
 } from '@suite-common/wallet-types';
 import {
     enhanceAddresses,
     enhanceTokens,
     enhanceUtxo,
     formatNetworkAmount,
-    getAccountKey,
     getAccountSpecific,
 } from '@suite-common/wallet-utils';
-import { AccountInfo, StaticSessionId } from '@trezor/connect';
+import { type AccountInfo, type StaticSessionId } from '@trezor/connect';
 import { isArrayMember } from '@trezor/utils';
 
 import { ACCOUNTS_MODULE_PREFIX } from './accountsConstants';
@@ -67,13 +68,17 @@ const createAccount = createAction(
 
             const payload: Account = {
                 ...account,
-                descriptor,
+                descriptor: asAccountDescriptor(descriptor),
                 descriptorChecksum,
                 empty,
                 balance,
                 availableBalance,
                 history,
-                key: getAccountKey(descriptor, symbol, deviceState),
+                key: createAccountKey({
+                    accountDescriptor: asAccountDescriptor(descriptor),
+                    networkSymbol: symbol,
+                    deviceStaticSessionId: deviceState,
+                }),
                 formattedBalance: formatNetworkAmount(
                     // Ripple and Stellar `availableBalance` is reduced by reserve, use regular balance
                     isArrayMember(networkType, ['ripple', 'stellar']) ? balance : availableBalance,
@@ -121,6 +126,7 @@ const updateAccount = createAction(
                 payload: {
                     ...account,
                     ...accountInfo,
+                    descriptor: asAccountDescriptor(accountInfo.descriptor),
                     path: account.path,
                     empty: accountInfo.empty,
                     visible: account.visible || !accountInfo.empty,

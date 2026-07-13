@@ -1,33 +1,40 @@
-import { BuyTradeQuoteRequest, FiatCurrencyCode } from 'invity-api';
+import { type BuyTradeQuoteRequest } from 'invity-api';
 
 import {
-    TradingBuyFormProps,
-    TradingCountryCode,
+    type TradingBuyFormProps,
+    type TradingCountryCode,
+    buildTradingFiatOption,
     getDefaultCountry,
-    useTradingInfo,
+    getDefaultCountrySubdivision,
+    getSupportedFiatCurrencyWithFallback,
+    useTradingAssets,
 } from '@suite-common/trading';
-
-import { buildTradingFiatOption } from 'src/utils/wallet/trading/tradingUtils';
 
 export const useTradingBuyFormRedirectValues = (
     isFromRedirect: boolean,
     quotesRequest: BuyTradeQuoteRequest | undefined,
 ): TradingBuyFormProps | null => {
-    const { buildDefaultCryptoOption } = useTradingInfo();
+    const { createAssetOptionFromCryptoId } = useTradingAssets();
 
-    return isFromRedirect && quotesRequest
-        ? {
-              amountInCrypto: quotesRequest.wantCrypto,
-              cryptoSelect: buildDefaultCryptoOption(quotesRequest.receiveCurrency),
-              currencySelect: buildTradingFiatOption(
-                  quotesRequest.fiatCurrency as FiatCurrencyCode,
-              ),
-              countrySelect: getDefaultCountry(quotesRequest.country as TradingCountryCode),
-              cryptoInput: quotesRequest.cryptoStringAmount,
-              paymentMethod: quotesRequest.paymentMethod && {
-                  value: quotesRequest.paymentMethod,
-                  label: quotesRequest.paymentMethod,
-              },
-          }
-        : null;
+    if (!isFromRedirect || !quotesRequest) return null;
+
+    return {
+        amountInCrypto: quotesRequest.wantCrypto,
+        cryptoSelect: createAssetOptionFromCryptoId(quotesRequest.receiveCurrency),
+        currencySelect: buildTradingFiatOption(
+            getSupportedFiatCurrencyWithFallback(quotesRequest.fiatCurrency),
+        ),
+        countrySelect: getDefaultCountry(quotesRequest.country as TradingCountryCode),
+        countrySubdivisionSelect: getDefaultCountrySubdivision(quotesRequest.subdivision),
+
+        // fill the input that corresponds to the entered amount type
+        ...(quotesRequest.wantCrypto
+            ? { cryptoInput: quotesRequest.cryptoStringAmount }
+            : { fiatInput: quotesRequest.fiatStringAmount }),
+
+        paymentMethod: quotesRequest.paymentMethod && {
+            value: quotesRequest.paymentMethod,
+            label: quotesRequest.paymentMethod,
+        },
+    };
 };

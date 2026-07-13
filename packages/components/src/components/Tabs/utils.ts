@@ -1,6 +1,6 @@
-import { TypographyStyle, spacings, spacingsPx } from '@trezor/theme';
+import { type TypographyStyle, spacings, spacingsPx } from '@trezor/theme';
 
-import { TabsSize } from './types';
+import { type TabsSize } from './types';
 
 type mapArgs = {
     $size: TabsSize;
@@ -8,9 +8,9 @@ type mapArgs = {
 
 export const mapSizeToTypography = ({ $size }: mapArgs): TypographyStyle => {
     const typographyStyleMap: Record<TabsSize, TypographyStyle> = {
-        large: 'body',
-        medium: 'hint',
-        small: 'label',
+        large: 'body-md',
+        medium: 'body-sm',
+        small: 'body-xs',
     };
 
     return typographyStyleMap[$size];

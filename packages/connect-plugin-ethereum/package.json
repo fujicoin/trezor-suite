@@ -1,9 +1,10 @@
 {
     "name": "@trezor/connect-plugin-ethereum",
-    "version": "9.1.2-beta.1",
+    "version": "10.0.0-alpha.1",
+    "type": "module",
     "author": "Trezor <info@trezor.io>",
     "homepage": "https://github.com/trezor/trezor-suite/tree/develop/packages/connect-plugin-ethereum",
-    "description": "@trezor/connect plugin for Ethereum",
+    "description": "DEPRECATED — EIP-712 hash construction is now handled internally by @trezor/connect@10. See README for migration.",
     "license": "SEE LICENSE IN LICENSE.md",
     "repository": {
         "type": "git",
@@ -19,32 +20,27 @@
     ],
     "sideEffects": false,
     "publishConfig": {
-        "main": "lib/index.js",
+        "main": "./lib/index.mjs",
+        "types": "./lib/index.d.mts",
         "exports": {
             ".": {
-                "import": "./libESM/index.js",
-                "require": "./lib/index.js"
+                "types": "./lib/index.d.mts",
+                "default": "./lib/index.mjs"
             }
         }
     },
     "main": "src/index.ts",
     "files": [
         "lib/",
-        "libESM",
-        "!**/*.map"
+        "CHANGELOG.md"
     ],
     "peerDependencies": {
-        "@metamask/eth-sig-util": "^8.2.0",
         "tslib": "^2.6.2"
     },
-    "devDependencies": {
-        "@metamask/eth-sig-util": "^8.2.0"
-    },
     "scripts": {
-        "test:unit": "yarn g:jest -c ../../jest.config.base.js",
         "type-check": "yarn g:tsc --build tsconfig.json",
-        "build:lib": "yarn build:lib:cjs && yarn build:lib:esm",
-        "build:lib:cjs": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/replace-imports.sh ./lib",
-        "build:lib:esm": "yarn g:rimraf ./libESM && yarn g:tsc --build tsconfig.libESM.json && ../../scripts/replace-imports.sh ./libESM libESM"
+        "build:lib": "yarn g:rimraf ./lib && yarn g:tsc --build tsconfig.lib.json && ../../scripts/publish/replace-imports.sh ./lib",
+        "depcheck": "yarn g:depcheck",
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     }
 }

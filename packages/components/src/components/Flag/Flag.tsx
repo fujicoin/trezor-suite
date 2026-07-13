@@ -1,43 +1,43 @@
-import { useEffect, useState } from 'react';
+import styled, { css } from 'styled-components';
 
-import styled from 'styled-components';
+// TODO: suite-common imports in non-suite packages should not be allowed
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+import {
+    type FlagSize,
+    type FlagType,
+    getFlagSource,
+    mapSizeToBorderRadius,
+    mapSizeToOutlineWidth,
+} from '@suite-common/flags';
 
-import { FLAGS } from './flags';
-import { SkeletonRectangle } from '../skeletons/SkeletonRectangle';
+export type FlagProps = {
+    country: FlagType;
+    size?: FlagSize;
+};
 
-export type FlagType = keyof typeof FLAGS;
-
-const Wrapper = styled.div`
+const Wrapper = styled.div<{ $size: FlagSize }>`
     display: flex;
     align-items: center;
+    width: ${({ $size }) => `${$size}px`};
+    height: ${({ $size }) => `${$size}px`};
+    flex-shrink: 0;
 `;
 
-export interface FlagProps {
-    className?: string;
-    country: FlagType;
-    size?: number;
-}
+const FlagImage = styled.img<{ $size: FlagSize }>`
+    width: 100%;
+    display: block;
+    background: ${({ theme }) => theme.elementFillOnDarkContrast};
 
-export const Flag = ({ size = 24, country, className }: FlagProps) => {
-    const [src, setSrc] = useState('');
-    useEffect(() => {
-        import(`../../images/flags/${country.toLowerCase()}.svg`)
-            .then(module => {
-                setSrc(module.default);
-            })
-            .catch(err => {
-                // NOTE: keep error here as this is not a critical issue
-                console.error('Flag image loading error: ', err);
-            });
-    }, [country]);
+    ${({ $size, theme }) => css`
+        outline: ${mapSizeToOutlineWidth($size)}px solid ${theme.elementBorderNeutralSofter};
+        outline-offset: -${mapSizeToOutlineWidth($size)}px;
+        border-radius: ${mapSizeToBorderRadius($size)}px;
+        background: ${theme.elementFillOnDarkContrast};
+    `}
+`;
 
-    return (
-        <Wrapper>
-            {src ? (
-                <img src={src} width={`${size}px`} alt={`flag-${country}`} className={className} />
-            ) : (
-                <SkeletonRectangle width={size} height={size} />
-            )}
-        </Wrapper>
-    );
-};
+export const Flag = ({ size = 24, country }: FlagProps) => (
+    <Wrapper $size={size}>
+        <FlagImage $size={size} src={getFlagSource(country)} alt={`flag-${country}`} />
+    </Wrapper>
+);

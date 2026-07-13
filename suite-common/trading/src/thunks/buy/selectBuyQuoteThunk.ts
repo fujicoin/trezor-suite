@@ -1,41 +1,29 @@
-import { BuyTrade, FormResponse } from 'invity-api';
+import { type BuyTrade, type FormResponse } from 'invity-api';
 
 import { createThunk } from '@suite-common/redux-utils';
-import { notificationsActions } from '@suite-common/toast-notifications';
-import { Timer } from '@trezor/react-utils';
 
 import { TRADING_BUY_THUNK_PREFIX } from '../../constants';
 import { invityAPI } from '../../invityAPI';
 import { tradingBuyActions } from '../../reducers/buyReducer';
+import { tradingActions } from '../../reducers/tradingCommonReducer';
 import {
     selectTradingBuyInfo,
     selectTradingBuyQuotesRequest,
-    selectTradingCoinSymbolByCryptoId,
 } from '../../selectors/tradingSelectors';
+import { logErrorThunk } from '../common/logErrorThunk';
 
 export type SelectBuyQuoteThunkProps = {
     quote: BuyTrade;
-    timer: Timer;
     returnUrl: string;
 
     loginRequest: (form: FormResponse['form']) => void;
-    userConsent: (provider: string, cryptoCurrency: string) => Promise<boolean>;
     nextStep: () => void;
-    onCancel?: () => void;
 };
 
 export const selectBuyQuoteThunk = createThunk(
     `${TRADING_BUY_THUNK_PREFIX}/selectQuote`,
     async (
-        {
-            quote,
-            returnUrl,
-            timer,
-            loginRequest,
-            userConsent,
-            nextStep,
-            onCancel,
-        }: SelectBuyQuoteThunkProps,
+        { quote, returnUrl, loginRequest, nextStep }: SelectBuyQuoteThunkProps,
         { dispatch, getState },
     ) => {
         const buyInfo = selectTradingBuyInfo(getState());
@@ -45,27 +33,15 @@ export const selectBuyQuoteThunk = createThunk(
 
         if (!quotesRequest || !quote.receiveCurrency || !provider) return;
 
-        // consent to continue (modal)
-        const result = await userConsent(
-            provider.name,
-            selectTradingCoinSymbolByCryptoId(getState(), quote.receiveCurrency) ?? 'unknown',
-        );
-
-        if (!result) {
-            onCancel?.();
-
-            return;
-        }
-
         // empty quoteId means the partner requests login first, requestTrade to get login screen
         if (!quote.quoteId) {
             const response = await invityAPI.doBuyTrade({ trade: quote, returnUrl });
 
             if (!response) {
                 dispatch(
-                    notificationsActions.addToast({
-                        type: 'error',
-                        error: 'No response from the server',
+                    logErrorThunk({
+                        errorMessage: 'No response from the server',
+                        tradingType: 'buy',
                     }),
                 );
 
@@ -80,7 +56,7 @@ export const selectBuyQuoteThunk = createThunk(
         }
 
         dispatch(tradingBuyActions.saveSelectedQuote(quote));
-        timer.stop();
+        dispatch(tradingActions.stopRefetchQuotes());
         nextStep();
     },
 );

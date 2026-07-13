@@ -1,8 +1,11 @@
+import { useEffect } from 'react';
 import { Pressable } from 'react-native';
+
+import { useNavigation } from '@react-navigation/native';
 
 import { Box, HStack } from '@suite-native/atoms';
 import { Icon } from '@suite-native/icons';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { SCREEN_HEADER_HEIGHT } from '../constants';
 import { DeviceSwitchContent } from './DeviceSwitchContent';
@@ -18,10 +21,10 @@ const switchStyle = prepareNativeStyle<SwitchStyleProps>((utils, { isDeviceManag
     height: SCREEN_HEADER_HEIGHT,
     paddingVertical: utils.spacings.sp8,
     paddingHorizontal: utils.spacings.sp16,
-    borderColor: utils.colors.borderElevation2,
+    borderColor: utils.colors.legacyBorderElevation2,
     borderWidth: utils.borders.widths.small,
-    borderRadius: utils.borders.radii.round,
-    backgroundColor: utils.colors.backgroundSurfaceElevation1,
+    borderRadius: utils.borders.radii.r16,
+    backgroundColor: utils.colors.surfaceFillRaised,
     extends: {
         condition: isDeviceManagerVisible,
         style: {
@@ -32,9 +35,11 @@ const switchStyle = prepareNativeStyle<SwitchStyleProps>((utils, { isDeviceManag
 
 const switchWrapperStyle = prepareNativeStyle(_ => ({
     flex: 1,
+    zIndex: 10,
 }));
 
 export const DeviceSwitch = () => {
+    const navigation = useNavigation();
     const { applyStyle } = useNativeStyles();
 
     const { setIsDeviceManagerVisible, isDeviceManagerVisible } = useDeviceManager();
@@ -42,6 +47,11 @@ export const DeviceSwitch = () => {
     const toggleDeviceManager = () => {
         setIsDeviceManagerVisible(!isDeviceManagerVisible);
     };
+
+    useEffect(
+        () => navigation.addListener('blur', () => setIsDeviceManagerVisible(false)),
+        [navigation, setIsDeviceManagerVisible],
+    );
 
     return (
         <Pressable
@@ -52,7 +62,7 @@ export const DeviceSwitch = () => {
             <HStack justifyContent="space-between" alignItems="center" spacing="sp16">
                 <Box style={applyStyle(switchStyle, { isDeviceManagerVisible })}>
                     <DeviceSwitchContent />
-                    <Icon name="caretUpDown" color="iconDefault" />
+                    <Icon name="caretUpDown" color="contentPrimary" />
                 </Box>
             </HStack>
         </Pressable>

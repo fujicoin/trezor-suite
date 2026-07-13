@@ -1,19 +1,11 @@
-import styled from 'styled-components';
-
+import { openEarlyAccessSetup } from '@suite/desktop-update';
+import { Translation } from '@suite/intl';
+import { Anchor, SettingsAnchor } from '@suite/router';
+import { Row } from '@trezor/components';
+import { ActionButton, ActionColumn, SectionItem, TextColumn } from '@trezor/product-components';
 import { desktopApi } from '@trezor/suite-desktop-api';
 
-import { openEarlyAccessSetup } from 'src/actions/suite/desktopUpdateActions';
-import { SettingsSectionItem } from 'src/components/settings';
-import { ActionButton, ActionColumn, TextColumn, Translation } from 'src/components/suite';
-import { SettingsAnchor } from 'src/constants/suite/anchors';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-
-const Version = styled.div`
-    span {
-        display: flex;
-        align-items: center;
-    }
-`;
 
 export const EarlyAccess = () => {
     const desktopUpdate = useSelector(state => state.desktopUpdate);
@@ -25,44 +17,52 @@ export const EarlyAccess = () => {
     };
 
     return (
-        <SettingsSectionItem anchorId={SettingsAnchor.EarlyAccess}>
-            <TextColumn
-                title={
-                    <Translation
-                        id={
-                            desktopUpdate.allowPrerelease
-                                ? 'TR_EARLY_ACCESS_ENABLED'
-                                : 'TR_EARLY_ACCESS'
-                        }
-                    />
-                }
-                description={
-                    <Version>
-                        <Translation
-                            id={
-                                desktopUpdate.allowPrerelease
-                                    ? 'TR_EARLY_ACCESS_DESCRIPTION_ENABLED'
-                                    : 'TR_EARLY_ACCESS_DESCRIPTION'
-                            }
-                        />
-                    </Version>
-                }
-            />
-            <ActionColumn>
-                <ActionButton
-                    onClick={setupEarlyAccess}
-                    variant="primary"
-                    data-testid="@settings/early-access-join-button"
+        <Anchor anchorId={SettingsAnchor.EarlyAccess}>
+            {({ anchorId, anchorRef, shouldHighlight }) => (
+                <SectionItem
+                    data-testid={anchorId}
+                    ref={anchorRef}
+                    shouldHighlight={shouldHighlight}
                 >
-                    <Translation
-                        id={
-                            desktopUpdate.allowPrerelease
-                                ? 'TR_EARLY_ACCESS_DISABLE'
-                                : 'TR_EARLY_ACCESS_ENABLE'
+                    <TextColumn
+                        title={
+                            <Translation
+                                id={
+                                    desktopUpdate.allowPrerelease
+                                        ? 'TR_EARLY_ACCESS_ENABLED'
+                                        : 'TR_EARLY_ACCESS'
+                                }
+                            />
+                        }
+                        description={
+                            <Row alignItems="center">
+                                <Translation
+                                    id={
+                                        desktopUpdate.allowPrerelease
+                                            ? 'TR_EARLY_ACCESS_DESCRIPTION_ENABLED'
+                                            : 'TR_EARLY_ACCESS_DESCRIPTION'
+                                    }
+                                />
+                            </Row>
                         }
                     />
-                </ActionButton>
-            </ActionColumn>
-        </SettingsSectionItem>
+                    <ActionColumn>
+                        <ActionButton
+                            onClick={setupEarlyAccess}
+                            intent="brand"
+                            data-testid="@settings/early-access-join-button"
+                        >
+                            <Translation
+                                id={
+                                    desktopUpdate.allowPrerelease
+                                        ? 'TR_EARLY_ACCESS_DISABLE'
+                                        : 'TR_EARLY_ACCESS_ENABLE'
+                                }
+                            />
+                        </ActionButton>
+                    </ActionColumn>
+                </SectionItem>
+            )}
+        </Anchor>
     );
 };

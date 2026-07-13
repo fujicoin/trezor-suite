@@ -1,6 +1,6 @@
 import { useSelector } from 'react-redux';
 
-import { selectPhysicalDevicesGrouppedById } from '@suite-common/wallet-core';
+import { selectPhysicalDevicesGrouppedById, shouldDeviceBeRemembered } from '@suite-common/device';
 import { Box, Card, Divider, HStack, Text, VStack } from '@suite-native/atoms';
 import { ConnectionDot } from '@suite-native/device-manager';
 import { DeviceModelIcon } from '@suite-native/icons';
@@ -17,6 +17,10 @@ export const DevicesManagement = () => {
             <AutoEjectSwitch />
             {deviceGroups.map(devices => {
                 const [firstDevice] = devices;
+                if (!firstDevice) return null;
+
+                if (!shouldDeviceBeRemembered({ device: firstDevice })) return null;
+
                 const deviceModel = firstDevice.features?.internal_model;
 
                 return (
@@ -26,17 +30,17 @@ export const DevicesManagement = () => {
                                 <DeviceModelIcon deviceModel={deviceModel} size="extraLarge" />
                             )}
                             <Box>
-                                <Text variant="highlight" color="textDefault">
-                                    {firstDevice.features.label || firstDevice.name}
+                                <Text variant="body-md-strong" color="contentPrimary">
+                                    {firstDevice.features?.label ?? firstDevice.name}
                                 </Text>
                                 <HStack alignItems="center" spacing="sp8">
                                     <ConnectionDot isConnected={firstDevice.connected} />
                                     <Text
-                                        variant="hint"
+                                        variant="body-sm"
                                         color={
                                             firstDevice.connected
-                                                ? 'textSecondaryHighlight'
-                                                : 'textSubdued'
+                                                ? 'contentBrand'
+                                                : 'contentSecondary'
                                         }
                                     >
                                         <Translation

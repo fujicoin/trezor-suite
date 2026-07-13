@@ -1,8 +1,8 @@
-import { thp as protocolThp } from '@trezor/protocol';
+import { DEVICE } from '@trezor/connect-common';
+import { TypedError } from '@trezor/connect-common/src/constants/errors';
+import type { thp as protocolThp } from '@trezor/protocol';
 
-import { TypedError } from '../../constants/errors';
-import { DEVICE } from '../../events';
-import type { Device } from '../Device';
+import type { IDevice } from '../../types/idevice';
 
 type ThpTypedCall = {
     ThpCreateChannelRequest: 'ThpCreateChannelResponse';
@@ -24,7 +24,7 @@ type ThpTypedCall = {
     ThpCreateNewSession: 'Success';
 };
 
-type ThpMessage = protocolThp.ThpMessageType & { Success: {} };
+type ThpMessage = protocolThp.ThpMessageType & { Success: Record<never, never> };
 type TypedPayloadItem<K> = K extends keyof ThpMessage
     ? {
           type: K;
@@ -47,7 +47,7 @@ type ThpCallResponse = {
 type ThpMessagePayload<T extends MessageKey = MessageKey> = ThpMessage[T];
 
 export const thpCall = async <T extends MessageKey>(
-    device: Device,
+    device: IDevice,
     name: T,
     data: ThpMessagePayload<T>,
 ): Promise<ThpCallResponse[T]> => {
@@ -88,7 +88,7 @@ export const thpCall = async <T extends MessageKey>(
     return result.payload as ThpCallResponse[T];
 };
 
-export const abortThpWorkflow = async (device: Device, abort?: () => any) => {
+export const abortThpWorkflow = async (device: IDevice) => {
     const thpState = device.getThpState();
     if (!thpState || !device.currentRun) {
         return Promise.resolve(); // not a THP device
@@ -103,13 +103,10 @@ export const abortThpWorkflow = async (device: Device, abort?: () => any) => {
         await thpState.pairingTagPromise.abort();
         await device.getCurrentSession().cancelCall();
         thpState.resetState();
+        device.emit(DEVICE.THP_PAIRING_STATUS_CHANGED, { status: 'canceled' });
     } else if (thpState.cancelablePromise) {
         thpState.sync('send', 'Cancel');
         await device.getCurrentSession().send('Cancel', {});
-        // abort current run and wait for the result
-        if (abort) {
-            abort();
-        }
         await device.currentRun;
     }
 };

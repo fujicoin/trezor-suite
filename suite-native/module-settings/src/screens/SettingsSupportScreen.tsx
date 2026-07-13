@@ -1,48 +1,27 @@
-import { CompactCardWithIconLayout, TitledSection, VStack } from '@suite-native/atoms';
+import { VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
-import { useOpenLink } from '@suite-native/link';
 import { DynamicScreenHeader, Screen } from '@suite-native/navigation';
 
 import { AboutUsBanners } from '../components/AboutUsBanners';
 import { AppCommitHash } from '../components/AppCommitHash';
-import { FAQInfoPanel } from '../components/FAQInfoPanel';
-import { SupportCard } from '../components/SupportCard';
+import { FaqCard } from '../components/FaqCard';
+import { LegalSection } from '../components/LegalSection';
+import { NeedHelpSection } from '../components/NeedHelpSection';
 
-export const SettingsSupportScreen = () => {
-    const openLink = useOpenLink();
-
-    const handleOpenTermsAndConditions = () => {
-        openLink('https://data.trezor.io/legal/mobile-wallet-terms.pdf');
-    };
-
-    const handleOpenPrivacyPolicy = () => {
-        openLink('https://data.trezor.io/legal/privacy-policy.html');
-    };
-
-    return (
-        <Screen
-            header={<DynamicScreenHeader title={<Translation id="moduleSettings.faq.title" />} />}
-        >
-            <VStack spacing="sp40">
-                <VStack spacing="sp32">
-                    <FAQInfoPanel />
-                    <SupportCard />
-                </VStack>
-                <AboutUsBanners />
-                <TitledSection title={<Translation id="moduleSettings.faq.legal" />}>
-                    <CompactCardWithIconLayout
-                        title="Terms & conditions"
-                        icon="filePdf"
-                        onPress={handleOpenTermsAndConditions}
-                    />
-                    <CompactCardWithIconLayout
-                        title="Privacy policy"
-                        icon="filePdf"
-                        onPress={handleOpenPrivacyPolicy}
-                    />
-                </TitledSection>
-                <AppCommitHash />
-            </VStack>
-        </Screen>
-    );
-};
+export const SettingsSupportScreen = () => (
+    <Screen
+        header={
+            <DynamicScreenHeader
+                title={<Translation id="moduleSettings.items.general.support.title" />}
+            />
+        }
+    >
+        <VStack spacing="sp32">
+            <FaqCard />
+            <NeedHelpSection />
+            <AboutUsBanners />
+            <LegalSection />
+            <AppCommitHash />
+        </VStack>
+    </Screen>
+);

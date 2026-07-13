@@ -1,20 +1,23 @@
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { bluetoothActions, selectAdapterStatus } from '@suite-common/bluetooth';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectDevices } from '@suite-common/device';
 import * as deviceUtils from '@suite-common/suite-utils';
-import { selectDevices } from '@suite-common/wallet-core';
 import { Button, Column } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { TrezorDevicesIcon } from '@trezor/icons';
 
 import { setConnectionMode, toggleConnectionModal } from 'src/actions/device/deviceSlice';
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { selectSuiteFlags } from 'src/selectors/suite/suiteSelectors';
-import { ForegroundAppProps } from 'src/types/suite';
+import { type ForegroundAppProps } from 'src/types/suite';
 
 import { DeviceItem } from './DeviceItem/DeviceItem';
 import { SwitchDeviceModal } from './SwitchDeviceModal';
 
-export const SwitchDevice = ({ cancelable, onCancel }: ForegroundAppProps) => {
-    const { isBluetoothEnabled } = useSelector(selectSuiteFlags);
+export const SwitchDeviceContent = ({ cancelable, onCancel }: ForegroundAppProps) => {
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const dispatch = useDispatch();
-
+    const bluetoothAdapterStatus = useSelector(selectAdapterStatus);
     const devices = useSelector(selectDevices);
 
     // exclude selectedDevice from list, because other devices could have a higher priority,
@@ -24,33 +27,50 @@ export const SwitchDevice = ({ cancelable, onCancel }: ForegroundAppProps) => {
     });
 
     const openDeviceConnectionModal = () => {
-        dispatch(setConnectionMode('bluetooth'));
         dispatch(toggleConnectionModal());
+
+        if (bluetoothAdapterStatus === 'enabled') {
+            dispatch(bluetoothActions.enableAutoConnect());
+            dispatch(setConnectionMode('bluetooth'));
+        }
+
+        analytics.report({
+            type: events.deviceConnectionConnectButtonEvent.name,
+            payload: {
+                option: 'dropdown',
+            },
+        });
+
         onCancel();
     };
 
     return (
-        <SwitchDeviceModal isAnimationEnabled onCancel={cancelable ? onCancel : undefined}>
-            <Column gap={spacings.md}>
-                {sortedDevices.map(device => (
-                    <DeviceItem
-                        key={`${device.path}-${device.id}-${device.instance}`}
-                        device={device}
-                        instances={deviceUtils.getDeviceInstances(device, devices)}
-                        onCancel={cancelable ? onCancel : undefined}
-                    />
-                ))}
-                {isBluetoothEnabled && (
-                    <Button
-                        variant="tertiary"
-                        icon="bluetooth"
-                        isFullWidth
-                        onClick={openDeviceConnectionModal}
-                    >
-                        Pair Trezor Safe 7
-                    </Button>
-                )}
-            </Column>
-        </SwitchDeviceModal>
+        <Column gap={12}>
+            {sortedDevices.map(device => (
+                <DeviceItem
+                    key={`${device.path}-${device.id}-${device.instance}`}
+                    device={device}
+                    instances={deviceUtils.getDeviceInstances(device, devices)}
+                    onCancel={cancelable ? onCancel : undefined}
+                />
+            ))}
+            <Button
+                intent="neutral"
+                priority="secondary"
+                iconLeft={TrezorDevicesIcon}
+                isFloating
+                width="100%"
+                size="large"
+                onClick={openDeviceConnectionModal}
+            >
+                <Translation id="TR_CONNECT_DEVICE" />
+            </Button>
+        </Column>
     );
 };
+
+export const SwitchDevice = ({ cancelable, onCancel }: ForegroundAppProps) => (
+    <SwitchDeviceModal isAnimationEnabled onCancel={cancelable ? onCancel : undefined}>
+        <SwitchDeviceContent cancelable={cancelable} onCancel={onCancel} />
+    </SwitchDeviceModal>
+);

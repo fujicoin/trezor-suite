@@ -1,14 +1,13 @@
 import { useCallback } from 'react';
 import { useSelector } from 'react-redux';
 
-import { NetworkSymbol, NetworkSymbolExtended, getNetwork } from '@suite-common/wallet-config';
+import {
+    type NetworkSymbol,
+    type NetworkSymbolExtended,
+    getNetwork,
+} from '@suite-common/wallet-config';
 import { selectAreSatsAmountUnit } from '@suite-common/wallet-core';
 import { satoshiAmountToBtc } from '@suite-common/wallet-utils';
-
-export type ConvertStrToBaseUnit = ReturnType<typeof useConvertFormValueToBaseUnit>;
-export type ConvertNumberToBaseUnit = ReturnType<
-    typeof useConvertFormValueToBaseUnit
->['convertNumberToBaseUnit'];
 
 export const useConvertFormValueToBaseUnit = () => {
     const areSatsAmountUnit = useSelector(selectAreSatsAmountUnit);

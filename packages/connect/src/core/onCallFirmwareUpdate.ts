@@ -1,4 +1,16 @@
-import { resolveAfter } from '@trezor/utils';
+import type {
+    BinaryInfo,
+    CommonParams,
+    CoreEventMessage,
+    DeviceUniquePath,
+    FirmwareUpdateFlowType,
+    FirmwareUpdateResponse,
+} from '@trezor/connect-common';
+import { FirmwareType, UI_REQUEST, UI_RESPONSE, createUiMessage } from '@trezor/connect-common';
+import { ERRORS } from '@trezor/connect-common/src/constants';
+import { getFirmwareOrBootloaderVersionArray } from '@trezor/device-utils';
+import { MessagesSchema as PROTO } from '@trezor/protobuf';
+import { type Logger, resolveAfter } from '@trezor/utils';
 import { isEqual, isNewer } from '@trezor/utils/src/versionUtils';
 
 import {
@@ -8,20 +20,12 @@ import {
     stripFwHeaders,
     uploadFirmware,
 } from '../api/firmware';
-import { ERRORS, PROTO } from '../constants';
 import { getFirmwareLocation, getReleaseByVersion } from '../data/firmwareInfo';
+import * as settingsStore from '../data/settingsStore';
 import type { Device } from '../device/Device';
-import { DeviceList } from '../device/DeviceList';
-import { CoreEventMessage, UI, UiPromiseCreator, createUiMessage } from '../events';
-import {
-    BinaryInfo,
-    CommonParams,
-    DeviceUniquePath,
-    FirmwareType,
-    FirmwareUpdateFlowType,
-} from '../types';
-import { FirmwareUpdateResponse } from '../types/api/firmwareUpdate';
-import type { Log } from '../utils/debug';
+import type { DeviceList } from '../device/DeviceList';
+import type { UiPromiseCreator } from '../events/ui-promise';
+import { isFirmwareCacheUsedForSelectedSource } from '../utils/firmwareUtils';
 
 type PostMessage = (message: CoreEventMessage) => void;
 
@@ -36,10 +40,63 @@ type ReconnectContext = {
     device: Device;
     registerEvents: (device: Device) => void;
     postMessage: PostMessage;
-    log: Log;
+    log: Logger;
     abortSignal: AbortSignal;
-    uiPromises: { create: UiPromiseCreator };
+    uiPromises: { create: UiPromiseCreator; rejectAll: (e: Error) => void };
 };
+
+// create UI promise and wait for:
+// - pairing confirmation
+// - device disconnection
+// - abort signal
+const waitForThpPairingConfirmation = async ({
+    uiPromises,
+    postMessage,
+    device,
+    deviceList,
+    abortSignal,
+    thpPairingError,
+}: Pick<
+    ReconnectContext,
+    'uiPromises' | 'postMessage' | 'device' | 'deviceList' | 'abortSignal'
+> & {
+    thpPairingError: boolean;
+}) => {
+    const uiPromise = uiPromises.create(UI_RESPONSE.RECEIVE_CONFIRMATION, device);
+    postMessage(
+        createUiMessage(
+            UI_REQUEST.REQUEST_CONFIRMATION,
+            {
+                view: thpPairingError ? 'thp-pairing-failed' : 'thp-pairing-start',
+            },
+            { requestId: uiPromise.requestId },
+        ),
+    );
+
+    const devicePath = device.getUniquePath();
+    const disconnectListener = (event: Device) => {
+        if (event.getUniquePath() === devicePath) {
+            uiPromise.reject(ERRORS.TypedError('Device_Disconnected'));
+        }
+    };
+    const abortListener = () => {
+        uiPromise.reject(ERRORS.TypedError('Method_Interrupted'));
+    };
+
+    try {
+        abortSignal.addEventListener('abort', abortListener);
+        deviceList.on('device-disconnect', disconnectListener);
+        const uiResp = await uiPromise.promise;
+        if (!uiResp.payload) {
+            throw ERRORS.TypedError('Method_PermissionsNotGranted');
+        }
+    } finally {
+        abortSignal.removeEventListener('abort', abortListener);
+        deviceList.off('device-disconnect', disconnectListener);
+    }
+};
+
+const WAIT_FOR_RECONNECT_TIME = 2000;
 
 const waitForReconnectedDevice = async (
     { bootloader, method, intermediary }: ReconnectParams,
@@ -61,7 +118,7 @@ const waitForReconnectedDevice = async (
         log.debug('onCallFirmwareUpdate', 'waiting for device to disconnect');
 
         postMessage(
-            createUiMessage(UI.FIRMWARE_RECONNECT, {
+            createUiMessage(UI_REQUEST.FIRMWARE_RECONNECT, {
                 device: device.toMessageObject(),
                 disconnected: false,
                 method,
@@ -81,9 +138,10 @@ const waitForReconnectedDevice = async (
 
     let reconnectedDevice: Device | undefined;
     let thpPairingError = false;
+    let skipWaitTime = false;
     do {
         postMessage(
-            createUiMessage(UI.FIRMWARE_RECONNECT, {
+            createUiMessage(UI_REQUEST.FIRMWARE_RECONNECT, {
                 device: device.toMessageObject(),
                 disconnected: true,
                 method,
@@ -92,9 +150,11 @@ const waitForReconnectedDevice = async (
             }),
         );
 
-        await resolveAfter(2000);
+        await resolveAfter(skipWaitTime ? 0 : WAIT_FOR_RECONNECT_TIME);
+        skipWaitTime = false;
+
         try {
-            reconnectedDevice = deviceList.getOnlyDevice();
+            reconnectedDevice = deviceList.getOnlyDevice(device.descriptor.apiType);
         } catch {
             /* empty */
         }
@@ -116,15 +176,20 @@ const waitForReconnectedDevice = async (
             let runFn;
             if (reconnectedDevice.getThpState()?.properties) {
                 // stop and wait for UI decision
-                const uiPromise = uiPromises.create(UI.RECEIVE_CONFIRMATION, reconnectedDevice);
-                postMessage(
-                    createUiMessage(UI.REQUEST_CONFIRMATION, {
-                        view: thpPairingError ? 'thp-pairing-failed' : 'thp-pairing-start',
-                    }),
-                );
-                const uiResp = await uiPromise.promise;
-                if (!uiResp.payload) {
-                    throw ERRORS.TypedError('Method_PermissionsNotGranted');
+                try {
+                    await waitForThpPairingConfirmation({
+                        uiPromises,
+                        postMessage,
+                        device: reconnectedDevice,
+                        deviceList,
+                        thpPairingError,
+                        abortSignal,
+                    });
+                } catch (e) {
+                    if (e.code === 'Device_Disconnected') {
+                        continue; // loop again, wait for FIRMWARE_RECONNECT
+                    }
+                    throw e;
                 }
 
                 runFn = () => Promise.resolve(); // enforce pairing UI interaction
@@ -138,9 +203,12 @@ const waitForReconnectedDevice = async (
                     skipLanguageChecks: true,
                 });
             } catch (error) {
+                uiPromises.rejectAll(error);
+
                 // error in THP pairing
-                if (error.code === 'Device_ThpPairingTagInvalid') {
-                    thpPairingError = true;
+                thpPairingError = error.code === 'Device_ThpPairingTagInvalid';
+                if (thpPairingError || error.code === 'Failure_ActionCancelled') {
+                    skipWaitTime = true;
                 }
             }
         }
@@ -153,16 +221,8 @@ const waitForReconnectedDevice = async (
             bootloader === !reconnectedDevice.features.bootloader_mode ||
             (intermediary &&
                 !isNewer(
-                    [
-                        reconnectedDevice.features.major_version,
-                        reconnectedDevice.features.minor_version,
-                        reconnectedDevice.features.patch_version,
-                    ],
-                    [
-                        device.features.major_version,
-                        device.features.minor_version,
-                        device.features.patch_version,
-                    ],
+                    getFirmwareOrBootloaderVersionArray(reconnectedDevice.features),
+                    getFirmwareOrBootloaderVersionArray(device.features),
                 )))
     );
 
@@ -180,67 +240,36 @@ const waitForReconnectedDevice = async (
     return reconnectedDevice;
 };
 
-const getRebootMethod = async ({
-    deviceList,
-    device,
-    log,
-    postMessage,
-}: {
-    deviceList: DeviceList;
+type WaitForBluetoothRebootParams = {
+    target: 'bootloader' | 'normal';
     device: Device;
-    log: Log;
     postMessage: PostMessage;
-}) => {
-    let method: ReconnectParams['method'] = 'wait';
-
-    // not a bluetooth device
-    if (!device.bluetoothProps) {
-        return method;
-    }
-
-    const ctrl = new AbortController();
-    // device disconnected before it was requested to disconnect by the BT api. see: UI.FIRMWARE_DISCONNECT
-    const disconnectedPromise = new Promise<void>(resolve => {
-        const handleDisconnect = () => {
-            log.info(`waitForBluetoothReboot device-disconnected. aborted: ${ctrl.signal.aborted}`);
-            if (!ctrl.signal.aborted) {
-                ctrl.abort();
-                method = 'auto'; // do not wait for disconnection
-            }
-
-            resolve();
-        };
-        deviceList.once('device-disconnect', handleDisconnect);
-        ctrl.signal.addEventListener('abort', () => {
-            deviceList.off('device-disconnect', handleDisconnect);
-            resolve();
-        });
-    });
-
-    // close device
-    await device.release();
-
-    // wait T3W1 countdown after FW installation
-    const restartPromise = new Promise<void>(resolve => {
-        resolveAfter(4000).then(() => {
-            log.info(`waitForBluetoothReboot restartPromise. aborted: ${ctrl.signal.aborted}`);
-            if (!ctrl.signal.aborted) {
-                ctrl.abort();
-                // request ui (suite) to disconnect the device
-                postMessage(
-                    createUiMessage(UI.FIRMWARE_DISCONNECT, {
-                        device: device.toMessageObject(),
-                    }),
-                );
-            }
-            resolve();
-        });
-    });
-
-    await Promise.race([disconnectedPromise, restartPromise]);
-
-    return method;
 };
+
+const waitForBluetoothReboot = ({ device, target, postMessage }: WaitForBluetoothRebootParams) =>
+    new Promise<void>(resolve => {
+        postMessage(
+            createUiMessage(UI_REQUEST.FIRMWARE_RECONNECT, {
+                device: device.toMessageObject(),
+                disconnected: false,
+                method: 'auto',
+                target,
+                i: 0,
+            }),
+        );
+
+        const handler = () => {
+            const deviceIsReady =
+                (target === 'bootloader' && device.features?.bootloader_mode) ||
+                (target === 'normal' && device.getThpState()?.properties);
+
+            if (deviceIsReady) {
+                device.lifecycle.off('device-changed', handler);
+                resolve();
+            }
+        };
+        device.lifecycle.on('device-changed', handler);
+    });
 
 const getInstallationParams = (device: Device, params: Params) => {
     const btcOnly = params.btcOnly ?? device.firmwareType === FirmwareType.BitcoinOnly;
@@ -252,11 +281,7 @@ const getInstallationParams = (device: Device, params: Params) => {
             : undefined;
         const isUpdatingToNewerVersion = !version
             ? device.firmwareReleaseConfigInfo?.isNewer
-            : isNewer(version, [
-                  device.features.major_version,
-                  device.features.minor_version,
-                  device.features.patch_version,
-              ]);
+            : isNewer(version, getFirmwareOrBootloaderVersionArray(device.features));
         const isUpdatingToEqualFirmwareType =
             (device.firmwareType === FirmwareType.BitcoinOnly) === btcOnly;
 
@@ -298,7 +323,7 @@ type BinaryHelperParams = {
     params: Params;
     firmwareType: FirmwareType;
     isIntermediary: boolean;
-    log: Log;
+    log: Logger;
 };
 
 const getBinaryHelper = async ({
@@ -312,7 +337,7 @@ const getBinaryHelper = async ({
         return Promise.resolve({
             binary: params.binary,
             binaryVersion: parseFirmwareHeaders(Buffer.from(params.binary)).version,
-            releaseVersion: undefined,
+            release: undefined,
         });
     }
 
@@ -352,7 +377,7 @@ const getBinaryHelper = async ({
         intermediaryVersion: isIntermediary && intermediary ? intermediary.version : undefined,
     });
 
-    return getBinary({ baseUrl, path, version });
+    return getBinary({ baseUrl, path, release });
 };
 
 export type Params = {
@@ -366,8 +391,8 @@ type Context = {
     deviceList: DeviceList;
     registerEvents: (device: Device) => void;
     postMessage: PostMessage;
-    initDevice: (path?: DeviceUniquePath) => Promise<Device>;
-    log: Log;
+    selectDevice: (path?: DeviceUniquePath) => Device;
+    log: Logger;
     abortSignal: AbortSignal;
     uiPromises: ReconnectContext['uiPromises'];
 };
@@ -381,18 +406,18 @@ export const onCallFirmwareUpdate = async ({
     params,
     context,
 }: OnCallFirmwareUpdateParams): Promise<FirmwareUpdateResponse> => {
-    const { deviceList, registerEvents, postMessage, initDevice, log } = context;
+    const { deviceList, registerEvents, postMessage, selectDevice, log } = context;
     log.debug('onCallFirmwareUpdate with params: ', params);
 
-    // Firmware type can be determine by the device.firmwareType but in case of switching form one to other we use params.btcOnly.
+    // Firmware type can be determined by the device.firmwareType but in case of switching form one to other we use params.btcOnly.
     const firmwareType = params.btcOnly ? FirmwareType.BitcoinOnly : FirmwareType.Universal;
 
-    const device = await initDevice(params?.device?.path);
+    const device = selectDevice(params?.device?.path);
     // Sanity check if device is missing `features`.
     if (!device.features) {
         throw ERRORS.TypedError('Device_NotFound', 'Device missing features');
     }
-    if (deviceList.getDeviceCount() > 1) {
+    if (deviceList.getDeviceCount() > 1 && !deviceList.getOnlyDevice(device.descriptor.apiType)) {
         throw ERRORS.TypedError(
             'Device_MultipleNotSupported',
             'Firmware update allowed with only 1 device connected',
@@ -415,20 +440,20 @@ export const onCallFirmwareUpdate = async ({
 
     // We start downloading, it could be more than 1 FW in case we need `intermediary`.
     postMessage(
-        createUiMessage(UI.FIRMWARE_PROGRESS, {
+        createUiMessage(UI_REQUEST.FIRMWARE_PROGRESS, {
             device: device.toMessageObject(),
             operation: 'downloading',
             progress: 0,
         }),
     );
 
-    // Sometiemes we use `intermediary` FW that will be uploaded before the `final`,
+    // Sometimes we use `intermediary` FW that will be uploaded before the `final`,
     // where `final` is the one that will stay in the device and will be used.
     let intermediaryBinaryInfo: BinaryInfo | undefined;
     let finalBinaryInfo: BinaryInfo;
     const fwFetchPromises = [];
 
-    // Initiate the download for the intermediary firmware if requeried.
+    // Initiate the download for the intermediary firmware if required.
     if (intermediary) {
         fwFetchPromises.push(
             getBinaryHelper({ device, params, firmwareType, isIntermediary: true, log }),
@@ -458,24 +483,30 @@ export const onCallFirmwareUpdate = async ({
     }
 
     postMessage(
-        createUiMessage(UI.FIRMWARE_PROGRESS, {
+        createUiMessage(UI_REQUEST.FIRMWARE_PROGRESS, {
             device: device.toMessageObject(),
             operation: 'downloading',
             progress: 100,
         }),
     );
 
-    // We have completed binary download and we should notify sending an event,
+    // We have completed binary download, and we should notify sending an event,
     // if desktop wants to store it. We only do this for final FW, not intermediaries.
-    postMessage(
-        createUiMessage(UI.FIRMWARE_DOWNLOADED, {
+    // We also check if `BinaryInfo.release` is present, otherwise it is custom FW, not to store.
+    if (
+        isFirmwareCacheUsedForSelectedSource(settingsStore.get('firmwareChannel')) &&
+        finalBinaryInfo.release
+    ) {
+        const message = createUiMessage(UI_REQUEST.FIRMWARE_DOWNLOADED, {
             binary: finalBinaryInfo.binary,
             binaryVersion: finalBinaryInfo.binaryVersion,
-            releaseVersion: finalBinaryInfo.releaseVersion,
-            firmwareType: device.firmwareType,
+            releaseVersion: finalBinaryInfo.release?.version,
+            firmwareType,
+            release: finalBinaryInfo.release,
             internalModel: device.features.internal_model,
-        }),
-    );
+        });
+        postMessage(message);
+    }
 
     const deviceInitiallyConnectedInBootloader = device.features.bootloader_mode;
 
@@ -515,23 +546,20 @@ export const onCallFirmwareUpdate = async ({
             'waiting for disconnected event after rebootToBootloader...',
         );
 
-        if (device.bluetoothProps) {
+        if (device.descriptor.apiType === 'bluetooth') {
             // close device
             await device.release();
-            // request ui (suite) to disconnect the device
-            postMessage(
-                createUiMessage(UI.FIRMWARE_DISCONNECT, {
-                    device: device.toMessageObject(),
-                }),
-            );
+            // wait for device-change
+            await waitForBluetoothReboot({ device, target: 'bootloader', postMessage });
+        } else {
+            await disconnectedPromise;
+
+            // This delay is crucial see https://github.com/trezor/trezor-firmware/issues/1983
+            if (device.features.major_version === 1) {
+                await resolveAfter(2000);
+            }
         }
 
-        await disconnectedPromise;
-
-        // This delay is crucial see https://github.com/trezor/trezor-firmware/issues/1983
-        if (device.features.major_version === 1) {
-            await resolveAfter(2000);
-        }
         reconnectedDevice = await waitForReconnectedDevice(
             { bootloader: true, method: 'auto' },
             { ...context, device },
@@ -579,7 +607,11 @@ export const onCallFirmwareUpdate = async ({
         });
     }
 
-    const method = await getRebootMethod({ deviceList, device, log, postMessage });
+    let method: ReconnectParams['method'] = 'wait';
+    if (device.descriptor.apiType === 'bluetooth') {
+        await waitForBluetoothReboot({ device, target: 'normal', postMessage });
+        method = 'auto';
+    }
 
     reconnectedDevice = await waitForReconnectedDevice(
         { bootloader: false, method },
@@ -591,11 +623,13 @@ export const onCallFirmwareUpdate = async ({
         throw ERRORS.TypedError('Runtime', 'reconnectedDevice.installedVersion is not set');
     }
 
-    const { binaryVersion, releaseVersion } = finalBinaryInfo;
+    const { binaryVersion, release } = finalBinaryInfo;
     // check if installed version matches binary version
     const assertBinaryVersion = isEqual(installedVersion, binaryVersion);
     // check if installed version matches requested release version
-    const assertReleaseVersion = releaseVersion ? isEqual(installedVersion, releaseVersion) : true; // binary
+    const assertReleaseVersion = release?.version
+        ? isEqual(installedVersion, release?.version)
+        : true; // binary
 
     await reconnectedDevice.release();
 
@@ -606,6 +640,6 @@ export const onCallFirmwareUpdate = async ({
         bootloaderVersion,
         installedVersion,
         binaryVersion,
-        releaseVersion,
+        releaseVersion: release?.version,
     };
 };

@@ -1,7 +1,10 @@
 /* eslint-disable require-await */
-const { mergeConfig } = require('@react-native/metro-config');
+
+const { withRozenite } = require('@rozenite/metro');
+const { withRozeniteReduxDevTools } = require('@rozenite/redux-devtools-plugin/metro');
 const { getSentryExpoConfig } = require('@sentry/react-native/metro');
-const nodejs = require('node-libs-browser');
+const { withStorybook } = require('@storybook/react-native/metro/withStorybook');
+const { mergeConfig } = require('metro-config');
 
 const { metroSecureResolver } = require('@trezor/bundler-security/src/metroSecureResolver');
 
@@ -32,12 +35,15 @@ const config = {
         blockList: [/libDev/],
         extraNodeModules: {
             // modules needed for trezor-connect
-            crypto: nodejs.crypto,
-            stream: nodejs.stream,
-            https: nodejs.https,
-            http: nodejs.http,
-            zlib: nodejs.zlib,
-            vm: nodejs.vm,
+            crypto: require.resolve('crypto-browserify'),
+            stream: require.resolve('stream-browserify'),
+            https: require.resolve('https-browserify'),
+            http: require.resolve('stream-http'),
+            zlib: require.resolve('browserify-zlib'),
+            vm: require.resolve('vm-browserify'),
+            // modules needed by ElectrumWorker
+            net: require.resolve('react-native-tcp-socket'),
+            tls: require.resolve('react-native-tcp-socket'),
         },
         sourceExts,
         resolveRequest: (context, moduleName, platform) => {
@@ -46,66 +52,59 @@ const config = {
                 originModulePath: context.originModulePath,
             });
 
-            // web3-validator package handling
             const rootNodeModulesPath = context.nodeModulesPaths[1];
+            const getSourceFile = filePath => ({
+                filePath: require.resolve(filePath),
+                type: 'sourceFile',
+            });
 
-            // web3-validator package is by default trying to use non-existing minified index file. This fixes that.
-            // Can be removed once web3-validator fixup PR is merged: https://github.com/web3/web3.js/pull/7016.
-            if (moduleName.startsWith('web3-validator')) {
-                return {
-                    filePath: require.resolve(
-                        rootNodeModulesPath + '/web3-validator/lib/commonjs/index.js',
-                    ),
-                    type: 'sourceFile',
-                };
+            const overrides = {
+                // TODO: unstable_enablePackageExports: true
+                // See: https://github.com/trezor/trezor-suite/issues/20733
+                // modules exports defined in the package `exports` map.
+                '@bufbuild/protobuf/codegenv2': `${rootNodeModulesPath}/@bufbuild/protobuf/dist/cjs/codegenv2/index.js`,
+                '@bufbuild/protobuf/wire': `${rootNodeModulesPath}/@bufbuild/protobuf/dist/cjs/wire/index.js`,
+                '@bufbuild/protobuf/wkt': `${rootNodeModulesPath}/@bufbuild/protobuf/dist/cjs/wkt/index.js`,
+                '@evolu/react-native': `${rootNodeModulesPath}/@evolu/react-native/dist/src/index.js`,
+                '@evolu/react-native/expo-sqlite': `${rootNodeModulesPath}/@evolu/react-native/dist/src/exports/expo-sqlite.js`,
+                '@evolu/common': `${rootNodeModulesPath}/@evolu/common/dist/src/index.js`,
+                '@evolu/common/evolu': `${rootNodeModulesPath}/@evolu/common/dist/src/Evolu/Internal.js`,
+                '@evolu/common/local-first': `${rootNodeModulesPath}/@evolu/common/dist/src/local-first/index.js`,
+                '@evolu/common/polyfills': `${rootNodeModulesPath}/@evolu/common/dist/src/Polyfills.js`,
+                '@evolu/react-native/polyfills': `${rootNodeModulesPath}/@evolu/react-native/dist/src/Polyfills.js`,
+                '@solana/kit/program-client-core': `${rootNodeModulesPath}/@solana/kit/dist/program-client-core.native.mjs`,
+                'crc/calculators/crc32': `${rootNodeModulesPath}/crc/cjs-default-unwrap/calculators/crc32.js`,
+                'crc/calculators/crc16xmodem': `${rootNodeModulesPath}/crc/cjs-default-unwrap/calculators/crc16xmodem.js`,
+                'bignumber.js': `${rootNodeModulesPath}/bignumber.js/dist/bignumber.cjs`,
+                uuid: `${rootNodeModulesPath}/uuid/dist/index.js`,
+
+                // web3-validator package is by default trying to use non-existing minified index file. This fixes that.
+                // Can be removed once web3-validator fixup PR is merged: https://github.com/web3/web3.js/pull/7016.
+                'web3-validator': `${rootNodeModulesPath}/web3-validator/lib/commonjs/index.js`,
+            };
+
+            if (overrides[moduleName]) {
+                return getSourceFile(overrides[moduleName]);
+            }
+
+            // @trezor/coins-* packages have exports paths defined in package.json
+            const coinsModuleMatch = moduleName.match(/^@trezor\/coins-([^/]+)\/([^/]+)$/);
+            if (coinsModuleMatch) {
+                const source = `${rootNodeModulesPath}/@trezor/coins-${coinsModuleMatch[1]}/src/${coinsModuleMatch[2]}/index.ts`;
+
+                return getSourceFile(source);
             }
 
             if (moduleName.startsWith('@emurgo/cardano')) {
                 // Cardano libs doesn't have main field in package.json which will cause error in metro
                 // Also they use WASM which doesn't work in RN so we polyfill it with empty file to build errors
                 // In future we will need JS implementation of Cardano libs or C++ implementation
-                return {
-                    filePath: require.resolve('./cardanoPolyfills.js'),
-                    type: 'sourceFile',
-                };
+                return getSourceFile('./cardanoPolyfills.js');
             }
 
-            // Todo: This is hack because of the `unstable_enablePackageExports: false`.
-            //       See: https://github.com/trezor/trezor-suite/issues/20733
-            if (moduleName === '@evolu/react-native/expo-sqlite') {
-                return {
-                    filePath: require.resolve(
-                        rootNodeModulesPath + `/@evolu/react-native/dist/expo-sqlite.js`,
-                    ),
-                    type: 'sourceFile',
-                };
-            }
-
-            if (moduleName === '@evolu/common') {
-                return {
-                    filePath: require.resolve(
-                        rootNodeModulesPath + `/@evolu/common/dist/src/index.js`,
-                    ),
-                    type: 'sourceFile',
-                };
-            }
-
-            if (moduleName === '@evolu/common/evolu') {
-                return {
-                    filePath: require.resolve(
-                        rootNodeModulesPath + `/@evolu/common/dist/src/Evolu/Internal.js`,
-                    ),
-                    type: 'sourceFile',
-                };
-            }
-            // Todo: ----- End of hack -----
-
-            if (process.env.IS_DETOX_BUILD && moduleName === '@trezor/connect') {
+            if (process.env.EXPO_PUBLIC_IS_DETOX_BUILD && moduleName === '@trezor/connect') {
                 // Mock some Trezor Connect methods to avoid network flakiness during e2e tests.
-                return {
-                    filePath: require.resolve('./e2e/mocks/trezor-connect.js'),
-                    type: 'sourceFile',
-                };
+                return getSourceFile('./e2e/mocks/trezor-connect.js');
             }
 
             // Optionally, chain to the standard Metro resolver.
@@ -113,4 +112,26 @@ const config = {
         },
     },
 };
-module.exports = mergeConfig(jsonExpoConfig, config);
+
+const configWithStorybook = mergeConfig(
+    jsonExpoConfig,
+    withStorybook(config, {
+        enabled: process.env.EXPO_PUBLIC_ENVIRONMENT !== 'production',
+        configPath: './../storybook/.rnstorybook',
+    }),
+);
+
+let exportedConfig = configWithStorybook;
+
+if (
+    process.env.EXPO_PUBLIC_IS_DETOX_BUILD !== 'true' &&
+    process.env.EXPO_PUBLIC_ENVIRONMENT === 'debug'
+) {
+    // enable Rozenite plugins only in debug build
+    exportedConfig = withRozenite(configWithStorybook, {
+        enhanceMetroConfig: originalConfig => withRozeniteReduxDevTools(originalConfig),
+        enabled: true,
+    });
+}
+
+module.exports = exportedConfig;

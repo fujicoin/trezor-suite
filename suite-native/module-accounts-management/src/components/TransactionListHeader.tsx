@@ -3,36 +3,41 @@ import { useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
+import { useServices } from '@suite-common/dependency-injection';
+import { selectIsPortfolioTrackerDevice } from '@suite-common/device';
+import { type TokenDefinitionsRootState } from '@suite-common/token-definitions';
 import {
-    AccountsRootState,
-    TransactionsRootState,
+    type AccountsRootState,
+    type TransactionsRootState,
     selectAccountByKey,
-    selectIsPortfolioTrackerDevice,
     selectIsTestnetAccount,
     useDisplayBaseCurrency,
 } from '@suite-common/wallet-core';
-import { AccountKey, TokenAddress } from '@suite-common/wallet-types';
-import { EventType, analytics } from '@suite-native/analytics';
+import { type AccountKey, type TokenAddress } from '@suite-common/wallet-types';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { Box, Button, HStack, Text, VStack } from '@suite-native/atoms';
-import { selectHasFirmwareAuthenticityCheckHardFailed } from '@suite-native/device';
-import { FeatureFlag, FeatureFlagsRootState, useFeatureFlag } from '@suite-native/feature-flags';
+import { selectHasFirmwareAuthenticityCheckHardFailedForSelectedDevice } from '@suite-native/device';
+import { type FeatureFlagsRootState } from '@suite-native/feature-flags';
 import { Translation } from '@suite-native/intl';
 import {
     ReceiveStackRoutes,
-    RootStackParamList,
+    type RootStackParamList,
     RootStackRoutes,
     SendStackRoutes,
-    StackNavigationProps,
+    type StackNavigationProps,
 } from '@suite-native/navigation';
-import { TokensRootState, selectAccountTokenInfo } from '@suite-native/tokens';
+import { type TokensRootState, selectAccountTokenInfo } from '@suite-native/tokens';
 import { selectHasAccountAnyTransactions } from '@suite-native/transactions';
 
+import { selectIsNetworkSendFlowEnabled, selectIsUnrecognizedToken } from '../selectors';
 import { SolanaLimitedHistoryBanner } from './AccountBanners/SolanaLimitedHistoryBanner';
+import { StellarLimitedHistoryBanner } from './AccountBanners/StellarLimitedHistoryBanner';
 import { AccountDetailCryptoValue } from './AccountDetailCryptoValue';
 import { AccountDetailGraph } from './AccountDetailGraph';
 import { CoinPriceCard } from './CoinPriceCard';
-import { selectIsNetworkSendFlowEnabled } from '../selectors';
-import { StellarLimitedHistoryBanner } from './AccountBanners/StellarLimitedHistoryBanner';
+import { StablecoinYieldTokenOverview } from './StablecoinYieldTokenOverview';
+import { StellarTokenActions } from './StellarTokenActions';
+import { TronResources } from './TronResources';
 
 type TransactionListHeaderProps = {
     accountKey: AccountKey;
@@ -59,19 +64,20 @@ const TransactionListHeaderContent = ({
     const isTestnetAccount = useSelector((state: AccountsRootState) =>
         selectIsTestnetAccount(state, accountKey),
     );
+    const isUnrecognizedToken = useSelector(
+        (state: TokenDefinitionsRootState & AccountsRootState) =>
+            selectIsUnrecognizedToken(state, accountKey, tokenContract),
+    );
+
+    const token = useSelector((state: TokensRootState) =>
+        selectAccountTokenInfo(state, accountKey, tokenContract),
+    );
 
     if (!account) return null;
 
-    const isTokenAccount = !!tokenContract;
-
-    // Graph is temporarily hidden also for ERC20 tokens.
-    // Will be solved in issue: https://github.com/trezor/trezor-suite/issues/7839
-    const isGraphDisplayed = hasAccountTransactions && !isTestnetAccount && !isTokenAccount;
+    const isGraphDisplayed = hasAccountTransactions && !isTestnetAccount && !isUnrecognizedToken;
 
     if (isGraphDisplayed) {
-        return <AccountDetailGraph accountKey={accountKey} />;
-    }
-    if (isTokenAccount) {
         return <AccountDetailGraph accountKey={accountKey} tokenContract={tokenContract} />;
     }
 
@@ -81,13 +87,25 @@ const TransactionListHeaderContent = ({
         );
     }
 
+    if (token && isUnrecognizedToken) {
+        const { balance = '0', symbol: tokenSymbol } = token;
+
+        return (
+            <AccountDetailCryptoValue
+                value={balance}
+                symbol={account.symbol}
+                tokenSymbol={tokenSymbol}
+            />
+        );
+    }
+
     return null;
 };
 
 export const TransactionListHeader = memo(
     ({ accountKey, tokenContract }: TransactionListHeaderProps) => {
+        const { analytics } = useServices(selectNativeAnalyticsDep);
         const navigation = useNavigation<NavigationProp>();
-        const isDeviceConnectEnabled = useFeatureFlag(FeatureFlag.IsDeviceConnectEnabled);
 
         const account = useSelector((state: AccountsRootState) =>
             selectAccountByKey(state, accountKey),
@@ -103,17 +121,21 @@ export const TransactionListHeader = memo(
         );
         const isPortfolioTrackerDevice = useSelector(selectIsPortfolioTrackerDevice);
         const hasFirmwareAuthenticityCheckHardFailed = useSelector(
-            selectHasFirmwareAuthenticityCheckHardFailed,
+            selectHasFirmwareAuthenticityCheckHardFailedForSelectedDevice,
         );
         const token = useSelector((state: TokensRootState) =>
             selectAccountTokenInfo(state, accountKey, tokenContract),
+        );
+        const isUnrecognizedToken = useSelector(
+            (state: TokenDefinitionsRootState & AccountsRootState) =>
+                selectIsUnrecognizedToken(state, accountKey, tokenContract),
         );
 
         if (!account) return null;
 
         const handleReceive = () => {
             analytics.report({
-                type: EventType.ReceiveFlowEntered,
+                type: events.receiveFlowEnteredEvent.name,
                 payload: {
                     location: 'accountDetail',
                     assetSymbol: account.symbol,
@@ -133,7 +155,7 @@ export const TransactionListHeader = memo(
 
         const handleSend = () => {
             analytics.report({
-                type: EventType.SendFlowEntered,
+                type: events.sendFlowEnteredEvent.name,
                 payload: {
                     location: 'accountDetail',
                     assetSymbol: account.symbol,
@@ -150,12 +172,12 @@ export const TransactionListHeader = memo(
             });
         };
 
-        const isTokenDetail = !!tokenContract;
-        const isPriceCardDisplayed = shallDisplayBaseCurrency && !isTokenDetail;
+        const isPriceCardDisplayed = shallDisplayBaseCurrency && !isUnrecognizedToken;
+        const isStellarAccount = account.networkType === 'stellar';
 
-        const isSendButtonDisplayed =
-            isDeviceConnectEnabled && isNetworkSendFlowEnabled && !isPortfolioTrackerDevice;
+        const isSendButtonDisplayed = isNetworkSendFlowEnabled && !isPortfolioTrackerDevice;
         const isReceiveButtonDisplayed = !hasFirmwareAuthenticityCheckHardFailed;
+        const isStellarTokenActionsDisplayed = isStellarAccount && !isPortfolioTrackerDevice;
 
         return (
             <>
@@ -164,12 +186,18 @@ export const TransactionListHeader = memo(
                         accountKey={accountKey}
                         tokenContract={tokenContract}
                     />
+                    {tokenContract && (
+                        <StablecoinYieldTokenOverview
+                            accountKey={accountKey}
+                            tokenContract={tokenContract}
+                        />
+                    )}
                     {hasAccountTransactions && (
                         <HStack paddingTop="sp8" paddingHorizontal="sp16" flex={1} spacing="sp12">
                             {isReceiveButtonDisplayed && (
                                 <Box flex={1}>
                                     <Button
-                                        viewLeft="arrowLineDown"
+                                        iconLeft="arrowLineDown"
                                         onPress={handleReceive}
                                         testID="@account-detail/receive-button"
                                     >
@@ -180,7 +208,7 @@ export const TransactionListHeader = memo(
                             {isSendButtonDisplayed && (
                                 <Box flex={1}>
                                     <Button
-                                        viewLeft="arrowLineUp"
+                                        iconLeft="arrowLineUp"
                                         onPress={handleSend}
                                         testID="@account-detail/send-button"
                                     >
@@ -190,13 +218,24 @@ export const TransactionListHeader = memo(
                             )}
                         </HStack>
                     )}
-                    {isPriceCardDisplayed && <CoinPriceCard accountKey={accountKey} />}
-                    {account.networkType === 'stellar' && <StellarLimitedHistoryBanner />}
+                    {isPriceCardDisplayed && (
+                        <CoinPriceCard accountKey={accountKey} tokenContract={tokenContract} />
+                    )}
+                    {isStellarTokenActionsDisplayed && (
+                        <StellarTokenActions
+                            accountKey={accountKey}
+                            tokenContract={tokenContract}
+                        />
+                    )}
+                    {isStellarAccount && <StellarLimitedHistoryBanner />}
                     {account.networkType === 'solana' && <SolanaLimitedHistoryBanner />}
+                    {account.networkType === 'tron' && !tokenContract && hasAccountTransactions && (
+                        <TronResources accountKey={accountKey} />
+                    )}
                 </VStack>
                 {hasAccountTransactions && (
-                    <Box marginTop="sp52" marginHorizontal="sp32">
-                        <Text variant="titleSmall">
+                    <Box marginTop="sp52" marginHorizontal="sp16">
+                        <Text variant="headline-sm">
                             <Translation id="transactions.title" />
                         </Text>
                     </Box>

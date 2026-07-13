@@ -1,13 +1,13 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import { Color, NativeTypographyStyle } from '@trezor/theme';
+import { type Color, type NativeTypographyStyle } from '@trezor/theme';
 
 import { Box } from './Box';
 import { Text } from './Text';
 
 const INDENTED_BULLET_POINT_SYMBOL = ' \u2022 ';
 
-type BulletListItemProps = {
+export type BulletListItemProps = {
     children: ReactNode;
     variant?: NativeTypographyStyle;
     color?: Color;

@@ -1,9 +1,9 @@
 import {
-    CSSProperties,
-    HTMLProps,
-    MutableRefObject,
-    ReactNode,
-    RefObject,
+    type CSSProperties,
+    type HTMLProps,
+    type MutableRefObject,
+    type ReactNode,
+    type RefObject,
     cloneElement,
     createContext,
     forwardRef,
@@ -31,6 +31,9 @@ import {
     useTransitionStyles,
 } from '@floating-ui/react';
 import type { Placement, ShiftOptions, UseFloatingReturn } from '@floating-ui/react';
+
+import { spacings } from '@trezor/theme';
+import { throwError } from '@trezor/utils';
 
 /**
  * Based on https://floating-ui.com/docs/tooltip but heavily modified
@@ -85,7 +88,7 @@ export const useTooltip = ({
         const middlewareArray = [
             offset(offsetValue),
             ...(!disableFlip ? [flip()] : []),
-            shiftFloatingUI(shift),
+            shiftFloatingUI(shift || { padding: spacings.xs }),
             arrow({ element: arrowRef }),
         ];
 
@@ -131,15 +134,8 @@ type ContextType = ReturnType<typeof useTooltip>;
 
 export const TooltipContext = createContext<ContextType | null>(null);
 
-export const useTooltipState = (): ContextType => {
-    const context = useContext(TooltipContext);
-
-    if (context == null) {
-        throw new Error('Tooltip components must be wrapped in <Tooltip />');
-    }
-
-    return context;
-};
+export const useTooltipState = (): ContextType =>
+    useContext(TooltipContext) ?? throwError('Tooltip components must be wrapped in <Tooltip />');
 
 type TooltipFloatingUiProps = { children: ReactNode } & TooltipOptions;
 

@@ -1,4 +1,10 @@
-import { BottomSheetModal, BottomSheetModalRef, Button, Text, VStack } from '@suite-native/atoms';
+import {
+    BottomSheetModal,
+    type BottomSheetModalRef,
+    Button,
+    Text,
+    VStack,
+} from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
 
 type ConfirmBottomSheetProps = {
@@ -11,7 +17,7 @@ export const ConfirmBottomSheet = ({ ref, onConfirm, onCheckBackup }: ConfirmBot
     <BottomSheetModal ref={ref}>
         <VStack spacing="sp24" marginHorizontal="sp8" marginTop="sp4">
             <VStack spacing="sp8">
-                <Text textAlign="center" variant="titleSmall">
+                <Text textAlign="center" variant="headline-sm">
                     <Translation id="firmware.seedBottomSheet.title" />
                 </Text>
                 <Text textAlign="center">
@@ -19,14 +25,14 @@ export const ConfirmBottomSheet = ({ ref, onConfirm, onCheckBackup }: ConfirmBot
                 </Text>
             </VStack>
             <VStack spacing="sp12">
-                <Button size="medium" onPress={onConfirm} testID="@device-firmware/sheet/continue">
+                <Button onPress={onConfirm} testID="@device-firmware/sheet/continue">
                     <Translation id="firmware.seedBottomSheet.continueButton" />
                 </Button>
                 <Button
                     testID="@device-firmware/sheet/check-backup"
                     onPress={onCheckBackup}
-                    size="medium"
-                    colorScheme="tertiaryElevation1"
+                    intent="neutral"
+                    priority="secondary"
                 >
                     <Translation id="firmware.seedBottomSheet.checkBackupButton" />
                 </Button>

@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 
 import { Table as TableComponent, allowedTableFrameProps, allowedTableTextProps } from './Table';
 import { getFramePropsStory } from '../../utils/frameProps';
@@ -10,9 +10,9 @@ const EXAMPLE_TOKENS = [
     { name: 'MANA', balance: '20', price: '$2,15' },
 ];
 
-const meta: Meta = {
+const meta: Meta<typeof TableComponent> = {
     title: 'Table',
-} as Meta;
+};
 export default meta;
 
 interface TableProps {
@@ -22,7 +22,7 @@ interface TableProps {
 
 export const Table: StoryObj = {
     render: (props: TableProps) => (
-        <TableComponent {...props}>
+        <TableComponent {...props} backgroundColor="surfaceFillPage">
             <TableComponent.Header>
                 <TableComponent.Row>
                     <TableComponent.Cell>Token</TableComponent.Cell>

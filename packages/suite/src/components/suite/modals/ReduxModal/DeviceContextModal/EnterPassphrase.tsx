@@ -1,36 +1,35 @@
 import { useState } from 'react';
 
-import { useTheme } from 'styled-components';
-
-import { TrezorDevice } from '@suite-common/suite-types';
-import { selectDeviceModel } from '@suite-common/wallet-core';
+import { LearnMoreButton } from '@suite/external-links';
+import { Translation, type TranslationKey } from '@suite/intl';
+import { selectDeviceModel } from '@suite-common/device';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { selectDiscoveryByDevicePath } from '@suite-common/wallet-core';
 import { Card, Collapsible, Column, H3, H4, Icon, Paragraph, Row, Text } from '@trezor/components';
+import { HashIcon, LightbulbIcon, PasswordIcon, WarningIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 import { HELP_CENTER_PASSPHRASE_URL } from '@trezor/urls';
 import { getNonAsciiChars } from '@trezor/utils';
 
-import { LearnMoreButton } from 'src/components/suite/LearnMoreButton';
-import { TrezorLink } from 'src/components/suite/TrezorLink';
+import { useSelector } from 'src/hooks/suite';
+import { CardWithDevice } from 'src/views/suite/SwitchDevice/CardWithDevice';
+import { SwitchDeviceModal } from 'src/views/suite/SwitchDevice/SwitchDeviceModal';
 
 import { PassphraseInputCard } from './PassphraseInputCard';
-import { useSelector } from '../../../../../hooks/suite';
-import { CardWithDevice } from '../../../../../views/suite/SwitchDevice/CardWithDevice';
-import { SwitchDeviceModal } from '../../../../../views/suite/SwitchDevice/SwitchDeviceModal';
-import { Translation, TranslationKey } from '../../../Translation';
 
 type EnterPassphraseProps = {
-    onDeviceOffer: boolean;
+    offerPassphraseOnDevice: boolean;
     device: TrezorDevice;
     submitting?: boolean;
     isExistingWallet?: boolean;
     onBack: () => void;
-    onCancel?: () => void;
+    onCancel: () => void;
     onSubmit: (value: string, passphraseOnDevice?: boolean) => void;
 };
 
 export const EnterPassphrase = ({
     device,
-    onDeviceOffer,
+    offerPassphraseOnDevice,
     isExistingWallet = false,
     submitting,
     onBack,
@@ -38,9 +37,15 @@ export const EnterPassphrase = ({
     onSubmit,
 }: EnterPassphraseProps) => {
     const [value, setValue] = useState('');
-    const theme = useTheme();
     const deviceModel = useSelector(selectDeviceModel);
+    const discovery = useSelector(state => selectDiscoveryByDevicePath(state, device.path));
     const isUsingNonAsciiCharacters = getNonAsciiChars(value) !== null;
+
+    // Scoped add-wallet flow: REQUEST_PASSPHRASE is kept out of the global modal, so the device's
+    // readiness for the passphrase comes from discovery.status.
+    const isDeviceLoading = !(
+        discovery?.status === 'enter-passphrase' || discovery?.status === 'confirm-empty-passphrase'
+    );
 
     return (
         <SwitchDeviceModal onCancel={onCancel}>
@@ -56,38 +61,24 @@ export const EnterPassphrase = ({
                         </H3>
                         <Column gap={spacings.sm}>
                             {isExistingWallet ? (
-                                <>
-                                    <Row gap={spacings.sm}>
-                                        <Icon variant="info" name="warningCircle" size={16} />
-                                        <Paragraph variant="info" typographyStyle="callout">
-                                            <Translation
-                                                id="TR_PASSPHRASE_DESCRIPTION_ITEM1"
-                                                values={{
-                                                    a: text => (
-                                                        <TrezorLink
-                                                            href={HELP_CENTER_PASSPHRASE_URL}
-                                                            target="_blank"
-                                                            variant="underline"
-                                                            color={theme.textAlertBlue}
-                                                        >
-                                                            {text}
-                                                        </TrezorLink>
-                                                    ),
-                                                }}
-                                            />
-                                        </Paragraph>
-                                    </Row>
-                                    <Row gap={spacings.sm}>
-                                        <Icon name="warning" size={16} />
-                                        <Paragraph variant="tertiary" typographyStyle="hint">
-                                            <Translation id="TR_PASSPHRASE_DESCRIPTION_ITEM3" />
-                                        </Paragraph>
-                                    </Row>
-                                </>
+                                <Row gap={spacings.sm}>
+                                    <Icon as={WarningIcon} size={16} />
+                                    <Paragraph
+                                        intent="neutral"
+                                        priority="secondary"
+                                        typographyStyle="body-sm"
+                                    >
+                                        <Translation id="TR_PASSPHRASE_DESCRIPTION_ITEM3" />
+                                    </Paragraph>
+                                </Row>
                             ) : (
                                 <Row gap={spacings.sm}>
-                                    <Icon name="password" size={16} />
-                                    <Paragraph variant="tertiary" typographyStyle="hint">
+                                    <Icon as={PasswordIcon} size={16} />
+                                    <Paragraph
+                                        intent="neutral"
+                                        priority="secondary"
+                                        typographyStyle="body-sm"
+                                    >
                                         <Translation id="TR_PASSPHRASE_DESCRIPTION_ITEM2" />
                                     </Paragraph>
                                 </Row>
@@ -98,10 +89,11 @@ export const EnterPassphrase = ({
                             >
                                 <Collapsible.Toggle>
                                     <Row gap={spacings.sm}>
-                                        <Icon name="hash" size={16} />
+                                        <Icon as={HashIcon} size={16} />
                                         <Paragraph
-                                            variant="tertiary"
-                                            typographyStyle="hint"
+                                            intent="neutral"
+                                            priority="secondary"
+                                            typographyStyle="body-sm"
                                             flex="1"
                                         >
                                             <Translation
@@ -120,13 +112,14 @@ export const EnterPassphrase = ({
                                 </Collapsible.Toggle>
                                 <Collapsible.Content>
                                     <Card
-                                        fillType="flat"
+                                        type="contrast"
                                         paddingType="tiny"
                                         footer={
                                             <Row gap={spacings.sm} justifyContent="space-between">
                                                 <Paragraph
-                                                    typographyStyle="label"
-                                                    variant="tertiary"
+                                                    typographyStyle="body-xs"
+                                                    intent="neutral"
+                                                    priority="secondary"
                                                 >
                                                     <Translation id="TR_PASSPHRASE_NON_ASCII_CHARS_WARNING" />
                                                 </Paragraph>
@@ -139,7 +132,7 @@ export const EnterPassphrase = ({
                                             </Row>
                                         }
                                     >
-                                        <Text isMonospaced typographyStyle="hint">
+                                        <Text isMonospaced typographyStyle="body-sm">
                                             {
                                                 '! " # $ % & \\ \' ( ) * +  - . / : ; < = > ? @ [  ] ^ _ ` { | } ~'
                                             }
@@ -151,10 +144,11 @@ export const EnterPassphrase = ({
                                 <Collapsible gap={spacings.sm}>
                                     <Collapsible.Toggle>
                                         <Row gap={spacings.sm}>
-                                            <Icon name="lightbulb" size={16} />
+                                            <Icon as={LightbulbIcon} size={16} />
                                             <Paragraph
-                                                variant="tertiary"
-                                                typographyStyle="hint"
+                                                intent="neutral"
+                                                priority="secondary"
+                                                typographyStyle="body-sm"
                                                 flex="1"
                                             >
                                                 <Translation id="TR_PASSPHRASE_EXAMPLES" />
@@ -165,15 +159,18 @@ export const EnterPassphrase = ({
                                     <Collapsible.Content>
                                         <Column gap={spacings.sm}>
                                             {[1, 2, 3].map(item => (
-                                                <Card fillType="flat" paddingType="tiny" key={item}>
-                                                    <H4 typographyStyle="callout" variant="primary">
+                                                <Card type="contrast" paddingType="tiny" key={item}>
+                                                    <H4
+                                                        typographyStyle="body-sm-strong"
+                                                        intent="brand"
+                                                    >
                                                         <Translation
                                                             id={
                                                                 `TR_PASSPHRASE_EXAMPLES_ITEM${item}_HEADING` as TranslationKey
                                                             }
                                                         />
                                                     </H4>
-                                                    <Text isMonospaced typographyStyle="hint">
+                                                    <Text isMonospaced typographyStyle="body-sm">
                                                         <Translation
                                                             id={
                                                                 `TR_PASSPHRASE_EXAMPLES_ITEM${item}_DESCRIPTION` as TranslationKey
@@ -189,10 +186,11 @@ export const EnterPassphrase = ({
                         </Column>
                     </Column>
                     <PassphraseInputCard
+                        isDeviceLoading={isDeviceLoading}
                         deviceModel={deviceModel ?? undefined}
                         isLoading={submitting}
                         onSubmit={onSubmit}
-                        offerPassphraseOnDevice={onDeviceOffer}
+                        offerPassphraseOnDevice={offerPassphraseOnDevice}
                         allowNonAsciiCharacters={isExistingWallet}
                         value={value}
                         setValue={setValue}

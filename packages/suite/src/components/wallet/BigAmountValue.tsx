@@ -1,39 +1,20 @@
-import { PropsWithChildren } from 'react';
-
 import styled from 'styled-components';
 
-import { Locale } from '@suite-common/suite-types';
-import { useShouldRedactNumbers } from '@suite-common/wallet-utils';
-import { typography } from '@trezor/theme';
-
-import { selectLanguage } from 'src/selectors/suite/suiteSelectors';
+import { selectLanguage } from '@suite/settings';
+import { redactNumericalSubstring, useShouldRedactNumbers } from '@suite-common/discreet-mode';
+import { type Locale } from '@suite-common/suite-types';
+import { Row, Text } from '@trezor/components';
 
 import { useSelector } from '../../hooks/suite';
-import { RedactNumericalValue } from '../suite';
 
-const ValueWrapper = styled.div`
-    display: flex;
-    align-items: flex-end;
-`;
-
-const WholeValue = styled.div<{ $size: 'large' | 'medium' }>`
-    ${({ $size }) => ($size === 'large' ? typography.titleLarge : typography.titleMedium)};
-    color: ${({ theme }) => theme.textDefault};
+const WholeValue = styled.span`
     font-variant-numeric: tabular-nums;
 `;
 
-const DecimalValue = styled.div<{ $size: 'large' | 'medium' }>`
-    ${typography.hint};
+const DecimalValue = styled.span`
     font-variant-numeric: tabular-nums;
-    align-self: flex-end;
     letter-spacing: 0.565px;
-    margin-bottom: ${({ $size }) => `${$size === 'large' ? '6px' : '2px'}`};
-    color: ${({ theme }) => theme.textSubdued};
 `;
-
-// redacted value placeholder doesn't have to be displayed twice, display it only for whole value
-const HideRedactedValue = ({ children }: PropsWithChildren) =>
-    useShouldRedactNumbers() ? null : children;
 
 type BigAmountValueProps = {
     formattedStringAmount: string;
@@ -49,22 +30,31 @@ export const BigAmountValue = ({
     const language = useSelector(selectLanguage);
 
     // Todo: this is ugly hack, shall be refactored to some more safe alternative
-    const shouldFormatLocale: Locale[] = ['en-US', 'ja-JP', 'zh-CN'];
-    const [whole, separator, fractional] = shouldFormatLocale.includes(language)
+    const shouldFormatLocale: Locale[] = ['en-US', 'ja-JP', 'ko-KR', 'zh-CN', 'zh-TW'];
+    const parts = shouldFormatLocale.includes(language)
         ? formattedStringAmount.split(/(\.)/)
         : formattedStringAmount.split(/(,)/);
+    const whole = parts[0] ?? '';
+    const separator = parts[1];
+    const fractional = parts[2];
+
+    const shouldRedactNumbers = useShouldRedactNumbers();
 
     return (
-        <ValueWrapper data-testid={dataTestId}>
-            <WholeValue $size={size}>
-                <RedactNumericalValue value={whole} />
-            </WholeValue>
-            <HideRedactedValue>
-                <DecimalValue $size={size}>
-                    {separator}
-                    {fractional}
-                </DecimalValue>
-            </HideRedactedValue>
-        </ValueWrapper>
+        <Row alignItems="baseline" data-testid={dataTestId}>
+            <Text typographyStyle={size === 'large' ? 'headline-lg' : 'headline-md'}>
+                <WholeValue>
+                    {shouldRedactNumbers ? redactNumericalSubstring(whole) : whole}
+                </WholeValue>
+            </Text>
+            {!shouldRedactNumbers && (
+                <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
+                    <DecimalValue>
+                        {separator}
+                        {fractional}
+                    </DecimalValue>
+                </Text>
+            )}
+        </Row>
     );
 };

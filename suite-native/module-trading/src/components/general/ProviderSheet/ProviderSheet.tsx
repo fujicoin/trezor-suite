@@ -1,12 +1,17 @@
-import { TradingTradeMapProps, TradingTradeType, TradingType } from '@suite-common/trading';
-import { prepareNativeStyle } from '@trezor/styles';
+import {
+    type TradingTradeMapProps,
+    type TradingTradeType,
+    type TradingType,
+} from '@suite-common/trading';
+import { type BottomSheetFlashListHandleProps } from '@suite-native/atoms';
+import { BottomSheetSectionList } from '@suite-native/trading-atoms';
+import { type QuotesByCategories, type QuotesCategory } from '@suite-native/trading-types';
+import { prepareNativeStyle } from '@trezor/styles-native';
 
 import { useProviderFilters } from '../../../hooks/general/useProviderFilters';
-import { QuotesByCategories, QuotesCategory } from '../../../types/general';
 import { LegalGatewayContextMessage } from '../LegalGatewayContextMessage';
 import { NoProvidersPlaceholder } from './NoProvidersPlaceholder';
-import { PROVIDER_LIST_ITEM_ESTIMATED_HEIGHT, ProviderListItem } from './ProviderListItem';
-import { BottomSheetSectionList } from '../BottomSheetSectionList';
+import { ProviderListItem } from './ProviderListItem';
 import { ProviderSheetHandle } from './ProviderSheetHandle';
 import { ProviderSheetSectionHeader } from './ProviderSheetSectionHeader';
 
@@ -35,32 +40,32 @@ export const ProviderSheet = <
     tradingType,
 }: ProviderSheetProps<K, T>) => {
     const shouldShowFilters = tradingType === 'exchange';
+    const shouldShowExchangeType = tradingType === 'exchange';
 
     const { filterItems, filteredSections, selectedFilter, setSelectedFilter } = useProviderFilters(
         quotes,
         shouldShowFilters,
     );
 
-    const onQuoteSelectCallback = (quote: T) => {
-        onQuoteSelect(quote);
-        onClose();
-    };
-
     return (
         <BottomSheetSectionList<T, QuotesCategory>
             isVisible={isVisible}
             onClose={onClose}
-            renderItem={item => (
+            renderItem={(item, _config, { closeSheet }) => (
                 <ProviderListItem
-                    onPress={onQuoteSelectCallback}
+                    onPress={quote => {
+                        onQuoteSelect(quote);
+                        closeSheet();
+                    }}
                     isSelected={item.orderId === selectedQuote?.orderId}
                     quote={item}
+                    shouldShowExchangeType={shouldShowExchangeType}
                     tradingType={tradingType}
                 />
             )}
-            handleComponent={() => (
+            handleComponent={({ closeSheet }: BottomSheetFlashListHandleProps) => (
                 <ProviderSheetHandle
-                    onClose={onClose}
+                    onClose={closeSheet}
                     shouldShowFilters={shouldShowFilters}
                     filterItems={filterItems}
                     selectedFilter={selectedFilter}
@@ -69,7 +74,6 @@ export const ProviderSheet = <
             )}
             ListFooterComponent={<LegalGatewayContextMessage marginVertical="sp12" />}
             data={filteredSections}
-            estimatedItemSize={PROVIDER_LIST_ITEM_ESTIMATED_HEIGHT}
             keyExtractor={keyExtractor}
             extraData={selectedQuote?.orderId}
             renderSectionHeader={(_label, { sectionData }) => (

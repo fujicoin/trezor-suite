@@ -4,12 +4,13 @@ import { useSelector } from 'react-redux';
 
 import { useAtomValue } from 'jotai';
 
+import { useServices } from '@suite-common/dependency-injection';
 import {
     selectDeviceModel,
     selectIsDeviceBackupRequired,
     selectIsDeviceProtectedByPin,
-} from '@suite-common/wallet-core';
-import { EventType, analytics } from '@suite-native/analytics';
+} from '@suite-common/device';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 
 import { onboardingAnalyticsAtom } from '../../atoms';
 
@@ -18,10 +19,11 @@ export const useReportOnboardingSuccessAnalytics = () => {
     const isDeviceBackupRequired = useSelector(selectIsDeviceBackupRequired);
     const isDeviceProtectedByPin = useSelector(selectIsDeviceProtectedByPin);
     const onboardingAnalytics = useAtomValue(onboardingAnalyticsAtom);
+    const { analytics } = useServices(selectNativeAnalyticsDep);
 
-    const reportOnboardingSuccessAnalytics = useCallback(() => {
+    return useCallback(() => {
         analytics.report({
-            type: EventType.DeviceSetupCompleted,
+            type: events.deviceSetupCompletedEvent.name,
             payload: {
                 deviceModel,
                 osName: Platform.OS,
@@ -33,7 +35,11 @@ export const useReportOnboardingSuccessAnalytics = () => {
                 ...onboardingAnalytics,
             },
         });
-    }, [deviceModel, isDeviceBackupRequired, isDeviceProtectedByPin, onboardingAnalytics]);
-
-    return reportOnboardingSuccessAnalytics;
+    }, [
+        deviceModel,
+        isDeviceBackupRequired,
+        isDeviceProtectedByPin,
+        analytics,
+        onboardingAnalytics,
+    ]);
 };

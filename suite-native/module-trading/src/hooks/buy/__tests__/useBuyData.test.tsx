@@ -1,40 +1,59 @@
-import { tradingBuyActions, tradingThunks } from '@suite-common/trading';
-import {
-    PreloadedState,
-    TestStore,
-    act,
-    initStore,
-    renderHookWithStoreProviderAsync,
-} from '@suite-native/test-utils';
+import { combineReducers } from '@reduxjs/toolkit';
 
-import { getBtcAccount } from '../../../__fixtures__/account';
-import { getInitializedTradingState } from '../../../__fixtures__/tradingState';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
+import { tradingBuyActions, tradingThunks } from '@suite-common/trading';
+import { initialWalletSettingsState } from '@suite-common/wallet-core';
+import { type AccountKey, asAccountDescriptor } from '@suite-common/wallet-types';
+import { localeReducer } from '@suite-native/intl';
+import {
+    type TestStore,
+    act,
+    createStaticReducer,
+    renderHookWithStoreProvider,
+} from '@suite-native/test-utils-store';
+import { getBtcAccount, getInitializedTradingState } from '@suite-native/trading-fixtures';
+import { tradingSlice } from '@suite-native/trading-state';
+
 import { useBuyData } from '../useBuyData';
 
-jest.mock('../../../utils/general/utils', () => ({
-    ...jest.requireActual('../../../utils/general/utils'),
+jest.mock('@suite-native/trading-quote-utils', () => ({
+    ...jest.requireActual('@suite-native/trading-quote-utils'),
     getRandomAccountDescriptor: () => 'random_string',
 }));
 
+const btc1Account = getBtcAccount({ descriptor: asAccountDescriptor('btc1normal') });
+const btc2Account = getBtcAccount({ descriptor: asAccountDescriptor('btcAccount2') });
+const btc3Account = getBtcAccount({ descriptor: asAccountDescriptor('btcAccount3') });
+
 describe('useBuyData', () => {
-    const getInitializedStore = async (tradingAccountKey: string | undefined) => {
-        const preloadedState: PreloadedState = {
+    const getAccounts = () => [
+        btc1Account,
+        btc2Account,
+        { ...btc3Account, descriptor: asAccountDescriptor('') },
+    ];
+
+    const reducer = {
+        locale: localeReducer,
+        wallet: combineReducers({
+            settings: createStaticReducer(initialWalletSettingsState),
+            accounts: createStaticReducer(getAccounts()),
+            trading: tradingSlice.prepareReducer(extraDependenciesCommonMock),
+        }),
+    } as const;
+
+    const getInitializedStore = (tradingAccountKey: AccountKey | undefined) => {
+        const preloadedState = {
             wallet: {
-                tradingNew: getInitializedTradingState(),
-                accounts: [
-                    getBtcAccount('btc-account-1'),
-                    getBtcAccount('btc-account-2'),
-                    { ...getBtcAccount('btc-account-3'), descriptor: '' },
-                ],
+                trading: getInitializedTradingState(),
             },
         };
-        preloadedState.wallet!.tradingNew!.buy!.tradingAccountKey = tradingAccountKey;
+        preloadedState.wallet.trading.buy.tradingAccountKey = tradingAccountKey;
 
-        return await initStore(preloadedState);
+        return configureMockStore({ reducer, preloadedState });
     };
 
-    const renderUseBuyData = (reloadRequestOrdinalInitialValue: number, store: TestStore) =>
-        renderHookWithStoreProviderAsync(
+    const renderUseBuyData = async (reloadRequestOrdinalInitialValue: number, store: TestStore) => {
+        const ret = renderHookWithStoreProvider(
             ({ reloadRequestOrdinal }) => useBuyData(reloadRequestOrdinal),
             {
                 initialProps: { reloadRequestOrdinal: reloadRequestOrdinalInitialValue },
@@ -42,8 +61,13 @@ describe('useBuyData', () => {
             },
         );
 
+        await act(() => Promise.resolve()); // Wait for all effects to run
+
+        return ret;
+    };
+
     beforeEach(() => {
-        jest.resetAllMocks();
+        jest.clearAllMocks();
         global.fetch = jest.fn().mockImplementation(() =>
             Promise.resolve({
                 json: () => Promise.resolve({}),
@@ -64,7 +88,7 @@ describe('useBuyData', () => {
                     }, 100);
                 }),
         );
-        const store = await initStore(undefined);
+        const store = configureMockStore({ reducer });
         const { result } = await renderUseBuyData(0, store);
 
         expect(result.current.isLoading).toBe(true);
@@ -72,7 +96,7 @@ describe('useBuyData', () => {
     });
 
     it('should settle after API queries are resolved', async () => {
-        const store = await initStore(undefined);
+        const store = configureMockStore({ reducer });
         const { result } = await renderUseBuyData(0, store);
 
         expect(result.current.isLoading).toBe(false);
@@ -84,7 +108,7 @@ describe('useBuyData', () => {
             .spyOn(tradingThunks, 'loadInitialDataThunk')
             .mockImplementation((() => ({ type: 'TEST_ACTION' })) as () => any);
 
-        const store = await initStore(undefined);
+        const store = configureMockStore({ reducer });
         const { rerender } = await renderUseBuyData(0, store);
         rerender({ reloadRequestOrdinal: 0 });
 
@@ -96,7 +120,7 @@ describe('useBuyData', () => {
             .spyOn(tradingThunks, 'loadInitialDataThunk')
             .mockImplementation((() => ({ type: 'TEST_ACTION' })) as () => any);
 
-        const store = await initStore(undefined);
+        const store = configureMockStore({ reducer });
         const { rerender } = await renderUseBuyData(0, store);
         rerender({ reloadRequestOrdinal: 1 });
 
@@ -113,14 +137,14 @@ describe('useBuyData', () => {
         });
 
         it('should dispatch loadInitialDataThunk when account is changed with descriptor', async () => {
-            const store = await getInitializedStore(undefined);
+            const store = getInitializedStore(undefined);
             await renderUseBuyData(0, store);
 
             // Clear the initial call
             initialThunkLoadActionSpy.mockClear();
 
             act(() => {
-                store.dispatch(tradingBuyActions.setTradingAccountKey('btc-account-2'));
+                store.dispatch(tradingBuyActions.setTradingAccountKey(btc2Account.key));
             });
 
             // Wait for the effect to run
@@ -135,14 +159,14 @@ describe('useBuyData', () => {
         });
 
         it('should not dispatch loadInitialDataThunk when descriptor is not changed', async () => {
-            const store = await getInitializedStore('btc-account-2');
+            const store = getInitializedStore(btc2Account.key);
             await renderUseBuyData(0, store);
 
             // Clear the initial call
             initialThunkLoadActionSpy.mockClear();
 
             act(() => {
-                store.dispatch(tradingBuyActions.setTradingAccountKey('btc-account-2'));
+                store.dispatch(tradingBuyActions.setTradingAccountKey(btc2Account.key));
             });
 
             // Wait for effects to run
@@ -154,14 +178,14 @@ describe('useBuyData', () => {
         });
 
         it('should dispatch loadInitialDataThunk with random string when descriptor is empty string', async () => {
-            const store = await getInitializedStore('btc-account-1');
+            const store = getInitializedStore(btc1Account.key);
             await renderUseBuyData(0, store);
 
             // Clear the initial call
             initialThunkLoadActionSpy.mockClear();
 
             act(() => {
-                store.dispatch(tradingBuyActions.setTradingAccountKey('btc-account-3'));
+                store.dispatch(tradingBuyActions.setTradingAccountKey(btc3Account.key));
             });
 
             // Wait for the effect to run
@@ -177,7 +201,7 @@ describe('useBuyData', () => {
         });
 
         it('should dispatch loadInitialDataThunk with random string when descriptor is undefined', async () => {
-            const store = await getInitializedStore('btc-account-1');
+            const store = getInitializedStore(btc1Account.key);
             await renderUseBuyData(0, store);
 
             // Clear the initial call

@@ -61,3 +61,14 @@ export const baseCurrencies = {
 
 export type BaseCurrencyCode = keyof typeof baseCurrencies;
 export type BaseCurrency = (typeof baseCurrencies)[BaseCurrencyCode];
+
+export const isBaseCurrencyCode = (code: string): code is BaseCurrencyCode =>
+    typeof code === 'string' && code in baseCurrencies;
+
+export const isFiatBaseCurrencyCode = (code: string): code is keyof typeof fiatBaseCurrencies =>
+    typeof code === 'string' && code in fiatBaseCurrencies;
+
+export const isValuablesBaseCurrencyCode = (
+    code: string,
+): code is keyof typeof valuablesBaseCurrencies =>
+    typeof code === 'string' && code in valuablesBaseCurrencies;

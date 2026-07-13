@@ -1,7 +1,7 @@
 import { BoxSkeleton, HStack } from '@suite-native/atoms';
 import { getWindowWidth } from '@trezor/env-utils';
-import { useNativeStyles } from '@trezor/styles';
-import { NativeTypographyStyle } from '@trezor/theme';
+import { useNativeStyles } from '@trezor/styles-native';
+import { type NativeTypographyStyle } from '@trezor/theme';
 
 import { EmptyAmountText } from './EmptyAmountText';
 
@@ -11,7 +11,7 @@ type EmptyAmountSkeletonProps = {
 
 const SKELETON_WIDTH = 0.2 * getWindowWidth();
 
-export const EmptyAmountSkeleton = ({ variant = 'body' }: EmptyAmountSkeletonProps) => {
+export const EmptyAmountSkeleton = ({ variant = 'body-md' }: EmptyAmountSkeletonProps) => {
     const { utils } = useNativeStyles();
 
     // Only font size is too small, only line height is too big.

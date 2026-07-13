@@ -1,12 +1,11 @@
 import { useMemo } from 'react';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 
-import { NetworkSymbol } from '@suite-common/wallet-config';
-import { Button, HStack, Text, VStack } from '@suite-native/atoms';
+import { type NetworkSymbol } from '@suite-common/wallet-config';
+import { Button, HStack, ScreenFooterGradient, Text, VStack } from '@suite-native/atoms';
 import { CryptoAmountFormatter } from '@suite-native/formatters';
 import { Translation } from '@suite-native/intl';
-import { ScreenFooterGradient } from '@suite-native/navigation';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 type SendUtxoScreenFooterProps = {
     selectedTotal: string;
@@ -21,7 +20,7 @@ const gradientStyle = prepareNativeStyle(utils => ({
 }));
 
 const footerStyle = prepareNativeStyle(utils => ({
-    backgroundColor: utils.colors.backgroundSurfaceElevation0,
+    backgroundColor: utils.colors.surfaceFillPage,
 }));
 
 export const SendUtxoScreenFooter = ({
@@ -51,28 +50,30 @@ export const SendUtxoScreenFooter = ({
             >
                 <VStack spacing="sp4">
                     <HStack justifyContent="space-between">
-                        <Text variant={missingToAmount ? 'hint' : 'body'}>
+                        <Text variant={missingToAmount ? 'body-sm' : 'body-md'}>
                             <Translation id="moduleSend.coinControl.utxos.selected" />
                         </Text>
                         <CryptoAmountFormatter
                             isBalance={false}
-                            variant={missingToAmount ? 'hint' : 'body'}
-                            color={missingToAmount ? 'textSubdued' : 'textDefault'}
+                            variant={missingToAmount ? 'body-sm' : 'body-md'}
+                            color={missingToAmount ? 'contentSecondary' : 'contentPrimary'}
                             value={selectedTotal}
                             symbol={symbol}
+                            isDiscreetText={false}
                         />
                     </HStack>
                     {missingToAmount && (
                         <Animated.View entering={FadeIn} exiting={FadeOut}>
                             <HStack justifyContent="space-between">
-                                <Text variant="body">
+                                <Text variant="body-md">
                                     <Translation id="moduleSend.coinControl.utxos.remaining" />
                                 </Text>
                                 <CryptoAmountFormatter
-                                    variant="body"
+                                    variant="body-md"
                                     value={missingToAmount}
                                     symbol={symbol}
                                     isBalance={false}
+                                    isDiscreetText={false}
                                 />
                             </HStack>
                         </Animated.View>
@@ -82,7 +83,7 @@ export const SendUtxoScreenFooter = ({
                 {!missingToAmount && (
                     <Animated.View entering={SlideInDown.duration(300)} exiting={SlideOutDown}>
                         <Button onPress={onSubmit}>
-                            <Translation id="generic.buttons.confirmSelection" />
+                            <Translation id="generic.buttons.confirm" />
                         </Button>
                     </Animated.View>
                 )}

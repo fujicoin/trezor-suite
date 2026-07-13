@@ -1,29 +1,27 @@
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
 import {
     cancelDiscoveryThunk,
-    runDiscoveryThunk,
-    startDiscoveryThunk,
+    startAddWalletDiscoveryThunk,
     switchToDuplicatedWallet,
 } from '@suite-common/wallet-core';
-import { DiscoveryStatus } from '@suite-common/wallet-types';
+import { type DiscoveryStatus } from '@suite-common/wallet-types';
 import { Button, Column, H3, Text, Tooltip } from '@trezor/components';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
-import { useDevice, useDispatch } from 'src/hooks/suite';
-import { TrezorDevice } from 'src/types/suite';
+import { useDispatch } from 'src/hooks/suite';
+import { type TrezorDevice } from 'src/types/suite';
 import { CardWithDevice } from 'src/views/suite/SwitchDevice/CardWithDevice';
 import { SwitchDeviceModal } from 'src/views/suite/SwitchDevice/SwitchDeviceModal';
 
 type PassphraseDuplicateModalProps = {
     device: TrezorDevice;
-    isExistingWallet: boolean;
     discovery: Extract<DiscoveryStatus, { status: 'passphrase-duplicate' }>;
 };
 
 export const PassphraseDuplicateModal = ({
     discovery,
     device, // <- currently selected device
-    isExistingWallet,
 }: PassphraseDuplicateModalProps) => {
     const { isLocked } = useDevice();
     const dispatch = useDispatch();
@@ -37,10 +35,10 @@ export const PassphraseDuplicateModal = ({
     const onTryDifferentPassphrase = () => {
         dispatch(cancelDiscoveryThunk(device));
         dispatch(
-            startDiscoveryThunk({
+            startAddWalletDiscoveryThunk({
                 device,
                 isAddingHiddenWallet: true,
-                isAddingExistingWallet: isExistingWallet,
+                isAddingExistingWallet: discovery.isAddingExistingWallet,
             }),
         );
     };
@@ -48,13 +46,12 @@ export const PassphraseDuplicateModal = ({
     const onBack = () => {
         dispatch(cancelDiscoveryThunk(device));
         dispatch(
-            startDiscoveryThunk({
+            startAddWalletDiscoveryThunk({
                 device,
-                ...discovery,
+                isAddingHiddenWallet: discovery.isAddingHiddenWallet,
+                isAddingExistingWallet: discovery.isAddingExistingWallet,
             }),
         );
-
-        dispatch(runDiscoveryThunk(device));
     };
 
     return (
@@ -64,7 +61,11 @@ export const PassphraseDuplicateModal = ({
                     <H3 data-testid="@passphrase-duplicate-header">
                         <Translation id="TR_WALLET_DUPLICATE_TITLE" />
                     </H3>
-                    <Text data-testid="@passphrase-duplicate-description" variant="tertiary">
+                    <Text
+                        data-testid="@passphrase-duplicate-description"
+                        intent="neutral"
+                        priority="secondary"
+                    >
                         <Translation id="TR_WALLET_DUPLICATE_DESC" />
                     </Text>
                     <Column gap={spacings.xs} margin={{ top: spacings.lg }} alignItems="stretch">
@@ -75,10 +76,10 @@ export const PassphraseDuplicateModal = ({
                             }
                         >
                             <Button
-                                variant="primary"
+                                intent="brand"
                                 onClick={handleDuplicateDevicePassphrase}
                                 isDisabled={isDeviceLocked}
-                                isFullWidth
+                                width="100%"
                             >
                                 <Translation id="TR_WALLET_DUPLICATE_SWITCH" />
                             </Button>
@@ -90,10 +91,11 @@ export const PassphraseDuplicateModal = ({
                             }
                         >
                             <Button
-                                variant="tertiary"
+                                intent="neutral"
+                                priority="secondary"
                                 onClick={onTryDifferentPassphrase}
                                 isDisabled={isDeviceLocked}
-                                isFullWidth
+                                width="100%"
                             >
                                 <Translation id="TR_WALLET_DUPLICATE_RETRY" />
                             </Button>

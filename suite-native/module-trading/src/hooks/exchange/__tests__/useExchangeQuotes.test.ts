@@ -1,25 +1,34 @@
+import { type CryptoId } from 'invity-api';
+
 import {
     INVITY_API_RELOAD_QUOTES_AFTER_SECONDS,
+    type MinimalExchangeFormProps,
+    tradingActions,
     tradingExchangeActions,
 } from '@suite-common/trading';
+import { type NativeAnalyticsDep, events } from '@suite-native/analytics';
+import { mockNativeAnalytics } from '@suite-native/analytics/mocks';
+import { type TestStore, act, renderHookWithStoreProvider } from '@suite-native/test-utils-store';
 import {
-    PreloadedState,
-    TestStore,
-    act,
-    initStore,
-    renderHookWithStoreProviderAsync,
-} from '@suite-native/test-utils';
+    btc1NormalAccount,
+    btcAsset,
+    eth1NormalAccount,
+    ethAsset,
+    exchangeQuotes,
+    getInitializedTradingState,
+    usdtAsset,
+} from '@suite-native/trading-fixtures';
+import { type ExchangeFormValues, type ReceiveAccount } from '@suite-native/trading-types';
 import { PROTO } from '@trezor/connect';
 
-import { getBtcAccount, getEthAccount } from '../../../__fixtures__/account';
-import { exchangeQuotes } from '../../../__fixtures__/exchangeQuotes';
-import { btcAsset, ethAsset, usdtAsset } from '../../../__fixtures__/tradeableAssets';
-import { getInitializedTradingState } from '../../../__fixtures__/tradingState';
-import { ExchangeFormValues } from '../../../types/exchange';
+import { createTradingLightStore } from '../../../__tests__/tradingTestUtils';
 import { useExchangeForm } from '../useExchangeForm';
 import { useExchangeQuotes } from '../useExchangeQuotes';
 
-let mockTimeSpent: number;
+const mockReport = jest.fn();
+const services: NativeAnalyticsDep = {
+    analytics: mockNativeAnalytics(mockReport),
+};
 
 jest.mock('@trezor/react-utils', () => {
     const originalModule = jest.requireActual('@trezor/react-utils');
@@ -27,10 +36,6 @@ jest.mock('@trezor/react-utils', () => {
     return {
         ...originalModule,
         useDebounce: () => (fn: () => unknown) => fn(),
-        useTimer: () => ({
-            ...originalModule.useTimer(),
-            timeSpent: { seconds: mockTimeSpent },
-        }),
     };
 });
 
@@ -45,45 +50,46 @@ jest.mock('@suite-common/trading', () => ({
 }));
 
 describe('useExchangeQuotes', () => {
-    const getInitializedStore = async (bitcoinAmountUnit = PROTO.AmountUnit.BITCOIN) => {
-        const preloadedState: PreloadedState = {
-            wallet: {
-                tradingNew: getInitializedTradingState(),
-                accounts: [getBtcAccount(), getEthAccount()],
-                settings: {
-                    bitcoinAmountUnit,
+    const getInitializedStore = (bitcoinAmountUnit = PROTO.AmountUnit.BITCOIN): TestStore =>
+        createTradingLightStore({
+            tradeType: 'exchange',
+            overrides: {
+                wallet: {
+                    trading: getInitializedTradingState(),
+                    accounts: [btc1NormalAccount, eth1NormalAccount],
+                    settings: {
+                        bitcoinAmountUnit,
+                    },
                 },
             },
-        };
-
-        return await initStore(preloadedState);
-    };
+        });
 
     const renderUseExchangeQuotes = (store: TestStore) =>
-        renderHookWithStoreProviderAsync(
+        renderHookWithStoreProvider(
             () => {
                 const form = useExchangeForm();
                 useExchangeQuotes(form);
 
-                return form;
+                return { form };
             },
-            { store },
+            { services, store },
         );
 
     beforeEach(() => {
-        mockTimeSpent = 0;
+        mockReport.mockClear();
     });
 
     it('should query quotes once all required data is selected', async () => {
-        const store = await getInitializedStore();
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result } = await renderUseExchangeQuotes(store);
-        const form = result.current;
+        const { result } = renderUseExchangeQuotes(store);
+        const { form } = result.current;
 
-        act(() => {
+        await act(async () => {
             form.setValue('sendAsset', btcAsset);
             form.setValue('receiveAsset', ethAsset);
             form.setValue('sendCryptoAmount', '0.1');
+            await Promise.resolve();
         });
 
         expect(dispatchSpy).toHaveBeenCalledWith({
@@ -91,13 +97,12 @@ describe('useExchangeQuotes', () => {
             payload: {
                 formValues: {
                     outputs: [{ amount: '0.1' }],
-                    receiveCryptoSelect: { value: 'ethereum' },
-                    sendCryptoSelect: { value: 'bitcoin' },
-                },
+                    receiveCryptoSelect: { id: 'ethereum' as CryptoId },
+                    sendCryptoSelect: { id: 'bitcoin' as CryptoId },
+                } satisfies MinimalExchangeFormProps,
                 network: expect.objectContaining({
                     tradeCryptoId: 'bitcoin',
                 }),
-                timer: expect.any(Object),
                 composeRequestCallback: expect.anything(),
                 shouldSendInSats: false,
             },
@@ -105,15 +110,16 @@ describe('useExchangeQuotes', () => {
     });
 
     it('should respect sats setting', async () => {
-        const store = await getInitializedStore(PROTO.AmountUnit.SATOSHI);
+        const store = getInitializedStore(PROTO.AmountUnit.SATOSHI);
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result } = await renderUseExchangeQuotes(store);
-        const form = result.current;
+        const { result } = renderUseExchangeQuotes(store);
+        const { form } = result.current;
 
-        act(() => {
+        await act(async () => {
             form.setValue('sendAsset', btcAsset);
             form.setValue('receiveAsset', ethAsset);
             form.setValue('sendCryptoAmount', '0.1');
+            await Promise.resolve();
         });
 
         expect(dispatchSpy).toHaveBeenCalledWith({
@@ -125,15 +131,17 @@ describe('useExchangeQuotes', () => {
     it.each<string>(['0', '-1'])(
         'should not query quotes when amount is zero or less',
         async amount => {
-            const store = await getInitializedStore();
+            const store = getInitializedStore();
             const dispatchSpy = jest.spyOn(store, 'dispatch');
-            const { result } = await renderUseExchangeQuotes(store);
-            const form = result.current;
+            const { result } = renderUseExchangeQuotes(store);
+            const { form } = result.current;
 
-            act(() => {
+            await act(async () => {
                 form.setValue('sendAsset', btcAsset);
                 form.setValue('receiveAsset', ethAsset);
                 form.setValue('sendCryptoAmount', amount);
+                // allow validations to run
+                await Promise.resolve();
             });
 
             expect(dispatchSpy).not.toHaveBeenCalledWith(
@@ -145,10 +153,10 @@ describe('useExchangeQuotes', () => {
     );
 
     it('should not query quotes when form contains error', async () => {
-        const store = await getInitializedStore();
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result } = await renderUseExchangeQuotes(store);
-        const form = result.current;
+        const { result } = renderUseExchangeQuotes(store);
+        const { form } = result.current;
 
         act(() => {
             form.setValue('sendAsset', btcAsset);
@@ -165,13 +173,19 @@ describe('useExchangeQuotes', () => {
                 type: 'handleRequestThunkMock',
             }),
         );
+
+        // clean up form flush async validations
+        await act(async () => {
+            form.clearErrors();
+            await form.trigger();
+        });
     });
 
     it('should query quotes as soon as form contains no errors', async () => {
-        const store = await getInitializedStore();
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result } = await renderUseExchangeQuotes(store);
-        const form = result.current;
+        const { result } = renderUseExchangeQuotes(store);
+        const { form } = result.current;
 
         act(() => {
             form.setValue('sendAsset', btcAsset);
@@ -195,11 +209,11 @@ describe('useExchangeQuotes', () => {
         );
     });
 
-    it('should clear exchange state on unmount', async () => {
-        const store = await getInitializedStore();
+    it('should clear exchange state on unmount', () => {
+        const store = getInitializedStore();
         store.dispatch(tradingExchangeActions.saveQuotes(exchangeQuotes));
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { unmount } = await renderUseExchangeQuotes(store);
+        const { unmount } = renderUseExchangeQuotes(store);
 
         unmount();
 
@@ -212,17 +226,25 @@ describe('useExchangeQuotes', () => {
     it.each<[keyof ExchangeFormValues, ExchangeFormValues[keyof ExchangeFormValues]]>([
         ['receiveAsset', usdtAsset],
         ['sendCryptoAmount', '0.2'],
-        ['sendAccount', getBtcAccount('btc-account-2')],
+        ['sendAccount', btc1NormalAccount],
+        [
+            'receiveAccount',
+            {
+                account: btc1NormalAccount,
+                address: btc1NormalAccount.addresses!.unused[0],
+            } satisfies ReceiveAccount,
+        ],
     ])('should refetch quotes on %s value change', async (field, value) => {
-        const store = await getInitializedStore();
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result } = await renderUseExchangeQuotes(store);
-        const form = result.current;
+        const { result } = renderUseExchangeQuotes(store);
+        const { form } = result.current;
 
-        act(() => {
+        await act(async () => {
             form.setValue('sendAsset', btcAsset);
             form.setValue('receiveAsset', ethAsset);
             form.setValue('sendCryptoAmount', '1');
+            await Promise.resolve();
         });
 
         dispatchSpy.mockClear();
@@ -238,22 +260,59 @@ describe('useExchangeQuotes', () => {
         );
     });
 
-    it('should re-fetch quotes when re-fetch time elapsed', async () => {
-        const store = await getInitializedStore();
+    it('should not re-fetch quotes for BTC when address is not selected', async () => {
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result, rerender } = await renderUseExchangeQuotes(store);
-        const form = result.current;
+        const { result } = renderUseExchangeQuotes(store);
+        const { form } = result.current;
 
-        act(() => {
+        await act(async () => {
             form.setValue('sendAsset', btcAsset);
             form.setValue('receiveAsset', ethAsset);
             form.setValue('sendCryptoAmount', '1');
+            await Promise.resolve();
         });
 
         dispatchSpy.mockClear();
 
-        mockTimeSpent = INVITY_API_RELOAD_QUOTES_AFTER_SECONDS;
-        rerender({});
+        act(() => {
+            form.setValue('receiveAccount', {
+                account: btc1NormalAccount,
+            });
+        });
+
+        expect(dispatchSpy).not.toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: 'handleRequestThunkMock',
+            }),
+        );
+    });
+
+    it('should re-fetch quotes when re-fetch time elapsed', async () => {
+        const store = getInitializedStore();
+        const dispatchSpy = jest.spyOn(store, 'dispatch');
+        const { result } = renderUseExchangeQuotes(store);
+        const { form } = result.current;
+
+        await act(async () => {
+            form.setValue('sendAsset', btcAsset);
+            form.setValue('receiveAsset', ethAsset);
+            form.setValue('sendCryptoAmount', '1');
+            await Promise.resolve();
+        });
+
+        act(() => {
+            store.dispatch(
+                tradingActions.setRefetchQuotesTimestamp(
+                    Date.now() - INVITY_API_RELOAD_QUOTES_AFTER_SECONDS * 1000,
+                ),
+            );
+        });
+        dispatchSpy.mockClear();
+
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        });
 
         expect(dispatchSpy).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -263,33 +322,44 @@ describe('useExchangeQuotes', () => {
     });
 
     it('should not re-fetch quotes when re-fetch time elapsed but not all required data are available', async () => {
-        const store = await getInitializedStore();
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result, rerender } = await renderUseExchangeQuotes(store);
-        const form = result.current;
+        const { result } = renderUseExchangeQuotes(store);
+        const { form } = result.current;
 
         act(() => {
             form.setValue('sendAsset', btcAsset);
         });
 
+        act(() => {
+            store.dispatch(
+                tradingActions.setRefetchQuotesTimestamp(
+                    Date.now() - INVITY_API_RELOAD_QUOTES_AFTER_SECONDS * 1000,
+                ),
+            );
+        });
         dispatchSpy.mockClear();
 
-        mockTimeSpent = INVITY_API_RELOAD_QUOTES_AFTER_SECONDS;
-        rerender({});
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        });
 
-        expect(dispatchSpy).not.toHaveBeenCalled();
+        expect(dispatchSpy).not.toHaveBeenCalledWith(
+            expect.objectContaining({ type: 'handleRequestThunkMock' }),
+        );
     });
 
     it('should clear quotes when data in form becomes invalid', async () => {
-        const store = await getInitializedStore();
+        const store = getInitializedStore();
         const dispatchSpy = jest.spyOn(store, 'dispatch');
-        const { result } = await renderUseExchangeQuotes(store);
-        const form = result.current;
+        const { result } = renderUseExchangeQuotes(store);
+        const { form } = result.current;
 
-        act(() => {
+        await act(async () => {
             form.setValue('sendAsset', btcAsset);
             form.setValue('receiveAsset', ethAsset);
             form.setValue('sendCryptoAmount', '1');
+            await Promise.resolve();
         });
         // handleRequestThunk is mocked, add quotes manually
         act(() => {
@@ -298,15 +368,147 @@ describe('useExchangeQuotes', () => {
 
         dispatchSpy.mockClear();
         // clear some value to make form invalid
-        act(() => {
-            result.current.setValue('sendCryptoAmount', undefined);
+        await act(async () => {
+            form.setValue('sendCryptoAmount', undefined);
+            await Promise.resolve();
         });
 
-        expect(dispatchSpy).toHaveBeenCalledTimes(1);
-        expect(dispatchSpy).toHaveBeenLastCalledWith({
+        // The 2nd call ("trading/setCurrentProviderMetadata") is out of scope of this test,
+        // we care only about the "tradingBuy/clearQuotesAndQuotesRequest" call.
+        expect(dispatchSpy).toHaveBeenCalledTimes(2);
+        expect(dispatchSpy).toHaveBeenNthCalledWith(1, {
             payload: undefined,
             type: 'tradingExchange/clearQuotesAndQuotesRequest',
         });
-        expect(store.getState().wallet.tradingNew.exchange.quotes).toEqual([]);
+        expect(store.getState().wallet.trading.exchange.quotes).toEqual([]);
+    });
+
+    it('should fill send and receive account when querying quotes if available', async () => {
+        const ethAccount = eth1NormalAccount;
+        const btcAccount = btc1NormalAccount;
+        const store = getInitializedStore();
+
+        const dispatchSpy = jest.spyOn(store, 'dispatch');
+        const { result } = renderUseExchangeQuotes(store);
+        const { form } = result.current;
+
+        const receiveAccount: ReceiveAccount = {
+            account: btcAccount,
+            address: {
+                address: 'btc-receive-address',
+                path: "m/44'/0'/0'/0/0",
+                transfers: 0,
+                balance: '0',
+                sent: '0',
+                received: '0',
+            },
+        };
+
+        await act(async () => {
+            form.setValue('sendAsset', ethAsset);
+            form.setValue('receiveAsset', btcAsset);
+            form.setValue('sendCryptoAmount', '1');
+            form.setValue('receiveAccount', receiveAccount);
+            form.setValue('sendAccount', ethAccount);
+            await Promise.resolve();
+        });
+
+        expect(dispatchSpy).toHaveBeenCalledWith({
+            type: 'handleRequestThunkMock',
+            payload: {
+                formValues: {
+                    outputs: [{ amount: '1' }],
+                    sendCryptoSelect: { id: 'ethereum' as CryptoId },
+                    receiveCryptoSelect: { id: 'bitcoin' as CryptoId },
+                    fromAddress: ethAccount.descriptor,
+                    receiveAddress: 'btc-receive-address',
+                    receiveAccountKey: btcAccount.key,
+                } satisfies MinimalExchangeFormProps,
+                network: expect.objectContaining({ tradeCryptoId: 'ethereum' }),
+                composeRequestCallback: expect.anything(),
+                shouldSendInSats: false,
+            },
+        });
+    });
+
+    describe('analytics', () => {
+        const renderUseExchangeQuotesWithFilledForm = async (store: TestStore) => {
+            const { result } = renderUseExchangeQuotes(store);
+            const { form } = result.current;
+
+            mockReport.mockClear();
+
+            await act(async () => {
+                form.setValue('sendAsset', btcAsset);
+                form.setValue('receiveAsset', ethAsset);
+                form.setValue('sendCryptoAmount', '1');
+                await Promise.resolve(); // flush effects → fetchQuotes called
+                await Promise.resolve(); // flush fetchQuotes first await
+                await Promise.resolve(); // flush waitForPromiseAndReport → analytics fires
+            });
+        };
+
+        it('should report when quotes are fetched', async () => {
+            const store = getInitializedStore();
+            jest.spyOn(store, 'dispatch').mockImplementation(() =>
+                Promise.resolve({
+                    meta: {
+                        requestStatus: 'fulfilled',
+                        requestId: 'test-request-id',
+                    },
+                    payload: exchangeQuotes,
+                    type: '@trading-exchange/thunk/handleRequest/fulfilled',
+                }),
+            );
+
+            await renderUseExchangeQuotesWithFilledForm(store);
+
+            expect(mockReport).toHaveBeenCalledWith({
+                type: events.tradingQuoteReceivedEvent.name,
+                payload: {
+                    type: 'exchange',
+                },
+            });
+        });
+
+        it('should not report when empty quotes are returned', async () => {
+            const store = getInitializedStore();
+            jest.spyOn(store, 'dispatch').mockImplementation(() =>
+                Promise.resolve({
+                    meta: {
+                        requestStatus: 'fulfilled',
+                        requestId: 'test-request-id',
+                    },
+                    payload: [],
+                    type: '@trading-exchange/thunk/handleRequest/fulfilled',
+                }),
+            );
+
+            await renderUseExchangeQuotesWithFilledForm(store);
+
+            expect(mockReport).not.toHaveBeenCalledWith(
+                expect.objectContaining({ type: events.tradingQuoteReceivedEvent.name }),
+            );
+        });
+
+        it('should not report when handleRequestThunk rejected', async () => {
+            const store = getInitializedStore();
+            jest.spyOn(store, 'dispatch').mockImplementation(() =>
+                Promise.resolve({
+                    meta: {
+                        requestStatus: 'rejected',
+                        requestId: 'test-request-id',
+                    },
+                    payload: exchangeQuotes,
+                    type: '@trading-exchange/thunk/handleRequest/rejected',
+                }),
+            );
+
+            await renderUseExchangeQuotesWithFilledForm(store);
+
+            expect(mockReport).not.toHaveBeenCalledWith(
+                expect.objectContaining({ type: events.tradingQuoteReceivedEvent.name }),
+            );
+        });
     });
 });

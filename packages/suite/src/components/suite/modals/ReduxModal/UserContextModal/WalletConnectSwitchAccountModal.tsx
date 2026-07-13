@@ -1,23 +1,23 @@
 import { useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 
+import { AccountLabel, AccountTypeBadge } from '@suite/account';
+import { Translation } from '@suite/intl';
+import { closeModal } from '@suite/modal';
 import { selectAllAccountsToList } from '@suite-common/wallet-core';
-import { Account } from '@suite-common/wallet-types';
+import { type Account } from '@suite-common/wallet-types';
+import { sortByCoin } from '@suite-common/wallet-utils';
 import {
     getSessionNetworks,
     selectSessions,
     switchSelectedAccountThunk,
     walletConnectActions,
 } from '@suite-common/walletconnect';
-import { Column, Modal, Option, Row, Select } from '@trezor/components';
+import { Column, Modal, type Option, Row, Select } from '@trezor/components';
 import { CoinLogo } from '@trezor/product-components';
 import { spacings } from '@trezor/theme';
 
-import * as modalActions from 'src/actions/suite/modalActions';
-import { AccountLabel, Translation } from 'src/components/suite';
-import { AccountTypeBadge } from 'src/components/suite/AccountTypeBadge';
 import { useSelector } from 'src/hooks/suite';
-import { selectAccountLabels } from 'src/reducers/suite/metadataReducer';
 
 interface WalletConnectSwitchAccountModalProps {
     sessionTopic: string;
@@ -30,15 +30,17 @@ export const WalletConnectSwitchAccountModal = ({
     const sessions = useSelector(selectSessions);
     const session = sessions.find(s => s.topic === sessionTopic);
     const accounts = useSelector(selectAllAccountsToList);
-    const accountLabels = useSelector(selectAccountLabels);
+
     const selectableAccounts = useMemo<Account[]>(
         () =>
             session
-                ? getSessionNetworks(session)
-                      .filter(network => network.status === 'active')
-                      .flatMap(network =>
-                          accounts.filter(account => account.symbol === network.symbol),
-                      )
+                ? sortByCoin(
+                      getSessionNetworks(session)
+                          .filter(network => network.status === 'active')
+                          .flatMap(network =>
+                              accounts.filter(account => account.symbol === network.symbol),
+                          ),
+                  )
                 : [],
         [accounts, session],
     );
@@ -56,17 +58,17 @@ export const WalletConnectSwitchAccountModal = ({
                 }),
             );
         }
-        dispatch(modalActions.onCancel());
+        dispatch(closeModal());
     };
     const handleCancel = () => {
-        dispatch(modalActions.onCancel());
+        dispatch(closeModal());
     };
 
     return (
         <Modal
             bottomContent={
                 <>
-                    <Modal.Button variant="primary" onClick={handleSwitch}>
+                    <Modal.Button intent="brand" onClick={handleSwitch}>
                         <Translation id="TR_CONFIRM" />
                     </Modal.Button>
                 </>
@@ -78,7 +80,6 @@ export const WalletConnectSwitchAccountModal = ({
                 <Select
                     isSearchable={false}
                     isClearable={false}
-                    isRenderedInModal={true}
                     size="large"
                     value={selectedDefaultAccount}
                     options={selectableAccounts}
@@ -87,18 +88,11 @@ export const WalletConnectSwitchAccountModal = ({
                             {account.symbol && (
                                 <CoinLogo type="token" symbol={account.symbol} size={24} />
                             )}
-                            <AccountLabel
-                                account={{
-                                    ...account,
-                                    accountLabel: accountLabels[account.key],
-                                }}
-                                key={account.descriptor}
-                            />
+                            <AccountLabel account={account} key={account.descriptor} />
                             <AccountTypeBadge
                                 accountType={account.accountType}
                                 networkType={account.networkType}
                                 size="small"
-                                onElevation
                             />
                         </Row>
                     )}

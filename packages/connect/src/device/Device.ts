@@ -1,41 +1,10 @@
 // original file https://github.com/trezor/connect/blob/develop/src/js/device/Device.js
-import { DeviceModelInternal, FirmwareRelease, models } from '@trezor/device-utils';
-import {
-    TransportProtocol,
-    thp as protocolThp,
-    v1 as protocolV1,
-    v2 as protocolV2,
-} from '@trezor/protocol';
-import { Session, TRANSPORT, TRANSPORT_ERROR } from '@trezor/transport';
-import { type Descriptor, type Transport } from '@trezor/transport';
-import { TransportDeviceEvent } from '@trezor/transport/src/transports/abstract';
-import { Deferred, TypedEmitter, createDeferred, isArrayMember, versionUtils } from '@trezor/utils';
-
-import { DeviceCommands } from './DeviceCommands';
-import { ERRORS, FIRMWARE, PROTO } from '../constants';
-import { DeviceCurrentSession, TypedCallProvider } from './DeviceCurrentSession';
-import { IStateStorage } from './StateStorage';
-import { checkFirmwareRevision } from './checkFirmwareRevision';
-import { abortThpWorkflow, getThpChannel } from './thp';
-import { checkFirmwareHashWithRetries } from './workflow/checkFirmwareHashWithRetries';
-import { getAllNetworks } from '../data/coinInfo';
-import { getFirmwareReleaseConfigInfo, getFirmwareStatus, getLanguage } from '../data/firmwareInfo';
-import {
-    DEVICE,
-    DeviceButtonRequestPayload,
-    DeviceThpCredentialsChangedPayload,
-    DeviceThpPairingPayload,
-    DeviceVersionChanged,
-    UI,
-    UiResponsePassphrase,
-    UiResponsePin,
-    UiResponseThpPairingTag,
-    UiResponseWord,
-} from '../events';
-import {
+import type {
+    DeviceBusyStatus,
     DeviceFirmwareStatus,
     DeviceState,
     DeviceStatus,
+    DeviceThpState,
     Device as DeviceTyped,
     DeviceUniquePath,
     Features,
@@ -43,77 +12,81 @@ import {
     FirmwareReleaseConfigInfo,
     FirmwareType,
     KnownDevice,
+    PROTO,
     UnavailableCapabilities,
-    VersionArray,
-} from '../types';
-import { handshakeCancel } from './workflow/handshake';
+} from '@trezor/connect-common';
+import { DEVICE, ERRORS, FIRMWARE, UI_REQUEST } from '@trezor/connect-common';
+import type { CreateLogger } from '@trezor/connect-common/src/types/settings';
+import type { FirmwareRelease } from '@trezor/device-utils';
+import {
+    DeviceModelInternal,
+    getFirmwareOrBootloaderVersionArray,
+    getFirmwareVersionArray,
+    models,
+} from '@trezor/device-utils';
+import type { TransportProtocol } from '@trezor/protocol';
+import { thp as protocolThp, v1 as protocolV1, v2 as protocolV2 } from '@trezor/protocol';
+import {
+    type Descriptor,
+    type Session,
+    TRANSPORT,
+    TRANSPORT_ERROR,
+    type Transport,
+    type TransportDeviceEvent,
+} from '@trezor/transport-common';
+import type { Deferred, Logger } from '@trezor/utils';
+import {
+    TypedEmitter,
+    cloneObject,
+    createDeferred,
+    deepEqual,
+    isArrayMember,
+    versionUtils,
+} from '@trezor/utils';
+import type { VersionArray } from '@trezor/utils/src/versionUtils';
+
+import { DeviceCommands } from './DeviceCommands';
+import type { TypedCallProvider } from './DeviceCurrentSession';
+import { DeviceCurrentSession } from './DeviceCurrentSession';
+import { checkFirmwareRevision } from './checkFirmwareRevision';
+import { abortThpWorkflow, getThpChannel } from './thp';
+import { getAllNetworks } from '../data/coinInfo';
+import {
+    getFirmwareReleaseConfigInfo,
+    getFirmwareStatus,
+    getReleaseByVersion,
+} from '../data/firmwareInfo';
+import * as settingsStore from '../data/settingsStore';
+import type { DeviceEvents, DeviceLifecycleEvents, IDevice, RunOptions } from '../types/idevice';
 import { getReleaseAsset } from '../utils/assetUtils';
-import { initLog } from '../utils/debug';
 import {
     ensureInternalModelFeature,
     getUnavailableCapabilities,
     parseCapabilities,
     parseRevision,
 } from '../utils/deviceFeaturesUtils';
-import { getFirmwareMode, getFirmwareType } from '../utils/firmwareUtils';
+import {
+    getFirmwareMode,
+    getFirmwareType,
+    isProductionFirmwareChannel,
+} from '../utils/firmwareUtils';
+import { changeLanguage } from './workflow/changeLanguage';
+import { checkFirmwareHashWithRetries } from './workflow/checkFirmwareHashWithRetries';
+import { handshakeCancel } from './workflow/handshake';
 
-// custom log
-const _log = initLog('Device');
-
-type RunOptions = {
-    // skipFinalReload - normally, after action, features are reloaded again
-    //                   because some actions modify the features
-    //                   but sometimes, you don't need that and can skip that
-    skipFinalReload?: boolean;
-    keepSession?: boolean;
-    useCardanoDerivation?: boolean;
-    skipFirmwareChecks?: boolean;
-    skipLanguageChecks?: boolean;
-};
-
-type Result<T> = { success: true; payload: T } | { success: false; error: Error };
-
-export interface DeviceEvents {
-    [DEVICE.PIN]: {
-        type: PROTO.PinMatrixRequestType | undefined;
-        callback: (response: Result<UiResponsePin['payload']>) => void;
-    };
-    [DEVICE.WORD]: {
-        type: PROTO.WordRequestType;
-        callback: (response: Result<UiResponseWord['payload']>) => void;
-    };
-    [DEVICE.PASSPHRASE]: {
-        callback: (response: Result<UiResponsePassphrase['payload']>) => void;
-    };
-    [DEVICE.PASSPHRASE_ON_DEVICE]: void;
-    [DEVICE.BUTTON]: { device: Device; payload: DeviceButtonRequestPayload };
-    [DEVICE.FIRMWARE_VERSION_CHANGED]: DeviceVersionChanged['payload'];
-    [DEVICE.THP_PAIRING]: {
-        payload: DeviceThpPairingPayload;
-        callback: (response: Result<UiResponseThpPairingTag['payload']>) => void;
-    };
-    [DEVICE.THP_CREDENTIALS_CHANGED]: DeviceThpCredentialsChangedPayload;
-}
-
-interface DeviceLifecycleEvents {
-    [DEVICE.CONNECT]: void;
-    [DEVICE.CONNECT_UNACQUIRED]: void;
-    [DEVICE.CHANGED]: void;
-    [DEVICE.DISCONNECT]: void;
-}
+export { type DeviceEvents } from '../types/idevice';
 
 type DeviceParams = {
     id: DeviceUniquePath;
     transport: Transport;
     descriptor: Descriptor;
+    createLogger: CreateLogger;
 };
 
-export class Device extends TypedEmitter<DeviceEvents> {
+export class Device extends TypedEmitter<DeviceEvents> implements IDevice {
     public readonly transport: Transport;
-    public readonly transportPath;
-    public readonly bluetoothProps;
     private thp: protocolThp.ThpState | undefined;
-    private readonly possibleHIDdevice;
+    public readonly descriptor: Pick<Descriptor, 'apiType' | 'id' | 'type' | 'path' | 'model'>;
     private sessionAcquired: Session | null;
 
     // protocol related
@@ -171,8 +144,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
 
     // DeviceState list [this.instance]: DeviceState | undefined
     private state: DeviceState[] = [];
-    private stateStorage?: IStateStorage = undefined;
-    private busy?: boolean;
+    private busy?: DeviceBusyStatus;
 
     private _unavailableCapabilities: UnavailableCapabilities = {};
     public get unavailableCapabilities(): Readonly<UnavailableCapabilities> {
@@ -182,6 +154,14 @@ export class Device extends TypedEmitter<DeviceEvents> {
     private _firmwareType?: FirmwareType;
     public get firmwareType() {
         return this._firmwareType;
+    }
+
+    private get possibleHIDdevice() {
+        return this.descriptor.type === 0 || this.descriptor.type === 2;
+    }
+
+    public get possibleT1() {
+        return (this.descriptor.type ?? 0) <= 2;
     }
 
     private name = 'Trezor';
@@ -197,26 +177,44 @@ export class Device extends TypedEmitter<DeviceEvents> {
 
     private readonly uniquePath;
 
+    private readonly createLogger: CreateLogger;
+    private readonly logger: Logger;
+
     readonly lifecycle = new TypedEmitter<DeviceLifecycleEvents>();
+
+    // Last DEVICE.CHANGED payload emitted to clients; used to suppress redundant emits.
+    private lastEmittedMessage?: DeviceTyped;
 
     private sessionDfd?: Deferred<Session | null>;
 
-    constructor({ id, transport, descriptor }: DeviceParams) {
+    constructor({ id, transport, descriptor, createLogger }: DeviceParams) {
         super();
 
         this._protocol = protocolV1;
+        this.createLogger = createLogger;
+        this.logger = createLogger('Device');
 
         // === immutable properties
         this.uniquePath = id;
         this.transport = transport;
-        this.transportPath = descriptor.path;
-        this.possibleHIDdevice = [0, 2].includes(descriptor.type);
-        this.bluetoothProps = descriptor.id ? { id: descriptor.id } : undefined;
+        this.descriptor = {
+            id: descriptor.id,
+            apiType: descriptor.apiType,
+            type: descriptor.type,
+            path: descriptor.path,
+            model: descriptor.model,
+            // session, sessionOwner are handled separately
+            // debug, debugSession are not relevant here
+        };
 
         this.sessionAcquired = null;
 
         transport.on(TRANSPORT.STOPPED, this.onTransportStopped);
-        transport.deviceEvents.on(this.transportPath, this.onTransportDeviceEvent);
+        transport.deviceEvents.on(this.descriptor.path, this.onTransportDeviceEvent);
+    }
+
+    get transportPath() {
+        return this.descriptor.path;
     }
 
     private readonly onTransportStopped = () => this.disconnect();
@@ -254,13 +252,13 @@ export class Device extends TypedEmitter<DeviceEvents> {
                 if ((await sessionPromise) !== response.payload) {
                     return {
                         success: false,
-                        error: TRANSPORT_ERROR.SESSION_WRONG_PREVIOUS,
+                        error: { code: TRANSPORT_ERROR.SESSION_WRONG_PREVIOUS },
                     } as const;
                 }
             } catch {
                 return {
                     success: false,
-                    error: TRANSPORT_ERROR.DEVICE_DISCONNECTED_DURING_ACTION,
+                    error: { code: TRANSPORT_ERROR.DEVICE_DISCONNECTED_DURING_ACTION },
                 } as const;
             }
         }
@@ -270,10 +268,10 @@ export class Device extends TypedEmitter<DeviceEvents> {
 
     acquire() {
         const sessionPromise = this.getSessionChangePromise();
-        const previous = this.transport.getDescriptor(this.transportPath)?.session ?? null;
+        const previous = this.transport.getDescriptor(this.descriptor.path)?.session ?? null;
 
         this.acquirePromise = this.transport
-            .acquire({ input: { path: this.transportPath, previous } })
+            .acquire({ input: { path: this.descriptor.path, previous } })
             .then(result => this.waitAndCompareSession(result, sessionPromise))
             .then(result => {
                 if (result.success) {
@@ -283,11 +281,12 @@ export class Device extends TypedEmitter<DeviceEvents> {
                         this,
                         this.transport,
                         this.sessionAcquired,
+                        this.createLogger('DeviceCommands'),
                     );
 
                     return result;
                 } else {
-                    throw new Error(result.error);
+                    throw new Error(result.error.code);
                 }
             })
             .finally(() => {
@@ -295,6 +294,21 @@ export class Device extends TypedEmitter<DeviceEvents> {
             });
 
         return this.acquirePromise;
+    }
+
+    reset() {
+        this.logger.info(`Resetting Features and ThpState`);
+        // @ts-expect-error
+        this._features = undefined;
+        this._protocol = protocolV1;
+        this.thp?.resetState();
+        this.thp = undefined;
+        // drop the dedup baseline so the next change is always emitted after a reset
+        this.lastEmittedMessage = undefined;
+    }
+
+    setBusy(value?: DeviceBusyStatus) {
+        this.busy = value;
     }
 
     release() {
@@ -305,7 +319,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
         const sessionPromise = this.getSessionChangePromise();
 
         this.releasePromise = this.transport
-            .release({ session: this.sessionAcquired, path: this.transportPath })
+            .release({ session: this.sessionAcquired, path: this.descriptor.path })
             .then(result => this.waitAndCompareSession(result, sessionPromise))
             .then(result => {
                 if (result.success) {
@@ -321,8 +335,8 @@ export class Device extends TypedEmitter<DeviceEvents> {
         return this.releasePromise;
     }
 
-    async setupThp() {
-        _log.info('Setup THP device');
+    setupThp() {
+        this.logger.info('Setup THP device');
         this._protocol = protocolV2;
 
         if (
@@ -333,7 +347,6 @@ export class Device extends TypedEmitter<DeviceEvents> {
             this.unreadableError = 'THP incompatible with bridge ' + this.transport.version;
         } else {
             try {
-                await this.transport.loadMessages('thp', protocolThp.getProtobufDefinitions);
                 this.thp = new protocolThp.ThpState();
             } catch (error) {
                 // THP messages not loaded
@@ -351,7 +364,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
         try {
             await this.run();
         } catch (error) {
-            _log.warn(`device.run error.message: ${error.message}, code: ${error.code}`);
+            this.logger.warn(`device.run error.message: ${error.message}, code: ${error.code}`);
 
             if (
                 error.code === 'Device_NotFound' ||
@@ -397,13 +410,43 @@ export class Device extends TypedEmitter<DeviceEvents> {
             this.keepTransportSession = false;
         }
 
+        this.emitDeviceChanged();
+    }
+
+    // Emit DEVICE.CHANGED only when the client-visible device representation actually changed.
+    // The transport reports a session change on every acquire/release, which would otherwise
+    // surface as a redundant DEVICE.CHANGED (causing needless re-renders in clients such as
+    // Suite) even though no client-visible state changed.
+    // See https://github.com/trezor/trezor-suite/issues/6446.
+    emitDeviceChanged() {
+        const message = this.toMessageObject();
+        if (this.lastEmittedMessage && deepEqual(this.lastEmittedMessage, message)) {
+            return;
+        }
+        // Store an immutable snapshot: toMessageObject() embeds live references (e.g. features),
+        // which can be mutated in place (e.g. setBusy), and would otherwise corrupt the baseline.
+        this.lastEmittedMessage = cloneObject(message);
         this.lifecycle.emit(DEVICE.CHANGED);
+    }
+
+    startPiggybackAck() {
+        this.logger.debug('start PiggybackAck');
+        this.thp?.enablePiggybackAck(true);
+    }
+
+    async stopPiggybackAck() {
+        if (this.currentSession && this.thp?.isPiggybackAckEnabled) {
+            this.logger.debug('stop PiggybackAck');
+            // send ThpAck for previously seen message
+            await this.currentSession.send('ThpAck', {});
+            this.thp?.enablePiggybackAck(false);
+        }
     }
 
     // TODO empty fn variant can be split/removed
     run(fn?: () => Promise<void>, options: RunOptions = {}) {
         if (this.runPromise) {
-            _log.warn('Previous call is still running');
+            this.logger.warn('Previous call is still running');
             throw ERRORS.TypedError('Device_CallInProgress');
         }
 
@@ -421,6 +464,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
             .catch(async err => {
                 this.keepTransportSession = false;
                 await this.acquirePromise;
+                await this.stopPiggybackAck();
                 await this.release();
 
                 throw err;
@@ -439,7 +483,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
     }
 
     async interrupt(reason: Error) {
-        await abortThpWorkflow(this, () => this.runAbort?.abort(reason));
+        await abortThpWorkflow(this);
         await this.currentSession?.abort(reason);
 
         // reject inner defer
@@ -466,7 +510,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
         this.transport.releaseDevice(this.sessionAcquired);
         this.sessionAcquired = null;
 
-        _log.debug('interruptionFromOutside');
+        this.logger.debug('interruptionFromOutside');
 
         this.runAbort?.abort(ERRORS.TypedError('Device_UsedElsewhere'));
     }
@@ -495,12 +539,13 @@ export class Device extends TypedEmitter<DeviceEvents> {
         if (acquireNeeded || !staticSessionId || (!deriveCardano && options.useCardanoDerivation)) {
             // update features
             try {
-                await handshakeCancel({ device: this, logger: _log, signal: abortSignal });
+                await handshakeCancel({ device: this, logger: this.logger, signal: abortSignal });
 
                 if (this.protocol.name === 'v2') {
                     const withInteraction = !!fn;
-                    await getThpChannel(this, withInteraction);
-                    if (this.getThpState()?.isAutoconnectPaired || withInteraction) {
+                    this.busy = await getThpChannel(this, withInteraction);
+                    this.updateNameAndColor();
+                    if (!this.busy) {
                         await this.getFeatures();
                     }
                 } else if (fn) {
@@ -508,16 +553,21 @@ export class Device extends TypedEmitter<DeviceEvents> {
                 } else {
                     await this.getFeatures();
                 }
-
-                this.busy = false;
             } catch (error) {
-                _log.warn('Device._runInner error: ', error.message);
+                this.logger.warn('Device._runInner error: ', error.message);
 
                 if (error.code === 'Failure_Busy') {
-                    this.busy = true;
+                    this.busy = 'busy';
                 }
 
-                if (error.code === 'Device_ThpPairingTagInvalid') {
+                if (error.code === 'ThpDeviceLocked') {
+                    this.busy = 'pin-locked';
+                }
+
+                if (
+                    error.code === 'Device_ThpPairingTagInvalid' ||
+                    error.code === 'Failure_ActionCancelled'
+                ) {
                     // return as TypedError
                     return Promise.reject(error);
                 }
@@ -534,7 +584,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
         }
 
         if (!options.skipFirmwareChecks) {
-            await checkFirmwareHashWithRetries({ device: this, logger: _log });
+            await checkFirmwareHashWithRetries({ device: this, logger: this.logger });
             await this.checkFirmwareRevisionWithRetries();
         }
 
@@ -544,12 +594,12 @@ export class Device extends TypedEmitter<DeviceEvents> {
             !this.features.language_version_matches &&
             this.atLeast('2.7.0')
         ) {
-            _log.info('language version mismatch. silently updating...');
+            this.logger.info('language version mismatch. silently updating...');
 
             try {
-                await this.changeLanguage({ language: this.features.language });
+                await changeLanguage({ device: this, language: this.features.language });
             } catch (err) {
-                _log.error('change language failed silently', err);
+                this.logger.error('change language failed silently', err);
             }
         }
 
@@ -574,6 +624,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
             options.keepSession === false
         ) {
             this.keepTransportSession = false;
+            await this.stopPiggybackAck();
             await this.release();
         }
     }
@@ -622,7 +673,6 @@ export class Device extends TypedEmitter<DeviceEvents> {
             };
 
             this.state[this.instance] = newState;
-            this.stateStorage?.saveState(this, newState);
         }
     }
 
@@ -646,17 +696,14 @@ export class Device extends TypedEmitter<DeviceEvents> {
             payload,
         );
         this._updateFeatures(message);
+        await this._updateCurrentRelease(message);
         this.setState({ deriveCardano: payload?.derive_cardano });
-    }
-
-    initStorage(storage: IStateStorage) {
-        this.stateStorage = storage;
-        this.setState(storage.loadState(this));
     }
 
     async getFeatures() {
         const { message } = await this.getCurrentSession().typedCall('GetFeatures', 'Features', {});
         this._updateFeatures(message);
+        await this._updateCurrentRelease(message);
     }
 
     getAuthenticityChecks() {
@@ -687,7 +734,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
             return; // This happens when device has no features (not yet connected)
         }
 
-        if (this.features && this.features.bootloader_mode === true) {
+        if (this.features?.bootloader_mode === true) {
             return;
         }
 
@@ -699,9 +746,11 @@ export class Device extends TypedEmitter<DeviceEvents> {
 
         const result = await checkFirmwareRevision({
             internalModel: this.features.internal_model,
-            deviceRevision: this.features.revision,
             firmwareVersion,
+            deviceRevision: this.features.revision,
             expectedRevision: release?.firmware_revision,
+            deviceBootloaderHash: this.features.bootloader_hash,
+            expectedBootloaderHash: release?.bootloader_hash,
             firmwareType: this.firmwareType,
         });
         this.authenticityChecks = {
@@ -710,81 +759,35 @@ export class Device extends TypedEmitter<DeviceEvents> {
         };
     }
 
-    async changeLanguage({
-        language,
-        binary,
-    }: { language?: undefined; binary: ArrayBuffer } | { language: string; binary?: undefined }) {
-        if (language === 'en-US') {
-            return this._uploadTranslationData(null);
+    private async _updateCurrentRelease(feat: Features) {
+        const firmwareVersion = getFirmwareVersionArray({ features: feat });
+        const newFirmwareType = getFirmwareType(feat);
+
+        // We need firmwareVersion to lookup the release.
+        if (!firmwareVersion) {
+            return;
         }
 
-        if (binary) {
-            return this._uploadTranslationData(binary);
+        if (
+            this._currentRelease &&
+            newFirmwareType === this.firmwareType &&
+            versionUtils.isEqual(this._currentRelease.version, firmwareVersion) &&
+            // When test firmware channel is used, we need to fetch the release from remote.
+            isProductionFirmwareChannel(settingsStore.get('firmwareChannel'))
+        ) {
+            return;
         }
 
-        const version = this.getVersion();
-        if (!version) {
-            throw ERRORS.TypedError('Runtime', 'changeLanguage: device version unknown');
-        }
-
-        if (!this.firmwareType) {
-            throw ERRORS.TypedError('Runtime', 'changeLanguage: firmware type unknown');
-        }
-
-        if (!this._currentRelease) {
-            throw ERRORS.TypedError('Runtime', 'changeLanguage: release not found');
-        }
-        const languageBinPath = this._currentRelease.translations[language];
-        const downloadedBinary = await getLanguage(languageBinPath);
-
-        if (!downloadedBinary) {
-            throw ERRORS.TypedError('Runtime', 'changeLanguage: translation not found');
-        }
-
-        return this._uploadTranslationData(downloadedBinary);
-    }
-
-    private async _uploadTranslationData(payload: ArrayBuffer | null) {
-        if (payload === null) {
-            const response = await this.getCurrentSession().typedCall(
-                'ChangeLanguage',
-                ['Success'],
-                { data_length: 0 }, // For en-US where we just send `ChangeLanguage(size=0)`
-            );
-
-            return response.message;
-        }
-
-        const length = payload.byteLength;
-
-        let response = await this.getCurrentSession().typedCall(
-            'ChangeLanguage',
-            ['DataChunkRequest', 'Success'],
-            { data_length: length },
-        );
-
-        while (response.type !== 'Success') {
-            const start = response.message.data_offset!;
-            const end = response.message.data_offset! + response.message.data_length!;
-            const chunk = payload.slice(start, end);
-
-            response = await this.getCurrentSession().typedCall(
-                'DataChunkAck',
-                ['DataChunkRequest', 'Success'],
-                {
-                    data_chunk: Buffer.from(chunk).toString('hex'),
-                },
-            );
-        }
-
-        return response.message;
+        const release = await getReleaseByVersion(feat, firmwareVersion, newFirmwareType);
+        this._currentRelease = release;
+        this.availableTranslations = this._currentRelease?.translations ?? {};
     }
 
     private _updateFeatures(feat: Features) {
         const capabilities = parseCapabilities(feat);
         feat.capabilities = capabilities;
         // GetFeatures doesn't return 'session_id'
-        if (this.features && this.features.session_id && !feat.session_id) {
+        if (this.features?.session_id && !feat.session_id) {
             feat.session_id = this.features.session_id;
         }
         feat.unlocked = feat.unlocked ?? true;
@@ -804,53 +807,116 @@ export class Device extends TypedEmitter<DeviceEvents> {
         }
 
         const version = this.getVersion();
-        const newVersion = [
-            feat.major_version,
-            feat.minor_version,
-            feat.patch_version,
-        ] satisfies VersionArray;
+        const newVersion = getFirmwareOrBootloaderVersionArray(feat);
+        this.deviceVersionCheck(feat);
 
         // check if FW version or capabilities did change
         if (!version || !versionUtils.isEqual(version, newVersion)) {
-            if (version) {
-                this.emit(DEVICE.FIRMWARE_VERSION_CHANGED, {
-                    oldVersion: version,
-                    newVersion,
-                    device: this.toMessageObject(),
-                });
-            }
-            this._currentRelease = getReleaseAsset(
-                feat.internal_model,
-                newVersion,
-                getFirmwareType(feat),
-            );
             this._unavailableCapabilities = getUnavailableCapabilities(feat, getAllNetworks());
             this._firmwareStatus = getFirmwareStatus(feat, getFirmwareType(feat));
             this._firmwareReleaseConfigInfo = getFirmwareReleaseConfigInfo(
                 feat,
                 getFirmwareType(feat),
             );
-            this.availableTranslations = this._currentRelease?.translations ?? {};
+            // Bundled release JSONs are production assets, so only seed `currentRelease`
+            // from them on production-like channels. On other channels the
+            // channel-appropriate release is fetched from remote immediately after,
+            // by the awaited `_updateCurrentRelease`.
+            if (isProductionFirmwareChannel(settingsStore.get('firmwareChannel'))) {
+                this._currentRelease = getReleaseAsset(
+                    feat.internal_model,
+                    newVersion,
+                    getFirmwareType(feat),
+                );
+                this.availableTranslations = this._currentRelease?.translations ?? {};
+            }
         }
 
         this._features = feat;
 
         this._firmwareType = getFirmwareType(feat);
 
-        const deviceInfo = models[feat.internal_model] ?? {
-            name: `Unknown ${feat.internal_model}`,
+        this.updateNameAndColor();
+
+        this.busy = undefined;
+    }
+
+    // Ensure that FW version is invariable except for firmware update
+    private deviceVersionCheck(feat: Features) {
+        const version = this.getVersion();
+        const oldId = this.features?.device_id;
+        // unacquired, bootloader, or nothing otherwise nothing compare
+        if (!oldId || !!feat.bootloader_mode || !version) return;
+
+        const newVersion = getFirmwareOrBootloaderVersionArray(feat); // guaranteed to be FW mode here
+        // This should never happen, it's indicative of a transport-level bug, so log to Sentry via console.error
+        if (feat.device_id !== oldId) {
+            // during wipe device, the same device (same path) changes id. This also ignores rare transport-level errors of mismatched response
+            if (feat.initialized === this.features?.initialized) {
+                // This is logged to Sentry via captureConsoleIntegration, so confidential fields
+                // (device id, label, session id) must be stripped first. The mismatch itself plus the
+                // firmware/model info left in features is enough to diagnose the transport-level bug.
+                const stripConfidential = (f: Features) => ({
+                    ...f,
+                    device_id: undefined,
+                    session_id: undefined,
+                    label: undefined,
+                });
+                // this.features is overwritten with feat right after this method returns, so capture
+                // the old features reference synchronously; it is redacted at the log site below.
+                const oldFeatures = this.features;
+                const { uniquePath: path } = this;
+                // transport descriptors are useful debug info, but no need to await, the side-effect to log to Sentry can run async
+                this.transport.enumerate().then(res => {
+                    const descriptors = res.success ? res.payload : undefined;
+                    console.error('getFeatures device id mismatch', {
+                        path,
+                        oldFeatures: oldFeatures && stripConfidential(oldFeatures),
+                        newFeatures: stripConfidential(feat),
+                        descriptors,
+                    });
+                });
+            }
+
+            return;
+        }
+        if (!versionUtils.isEqual(version, newVersion)) {
+            this.emit(DEVICE.FIRMWARE_VERSION_CHANGED, {
+                oldVersion: version,
+                newVersion,
+                device: this.toMessageObject(),
+            });
+        }
+    }
+
+    private updateNameAndColor() {
+        const { internal_model, model_variant } = this.thp?.properties ?? {};
+        const internalModel = this._features?.internal_model ?? internal_model;
+        const unitColor = this._features?.unit_color ?? (model_variant ?? 0) % 256;
+
+        const deviceInfo = models[internalModel] ?? {
+            name: `Unknown ${internalModel}`,
             colors: {},
         };
 
         this.name = deviceInfo.name;
 
-        // todo: move to 553
-        if (feat?.unit_color) {
-            const deviceUnitColor = feat.unit_color.toString();
-
+        if (unitColor) {
+            const deviceUnitColor = unitColor.toString();
             if (deviceUnitColor in deviceInfo.colors) {
-                this.color = (deviceInfo.colors as Record<string, string>)[deviceUnitColor];
+                this.color = deviceInfo.colors[deviceUnitColor];
             }
+        }
+    }
+
+    // For now only battery level is allowed to be updated from outside
+    updateFeature<K extends keyof Pick<Features, 'soc'>>(key: K, value: Features[K]) {
+        if (this._features) {
+            this._features = {
+                ...this._features,
+                [key]: value,
+            };
+            this.emitDeviceChanged();
         }
     }
 
@@ -880,15 +946,11 @@ export class Device extends TypedEmitter<DeviceEvents> {
         return this.features === undefined;
     }
 
-    isUnreadable() {
-        return !!this.unreadableError;
-    }
-
     private disconnect() {
-        _log.debug('Disconnect cleanup');
+        this.logger.debug('Disconnect cleanup');
 
         this.transport.off(TRANSPORT.STOPPED, this.onTransportStopped);
-        this.transport.deviceEvents.off(this.transportPath, this.onTransportDeviceEvent);
+        this.transport.deviceEvents.off(this.descriptor.path, this.onTransportDeviceEvent);
         this.removeAllListeners();
 
         this.sessionDfd?.reject(new Error());
@@ -916,30 +978,32 @@ export class Device extends TypedEmitter<DeviceEvents> {
     }
 
     getVersion(): VersionArray | undefined {
-        if (!this.features) return;
-
-        return [
-            this.features.major_version,
-            this.features.minor_version,
-            this.features.patch_version,
-        ];
+        return this.features ? getFirmwareOrBootloaderVersionArray(this.features) : undefined;
     }
 
     atLeast(versions: string[] | string) {
         const version = this.getVersion();
         if (!this.features || !version) return false;
-        const modelVersion =
-            typeof versions === 'string' ? versions : versions[this.features.major_version - 1];
+        if (typeof versions === 'string') {
+            return versionUtils.isNewerOrEqual(version, versions);
+        }
+        const modelVersionIndex = this.features.major_version - 1;
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const modelVersion: string = versions[modelVersionIndex];
 
         return versionUtils.isNewerOrEqual(version, modelVersion);
     }
 
     isUsed() {
-        return !!this.transport.getDescriptor(this.transportPath)?.session;
+        return !!this.transport.getDescriptor(this.descriptor.path)?.session;
     }
 
     isUsedHere() {
         return !!this.sessionAcquired;
+    }
+
+    getBusy() {
+        return this.busy;
     }
 
     isUsedElsewhere() {
@@ -950,27 +1014,18 @@ export class Device extends TypedEmitter<DeviceEvents> {
         return this.uniquePath;
     }
 
-    isT1() {
-        return this.features ? this.features.major_version === 1 : false;
-    }
-
-    hasUnexpectedMode(allow: string[], require: string[]) {
+    hasUnexpectedMode(allow: string[]) {
         // both allow and require cases might generate single unexpected mode
         if (this.features) {
             // allow cases
-            if (this.isBootloader() && !allow.includes(UI.BOOTLOADER)) {
-                return UI.BOOTLOADER;
+            if (this.isBootloader() && !allow.includes(UI_REQUEST.BOOTLOADER)) {
+                return UI_REQUEST.BOOTLOADER;
             }
-            if (!this.isInitialized() && !allow.includes(UI.INITIALIZE)) {
-                return UI.INITIALIZE;
+            if (!this.isInitialized() && !allow.includes(UI_REQUEST.INITIALIZE)) {
+                return UI_REQUEST.INITIALIZE;
             }
-            if (this.isSeedless() && !allow.includes(UI.SEEDLESS)) {
-                return UI.SEEDLESS;
-            }
-
-            // require cases
-            if (!this.isBootloader() && require.includes(UI.BOOTLOADER)) {
-                return UI.NOT_IN_BOOTLOADER;
+            if (this.isSeedless() && !allow.includes(UI_REQUEST.SEEDLESS)) {
+                return UI_REQUEST.SEEDLESS;
             }
         }
 
@@ -980,14 +1035,28 @@ export class Device extends TypedEmitter<DeviceEvents> {
     private getStatus(): DeviceStatus {
         if (this.isUsedElsewhere()) return 'occupied';
         if (this.wasUsedElsewhere) return 'used';
-        if (this.busy) return 'busy';
+        if (this.busy) return this.busy;
 
         return 'available';
     }
+
+    private getDeviceThp(): DeviceThpState | undefined {
+        const state = this.thp?.serialize();
+
+        return state
+            ? {
+                  properties: state.properties,
+                  credentials: state.credentials,
+                  channel: state.channel,
+              }
+            : undefined;
+    }
+
     // simplified object to pass via postMessage
     toMessageObject(): DeviceTyped {
-        const { name, uniquePath: path } = this;
-        const base = { path, name };
+        const { name, uniquePath: path, descriptor } = this;
+        const { apiType, id } = descriptor;
+        const base = { path, name, descriptor: { apiType, id } };
 
         if (this.unreadableError) {
             return {
@@ -999,7 +1068,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
             };
         }
         if (this.isUnacquired()) {
-            const sessionOwner = this.transport.getDescriptor(this.transportPath)?.sessionOwner;
+            const sessionOwner = this.transport.getDescriptor(this.descriptor.path)?.sessionOwner;
 
             return {
                 ...base,
@@ -1007,9 +1076,8 @@ export class Device extends TypedEmitter<DeviceEvents> {
                 label: 'Unacquired device',
                 name: this.name,
                 transportSessionOwner: this.sessionAcquired ? undefined : sessionOwner,
-                bluetoothProps: this.bluetoothProps,
-                thp: this.thp?.serialize(),
-                status: this.busy ? 'busy' : undefined,
+                thp: this.getDeviceThp(),
+                status: this.busy ? this.busy : undefined,
             };
         }
         const defaultLabel = 'My Trezor';
@@ -1021,8 +1089,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
             type: 'acquired',
             id: this.features.device_id,
             label,
-            _state: this.getState(),
-            state: this.getState()?.staticSessionId,
+            state: this.getState(),
             status: this.getStatus(),
             mode: getFirmwareMode(this.features),
             color: this.color,
@@ -1033,8 +1100,7 @@ export class Device extends TypedEmitter<DeviceEvents> {
             unavailableCapabilities: this.unavailableCapabilities,
             availableTranslations: this.availableTranslations,
             authenticityChecks: this.authenticityChecks,
-            bluetoothProps: this.bluetoothProps,
-            thp: this.thp?.serialize(),
+            thp: this.getDeviceThp(),
         };
     }
 }

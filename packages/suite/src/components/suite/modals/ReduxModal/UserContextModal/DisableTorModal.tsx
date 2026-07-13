@@ -1,17 +1,18 @@
 import { useState } from 'react';
 
-import { UserContextPayload } from '@suite-common/suite-types';
+import { Translation } from '@suite/intl';
+import { isOnionUrl } from '@suite/tor';
+import { type UserContextPayload } from '@suite-common/suite-types';
 import { type NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
-import { blockchainActions } from '@suite-common/wallet-core';
+import { blockchainActions, selectCustomBackends } from '@suite-common/wallet-core';
 import { Banner, Button, Card, Column, H3, Modal, Paragraph, Row } from '@trezor/components';
+import { GearIcon, TorBrowserIcon } from '@trezor/icons';
 import { CoinLogo } from '@trezor/product-components';
 import { spacings } from '@trezor/theme';
 
-import { Translation } from 'src/components/suite';
-import { AdvancedCoinSettingsModal } from 'src/components/suite/modals';
-import { useCustomBackends } from 'src/hooks/settings/backends';
-import { useDispatch } from 'src/hooks/suite';
-import { isOnionUrl } from 'src/utils/suite/tor';
+import { useDispatch, useSelector } from 'src/hooks/suite';
+
+import { AdvancedCoinSettingsModal } from './AdvancedCoinSettingsModal/AdvancedCoinSettingsModal';
 
 type DisableTorModalProps = Omit<Extract<UserContextPayload, { type: 'disable-tor' }>, 'type'> & {
     onCancel: () => void;
@@ -20,7 +21,8 @@ type DisableTorModalProps = Omit<Extract<UserContextPayload, { type: 'disable-to
 export const DisableTorModal = ({ onCancel, decision }: DisableTorModalProps) => {
     const dispatch = useDispatch();
     const [symbol, setSymbol] = useState<NetworkSymbol>();
-    const onionBackends = useCustomBackends().filter(({ urls }) => urls.every(isOnionUrl));
+    const customBackends = useSelector(selectCustomBackends);
+    const onionBackends = customBackends.filter(({ urls }) => urls.every(isOnionUrl));
 
     const onDisableTor = () => {
         onionBackends.forEach(({ symbol, type, urls }) =>
@@ -37,13 +39,17 @@ export const DisableTorModal = ({ onCancel, decision }: DisableTorModalProps) =>
     };
 
     return symbol ? (
-        <AdvancedCoinSettingsModal symbol={symbol} onCancel={() => setSymbol(undefined)} />
+        <AdvancedCoinSettingsModal
+            symbol={symbol}
+            onCancel={() => setSymbol(undefined)}
+            onBackClick={() => setSymbol(undefined)}
+        />
     ) : (
         <Modal
             onCancel={onCancel}
-            variant={onionBackends.length ? 'warning' : 'primary'}
-            size="small"
-            iconName={onionBackends.length ? undefined : 'torBrowser'}
+            intent={onionBackends.length ? 'warning' : 'brand'}
+            width={600}
+            icon={onionBackends.length ? undefined : TorBrowserIcon}
             heading={
                 onionBackends.length ? <Translation id="TR_TOR_DISABLE_ONIONS_ONLY" /> : undefined
             }
@@ -58,7 +64,7 @@ export const DisableTorModal = ({ onCancel, decision }: DisableTorModalProps) =>
                             }
                         />
                     </Modal.Button>
-                    <Modal.Button onClick={onCancel} variant="tertiary">
+                    <Modal.Button onClick={onCancel} intent="neutral" priority="secondary">
                         <Translation id="TR_CANCEL" />
                     </Modal.Button>
                 </>
@@ -66,10 +72,16 @@ export const DisableTorModal = ({ onCancel, decision }: DisableTorModalProps) =>
         >
             {onionBackends.length ? (
                 <Column gap={spacings.md}>
-                    <Banner variant="warning" icon="torBrowser">
-                        <Translation id="TR_TOR_DISABLE_ONIONS_ONLY_TITLE" />{' '}
-                        <Translation id="TR_TOR_DISABLE_ONIONS_ONLY_DESCRIPTION" />
-                    </Banner>
+                    <Banner
+                        intent="warning"
+                        icon={TorBrowserIcon}
+                        description={
+                            <>
+                                <Translation id="TR_TOR_DISABLE_ONIONS_ONLY_TITLE" />{' '}
+                                <Translation id="TR_TOR_DISABLE_ONIONS_ONLY_DESCRIPTION" />
+                            </>
+                        }
+                    />
                     <Card>
                         <Column gap={spacings.xxl} hasDivider>
                             {onionBackends.map(({ symbol, urls }) => (
@@ -78,17 +90,19 @@ export const DisableTorModal = ({ onCancel, decision }: DisableTorModalProps) =>
                                     <Column>
                                         <Paragraph>{getNetwork(symbol).name}</Paragraph>
                                         <Paragraph
-                                            variant="tertiary"
-                                            typographyStyle="hint"
+                                            intent="neutral"
+                                            priority="secondary"
+                                            typographyStyle="body-sm"
                                             ellipsisLineCount={1}
                                         >
                                             {urls.join(', ')}
                                         </Paragraph>
                                     </Column>
                                     <Button
-                                        variant="tertiary"
+                                        intent="neutral"
+                                        priority="secondary"
                                         onClick={() => setSymbol(symbol)}
-                                        icon="gear"
+                                        iconLeft={GearIcon}
                                         size="small"
                                         margin={{ left: 'auto' }}
                                     >
@@ -104,7 +118,7 @@ export const DisableTorModal = ({ onCancel, decision }: DisableTorModalProps) =>
                     <H3>
                         <Translation id="TR_TOR_DISABLE_ONIONS_ONLY_NO_MORE_DESCRIPTION" />
                     </H3>
-                    <Paragraph variant="tertiary">
+                    <Paragraph intent="neutral" priority="secondary">
                         <Translation id="TR_TOR_DISABLE_ONIONS_ONLY_NO_MORE_TITLE" />
                     </Paragraph>
                 </Column>

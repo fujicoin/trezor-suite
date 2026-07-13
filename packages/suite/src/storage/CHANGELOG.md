@@ -1,9 +1,61 @@
 # Storage changelog
 
-## 25.9.0
+## 26.6.0
 
-- persist `suite.stakingDashboardCollapsed` in `suiteSettings`
-- persist `wallet.settings.mevProtection` in `walletSettings`
+- purge desktop trading form draft keys (`trading-buy/*`, `trading-sell/`, `trading-exchange/`) from `formDrafts`
+
+## 26.5.0
+
+- reset Ethereum account nonces to `-1` in order to force account refresh for DeFi tokens
+- backfill `manualCheckResult` to all `persistentDeviceData` entries (all previously known devices assumed confirmed)
+
+## 26.4.0.2
+
+- rename `experimentalFeedback` object store to `featureFeedback`
+
+## 26.4.0.1
+
+- ensure `descriptor.apiType` is set to `usb` for remembered devices from old Suite versions
+
+## 26.4.0
+
+- create `phishing` object store for persisting user "marked as not scam" transaction IDs per account
+
+## 26.3.0.1
+
+- create `experimentalFeedback` object store
+
+## 26.3.0
+
+- create `suiteSyncOwners` object store
+
+## 26.2.0
+
+- remove saved transactions to force refetch with correct token symbol casing
+
+## 26.1.0
+
+- remove TADA network
+- move THP `staticKey` to `credentials.host_static_key`
+
+## 25.11.3
+
+- remove Cardano graph data
+
+## 25.11.0
+
+- move `autoEject` from `suite.settings` to `wallet.walletSettings`
+
+## 25.10.0
+
+- create `persistentDeviceData` object store
+- migrate data from `security` to `persistentDeviceData` object store
+- remove `security` object store
+- remove `thol` network
+
+## 25.9.2
+
+- clear `security.devicesWithFailedEntropyCheck` because of false positives in 25.8
 
 ## 25.8.0
 

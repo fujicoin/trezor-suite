@@ -1,40 +1,47 @@
-import styled from 'styled-components';
+import { type ReactNode } from 'react';
 
+import { ContextMessage } from '@suite/message-system';
+import { selectInvityServerEnvironment } from '@suite/settings';
+import { TradingEnvironmentWarning } from '@suite/trading';
 import { Context } from '@suite-common/message-system';
-import { Card, Column } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { Box, Card, Column } from '@trezor/components';
+import { breakpoints, spacings } from '@trezor/theme';
 
-import { ContextMessage } from 'src/components/wallet/WalletLayout/AccountBanners/ContextMessage';
+import { useSelector } from 'src/hooks/suite';
 import { useTradingDeviceDisconnected } from 'src/hooks/wallet/trading/form/common/useTradingDeviceDisconnected';
+import { ContentFlex } from 'src/support/suite/ContentFlex';
 import { ConnectDeviceGenericPromo } from 'src/views/wallet/receive/components/ConnectDevicePromo';
-import { TradingFeaturedOffers } from 'src/views/wallet/trading/common/TradingFeaturedOffers/TradingFeaturedOffers';
-import { TradingFormInputs } from 'src/views/wallet/trading/common/TradingForm/TradingFormInputs';
-import { TradingFormOffer } from 'src/views/wallet/trading/common/TradingForm/TradingFormOffer';
-import { TradingWrapper } from 'src/views/wallet/trading/common/TradingWrapper';
+import { TradingFormOffer } from 'src/views/wallet/trading/common/TradingForm/TradingFormOffer/TradingFormOffer';
 
-const TradingFormLayoutWrapper = styled.form`
-    ${TradingWrapper}
-`;
+import { ReceiveAddressModalControlsProvider } from '../TradingSelectedOffer/TradingReceiveAddress/useReceiveAddressModalControls';
 
-export const TradingFormLayout = () => {
+interface TradingFormLayoutProps {
+    children: ReactNode;
+}
+
+export const TradingFormLayout = ({ children }: TradingFormLayoutProps) => {
     const { tradingDeviceDisconnected } = useTradingDeviceDisconnected();
+    const invityServerEnvironment = useSelector(selectInvityServerEnvironment);
 
     return (
         <Column gap={spacings.md} data-testid="@trading/form">
             {tradingDeviceDisconnected && <ConnectDeviceGenericPromo />}
+            <TradingEnvironmentWarning tradingEnvironment={invityServerEnvironment} />
 
-            <TradingFormLayoutWrapper>
-                <Card>
-                    <Column gap={spacings.lg}>
-                        <TradingFormInputs />
-                    </Column>
-                </Card>
-                <Card>
-                    <TradingFormOffer />
-                </Card>
-            </TradingFormLayoutWrapper>
+            {/* If clicking on disabled input, the click propagates to the form and submits it (some form values are then pushed to URL search params) */}
+            <form onSubmit={e => e.preventDefault()}>
+                <ReceiveAddressModalControlsProvider>
+                    <ContentFlex gap={16} breakpoint={breakpoints.tablet} alignItems="stretch">
+                        <Box flex="2" minWidth={0}>
+                            {children}
+                        </Box>
+                        <Card flex="1">
+                            <TradingFormOffer />
+                        </Card>
+                    </ContentFlex>
+                </ReceiveAddressModalControlsProvider>
+            </form>
             <ContextMessage context={Context.getLegal('gateway')} />
-            <TradingFeaturedOffers />
         </Column>
     );
 };

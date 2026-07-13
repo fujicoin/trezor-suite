@@ -1,18 +1,21 @@
-import { Explorer, getNetwork } from '@suite-common/wallet-config';
+import { Translation } from '@suite/intl';
+import { type Explorer, getNetwork } from '@suite-common/wallet-config';
 import { getExplorerUrl } from '@suite-common/wallet-config/src/getExplorerUrls';
+import { selectAccountByKey, selectExplorer } from '@suite-common/wallet-core';
 import {
-    selectAccountByKey,
-    selectExplorer,
-    selectIsPhishingTransaction,
-} from '@suite-common/wallet-core';
-import { Account, ChainedTransactions, WalletAccountTransaction } from '@suite-common/wallet-types';
-import { getAccountKey } from '@suite-common/wallet-utils';
+    type Account,
+    type ChainedTransactions,
+    type WalletAccountTransaction,
+    createAccountKey,
+} from '@suite-common/wallet-types';
+import { type PendingEvmNonceStatus } from '@suite-common/wallet-utils';
 import { Modal } from '@trezor/components';
+import { GaugeIcon, XIcon } from '@trezor/icons';
 
-import { AdvancedTxDetails, TabID } from './AdvancedTxDetails/AdvancedTxDetails';
-import { useSelector } from '../../../../../../../hooks/suite';
-import { Translation } from '../../../../../Translation';
+import { useSelector } from 'src/hooks/suite';
+
 import { TxDetailModalBase } from '../TxDetailModalBase';
+import { AdvancedTxDetails, type TabID } from './AdvancedTxDetails/AdvancedTxDetails';
 
 type DetailModalProps = {
     tx: WalletAccountTransaction;
@@ -23,6 +26,8 @@ type DetailModalProps = {
     chainedTxs?: ChainedTransactions;
     canReplaceTransaction: boolean;
     canCancelTransaction: boolean;
+    nonceStatus?: PendingEvmNonceStatus;
+    nextNonce?: number;
 };
 
 export const DetailModal = ({
@@ -34,14 +39,17 @@ export const DetailModal = ({
     chainedTxs,
     canReplaceTransaction,
     canCancelTransaction,
+    nonceStatus,
+    nextNonce,
 }: DetailModalProps) => {
-    const accountKey = getAccountKey(tx.descriptor, tx.symbol, tx.deviceState);
+    const accountKey = createAccountKey({
+        accountDescriptor: tx.descriptor,
+        networkSymbol: tx.symbol,
+        deviceStaticSessionId: tx.deviceState,
+    });
     const account = useSelector(state => selectAccountByKey(state, accountKey)) as Account;
     const network = getNetwork(account.symbol);
     const explorer = useSelector(state => selectExplorer(state, network.symbol)) as Explorer;
-    const isPhishingTransaction = useSelector(state =>
-        selectIsPhishingTransaction(state, tx.txid, accountKey),
-    );
 
     return (
         <TxDetailModalBase
@@ -51,11 +59,21 @@ export const DetailModal = ({
             bottomContent={
                 canReplaceTransaction ? (
                     <>
-                        <Modal.Button icon="gauge" variant="tertiary" onClick={onChangeFeeClick}>
+                        <Modal.Button
+                            iconLeft={GaugeIcon}
+                            intent="neutral"
+                            priority="secondary"
+                            onClick={onChangeFeeClick}
+                        >
                             <Translation id="TR_BUMP_FEE" />
                         </Modal.Button>
                         {canCancelTransaction && (
-                            <Modal.Button icon="x" variant="tertiary" onClick={onCancelTxClick}>
+                            <Modal.Button
+                                iconLeft={XIcon}
+                                intent="neutral"
+                                priority="secondary"
+                                onClick={onCancelTxClick}
+                            >
                                 <Translation id="TR_CANCEL_TX" />
                             </Modal.Button>
                         )}
@@ -63,6 +81,8 @@ export const DetailModal = ({
                 ) : null
             }
             onBackClick={undefined}
+            nonceStatus={nonceStatus}
+            nextNonce={nextNonce}
         >
             <AdvancedTxDetails
                 explorerUrl={getExplorerUrl(explorer, 'tx')!}
@@ -71,7 +91,6 @@ export const DetailModal = ({
                 accountType={account.accountType}
                 tx={tx}
                 chainedTxs={chainedTxs}
-                isPhishingTransaction={isPhishingTransaction}
             />
         </TxDetailModalBase>
     );

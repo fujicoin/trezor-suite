@@ -1,33 +1,30 @@
-import path from 'path';
-
 import { isDevEnv } from '@suite-common/suite-utils';
-import { isMacOs } from '@trezor/env-utils';
+import { isWindows } from '@trezor/env-utils';
 
-import { BaseProcess, Status } from './BaseProcess';
+import { BaseProcess, type Status } from './BaseProcess';
 import { getSwitchValue } from '../process-switches';
 
 export class BluetoothProcess extends BaseProcess {
     private readonly port;
+    private readonly debug;
 
     constructor(port = 21327) {
+        const debug = isDevEnv || getSwitchValue('log-level') === 'debug';
+
         super('bluetooth', 'trezor-bluetooth', {
             autoRestart: 0,
             env: {
-                // https://github.com/electron/electron/blob/ab2a4fd836d539194bc5cde5f0d665eddeb6a134/docs/api/environment-variables.md?plain=1#L190
-                // Electron sometimes modifies the value of XDG_CURRENT_DESKTOP
-                XDG_CURRENT_DESKTOP:
-                    process.env.ORIGINAL_XDG_CURRENT_DESKTOP || process.env.XDG_CURRENT_DESKTOP,
+                TREZOR_BLUETOOTH_PORT: port.toString(),
             },
+            stdio: debug && !isWindows() ? 'inherit' : undefined,
         });
+
         this.port = port;
+        this.debug = debug;
     }
 
     getUrl() {
         return `http://localhost:${this.port}/`;
-    }
-
-    getPort() {
-        return this.port;
     }
 
     async status(): Promise<Status> {
@@ -64,22 +61,12 @@ export class BluetoothProcess extends BaseProcess {
         };
     }
 
-    async start() {
-        if (isDevEnv || getSwitchValue('log-level') === 'debug') {
+    start() {
+        if (this.debug) {
             process.env.RUST_LOG = 'debug';
             process.env.RUST_BACKTRACE = '1';
         }
 
-        if (isMacOs()) {
-            const processPath = path.join(super.getProcessDir(), `index.js`);
-            this.logger.info(this.logTopic, `Loading bluetooth native module from ${processPath}`);
-
-            const { trezorBluetoothRun } = await import(/*webpackIgnore: true */ processPath);
-            trezorBluetoothRun(this.port);
-
-            return;
-        }
-
-        return super.start(['-p', this.port.toString()]);
+        return super.start();
     }
 }

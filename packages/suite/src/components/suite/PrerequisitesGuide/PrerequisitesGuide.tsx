@@ -1,171 +1,85 @@
-import { JSX, PropsWithChildren, useMemo } from 'react';
-
 import { motion } from 'framer-motion';
-import styled from 'styled-components';
 
+import { Translation } from '@suite/intl';
+import { selectSelectedDevice } from '@suite-common/device';
 import {
     deviceNeedsAttention,
     getStatus,
     shouldDisplayInitialWarningIcon,
 } from '@suite-common/suite-utils';
-import { selectDevices, selectSelectedDevice } from '@suite-common/wallet-core';
-import {
-    Button,
-    Column,
-    ElevationContext,
-    ElevationDown,
-    Flex,
-    motionEasing,
-} from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { Column, Illustration, Paragraph, Text, motionEasing } from '@trezor/components';
 
-import { goto } from 'src/actions/suite/routerActions';
-import { ConnectDevicePrompt, Translation } from 'src/components/suite';
-import { useDispatch, useSelector } from 'src/hooks/suite';
+import { getMessageId } from 'src/components/suite/getMessageId';
+import { useSelector } from 'src/hooks/suite';
 import { selectPrerequisite } from 'src/selectors/suite/suiteSelectors';
 
-import { DeviceAcquire } from './DeviceAcquire';
-import { DeviceBootloader } from './DeviceBootloader';
-import { DeviceConnect } from './DeviceConnect';
-import { DeviceDisconnectRequired } from './DeviceDisconnectRequired';
-import { DeviceInitialize } from './DeviceInitialize';
-import { DeviceNoFirmware } from './DeviceNoFirmware';
-import { DeviceRecoveryMode } from './DeviceRecoveryMode';
-import { DeviceSeedless } from './DeviceSeedless';
-import { DeviceTrezorHostProtocolPair } from './DeviceTrezorHostProtocolPair';
-import { DeviceUnknown } from './DeviceUnknown';
-import { DeviceUnreadable } from './DeviceUnreadable';
-import { DeviceUpdateRequired } from './DeviceUpdateRequired';
-import { DeviceUsedElsewhere } from './DeviceUsedElsewhere';
-import { MultiShareBackupInProgress } from './MultiShareBackupInProgress';
-import { Transport } from './Transport';
-import { selectIsBluetoothListOpen } from '../../../actions/bluetooth/desktopBluetoothSelectors';
+import { BannerAndTroubleshooting } from './BannerAndTroubleshooting';
 
-const Wrapper = styled.div`
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-`;
+type PrerequisitesGuideProps = {
+    showDeviceImage?: boolean;
+};
 
-const BottomAnimatedContainer = styled(motion.div)`
-    display: flex;
-`;
-
-const BluetoothWrapper = ({ children }: PropsWithChildren) => (
-    <ElevationContext baseElevation={-1}>
-        {/* Here we need to draw the inner card with elevation -1 (custom design) */}
-        <ElevationDown>
-            <Flex width={470}>{children}</Flex>
-        </ElevationDown>
-    </ElevationContext>
+const TopAnimation = ({ children }: { children: React.ReactNode }) => (
+    <motion.div
+        initial={{ opacity: 0, y: -50 }}
+        animate={{ opacity: 1, y: -0 }}
+        transition={{ delay: 0.2, duration: 0.4, ease: motionEasing.enter }}
+        data-testid="@connect-device-prompt"
+    >
+        {children}
+    </motion.div>
 );
 
-type NonBluetoothProps = {
-    allowSwitchDevice?: boolean;
-};
+const BottomAnimation = ({ children }: { children: React.ReactNode }) => (
+    <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.6, duration: 0.5, ease: motionEasing.enter }}
+    >
+        {children}
+    </motion.div>
+);
 
-const NonBluetooth = ({ allowSwitchDevice }: NonBluetoothProps) => {
-    const dispatch = useDispatch();
+export const PrerequisitesGuide = ({ showDeviceImage = true }: PrerequisitesGuideProps) => {
     const device = useSelector(selectSelectedDevice);
-    const devices = useSelector(selectDevices);
-    const connectedDevicesCount = devices.filter(d => d.connected === true).length;
+    const deviceStatus = device ? getStatus(device) : null;
     const prerequisite = useSelector(selectPrerequisite);
 
-    const TipComponent = useMemo(
-        () => (): JSX.Element => {
-            switch (prerequisite) {
-                case 'no-transport':
-                    return <Transport />;
-                case 'device-disconnect-required':
-                    return <DeviceDisconnectRequired />;
-                case 'device-disconnected':
-                    return <DeviceConnect />;
-                case 'device-unacquired':
-                    return <DeviceAcquire />;
-                case 'device-unacquired-requires-thp':
-                    return <DeviceTrezorHostProtocolPair />;
-                case 'device-used-elsewhere':
-                    return <DeviceUsedElsewhere />;
-                case 'device-unreadable':
-                    return <DeviceUnreadable device={device} />;
-                case 'device-unknown':
-                    return <DeviceUnknown />;
-                case 'device-seedless':
-                    return <DeviceSeedless />;
-                case 'device-recovery-mode':
-                    return <DeviceRecoveryMode />;
-                case 'device-initialize':
-                    return <DeviceInitialize />;
-                case 'device-bootloader':
-                    return <DeviceBootloader device={device} />;
-                case 'firmware-missing':
-                    return <DeviceNoFirmware />;
-                case 'firmware-required':
-                    return <DeviceUpdateRequired />;
-                case 'multi-share-backup-in-progress':
-                    return <MultiShareBackupInProgress />;
+    const showWarning =
+        !!(device && deviceStatus && deviceNeedsAttention(deviceStatus)) ||
+        prerequisite === 'no-transport';
+    const showWarningIcon = shouldDisplayInitialWarningIcon(deviceStatus);
 
-                default:
-                    return <></>;
-            }
-        },
-        [prerequisite, device],
-    );
-
-    const handleSwitchDeviceClick = () =>
-        dispatch(goto('suite-switch-device', { params: { cancelable: true } }));
-
-    const deviceStatus = (device && getStatus(device)) ?? null;
+    const texts = getMessageId({
+        connected: !!device,
+        showWarning: showWarningIcon ?? showWarning,
+        deviceStatus,
+        prerequisite,
+    });
 
     return (
-        <Column alignItems="center" gap={spacings.xxxl}>
-            {allowSwitchDevice && connectedDevicesCount > 1 && (
-                <Button variant="tertiary" onClick={handleSwitchDeviceClick} icon="trezorDevices">
-                    <Translation id="TR_SWITCH_DEVICE" />
-                </Button>
-            )}
-            <ConnectDevicePrompt
-                connected={!!device}
-                deviceStatus={deviceStatus}
-                showWarning={
-                    !!(device && deviceStatus && deviceNeedsAttention(deviceStatus)) ||
-                    prerequisite === 'no-transport'
-                }
-                showWarningIcon={shouldDisplayInitialWarningIcon(deviceStatus)}
-                prerequisite={prerequisite}
-            />
-            <BottomAnimatedContainer
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.6, duration: 0.5, ease: motionEasing.enter }}
-            >
-                <Column alignItems="center" justifyContent="center" gap={spacings.xxxxl}>
-                    <TipComponent />
+        <>
+            <TopAnimation>
+                <Column alignItems="center">
+                    {showDeviceImage && <Illustration name="connectTrezor" width={350} />}
+                    <Text typographyStyle="headline-md" textWrap="balance" align="center">
+                        <Translation id={texts.heading} />
+                    </Text>
+                    {texts.description && (
+                        <Paragraph
+                            intent="neutral"
+                            priority="secondary"
+                            align="center"
+                            margin={{ top: 12 }}
+                        >
+                            <Translation id={texts.description} />
+                        </Paragraph>
+                    )}
                 </Column>
-            </BottomAnimatedContainer>
-        </Column>
-    );
-};
-
-interface PrerequisitesGuideProps {
-    allowSwitchDevice?: boolean;
-}
-
-export const PrerequisitesGuide = ({ allowSwitchDevice }: PrerequisitesGuideProps) => {
-    const isBluetoothConnectOpen = useSelector(selectIsBluetoothListOpen);
-
-    /*     const setIsBluetoothConnectOpen = () => {
-        dispatch(setBluetoothListOpen({ isOpen: true }));
-    }; */
-
-    return (
-        <Wrapper>
-            {isBluetoothConnectOpen ? (
-                <BluetoothWrapper>{/* <BluetoothConnect uiMode="spatial" /> */}</BluetoothWrapper>
-            ) : (
-                <NonBluetooth allowSwitchDevice={allowSwitchDevice} />
-            )}
-        </Wrapper>
+            </TopAnimation>
+            <BottomAnimation>
+                <BannerAndTroubleshooting prerequisite={prerequisite} />
+            </BottomAnimation>
+        </>
     );
 };

@@ -1,18 +1,14 @@
 import {
-    BluetoothState,
+    type BluetoothState,
     prepareBluetoothReducerCreator,
     prepareInitialState,
 } from '@suite-common/bluetooth';
-import { AnyAction, createSliceWithExtraDeps } from '@suite-common/redux-utils';
+import { deviceActions } from '@suite-common/device';
+import { type AnyAction, createSliceWithExtraDeps } from '@suite-common/redux-utils';
 
-import { DesktopBluetoothDevice } from './DesktopBluetoothDevice';
+import { type DesktopBluetoothDevice } from './DesktopBluetoothDevice';
 
 export type DesktopBluetoothState = BluetoothState<DesktopBluetoothDevice> & {
-    isBluetoothListOpen: boolean;
-    // Flag to display some extra info (Modal) to instruct the user to remove
-    // the device from the OS settings manually
-    unpairedDeviceNeedsManualOsRemoval: boolean;
-
     // When we get an update that KnownDevice appeared, we start auto-connecting to it.
     // But there may be other updates before the connection is done, and we want to skip them
     // during the connection process.
@@ -26,6 +22,16 @@ export type DesktopBluetoothState = BluetoothState<DesktopBluetoothDevice> & {
     // it may take some time. During that time, the Device is already disconnected,
     // but the user needs to be notified that something is happening.
     isUnpairingDevice: boolean;
+
+    // Flag to display Modal to instruct the user to open bluetooth settings and pair manually
+    isManualPairingRequired: boolean;
+};
+
+export const initialDesktopBluetoothState: DesktopBluetoothState = {
+    ...prepareInitialState<DesktopBluetoothDevice>(),
+    connectingDeviceIds: [],
+    isUnpairingDevice: false,
+    isManualPairingRequired: false,
 };
 
 export type WithBluetoothRootState = {
@@ -34,43 +40,47 @@ export type WithBluetoothRootState = {
 
 export const bluetoothSlice = createSliceWithExtraDeps({
     name: 'bluetooth',
-    initialState: {
-        ...prepareInitialState<DesktopBluetoothDevice>(),
-        isBluetoothListOpen: false,
-        unpairedDeviceNeedsManualOsRemoval: false,
-        connectingDeviceIds: [] as string[],
-        isUnpairingDevice: false,
-    } satisfies DesktopBluetoothState,
+    initialState: initialDesktopBluetoothState,
     reducers: {
-        setBluetoothDeviceNeedsManualOsRemoval: (state, { payload: { needsManualRemoval } }) => {
-            state.unpairedDeviceNeedsManualOsRemoval = needsManualRemoval;
-        },
         startConnectingBluetoothDevice: (state, { payload: { deviceId } }) => {
             state.connectingDeviceIds.push(deviceId);
         },
         stopConnectingBluetoothDevice: (state, { payload: { deviceId } }) => {
             state.connectingDeviceIds = state.connectingDeviceIds.filter(id => id !== deviceId);
         },
-        setBluetoothListOpen: (state, { payload: { isOpen } }) => {
-            state.isBluetoothListOpen = isOpen;
-        },
         setIsUnpairingDevice: (state, { payload: { isUnpairing } }) => {
             state.isUnpairingDevice = isUnpairing;
+        },
+        setBluetoothDeviceNeedsManualPairing: (state, { payload }) => {
+            state.isManualPairingRequired = payload;
         },
     },
     extraReducers: (builder, extra) => {
         const commonReducer = prepareBluetoothReducerCreator<DesktopBluetoothDevice>()(extra);
 
-        builder.addDefaultCase((state, action) => {
-            commonReducer(state, action as AnyAction);
-        });
+        builder
+            .addCase(deviceActions.deviceDisconnect, (state, action) => {
+                commonReducer(state, action);
+
+                state.knownDevices = state.knownDevices.map(device => {
+                    if (device.deviceId === action.payload.id) {
+                        device.connectionStatus = {
+                            type: 'disconnected',
+                        };
+                    }
+
+                    return device;
+                });
+            })
+            .addDefaultCase((state, action) => {
+                commonReducer(state, action as AnyAction);
+            });
     },
 });
 
 export const {
-    setBluetoothDeviceNeedsManualOsRemoval,
     startConnectingBluetoothDevice,
     stopConnectingBluetoothDevice,
-    setBluetoothListOpen,
     setIsUnpairingDevice,
+    setBluetoothDeviceNeedsManualPairing,
 } = bluetoothSlice.actions;

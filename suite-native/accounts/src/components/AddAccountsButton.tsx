@@ -2,19 +2,16 @@ import { useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
-import {
-    selectHasRunningDiscovery,
-    selectIsDeviceInViewOnlyMode,
-    selectIsPortfolioTrackerDevice,
-} from '@suite-common/wallet-core';
+import { selectIsDeviceInViewOnlyMode, selectIsPortfolioTrackerDevice } from '@suite-common/device';
+import { selectHasRunningDiscovery } from '@suite-common/wallet-core';
 import { IconButton } from '@suite-native/atoms';
 import {
     AccountsImportStackRoutes,
     AddCoinAccountStackRoutes,
-    AddCoinFlowType,
-    RootStackParamList,
+    type AddCoinFlowType,
+    type RootStackParamList,
     RootStackRoutes,
-    StackNavigationProps,
+    type StackNavigationProps,
 } from '@suite-native/navigation';
 
 import { useAccountAlerts } from '../hooks/useAccountAlerts';
@@ -56,14 +53,15 @@ export const AddAccountButton = ({ flowType, testID }: AddAccountButtonProps) =>
     return (
         <IconButton
             iconName="plus"
+            size="medium"
             onPress={
                 isSelectedDevicePortfolioTracker ? navigateToImportScreen : navigateToAddCoinAccount
             }
-            colorScheme="tertiaryElevation0"
-            size="medium"
+            intent="neutral"
+            priority="secondary"
             isLoading={hasDeviceDiscovery}
             isDisabled={hasDeviceDiscovery}
-            testID={testID}
+            testID={`${testID}/${isSelectedDevicePortfolioTracker ? 'import' : 'add'}`}
         />
     );
 };

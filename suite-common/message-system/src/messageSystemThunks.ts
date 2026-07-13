@@ -1,9 +1,7 @@
-import { decode, verify } from 'jws';
-
 import { createThunk } from '@suite-common/redux-utils';
-import { MessageSystem } from '@suite-common/suite-types';
-import { PollingController } from '@suite-common/suite-utils';
-import { getJWSPublicKey, isCodesignBuild, isNative } from '@trezor/env-utils';
+import { type MessageSystem } from '@suite-common/suite-types';
+import { PollingController, decodeJws, verifyJws } from '@suite-common/suite-utils';
+import { isCodesignBuild, isNative } from '@trezor/env-utils';
 import { scheduleAction } from '@trezor/utils';
 
 import { ACTION_PREFIX, messageSystemActions } from './messageSystemActions';
@@ -24,7 +22,7 @@ import {
 } from './messageSystemSelectors';
 import { jws as configJwsLocal } from '../files/config.v1';
 
-export const messageSystemPolling = new PollingController();
+const messageSystemPolling = new PollingController();
 
 const getConfigJws = async (forceLocalJws: boolean) => {
     if (forceLocalJws) {
@@ -54,7 +52,7 @@ const getConfigJws = async (forceLocalJws: boolean) => {
             isRemote: true,
         };
     } catch (error) {
-        console.error(`Fetching of remote JWS config failed: ${error}`);
+        console.warn(`Fetching of remote JWS config failed: ${error}`);
 
         return {
             configJws: configJwsLocal,
@@ -84,7 +82,7 @@ export const fetchConfigThunk = createThunk(
             try {
                 const { configJws, isRemote } = await getConfigJws(useLocalConfig);
 
-                const decodedJws = decode(configJws);
+                const decodedJws = decodeJws(configJws);
 
                 if (!decodedJws) {
                     throw Error('Decoding of config failed');
@@ -95,17 +93,7 @@ export const fetchConfigThunk = createThunk(
                     throw Error(`Wrong algorithm in JWS config header: ${algorithmInHeader}`);
                 }
 
-                const authenticityPublicKey = getJWSPublicKey();
-
-                if (!authenticityPublicKey) {
-                    throw Error('JWS public key is not defined!');
-                }
-
-                const isAuthenticityValid = verify(
-                    configJws,
-                    JWS_SIGN_ALGORITHM,
-                    authenticityPublicKey,
-                );
+                const isAuthenticityValid = await verifyJws(configJws, JWS_SIGN_ALGORITHM);
 
                 if (!isAuthenticityValid) {
                     throw Error('Config authenticity is invalid');

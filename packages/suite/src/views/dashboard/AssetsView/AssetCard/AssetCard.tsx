@@ -1,82 +1,34 @@
-import React from 'react';
 import { useDispatch } from 'react-redux';
 
-import styled, { useTheme } from 'styled-components';
-
-import { AssetFiatBalance } from '@suite-common/assets';
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { goto } from '@suite/router';
+import { selectShouldAnimateLoadingSkeleton } from '@suite/ui-animations';
+import { type AssetFiatBalance } from '@suite-common/assets';
+import { useServices } from '@suite-common/dependency-injection';
 import { selectCoinDefinitions } from '@suite-common/token-definitions';
-import { Network, NetworkSymbol } from '@suite-common/wallet-config';
+import { type Network, type NetworkSymbol } from '@suite-common/wallet-config';
 import { selectAnyAccountIsStakingActive, useDisplayBaseCurrency } from '@suite-common/wallet-core';
-import { Account, RatesByKey } from '@suite-common/wallet-types';
-import { AmountUnit } from '@suite-common/wallet-utils';
+import { type Account, type RatesByKey } from '@suite-common/wallet-types';
+import { type AmountUnit } from '@suite-common/wallet-utils';
 import type { BaseCurrencyCode } from '@trezor/blockchain-link-types';
-import {
-    Card,
-    Column,
-    H2,
-    Icon,
-    InfoItem,
-    Row,
-    SkeletonRectangle,
-    variables,
-} from '@trezor/components';
-import { TokenInfo } from '@trezor/connect';
-import { EventType, analytics } from '@trezor/suite-analytics';
-import { spacings, spacingsPx, typography } from '@trezor/theme';
+import { Card, Column, Icon, InfoItem, Note, Row, Skeleton, Text } from '@trezor/components';
+import { type TokenInfo } from '@trezor/connect';
+import { ArrowRightIcon, WarningIcon } from '@trezor/icons';
 
-import { goto } from 'src/actions/suite/routerActions';
 import {
     AmountUnitSwitchWrapper,
     CoinBalance,
     PriceTicker,
-    Translation,
     TrendTicker,
 } from 'src/components/suite';
 import { FiatHeader } from 'src/components/wallet/FiatHeader';
-import { useLoadingSkeleton, useSelector } from 'src/hooks/suite';
+import { useSelector } from 'src/hooks/suite';
 
+import { AssetActionButton } from '../AssetActionButton';
+import { handleTokensAndStakingData } from '../assetsViewUtils';
 import { AssetCardInfo, AssetCardInfoSkeleton } from './AssetCardInfo';
 import { AssetCardTokensAndStakingInfo } from './AssetCardTokensAndStakingInfo';
-import { TradingButton } from '../TradingButton';
-import { handleTokensAndStakingData } from '../assetsViewUtils';
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const WarningIcon = styled(Icon)`
-    padding-left: ${spacingsPx.xxs};
-    padding-bottom: ${spacingsPx.xxxs};
-`;
-
-const FiatAmount = styled.div`
-    display: flex;
-    align-content: flex-end;
-`;
-
-// eslint-disable-next-line local-rules/no-override-ds-component
-const IntegerValue = styled(H2)`
-    font-variant-numeric: tabular-nums;
-    line-height: 34px;
-    letter-spacing: 0.565px;
-`;
-
-const CoinAmount = styled.div`
-    color: ${({ theme }) => theme.textSubdued};
-    display: inline-block;
-    margin-top: ${spacingsPx.xs};
-    font-variant-numeric: tabular-nums;
-    ${typography.hint};
-`;
-
-const FailedContainer = styled.div`
-    color: ${({ theme }) => theme.textAlertRed};
-    display: flex;
-    align-items: center;
-    gap: ${spacingsPx.xs};
-
-    ${typography.hint}
-    ${variables.SCREEN_QUERY.MOBILE} {
-        border-bottom: 1px solid ${({ theme }) => theme.borderElevation2};
-    }
-`;
 
 type AmountComponentProps = {
     failed: boolean;
@@ -86,32 +38,28 @@ type AmountComponentProps = {
     shallDisplayBaseCurrency: boolean;
 };
 
-const AmountComponent = ({ failed, cryptoValue, symbol, localCurrency }: AmountComponentProps) => {
-    const theme = useTheme();
-
-    return !failed ? (
-        <Column>
-            <FiatAmount data-testid={`@dashboard/asset/${symbol}/fiat-amount`}>
+const AmountComponent = ({ failed, cryptoValue, symbol, localCurrency }: AmountComponentProps) =>
+    !failed ? (
+        <Column gap={4}>
+            <Row data-testid={`@dashboard/asset/${symbol}/fiat-amount`}>
                 <FiatHeader
                     symbol={symbol}
                     amount={cryptoValue}
                     size="medium"
                     localCurrency={localCurrency}
                 />
-            </FiatAmount>
-            <CoinAmount>
+            </Row>
+            <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
                 <AmountUnitSwitchWrapper symbol={symbol}>
                     <CoinBalance value={cryptoValue} symbol={symbol} />
                 </AmountUnitSwitchWrapper>
-            </CoinAmount>
+            </Text>
         </Column>
     ) : (
-        <FailedContainer>
-            <WarningIcon name="warning" color={theme.legacy.TYPE_RED} size={14} />
+        <Note intent="critical" icon={WarningIcon}>
             <Translation id="TR_DASHBOARD_ASSET_FAILED" />
-        </FailedContainer>
+        </Note>
     );
-};
 
 type AssetCardProps = {
     network: Network;
@@ -142,11 +90,13 @@ export const AssetCard = ({
 }: AssetCardProps) => {
     const { symbol } = network;
     const dispatch = useDispatch();
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const { shallDisplayBaseCurrency } = useDisplayBaseCurrency(symbol);
 
     const handleCardClick = () => {
         dispatch(
-            goto('wallet-index', {
+            goto({
+                routeName: 'wallet-index',
                 params: {
                     symbol,
                     accountIndex: 0,
@@ -176,7 +126,7 @@ export const AssetCard = ({
 
     const onStakeButtonClick = () => {
         analytics.report({
-            type: EventType.StakingNavigate,
+            type: events.stakingNavigateEvent.name,
             payload: {
                 action: 'navigate',
                 from: 'dashboard/assets',
@@ -187,7 +137,7 @@ export const AssetCard = ({
 
     const onBuyButtonClick = () => {
         analytics.report({
-            type: EventType.TradingNavigate,
+            type: events.tradeNavigateEvent.name,
             payload: {
                 action: 'navigate',
                 type: 'buy',
@@ -199,19 +149,24 @@ export const AssetCard = ({
 
     return (
         <Card
-            paddingType="small"
+            paddingType="none"
             onClick={handleCardClick}
             data-testid={`@dashboard/asset-item/${symbol}`}
         >
-            <Column justifyContent="space-between" height="100%">
-                <Column gap={spacings.xxxl} flex="1" margin={spacings.xs}>
+            <Column
+                justifyContent="space-between"
+                height="100%"
+                gap={20}
+                padding={{ bottom: 12, horizontal: 12, top: 20 }}
+            >
+                <Column gap={40} flex="1" margin={{ horizontal: 8 }}>
                     <Row justifyContent="space-between">
                         <AssetCardInfo
                             network={network}
                             assetsFiatBalances={assetsFiatBalances}
                             index={index}
                         />
-                        <Icon size={16} name="arrowRight" variant="disabled" />
+                        <Icon size={16} as={ArrowRightIcon} isDisabled={true} />
                     </Row>
                     <AmountComponent
                         symbol={symbol}
@@ -232,8 +187,8 @@ export const AssetCard = ({
                     />
                 )}
                 {shallDisplayBaseCurrency && (
-                    <Card data-testid="@dashboard/asset/bottom-info">
-                        <Row justifyContent="space-between" flexWrap="wrap" gap={spacings.md}>
+                    <Card data-testid="@dashboard/asset/bottom-info" type="contrast">
+                        <Row justifyContent="space-between" flexWrap="wrap" gap={16}>
                             <InfoItem
                                 data-testid="@dashboard/asset/exchange-rate"
                                 label={<Translation id="TR_EXCHANGE_RATE" />}
@@ -249,25 +204,26 @@ export const AssetCard = ({
                                 <TrendTicker symbol={symbol} />
                             </InfoItem>
 
-                            <Row gap={spacings.xs}>
+                            <Row gap={8}>
                                 {isStakeNetwork && (
-                                    <TradingButton
+                                    <AssetActionButton
                                         symbol={symbol}
+                                        data-testid={`@dashboard/asset/${symbol}/stake-button`}
                                         onClick={onStakeButtonClick}
                                         routeName="wallet-staking"
                                     >
                                         <Translation id="TR_STAKE_STAKE" />
-                                    </TradingButton>
+                                    </AssetActionButton>
                                 )}
 
-                                <TradingButton
+                                <AssetActionButton
                                     symbol={symbol}
                                     routeName="wallet-trading-buy"
                                     data-testid={`@dashboard/asset/${symbol}/buy-button`}
                                     onClick={onBuyButtonClick}
                                 >
                                     <Translation id="TR_BUY_BUY" />
-                                </TradingButton>
+                                </AssetActionButton>
                             </Row>
                         </Row>
                     </Card>
@@ -278,28 +234,24 @@ export const AssetCard = ({
 };
 
 export const AssetCardSkeleton = (props: { animate?: boolean }) => {
-    const { shouldAnimate } = useLoadingSkeleton();
+    const shouldAnimate = useSelector(selectShouldAnimateLoadingSkeleton);
     const animate = props.animate ?? shouldAnimate;
 
     return (
         <Card>
-            <Column gap={spacings.xxxl} flex="1" margin={spacings.xs}>
+            <Column gap={40} flex="1" margin={8}>
                 <Row justifyContent="space-between">
                     <AssetCardInfoSkeleton animate={animate} />
                 </Row>
                 <Column>
-                    <FiatAmount>
-                        <IntegerValue>
-                            <SkeletonRectangle animate={animate} width={95} height={32} />
-                        </IntegerValue>
-                    </FiatAmount>
-                    <CoinAmount>
-                        <SkeletonRectangle animate={animate} width={50} height={16} />
-                    </CoinAmount>
+                    <Row>
+                        <Skeleton animate={animate} width={95} height={32} />
+                    </Row>
+                    <Skeleton animate={animate} width={50} height={16} />
                 </Column>
             </Column>
             <Card>
-                <SkeletonRectangle animate={animate} width="100%" height={40} />
+                <Skeleton animate={animate} width="100%" height={40} />
             </Card>
         </Card>
     );

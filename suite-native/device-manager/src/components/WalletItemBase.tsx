@@ -1,11 +1,21 @@
 import { Pressable } from 'react-native';
+import { useSelector } from 'react-redux';
 
-import { BaseCurrencyAmount } from '@suite-common/wallet-utils';
+import {
+    type WithSuiteSyncAndDeviceState,
+    selectIsSuiteSyncDebugEnabled,
+    selectSuiteSyncOwnerForDeviceStaticId,
+} from '@suite-common/suite-sync';
+import { type TrezorDevice } from '@suite-common/suite-types';
+import { type BaseCurrencyAmount } from '@suite-common/wallet-types';
 import { HStack, Radio, Text } from '@suite-native/atoms';
 import { BaseCurrencyAmountFormatter } from '@suite-native/formatters';
 import { Icon } from '@suite-native/icons';
 import { Translation } from '@suite-native/intl';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { selectIsLabellingAllowed } from '@suite-native/labeling';
+import { WalletLabel } from '@suite-native/wallet';
+import { parseStaticSessionId } from '@trezor/device-utils';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 type WalletItemBaseVariant = 'standard' | 'passphrase';
 
@@ -14,7 +24,7 @@ type WalletItemBaseProps = {
     onPress: () => void;
     isSelectable: boolean;
     isSelected: boolean;
-    walletNumber?: number;
+    device?: TrezorDevice;
     baseCurrencyAmount?: BaseCurrencyAmount;
 };
 
@@ -27,21 +37,21 @@ const walletItemBaseStyle = prepareNativeStyle<WalletItemBaseStyleProps>(
         height: 60,
         gap: utils.spacings.sp12,
         borderRadius: utils.borders.radii.r12,
-        borderColor: utils.colors.borderOnElevation1,
+        borderColor: utils.colors.borderNeutral,
         flex: 1,
         extend: [
             {
                 condition: isSelected,
                 style: {
                     borderWidth: utils.borders.widths.large,
-                    borderColor: utils.colors.borderSecondary,
+                    borderColor: utils.colors.borderBrand,
                 },
             },
             {
                 condition: isSelectable,
                 style: {
                     paddingHorizontal: utils.spacings.sp16,
-                    backgroundColor: utils.colors.backgroundSurfaceElevation1,
+                    backgroundColor: utils.colors.surfaceFillRaised,
                     borderWidth: utils.borders.widths.small,
                 },
             },
@@ -53,21 +63,55 @@ const labelStyle = prepareNativeStyle(() => ({
     flex: 1,
 }));
 
+const SuiteSyncWalletDebug = ({ device }: { device?: TrezorDevice }) => {
+    const isLabellingAllowed = useSelector(selectIsLabellingAllowed);
+    const isSuiteSyncDebugEnabled = useSelector(selectIsSuiteSyncDebugEnabled);
+
+    const deviceStaticSessionId = device?.state?.staticSessionId;
+
+    const suiteSyncOwner = useSelector((state: WithSuiteSyncAndDeviceState) =>
+        selectSuiteSyncOwnerForDeviceStaticId(state, deviceStaticSessionId),
+    );
+
+    if (!isLabellingAllowed || !device || !isSuiteSyncDebugEnabled) {
+        return null;
+    }
+
+    if (deviceStaticSessionId === undefined) {
+        return null;
+    }
+
+    const { walletDescriptor, deviceId } = parseStaticSessionId(deviceStaticSessionId);
+
+    const descriptorPrefix = walletDescriptor.split('@')[0] ?? '';
+    const evoluDebug =
+        descriptorPrefix.slice(-8) +
+        ' @ ' +
+        (deviceId ?? '').slice(-8) +
+        ' E: ' +
+        suiteSyncOwner?.slice(-8);
+
+    return <Text>{evoluDebug}</Text>;
+};
+
 export const WalletItemBase = ({
     variant,
     onPress,
     isSelected,
     isSelectable,
-    walletNumber,
+    device,
     baseCurrencyAmount,
 }: WalletItemBaseProps) => {
     const { applyStyle } = useNativeStyles();
     const isStandard = variant === 'standard';
 
-    const walletNameLabel = isStandard ? (
+    const fallbackLabel = isStandard ? (
         <Translation id="deviceManager.wallet.standard" />
     ) : (
-        <Translation id="deviceManager.wallet.defaultPassphrase" values={{ index: walletNumber }} />
+        <Translation
+            id="deviceManager.wallet.defaultPassphrase"
+            values={{ index: device?.walletNumber }}
+        />
     );
 
     return (
@@ -75,16 +119,26 @@ export const WalletItemBase = ({
             <HStack style={applyStyle(walletItemBaseStyle, { isSelected, isSelectable })}>
                 <HStack alignItems="center" flex={1}>
                     <Icon name={isStandard ? 'wallet' : 'password'} size="mediumLarge" />
-                    <Text variant="callout" numberOfLines={1} style={applyStyle(labelStyle)}>
-                        {walletNameLabel}
+                    <Text
+                        testID="@wallet/label"
+                        variant="body-sm-strong"
+                        numberOfLines={1}
+                        style={applyStyle(labelStyle)}
+                    >
+                        <WalletLabel
+                            deviceStaticSessionId={device?.state?.staticSessionId}
+                            fallbackLabel={fallbackLabel}
+                        />
                     </Text>
+                    <SuiteSyncWalletDebug device={device} />
                 </HStack>
+
                 <HStack alignItems="center" spacing="sp12">
                     {baseCurrencyAmount && (
                         <BaseCurrencyAmountFormatter
                             value={baseCurrencyAmount}
-                            variant="hint"
-                            color="textSubdued"
+                            variant="body-sm"
+                            color="contentSecondary"
                         />
                     )}
                     {isSelectable && <Radio value="" onPress={onPress} isChecked={isSelected} />}

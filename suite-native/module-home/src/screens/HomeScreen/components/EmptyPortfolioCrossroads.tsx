@@ -1,27 +1,53 @@
 import { Platform, View } from 'react-native';
+import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
+import { useSelector } from 'react-redux';
 
 import { useNavigation } from '@react-navigation/native';
 
-import { EventType, analytics } from '@suite-native/analytics';
-import { Button, Card, CenteredTitleHeader, Text, VStack } from '@suite-native/atoms';
+import { useServices } from '@suite-common/dependency-injection';
+import {
+    Feature,
+    type MessageSystemRootState,
+    selectIsFeatureEnabled,
+} from '@suite-common/message-system';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
+import {
+    AnimatedVStack,
+    Button,
+    Card,
+    CenteredTitleHeader,
+    Text,
+    VStack,
+} from '@suite-native/atoms';
+import {
+    selectAreGetTrezorPromoBannersDisabled,
+    selectIsGetTrezorBannerClosed,
+} from '@suite-native/banner-flags';
 import { useConnectDeviceHandler } from '@suite-native/device';
-import { FeatureFlag, useFeatureFlag } from '@suite-native/feature-flags';
-import { Translation } from '@suite-native/intl';
+import { Translation, type TxKeyPath } from '@suite-native/intl';
 import {
     AccountsImportStackRoutes,
-    HomeStackParamList,
-    HomeStackRoutes,
-    RootStackParamList,
+    DemoAccountQuestionnaireStackRoutes,
+    type HomeStackParamList,
+    type HomeStackRoutes,
+    type RootStackParamList,
     RootStackRoutes,
-    StackToStackCompositeNavigationProps,
+    type StackToStackCompositeNavigationProps,
 } from '@suite-native/navigation';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
+import { GetTrezorCard } from './GetTrezorCard';
 import { ConnectTrezorSvg } from '../../../assets/ConnectTrezorSvg';
-import { TurnOnTrezorSvg } from '../../../assets/TurnOnTrezorSvg';
 
-const cardStyle = prepareNativeStyle<{ flex: 1 | 2 }>((utils, { flex }) => ({
-    flex,
+const platformSpecificTitle: TxKeyPath = Platform.select({
+    ios: 'moduleHome.emptyState.connectTrezor.title.ios',
+    default: 'moduleHome.emptyState.connectTrezor.title.android',
+});
+
+const cardFlexStyle = prepareNativeStyle<{ flex: 1 | 2 }>((_, { flex }) => ({ flex }));
+
+const cardContentStyle = prepareNativeStyle(utils => ({
+    flex: 1,
     justifyContent: 'center',
     paddingTop: utils.spacings.sp24,
     paddingBottom: utils.spacings.sp16,
@@ -38,20 +64,30 @@ type NavigationProps = StackToStackCompositeNavigationProps<
     RootStackParamList
 >;
 
+type SecondaryCardConfig = {
+    titleTranslationId: TxKeyPath;
+    descriptionTranslationId: TxKeyPath;
+    buttonTranslationId: TxKeyPath;
+    onPress: () => void;
+    testID: string;
+};
+
 export const EmptyPortfolioCrossroads = () => {
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const navigation = useNavigation<NavigationProps>();
-    const isBluetoothEnabled = useFeatureFlag(FeatureFlag.IsBluetoothEnabled);
-
-    const isIosWithBluetoothEnabled = Platform.OS === 'ios' && isBluetoothEnabled;
-
     const { applyStyle } = useNativeStyles();
 
     const { onConnectDevicePress } = useConnectDeviceHandler();
+    const isQuestionnaireEnabled = useSelector((state: MessageSystemRootState) =>
+        selectIsFeatureEnabled(state, Feature.demoAccountQuestionnaire, true),
+    );
+    const isGetTrezorBannerClosed = useSelector(selectIsGetTrezorBannerClosed);
+    const areGetTrezorPromoBannersDisabled = useSelector(selectAreGetTrezorPromoBannersDisabled);
 
     const handleConnectDevice = () => {
         onConnectDevicePress();
         analytics.report({
-            type: EventType.EmptyDashboardClick,
+            type: events.emptyDashboardActionEvent.name,
             payload: { action: 'connectDevice' },
         });
     };
@@ -60,48 +96,85 @@ export const EmptyPortfolioCrossroads = () => {
         navigation.navigate(RootStackRoutes.AccountsImport, {
             screen: AccountsImportStackRoutes.SelectNetwork,
         });
-        analytics.report({ type: EventType.EmptyDashboardClick, payload: { action: 'syncCoins' } });
+        analytics.report({
+            type: events.emptyDashboardActionEvent.name,
+            payload: { action: 'syncCoins' },
+        });
     };
 
+    const handleOpenQuestionnaire = () => {
+        navigation.navigate(RootStackRoutes.DemoAccountQuestionnaireStack, {
+            screen: DemoAccountQuestionnaireStackRoutes.Intro,
+        });
+        analytics.report({ type: events.demoAccountQuestionnaireDashboardEvent.name });
+    };
+
+    const secondaryCardConfig: SecondaryCardConfig = isQuestionnaireEnabled
+        ? {
+              titleTranslationId: 'moduleHome.emptyState.demoAccountQuestionnaire.title',
+              descriptionTranslationId:
+                  'moduleHome.emptyState.demoAccountQuestionnaire.description',
+              buttonTranslationId: 'moduleHome.emptyState.demoAccountQuestionnaire.button',
+              onPress: handleOpenQuestionnaire,
+              testID: '@home/portfolio/open-demo-questionnaire-button',
+          }
+        : {
+              titleTranslationId: 'moduleHome.emptyState.syncCoins.title',
+              descriptionTranslationId: 'moduleHome.emptyState.syncCoins.description',
+              buttonTranslationId: 'moduleHome.emptyState.syncCoins.syncButton',
+              onPress: handleSyncMyCoins,
+              testID: '@home/portfolio/sync-coins-button',
+          };
+
     return (
-        <VStack spacing="sp16" flex={1}>
-            <Card style={applyStyle(cardStyle, { flex: 2 })}>
-                <VStack spacing="sp24" justifyContent="center" alignItems="center">
-                    {isIosWithBluetoothEnabled ? <TurnOnTrezorSvg /> : <ConnectTrezorSvg />}
-                    <CenteredTitleHeader
-                        title={<Translation id="moduleHome.emptyState.connectTrezor.title" />}
-                        subtitle={
-                            <Translation id="moduleHome.emptyState.connectTrezor.description" />
-                        }
-                    />
-                    <View style={applyStyle(buttonWrapperStyle)}>
-                        <Button onPress={handleConnectDevice}>
-                            <Translation id="moduleHome.emptyState.connectTrezor.connectButton" />
-                        </Button>
-                    </View>
-                </VStack>
-            </Card>
-            <Card style={applyStyle(cardStyle, { flex: 1 })}>
-                <VStack spacing="sp24" justifyContent="center" alignItems="center">
-                    <VStack alignItems="center">
-                        <Text variant="titleSmall" textAlign="center">
-                            <Translation id="moduleHome.emptyState.syncCoins.title" />
-                        </Text>
-                        <Text color="textSubdued" textAlign="center">
-                            <Translation id="moduleHome.emptyState.syncCoins.description" />
-                        </Text>
+        <AnimatedVStack spacing="sp16" flex={1} layout={LinearTransition}>
+            <Animated.View layout={LinearTransition} style={applyStyle(cardFlexStyle, { flex: 2 })}>
+                <Card style={applyStyle(cardContentStyle)}>
+                    <VStack spacing="sp24" justifyContent="center" alignItems="center">
+                        <ConnectTrezorSvg />
+                        <CenteredTitleHeader
+                            title={<Translation id={platformSpecificTitle} />}
+                            subtitle={
+                                <Translation id="moduleHome.emptyState.connectTrezor.description" />
+                            }
+                        />
+                        <View style={applyStyle(buttonWrapperStyle)}>
+                            <Button onPress={handleConnectDevice}>
+                                <Translation id="moduleHome.emptyState.connectTrezor.connectButton" />
+                            </Button>
+                        </View>
                     </VStack>
-                    <View style={applyStyle(buttonWrapperStyle)}>
-                        <Button
-                            onPress={handleSyncMyCoins}
-                            colorScheme="tertiaryElevation1"
-                            testID="@home/portfolio/sync-coins-button"
-                        >
-                            <Translation id="moduleHome.emptyState.syncCoins.syncButton" />
-                        </Button>
-                    </View>
-                </VStack>
-            </Card>
-        </VStack>
+                </Card>
+            </Animated.View>
+            {!isGetTrezorBannerClosed && !areGetTrezorPromoBannersDisabled && (
+                <Animated.View exiting={FadeOut}>
+                    <GetTrezorCard />
+                </Animated.View>
+            )}
+            <Animated.View layout={LinearTransition} style={applyStyle(cardFlexStyle, { flex: 1 })}>
+                <Card style={applyStyle(cardContentStyle)}>
+                    <VStack spacing="sp24" justifyContent="center" alignItems="center">
+                        <VStack alignItems="center">
+                            <Text variant="headline-sm" textAlign="center">
+                                <Translation id={secondaryCardConfig.titleTranslationId} />
+                            </Text>
+                            <Text color="contentSecondary" textAlign="center">
+                                <Translation id={secondaryCardConfig.descriptionTranslationId} />
+                            </Text>
+                        </VStack>
+                        <View style={applyStyle(buttonWrapperStyle)}>
+                            <Button
+                                onPress={secondaryCardConfig.onPress}
+                                intent="neutral"
+                                priority="secondary"
+                                testID={secondaryCardConfig.testID}
+                            >
+                                <Translation id={secondaryCardConfig.buttonTranslationId} />
+                            </Button>
+                        </View>
+                    </VStack>
+                </Card>
+            </Animated.View>
+        </AnimatedVStack>
     );
 };

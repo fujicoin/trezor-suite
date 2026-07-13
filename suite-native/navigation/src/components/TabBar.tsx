@@ -1,13 +1,14 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 import { Box } from '@suite-native/atoms';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { type TxKeyPath, useTranslate } from '@suite-native/intl';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
+import { AppTabsRoutes } from '../routes';
+import { type TabsOptions } from '../types';
 import { TabBarItem } from './TabBarItem';
-import { TabsOptions } from '../types';
-
 interface TabBarProps extends BottomTabBarProps {
     tabItemOptions: TabsOptions;
 }
@@ -18,8 +19,8 @@ const tabBarStyle = prepareNativeStyle<{
     insetsBottom: number;
 }>((utils, { insetLeft, insetRight, insetsBottom }) => ({
     width: '100%',
-    backgroundColor: utils.colors.backgroundSurfaceElevation0,
-    borderTopColor: utils.colors.borderElevation0,
+    backgroundColor: utils.colors.surfaceFillPage,
+    borderTopColor: utils.colors.borderNeutral,
     borderTopWidth: utils.borders.widths.small,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -29,7 +30,16 @@ const tabBarStyle = prepareNativeStyle<{
     paddingBottom: insetsBottom,
 }));
 
+const TabBarLabelTxKeys = {
+    [AppTabsRoutes.HomeStack]: 'navigation.tabs.home',
+    [AppTabsRoutes.AccountsStack]: 'navigation.tabs.accounts',
+    [AppTabsRoutes.TradeStack]: 'navigation.tabs.trade',
+    [AppTabsRoutes.EarnStack]: 'navigation.tabs.earn',
+    [AppTabsRoutes.Settings]: 'navigation.tabs.settings',
+} as const satisfies Record<AppTabsRoutes, TxKeyPath>;
+
 export const TabBar = ({ state, navigation, tabItemOptions }: TabBarProps) => {
+    const { translate } = useTranslate();
     const { applyStyle } = useNativeStyles();
     const insets = useSafeAreaInsets();
 
@@ -43,8 +53,10 @@ export const TabBar = ({ state, navigation, tabItemOptions }: TabBarProps) => {
         >
             {state.routes.map((route, index) => {
                 const isFocused = state.index === index;
-                const { routeName, iconName, focusedIconName, label, params } =
-                    tabItemOptions[route.name];
+                const tabOption = tabItemOptions[route.name];
+                if (!tabOption) return null;
+                const { routeName, iconName, focusedIconName, params } = tabOption;
+                const tabBarLabelTxKey = TabBarLabelTxKeys[routeName];
 
                 const handleTabBarItemPress = () => {
                     const event = navigation.emit({
@@ -64,7 +76,7 @@ export const TabBar = ({ state, navigation, tabItemOptions }: TabBarProps) => {
                         isFocused={isFocused}
                         iconName={iconName}
                         focusedIconName={focusedIconName}
-                        title={label}
+                        title={translate(tabBarLabelTxKey)}
                         onPress={handleTabBarItemPress}
                         testID={route.name}
                     />

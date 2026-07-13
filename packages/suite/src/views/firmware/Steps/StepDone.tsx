@@ -1,9 +1,9 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
+import { Translation } from '@suite/intl';
 import { Modal } from '@trezor/components';
 
-import { FirmwareInstallationStandalone } from '../../../components/firmware';
-import { Translation } from '../../../components/suite';
+import { FirmwareInstallation } from 'src/components/firmware/FirmwareInstallation';
 
 type StepDoneProps = {
     onClose: () => void;
@@ -31,7 +31,7 @@ export const StepDone = ({
                 </Modal.Button>
             }
         >
-            <FirmwareInstallationStandalone
+            <FirmwareInstallation
                 install={install}
                 onPromptClose={onClose}
                 isCustomFirmware={isCustomFirmware}

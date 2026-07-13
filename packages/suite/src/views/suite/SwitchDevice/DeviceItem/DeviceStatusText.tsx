@@ -1,85 +1,39 @@
-import React, { MouseEventHandler } from 'react';
+import React from 'react';
 
-import { TrezorDevice } from '@suite-common/suite-types';
+import { Translation } from '@suite/intl';
+import { type TrezorDevice } from '@suite-common/suite-types';
 import * as deviceUtils from '@suite-common/suite-utils';
-import { TOOLTIP_DELAY_LONG, TruncateWithTooltip } from '@trezor/components';
+import { RepeatIcon } from '@trezor/icons';
 
-import { Translation } from 'src/components/suite';
-import { useWalletLabeling } from 'src/components/suite/labeling/WalletLabeling';
-import { useSelector } from 'src/hooks/suite';
-import { selectLabelingDataForWallet } from 'src/reducers/suite/metadataReducer';
-
+import { getDeviceResolveStatusCTAMessage } from '../getDeviceResolveStatusCTAMessage';
 import { DeviceConnectionText } from './DeviceConnectionText';
+import { DeviceStatusTextThp } from './DeviceStatusTextThp';
 
 type DeviceStatusTextProps = {
-    onRefreshClick?: MouseEventHandler;
     device: TrezorDevice;
     forceConnectionInfo: boolean;
-};
-
-type DeviceStatusVisible = {
-    connected: boolean;
-    device: TrezorDevice;
-    forceConnectionInfo: boolean;
-};
-
-const DeviceStatusVisible = ({ device, connected, forceConnectionInfo }: DeviceStatusVisible) => {
-    const { walletLabel } = useSelector(state => selectLabelingDataForWallet(state, device.state));
-
-    const { defaultAccountLabelString } = useWalletLabeling();
-
-    const defaultWalletLabel =
-        device !== undefined ? defaultAccountLabelString({ device }) : undefined;
-    const isWalletLabelEmpty = walletLabel === undefined || walletLabel.trim() === '';
-
-    const walletText = isWalletLabelEmpty ? defaultWalletLabel : walletLabel;
-
-    return (
-        <DeviceConnectionText
-            variant={connected ? 'primary' : 'tertiary'}
-            icon={connected ? 'link' : 'linkBreak'}
-            data-testid={connected ? '@deviceStatus-connected' : '@deviceStatus-disconnected'}
-            data-testid-alt="@deviceStatus"
-        >
-            {walletText && !forceConnectionInfo ? (
-                <TruncateWithTooltip delayShow={TOOLTIP_DELAY_LONG}>
-                    {walletText}
-                </TruncateWithTooltip>
-            ) : (
-                <Translation id={connected ? 'TR_CONNECTED' : 'TR_DISCONNECTED'} />
-            )}
-        </DeviceConnectionText>
-    );
+    deviceNeedsRefresh?: boolean;
 };
 
 export const DeviceStatusText = ({
-    onRefreshClick,
     device,
     forceConnectionInfo,
+    deviceNeedsRefresh,
 }: DeviceStatusTextProps) => {
-    const { connected } = device;
     const deviceStatus = deviceUtils.getStatus(device);
-    const needsAttention = deviceUtils.deviceNeedsAttention(deviceStatus);
-
-    if (connected && needsAttention && onRefreshClick) {
+    if (deviceNeedsRefresh) {
         return (
             <DeviceConnectionText
-                variant="warning"
-                icon="repeat"
-                data-testid={connected ? '@deviceStatus-connected' : '@deviceStatus-disconnected'}
+                intent="warning"
+                icon={RepeatIcon}
+                data-testid="@deviceStatus-connected"
                 data-testid-alt="@deviceStatus"
                 isAction
             >
-                <Translation id="TR_SOLVE_ISSUE" />
+                <Translation id={getDeviceResolveStatusCTAMessage(deviceStatus)} />
             </DeviceConnectionText>
         );
     }
 
-    return (
-        <DeviceStatusVisible
-            connected={connected}
-            device={device}
-            forceConnectionInfo={forceConnectionInfo}
-        />
-    );
+    return <DeviceStatusTextThp device={device} forceConnectionInfo={forceConnectionInfo} />;
 };

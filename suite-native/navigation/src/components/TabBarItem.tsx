@@ -1,8 +1,8 @@
-import { TouchableOpacity, View } from 'react-native';
+import { View } from 'react-native';
 
-import { TITLE_MAX_FONT_MULTIPLIER, Text } from '@suite-native/atoms';
-import { Icon, IconName } from '@suite-native/icons';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { PressableOpacity, TITLE_MAX_FONT_MULTIPLIER, Text } from '@suite-native/atoms';
+import { Icon, type IconName } from '@suite-native/icons';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 type TabBarItemProps = {
     isFocused: boolean;
@@ -38,7 +38,7 @@ export const TabBarItem = ({
     const { applyStyle } = useNativeStyles();
 
     return (
-        <TouchableOpacity
+        <PressableOpacity
             accessibilityRole="button"
             accessibilityState={isFocused ? { selected: true } : {}}
             onPress={() => {
@@ -59,19 +59,20 @@ export const TabBarItem = ({
                 <Icon
                     name={isFocused ? focusedIconName : iconName}
                     size="large"
-                    color={isFocused ? 'iconPrimaryDefault' : 'iconDisabled'}
+                    color={isFocused ? 'contentBrand' : 'contentDisabled'}
                 />
                 {title && (
                     <Text
                         maxFontSizeMultiplier={TITLE_MAX_FONT_MULTIPLIER}
-                        variant="label"
+                        variant="body-xs"
                         textAlign="center"
-                        color={isFocused ? 'textPrimaryDefault' : 'textDisabled'}
+                        color={isFocused ? 'contentBrand' : 'contentDisabled'}
+                        testID={`@tabBar/${testID}/title`}
                     >
                         {title}
                     </Text>
                 )}
             </View>
-        </TouchableOpacity>
+        </PressableOpacity>
     );
 };

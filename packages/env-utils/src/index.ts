@@ -10,14 +10,8 @@ export const {
     getUserAgent,
     isAndroid,
     isChromeOs,
-    getBrowserVersion,
-    getBrowserName,
     getCommitHash,
-    getDeviceType,
-    getOsVersion,
-    getCpuArch,
     getSuiteVersion,
-    isFirefox,
     getPlatform,
     getPlatformLanguages,
     getScreenWidth,
@@ -33,8 +27,7 @@ export const {
     isLinux,
     isCodesignBuild,
     getOsName,
-    getOsNameWeb,
-    getOsFamily,
     getJWSPublicKey,
-    getFirmwareReleaseJwsPublicKey,
 } = envUtils;
+
+export { resolveStaticPath, resolveConnectPath } from './resolveStaticPath';

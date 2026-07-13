@@ -1,3 +1,5 @@
+import type { WalletDescriptor } from '@trezor/device-utils';
+
 export interface LabelableEntityKeys {
     fileName: string; // file name in data provider
     aesKey: string; // symmetric key for file encryption
@@ -20,15 +22,19 @@ export type MetadataAddPayload = { skipSave?: boolean } & (
           type: 'outputLabel';
           entityKey: string;
           txid: string;
-          outputIndex: number | string;
+          outputIndex: string; // not just index, for tokens/internals it can be different stuff
           defaultValue?: string;
           value?: string;
+          networkSymbol: string;
+          accountDescriptor: string;
       }
     | {
           type: 'addressLabel';
           entityKey: string;
           defaultValue: string;
           value?: string;
+          networkSymbol: string;
+          accountDescriptor: string;
       }
     | {
           type: 'accountLabel';
@@ -122,7 +128,7 @@ export abstract class AbstractMetadataProvider {
     /**
      * Upload metadata content in cloud provider for given filename and content
      */
-    abstract setFileContent(file: string, content: any): Result<void>;
+    abstract setFileContent(file: string, content: Buffer): Result<void>;
     /**
      * Get a list of metadata file names if any
      */
@@ -184,12 +190,18 @@ export abstract class AbstractMetadataProvider {
 
 export type AccountOutputLabels = { [index: string]: MetadataItem };
 
+/**
+ * @deprecated Legacy Labeling
+ */
 export interface AccountLabels {
     accountLabel?: MetadataItem;
-    outputLabels: { [txid: string]: AccountOutputLabels };
-    addressLabels: { [address: string]: MetadataItem };
+    outputLabels: Record<string, AccountOutputLabels>;
+    addressLabels: Record<string, MetadataItem>;
 }
 
+/**
+ * @deprecated Legacy Labeling
+ */
 export interface WalletLabels {
     walletLabel?: string;
 }
@@ -228,6 +240,7 @@ export type MetadataProvider = {
 export interface MetadataState {
     enabled: boolean; // global for all devices
     providers: MetadataProvider[];
+    hasLegacyLabelsMigrated: Partial<Record<WalletDescriptor, true>>;
     // being selected means:
     // - see data from this provider
     // - save data to this provider when making changes

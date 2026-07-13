@@ -1,8 +1,8 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import { Box, PictogramTitleHeader, VStack } from '@suite-native/atoms';
-import { Screen, ScreenFooterGradient } from '@suite-native/navigation';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { Box, PictogramTitleHeader, ScreenFooterGradient, VStack } from '@suite-native/atoms';
+import { Screen } from '@suite-native/navigation';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { AccountImportScreenHeader } from './AccountImportScreenHeader';
 
@@ -17,7 +17,7 @@ type AccountImportSummaryScreenProps = {
 const screenFooterStyle = prepareNativeStyle(utils => ({
     paddingHorizontal: utils.spacings.sp16,
     paddingBottom: utils.spacings.sp16,
-    backgroundColor: utils.colors.backgroundSurfaceElevation0,
+    backgroundColor: utils.colors.surfaceFillPage,
 }));
 
 export const AccountImportSummaryScreen = ({
@@ -49,7 +49,7 @@ export const AccountImportSummaryScreen = ({
                         subtitle={subtitle}
                     />
                 </Box>
-                <Box flex={1} testID={testID}>
+                <Box flex={1} testID={testID} accessible>
                     {children}
                 </Box>
             </VStack>

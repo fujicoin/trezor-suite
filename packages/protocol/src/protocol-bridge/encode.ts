@@ -1,5 +1,5 @@
 import { HEADER_SIZE } from './constants';
-import { TransportProtocol } from '../types';
+import { type TransportProtocol } from '../types';
 
 // just for type compatibility, bridge doesn't send headers
 export const getHeaders: TransportProtocol['getHeaders'] = () => [Buffer.alloc(0), Buffer.alloc(0)];
@@ -9,9 +9,6 @@ export const getHeaders: TransportProtocol['getHeaders'] = () => [Buffer.alloc(0
 // it is because bridge does some parts of the protocol itself (like chunking)
 export const encode: TransportProtocol['encode'] = (data, options) => {
     const { messageType } = options;
-    if (typeof messageType === 'string') {
-        throw new Error(`Unsupported message type ${messageType}`);
-    }
 
     const encodedBuffer = Buffer.alloc(HEADER_SIZE + data.length);
 

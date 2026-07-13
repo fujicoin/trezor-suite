@@ -7,7 +7,7 @@
     },
     "include": ["**/*.ts", "**/*.js"],
     "references": [
-        { "path": "../connect" },
+        { "path": "../connect-common" },
         { "path": "../connect-web" },
         { "path": "../eslint" }
     ]

@@ -1,31 +1,26 @@
 import styled, { css } from 'styled-components';
 
-import {
-    selectAccountByKey,
-    selectDeviceThunk,
-    selectDevices,
-    selectSelectedDevice,
-} from '@suite-common/wallet-core';
-import { WalletParams } from '@suite-common/wallet-types';
-import { ProgressPie, variables } from '@trezor/components';
+import { selectRoundsDurationInHours, selectSessionProgressByAccountKey } from '@suite/coinjoin';
+import { type CoinjoinSession } from '@suite/coinjoin';
+import { Translation } from '@suite/intl';
+import { goto, selectRouterParams } from '@suite/router';
+import { selectDevices, selectSelectedDevice } from '@suite-common/device';
+import { selectAccountByKey, selectDeviceThunk } from '@suite-common/wallet-core';
+import { type AccountKey, type WalletParams } from '@suite-common/wallet-types';
+import { ProgressPie } from '@trezor/components';
+import { typography } from '@trezor/theme';
 
-import { goto } from 'src/actions/suite/routerActions';
-import { CountdownTimer, Translation, WalletLabeling } from 'src/components/suite';
+import { CountdownTimer } from 'src/components/suite/CountdownTimer';
+import { WalletLabeling } from 'src/components/suite/labeling/WalletLabeling';
 import { ROUND_PHASE_MESSAGES } from 'src/constants/suite/coinjoin';
 import { useDispatch } from 'src/hooks/suite';
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { selectRouterParams } from 'src/reducers/suite/routerReducer';
-import {
-    selectRoundsDurationInHours,
-    selectSessionProgressByAccountKey,
-} from 'src/reducers/wallet/coinjoinReducer';
-import { CoinjoinSession } from 'src/types/wallet/coinjoin';
 
 const SPACING = 6;
 
 const ViewText = styled.div`
     margin-left: auto;
-    color: ${({ theme }) => theme.legacy.TYPE_LIGHT_GREY};
+    color: ${({ theme }) => theme.contentSecondary};
     transition: transform 0.15s ease-in-out;
 `;
 
@@ -35,10 +30,9 @@ const Container = styled.div<{ $isClickable: boolean }>`
     align-items: center;
     height: 28px;
     padding: 0 ${SPACING}px;
-    background: ${({ theme }) => theme.backgroundSurfaceElevationNegative};
-    border-bottom: 1px solid ${({ theme }) => theme.borderElevation1};
-    font-size: ${variables.FONT_SIZE.TINY};
-    font-weight: ${variables.FONT_WEIGHT.MEDIUM};
+    background: ${({ theme }) => theme.surfaceFillSunken};
+    border-bottom: 1px solid ${({ theme }) => theme.borderNeutral};
+    ${typography['body-xs']}
     transition: background 0.15s;
     ${({ $isClickable, theme }) =>
         $isClickable &&
@@ -46,7 +40,7 @@ const Container = styled.div<{ $isClickable: boolean }>`
             cursor: pointer;
 
             &:hover {
-                background: ${theme.legacy.BG_WHITE_ALT_HOVER};
+                background: ${theme.surfaceFillPage};
                 ${ViewText} {
                     text-decoration: underline;
                     transform: translateX(-4px);
@@ -55,17 +49,12 @@ const Container = styled.div<{ $isClickable: boolean }>`
         `}
 `;
 
-// eslint-disable-next-line local-rules/no-override-ds-component
-const StyledProgressPie = styled(ProgressPie)`
-    margin-right: ${SPACING}px;
-`;
-
 const StatusText = styled.span`
-    color: ${({ theme }) => theme.legacy.TYPE_GREEN};
+    color: ${({ theme }) => theme.contentBrand};
 `;
 
 const Note = styled.span`
-    color: ${({ theme }) => theme.legacy.TYPE_LIGHT_GREY};
+    color: ${({ theme }) => theme.contentSecondary};
 `;
 
 const Separator = styled.span`
@@ -73,7 +62,7 @@ const Separator = styled.span`
 `;
 
 interface CoinjoinStatusBarProps {
-    accountKey: string;
+    accountKey: AccountKey;
     session: CoinjoinSession;
     isSingle: boolean;
 }
@@ -111,7 +100,8 @@ export const CoinjoinStatusBar = ({ accountKey, session, isSingle }: CoinjoinSta
         }
 
         dispatch(
-            goto('wallet-index', {
+            goto({
+                routeName: 'wallet-index',
                 params: {
                     symbol,
                     accountIndex: index,
@@ -150,7 +140,7 @@ export const CoinjoinStatusBar = ({ accountKey, session, isSingle }: CoinjoinSta
             onClick={isStatusBarClickable ? handleViewAccount : undefined}
             $isClickable={isStatusBarClickable}
         >
-            <StyledProgressPie valueInPercents={sessionProgress} />
+            <ProgressPie valueInPercents={sessionProgress} margin={{ right: 8 }} />
 
             <StatusText>
                 {getSessionStatusMessage()}

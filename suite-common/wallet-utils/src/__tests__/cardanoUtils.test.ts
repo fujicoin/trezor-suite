@@ -10,14 +10,10 @@ import {
     getNetworkId,
     getProtocolMagic,
     getShortFingerprint,
-    getStakePoolForDelegation,
     getStakingPath,
     getUnusedChangeAddress,
     getVotingCertificates,
-    isCardanoExternalOutput,
     isCardanoTx,
-    isPoolOverSaturated,
-    parseAsset,
     transformUserOutputs,
 } from '../cardanoUtils';
 
@@ -33,7 +29,6 @@ describe('cardano utils', () => {
 
     it('basic test', () => {
         expect(getProtocolMagic('ada')).toEqual(CARDANO.PROTOCOL_MAGICS.mainnet);
-        expect(getProtocolMagic('tada')).toEqual(1097911063);
 
         expect(getDerivationType('normal')).toEqual(1);
         expect(getDerivationType('legacy')).toEqual(2);
@@ -41,8 +36,7 @@ describe('cardano utils', () => {
         // TS does not allow this, but in runtime, the default case handles it
         expect(getDerivationType(undefined as any)).toEqual(1);
 
-        expect(getNetworkId('ada')).toEqual(CARDANO.NETWORK_IDS.mainnet);
-        expect(getNetworkId('tada')).toEqual(CARDANO.NETWORK_IDS.testnet);
+        expect(getNetworkId()).toEqual(CARDANO.NETWORK_IDS.mainnet);
 
         expect(getAddressType()).toEqual(PROTO.CardanoAddressType.BASE);
         expect(getAddressType()).toEqual(PROTO.CardanoAddressType.BASE);
@@ -60,10 +54,6 @@ describe('cardano utils', () => {
         expect(isCardanoTx({ networkType: 'cardano' }, {})).toBe(true);
         // @ts-expect-error params are partial
         expect(isCardanoTx({ networkType: 'bitcoin' }, {})).toBe(false);
-        // @ts-expect-error params are partial
-        expect(isCardanoExternalOutput({ address: 'addr1' }, {})).toBe(true);
-        // @ts-expect-error params are partial
-        expect(isCardanoExternalOutput({ addressParameters: {} }, {})).toBe(false);
     });
 
     fixtures.getChangeAddressParameters.forEach(f => {
@@ -71,7 +61,6 @@ describe('cardano utils', () => {
             const address = getUnusedChangeAddress(f.account);
             const res = address && {
                 address: address.address,
-                // @ts-expect-error params are partial
                 addressParameters: getAddressParameters(f.account, address.path),
             };
             expect(res).toMatchObject(f.result);
@@ -101,26 +90,6 @@ describe('cardano utils', () => {
         });
     });
 
-    fixtures.parseAsset.forEach(f => {
-        it(`parseAsset: ${f.description}`, () => {
-            expect(parseAsset(f.hex)).toMatchObject(f.result);
-        });
-    });
-
-    fixtures.isPoolOverSaturated.forEach(f => {
-        it(`isPoolOverSaturated: ${f.description}`, () => {
-            // @ts-expect-error params are partial
-            expect(isPoolOverSaturated(f.pool, f.additionalStake)).toBe(f.result);
-        });
-    });
-
-    fixtures.getStakePoolForDelegation.forEach(f => {
-        it(`getStakePoolForDelegation: ${f.description}`, () => {
-            expect(getStakePoolForDelegation(f.trezorPools, f.accountBalance)).toMatchObject(
-                f.result,
-            );
-        });
-    });
     fixtures.getDelegationCertificates.forEach(f => {
         it(`getDelegationCertificates: ${f.description}`, () => {
             expect(

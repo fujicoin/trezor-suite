@@ -1,7 +1,10 @@
 import { BLUETOOTH_PREFIX, bluetoothActions } from '@suite-common/bluetooth';
 import { createThunk } from '@suite-common/redux-utils';
 import { notificationsActions } from '@suite-common/toast-notifications';
+import { type BluetoothDeviceId } from '@trezor/connect';
 import { bluetoothIpc } from '@trezor/transport-bluetooth';
+
+import { stopConnectingBluetoothDevice } from './desktopBluetoothReducer';
 
 type BluetoothDisconnectDeviceThunkResult = {
     success: boolean;
@@ -9,7 +12,7 @@ type BluetoothDisconnectDeviceThunkResult = {
 
 export const bluetoothDisconnectDeviceThunk = createThunk<
     BluetoothDisconnectDeviceThunkResult,
-    { id: string },
+    { id: BluetoothDeviceId },
     void
 >(
     `${BLUETOOTH_PREFIX}/bluetoothDisconnectDeviceThunk`,
@@ -31,6 +34,9 @@ export const bluetoothDisconnectDeviceThunk = createThunk<
                 }),
             );
         }
+
+        // just in case if we were in the process of connecting this device
+        dispatch(stopConnectingBluetoothDevice({ deviceId: id }));
 
         return fulfillWithValue({ success: result.success });
     },

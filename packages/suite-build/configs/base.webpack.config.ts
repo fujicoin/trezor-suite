@@ -1,6 +1,6 @@
 import { sentryWebpackPlugin } from '@sentry/webpack-plugin';
-import path from 'path';
-import TerserPlugin from 'terser-webpack-plugin';
+import TerserPlugin from 'minimizer-webpack-plugin';
+import path, { resolve } from 'path';
 import webpack from 'webpack';
 import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
 
@@ -13,8 +13,10 @@ import {
     isAnalyzing,
     isCodesignBuild,
     isDev,
+    isTanstackReactQueryDevTools,
     project,
     sentryAuthToken,
+    transportBrowserPing,
 } from '../utils/env';
 import { getRevision } from '../utils/git';
 import { getPathForProject } from '../utils/path';
@@ -46,23 +48,35 @@ const config: webpack.Configuration = {
         },
         fallback: {
             // Polyfills crypto API for NodeJS libraries in the browser. 'crypto' does not run without 'stream'
-            crypto: require.resolve('crypto-browserify'),
-            stream: require.resolve('stream-browserify'),
-            vm: require.resolve('vm-browserify'),
+            crypto: require.resolve('crypto-browserify'), // required by multiple dependencies
+            stream: require.resolve('stream-browserify'), // required by utxo-lib and keccak
+            vm: require.resolve('vm-browserify'), // ignore "vm" imports in "asn1.js@4.10.1" > crypto-browserify"
+            util: require.resolve('util'), // required by "xrpl.js"
+            assert: require.resolve('assert'), // required by multiple dependencies
+            events: require.resolve('events'),
             // Not required
             child_process: false,
-            fs: false,
+            dgram: false, // TODO: remove once UdpTransport is wired via dependency injection (follow-up PR) and the static import from TransportList is gone
+            fs: false, // ignore "fs" import in fastxpub (hd-wallet)
             net: false,
             tls: false,
-            os: false,
-            path: false,
+            os: false, // usb
+            path: false, // usb
             https: false,
             http: false,
             zlib: false,
+            url: false,
         },
+        mainFields: ['browser', 'module', 'main'],
     },
     optimization: {
         splitChunks: {
+            chunks: 'all',
+            name(_: any, chunks: any) {
+                if (chunks.length > 1 && chunks.every((item: any) => item.name)) {
+                    return `shared/${chunks.map((item: any) => item.name.split('/').pop()).join('~')}`;
+                }
+            },
             cacheGroups: {
                 react: {
                     chunks: 'initial',
@@ -83,11 +97,16 @@ const config: webpack.Configuration = {
         },
         minimizer: [
             new TerserPlugin({
-                exclude: /static\/connect/, // connect is already minimized with specific rules
+                parallel: true,
+                extractComments: false,
             }),
         ],
+        emitOnErrors: true,
+        moduleIds: 'named',
+        usedExports: true,
     },
     performance: {
+        hints: false,
         maxAssetSize: 10 * 1000 * 1000,
         maxEntrypointSize: 1000 * 1000,
     },
@@ -95,22 +114,34 @@ const config: webpack.Configuration = {
         // Throw error on missing exports instead of warning
         strictExportPresence: true,
         rules: [
+            // Allow extensionless imports from ESM packages in node_modules (webpack 5 strict ESM)
+            {
+                test: /\.m?js$/,
+                include: /node_modules/,
+                resolve: {
+                    fullySpecified: false,
+                },
+            },
             // TypeScript/JavaScript
             {
                 test: /\.(j|t)sx?$/,
-                exclude: /node_modules/,
+                exclude: /node_modules/i,
                 use: {
                     loader: 'babel-loader',
                     options: {
-                        cacheDirectory: true,
+                        cacheDirectory: !process.env.INSTRUMENT_CODE,
                         presets: [
+                            ['@babel/preset-react', { runtime: 'automatic' }],
+                            '@babel/preset-typescript',
                             [
-                                '@babel/preset-react',
+                                '@babel/preset-env',
                                 {
-                                    runtime: 'automatic',
+                                    corejs: 3,
+                                    configPath: resolve(__dirname, '../browserslist'),
+                                    shippedProposals: true,
+                                    useBuiltIns: 'usage',
                                 },
                             ],
-                            '@babel/preset-typescript',
                         ],
                         plugins: [
                             [
@@ -121,36 +152,36 @@ const config: webpack.Configuration = {
                                 },
                             ],
                             ...(isDev ? ['react-refresh/babel'] : []),
+                            ...(process.env.INSTRUMENT_CODE
+                                ? [
+                                      [
+                                          'istanbul',
+                                          {
+                                              cwd: resolve(__dirname, '../../../'),
+                                              include: [
+                                                  'packages/*/src/**/*',
+                                                  'suite-common/*/src/**/*',
+                                              ],
+                                              exclude: [
+                                                  '**/*.test.{ts,tsx,js,jsx}',
+                                                  '**/*.spec.{ts,tsx,js,jsx}',
+                                                  '**/__tests__/**',
+                                                  '**/tests/**',
+                                                  '**/test/**',
+                                                  '**/e2e/**',
+                                              ],
+                                              extension: ['.js', '.jsx', '.ts', '.tsx'],
+                                          },
+                                      ],
+                                  ]
+                                : []),
                         ],
                     },
                 },
             },
             {
                 test: /\.md/,
-                use: [
-                    {
-                        loader: 'raw-loader',
-                    },
-                ],
-            },
-            // This worker loader is used for suite-desktop
-            {
-                // during compilation, it matches the worker file name both with Unix and Windows paths
-                test: /[/\\]workers[/\\][^/\\]+[/\\]index\.ts$/,
-                use: [
-                    {
-                        loader: 'worker-loader',
-                        options: {
-                            filename: 'static/worker.[contenthash].js',
-                        },
-                    },
-                    {
-                        loader: 'babel-loader',
-                        options: {
-                            presets: ['@babel/preset-typescript'],
-                        },
-                    },
-                ],
+                use: [{ loader: 'raw-loader' }],
             },
             // Images
             {
@@ -170,8 +201,15 @@ const config: webpack.Configuration = {
             'process.env.ASSET_PREFIX': JSON.stringify(assetPrefix),
             'process.env.IS_CODESIGN_BUILD': `"${isCodesignBuild}"`, // to keep it as string "true"/"false" and not boolean
             'process.env.SENTRY_RELEASE': JSON.stringify(sentryRelease),
+            'process.env.TANSTACK_REACT_QUERY_DEV_TOOLS': JSON.stringify(
+                isTanstackReactQueryDevTools,
+            ),
+            'process.env.TRANSPORT_BROWSER_PING': JSON.stringify(transportBrowserPing),
             __SENTRY_DEBUG__: isDev,
-            __SENTRY_TRACING__: false, // needs to be removed when we introduce performance monitoring in trezor-suite
+            // Keeps Sentry tracing/performance code in the bundle. Must stay truthy for
+            // browserTracingIntegration (transactions, Web Vitals) and trace-lifecycle profiling
+            // to work; setting it false tree-shakes all of that out at build time.
+            __SENTRY_TRACING__: true,
         }),
         new webpack.ProvidePlugin({
             Buffer: ['buffer', 'Buffer'],
@@ -192,7 +230,7 @@ const config: webpack.Configuration = {
                       org: 'satoshilabs',
                       project: 'trezor-suite',
                       authToken: sentryAuthToken,
-                      release: { name: sentryRelease, cleanArtifacts: true },
+                      release: { name: sentryRelease },
                       sourcemaps: {
                           assets: path.join(getPathForProject(project), 'build', '**'),
                           ignore: ['static/connect'], // connect does not contain source maps for now
@@ -200,6 +238,20 @@ const config: webpack.Configuration = {
                   }),
               ]
             : []),
+    ],
+    // We are using WASM package - it's much faster (https://github.com/Emurgo/cardano-serialization-lib)
+    // This option makes it possible
+    experiments: { asyncWebAssembly: true },
+    ignoreWarnings: [
+        // Unfortunately Cardano Serialization Lib triggers webpack warning:
+        // "Critical dependency: the request of a dependency is an expression" due to require in generated wasm module
+        // https://github.com/Emurgo/cardano-serialization-lib/issues/119
+        { module: /cardano-serialization-lib-browser/ },
+        // checkAuthenticityProof (see comment on how subtle is used there), should be safe to suppress this message
+        warning =>
+            warning.message.includes(
+                "export 'subtle' (imported as 'crypto') was not found in 'crypto' ",
+            ),
     ],
 };
 

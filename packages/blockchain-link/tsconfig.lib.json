@@ -2,37 +2,23 @@
     "extends": "../../tsconfig.lib.json",
     "compilerOptions": {
         "outDir": "./lib",
+        "rootDir": "./src",
         "lib": ["webworker"],
         "types": ["jest", "node", "web"]
     },
     "include": ["./src"],
     "references": [
-        {
-            "path": "../blockchain-link-types"
-        },
-        {
-            "path": "../blockchain-link-utils"
-        },
-        {
-            "path": "../env-utils"
-        },
-        {
-            "path": "../utils"
-        },
-        {
-            "path": "../utxo-lib"
-        },
-        {
-            "path": "../websocket-client"
-        },
-        {
-            "path": "../e2e-utils"
-        },
-        {
-            "path": "../eslint"
-        },
-        {
-            "path": "../type-utils"
-        }
+        { "path": "../blockchain-link-types" },
+        { "path": "../blockchain-link-utils" },
+        { "path": "../../coins/coins-solana" },
+        { "path": "../../coins/coins-stellar" },
+        { "path": "../../coins/coins-xrpl" },
+        { "path": "../env-utils" },
+        { "path": "../utils" },
+        { "path": "../utxo-lib" },
+        { "path": "../websocket-client" },
+        { "path": "../e2e-utils" },
+        { "path": "../eslint" },
+        { "path": "../type-utils" }
     ]
 }

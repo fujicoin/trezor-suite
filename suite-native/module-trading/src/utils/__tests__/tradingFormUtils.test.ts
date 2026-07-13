@@ -1,11 +1,13 @@
 import type { ExchangeTrade, SellFiatTrade } from 'invity-api';
 
-import { exchangeInvity } from '../../__fixtures__/exchangeProviders';
-import { sellInvity } from '../../__fixtures__/sellProviders';
+import { mockAccountKey } from '@suite-common/wallet-types/mocks';
+import { exchangeInvity, sellInvity } from '@suite-native/trading-fixtures';
+
 import { createFormStateForSendForm } from '../tradingFormUtils';
 
 describe('createFormStateForSendForm', () => {
     describe('createTradingFormState', () => {
+        const sendAccountKey = mockAccountKey({ descriptor: 'sendAccountKey' });
         it('should create FormState for exchange quote (swap)', () => {
             const exchangeQuote: ExchangeTrade = {
                 exchange: 'sideshiftfr',
@@ -30,6 +32,7 @@ describe('createFormStateForSendForm', () => {
                 quote: exchangeQuote,
                 feeLevel,
                 providers,
+                sendAccountKey,
             });
 
             expect(formState.outputs).toHaveLength(1);
@@ -71,7 +74,11 @@ describe('createFormStateForSendForm', () => {
             } as SellFiatTrade;
 
             const providers = { invity: sellInvity };
-            const formState = createFormStateForSendForm({ quote: sellQuote, providers });
+            const formState = createFormStateForSendForm({
+                quote: sellQuote,
+                providers,
+                sendAccountKey,
+            });
 
             expect(formState.outputs).toHaveLength(1);
             expect(formState.outputs[0]).toEqual({
@@ -99,11 +106,17 @@ describe('createFormStateForSendForm', () => {
             };
 
             const providers = { invity: exchangeInvity };
-            const formState = createFormStateForSendForm({ quote: tokenQuote, providers });
+            const formState = createFormStateForSendForm({
+                quote: tokenQuote,
+                providers,
+                sendAccountKey,
+            });
 
-            expect(formState.outputs[0].token).toBe('0x0987654321123456789012345678901234567890');
-            expect(formState.outputs[0].address).toBe('0x1234567890123456789012345678901234567890');
-            expect(formState.outputs[0].amount).toBe('100.0');
+            expect(formState.outputs[0]?.token).toBe('0x0987654321123456789012345678901234567890');
+            expect(formState.outputs[0]?.address).toBe(
+                '0x1234567890123456789012345678901234567890',
+            );
+            expect(formState.outputs[0]?.amount).toBe('100.0');
         });
 
         it('should handle extra fields (destinationTag)', () => {
@@ -121,7 +134,11 @@ describe('createFormStateForSendForm', () => {
             };
 
             const providers = { changelly: exchangeInvity };
-            const formState = createFormStateForSendForm({ quote: xrpQuote, providers });
+            const formState = createFormStateForSendForm({
+                quote: xrpQuote,
+                providers,
+                sendAccountKey,
+            });
 
             expect(formState.destinationTag).toBe('12345');
         });
@@ -154,6 +171,7 @@ describe('createFormStateForSendForm', () => {
                 quote,
                 extraField: customExtraField,
                 providers,
+                sendAccountKey,
             });
 
             expect(formState.destinationTag).toBe('custom-tag-123');
@@ -170,8 +188,104 @@ describe('createFormStateForSendForm', () => {
 
             const providers = { test: exchangeInvity };
             expect(() =>
-                createFormStateForSendForm({ quote: invalidQuote as any, providers }),
+                createFormStateForSendForm({
+                    quote: invalidQuote as any,
+                    providers,
+                    sendAccountKey,
+                }),
             ).toThrow('Invalid quote type: must be ExchangeTrade or SellFiatTrade');
+        });
+
+        it('should set transactionData and output address from dexTx for DEX quotes', () => {
+            const dexQuote: ExchangeTrade = {
+                exchange: '1inch',
+                send: 'ethereum' as any,
+                sendStringAmount: '1.0',
+                sendAddress: '0xUserAddress',
+                receive: 'ethereum--0xTokenAddress' as any,
+                receiveStringAmount: '1000.0',
+                status: 'CONFIRM',
+                orderId: 'dex-order-123',
+                quoteId: 'dex-quote-456',
+                isDex: true,
+                dexTx: {
+                    from: '0xUserAddress',
+                    to: '0xDexRouterAddress',
+                    data: '0xabcdef1234567890',
+                    value: '1000000000000000000',
+                },
+            };
+
+            const providers = { '1inch': exchangeInvity };
+            const formState = createFormStateForSendForm({
+                quote: dexQuote,
+                providers,
+                sendAccountKey,
+            });
+
+            // DEX output address should come from dexTx.to, not sendAddress
+            expect(formState.outputs[0]?.address).toBe('0xDexRouterAddress');
+            expect(formState.transactionData).toBe('0xabcdef1234567890');
+            expect(formState.ethereumAdjustGasLimit).toBe('1.25');
+        });
+
+        it('should apply gas limit adjustment for DEX approval transactions', () => {
+            const dexApprovalQuote: ExchangeTrade = {
+                exchange: '1inch',
+                send: 'ethereum--0xTokenAddress' as any,
+                sendStringAmount: '100.0',
+                sendAddress: '0xUserAddress',
+                receive: 'ethereum' as any,
+                receiveStringAmount: '0.5',
+                status: 'APPROVAL_REQ',
+                orderId: 'dex-approval-123',
+                quoteId: 'dex-approval-456',
+                isDex: true,
+                dexTx: {
+                    from: '0xUserAddress',
+                    to: '0xDexRouterAddress',
+                    data: '0xapprovaldata',
+                    value: '0',
+                },
+            };
+
+            const providers = { '1inch': exchangeInvity };
+            const formState = createFormStateForSendForm({
+                quote: dexApprovalQuote,
+                providers,
+                sendAccountKey,
+            });
+
+            expect(formState.outputs[0]?.address).toBe('0xDexRouterAddress');
+            expect(formState.transactionData).toBe('0xapprovaldata');
+            // No gas adjustment for approval transactions
+            expect(formState.ethereumAdjustGasLimit).toBe('1.25');
+        });
+
+        it('should not set DEX fields for CEX exchange quotes', () => {
+            const cexQuote: ExchangeTrade = {
+                exchange: 'changelly',
+                send: 'ethereum' as any,
+                sendStringAmount: '1.0',
+                sendAddress: '0xChangellyDepositAddress',
+                receive: 'bitcoin' as any,
+                receiveStringAmount: '0.05',
+                status: 'CONFIRM',
+                orderId: 'cex-order-123',
+                quoteId: 'cex-quote-456',
+                isDex: false,
+            };
+
+            const providers = { changelly: exchangeInvity };
+            const formState = createFormStateForSendForm({
+                quote: cexQuote,
+                providers,
+                sendAccountKey,
+            });
+
+            expect(formState.outputs[0]?.address).toBe('0xChangellyDepositAddress');
+            expect(formState.transactionData).toBe('');
+            expect(formState.ethereumAdjustGasLimit).toBe('');
         });
 
         it('should use default fee level when not provided', () => {
@@ -188,7 +302,7 @@ describe('createFormStateForSendForm', () => {
             };
 
             const providers = { test: exchangeInvity };
-            const formState = createFormStateForSendForm({ quote, providers });
+            const formState = createFormStateForSendForm({ quote, providers, sendAccountKey });
 
             expect(formState.selectedFee).toBe('normal');
             expect(formState.feePerUnit).toBe('');

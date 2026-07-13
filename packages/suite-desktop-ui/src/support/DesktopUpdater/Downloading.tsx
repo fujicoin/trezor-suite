@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 
+import { Translation } from '@suite/intl';
 import { Column, H3, Modal, Paragraph, ProgressBar, Text } from '@trezor/components';
-import { UpdateProgress } from '@trezor/suite-desktop-api';
+import { DownloadIcon } from '@trezor/icons';
+import { type UpdateProgress } from '@trezor/suite-desktop-api';
 import { spacings } from '@trezor/theme';
 import { bytesToHumanReadable } from '@trezor/utils';
-
-import { Translation } from 'src/components/suite';
 
 interface DownloadingProps {
     hideWindow: () => void;
@@ -26,11 +26,11 @@ export const Downloading = ({ hideWindow, progress }: DownloadingProps) => {
     return (
         <Modal
             bottomContent={
-                <Modal.Button variant="tertiary" onClick={hideWindow}>
+                <Modal.Button intent="neutral" priority="secondary" onClick={hideWindow}>
                     <Translation id="TR_BACKGROUND_DOWNLOAD" />
                 </Modal.Button>
             }
-            iconName="download"
+            icon={DownloadIcon}
         >
             <H3>
                 {progress?.verifying ? (
@@ -44,10 +44,13 @@ export const Downloading = ({ hideWindow, progress }: DownloadingProps) => {
             </H3>
             <Column gap={spacings.xxs} margin={{ top: spacings.xs }}>
                 <ProgressBar value={progress?.percent || 0} />
-                <Paragraph variant="tertiary" typographyStyle="body" align="end">
-                    <Text variant="primary">
-                        {bytesToHumanReadable(progress?.transferred || 0)}
-                    </Text>
+                <Paragraph
+                    intent="neutral"
+                    priority="secondary"
+                    typographyStyle="body-md"
+                    align="end"
+                >
+                    <Text intent="brand">{bytesToHumanReadable(progress?.transferred || 0)}</Text>
                     {' / '}
                     {bytesToHumanReadable(progress?.total || 0)}
                 </Paragraph>

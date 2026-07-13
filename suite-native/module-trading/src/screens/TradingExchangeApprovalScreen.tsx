@@ -1,51 +1,140 @@
-import { Pressable } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useEffect, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 
-import { invariant } from '@suite-common/suite-utils';
+import type { DexApprovalType, ExchangeTrade } from 'invity-api';
+
 import {
-    TradingRootState,
-    cryptoIdToNetworkAndContractAddress,
+    type TradingRootState,
     selectTradingCoinSymbolByCryptoId,
     selectTradingExchangeSelectedQuote,
-    selectTradingProviderByNameAndTradeType,
+    tradingExchangeActions,
 } from '@suite-common/trading';
-import { asBaseCurrencyAmount } from '@suite-common/wallet-utils';
-import { Box, Button, Card, HStack, InlineAlertBox, Text, VStack } from '@suite-native/atoms';
-import { BaseCurrencyAmountFormatter } from '@suite-native/formatters';
-import { CryptoIcon, Icon, NetworkIcon } from '@suite-native/icons';
+import { InlineAlertBox, VStack } from '@suite-native/atoms';
 import { Translation } from '@suite-native/intl';
-import { DynamicScreenHeader, Screen } from '@suite-native/navigation';
-import { BigNumber } from '@trezor/utils';
+import {
+    DynamicScreenHeader,
+    type RootStackParamList,
+    type RootStackRoutes,
+    Screen,
+    ScreenHeader,
+    type StackProps,
+    useNavigationRemoveActionInterceptor,
+} from '@suite-native/navigation';
+import { useExchangeAnalyticsStepReport } from '@suite-native/trading-analytics';
 
-import { TradeInfoHeader } from '../components/TradeInfo/TradeInfoHeader';
-import { TradeInfoRow } from '../components/TradeInfo/TradeInfoRow';
-import { ExchangeApprovalLimitSheet } from '../components/exchange/ExchangeApprovalLimitSheet/ExchangeApprovalLimitSheet';
-import { ProviderLogo } from '../components/general/ProviderLogo';
-import { useBottomSheetControls } from '../hooks/general/useBottomSheetControls';
-import { selectExchangeSelectedSendAccount } from '../selectors/exchangeSelectors';
+import { ApprovalButton } from '../components/exchange/Approval/ApprovalButton';
+import { ExchangeApprovalDetails } from '../components/exchange/Approval/ExchangeApprovalDetails';
+import { TradingDeviceConnectionGuard } from '../components/general/TradingDeviceConnectionGuard';
+import { useApprovalFlow } from '../hooks/exchange/Approval/useApprovalFlow';
+import { useEvmApprovalFees } from '../hooks/exchange/Approval/useEvmApprovalFees';
 
-export const TradingExchangeApprovalScreen = () => {
+type TradingExchangeApprovalScreenProps = StackProps<
+    RootStackParamList,
+    RootStackRoutes.TradingExchangeApproval
+>;
+
+const TradingExchangeApprovalScreenContent = ({
+    route: { params },
+    navigation,
+}: TradingExchangeApprovalScreenProps) => {
+    const { shouldIncreaseLimit, isRevoked } = params;
+    const dispatch = useDispatch();
+    const reportToAnalytics = useExchangeAnalyticsStepReport('approval-preview');
+
     const quote = useSelector(selectTradingExchangeSelectedQuote);
 
-    invariant(quote, 'quote must be defined');
-
-    const account = useSelector(selectExchangeSelectedSendAccount);
-
-    const { network, contractAddress } = quote.send
-        ? cryptoIdToNetworkAndContractAddress(quote.send)
-        : {};
-
-    const providerInfo = useSelector((state: TradingRootState) =>
-        selectTradingProviderByNameAndTradeType(state, quote.exchange, 'exchange'),
-    );
-
-    const { isSheetVisible, showSheet, hideSheet } = useBottomSheetControls();
+    const {
+        isReady,
+        isConfirming,
+        error: confirmError,
+        confirmApproval,
+        onApprovalTypeChange,
+    } = useApprovalFlow();
 
     const coinSymbol = useSelector((state: TradingRootState) =>
         selectTradingCoinSymbolByCryptoId(state, quote?.send),
     );
 
-    const fee = '4.76'; // TODO
+    const { fee, isLoading: isComposingFees, error: feeError } = useEvmApprovalFees();
+
+    const isLoading = isConfirming || isComposingFees;
+    const error = confirmError || feeError;
+    const isApprovalReady = !isLoading && !error && fee !== undefined;
+
+    const hasConfirmedRef = useRef(false);
+
+    useEffect(() => {
+        if (hasConfirmedRef.current) {
+            return;
+        }
+
+        if (!quote) {
+            console.error('No quote to confirm approval');
+
+            return;
+        }
+
+        if (!isReady) {
+            return;
+        }
+
+        hasConfirmedRef.current = true;
+
+        // When arriving from a revoke-and-approve flow the quote still carries approvalType: 'ZERO'
+        // from the revoke step. Reset it to 'MINIMAL' so we sign an approval, not another revoke.
+        const needsTypeReset = !quote.approvalType || isRevoked;
+        const quoteWithType = needsTypeReset
+            ? ({ ...quote, approvalType: 'MINIMAL' } satisfies ExchangeTrade)
+            : quote;
+
+        if (needsTypeReset) {
+            dispatch(tradingExchangeActions.saveSelectedQuote(quoteWithType));
+        }
+
+        let isActive = true;
+
+        confirmApproval(quoteWithType).then(response => {
+            if (!isActive) {
+                return;
+            }
+
+            if (response === undefined) {
+                hasConfirmedRef.current = false;
+            }
+        });
+
+        reportToAnalytics('visit');
+
+        return () => {
+            isActive = false;
+        };
+    }, [quote, isReady, isRevoked, dispatch, confirmApproval, reportToAnalytics]);
+
+    useNavigationRemoveActionInterceptor({
+        onInterceptedAction: action => {
+            dispatch(tradingExchangeActions.saveSelectedQuote(undefined));
+            reportToAnalytics('cancel');
+            navigation.dispatch(action);
+        },
+    });
+
+    const onApprovalTypeChangeWithAnalytics = (approvalType: DexApprovalType) => {
+        onApprovalTypeChange(approvalType);
+        reportToAnalytics(`value_change`);
+    };
+
+    if (!quote) {
+        return (
+            <Screen header={<ScreenHeader closeActionType="back" />}>
+                <InlineAlertBox
+                    title={
+                        <Translation id="moduleTrading.tradingExchangeApprovalScreen.approveErrorAlert" />
+                    }
+                    intent="critical"
+                />
+            </Screen>
+        );
+    }
 
     return (
         <Screen
@@ -53,139 +142,53 @@ export const TradingExchangeApprovalScreen = () => {
                 <DynamicScreenHeader
                     title={
                         <Translation
-                            id="moduleTrading.tradingExchangeApprovalScreen.title"
+                            id="moduleTrading.tradingExchangeApprovalScreen.approveTitle"
                             values={{ symbol: coinSymbol }}
                         />
                     }
                     subtitle={
                         <Translation
-                            id="moduleTrading.tradingExchangeApprovalScreen.subtitle"
+                            id="moduleTrading.tradingExchangeApprovalScreen.approveSubtitle"
                             values={{ symbol: coinSymbol }}
                         />
                     }
-                    closeActionType="close"
+                    closeActionType="back"
                 />
             }
+            footer={
+                <ApprovalButton isReady={isApprovalReady} isDisabled={!!error} flowType="approve" />
+            }
         >
-            <VStack spacing="sp16">
-                <InlineAlertBox
-                    title={
-                        <Translation id="moduleTrading.tradingExchangeApprovalScreen.revokeSuccessAlert" />
-                    }
-                    variant="success"
-                />
-                <InlineAlertBox
-                    title={
-                        <Translation id="moduleTrading.tradingExchangeApprovalScreen.lowLimitInfoAlert" />
-                    }
-                    variant="info"
-                />
-
-                <Card noPadding>
-                    <TradeInfoHeader
-                        title={<Translation id="moduleTrading.tradingExchangeApprovalScreen.for" />}
-                        rightContent={
-                            !!network?.symbol && (
-                                <HStack alignItems="center">
-                                    <NetworkIcon symbol={network.symbol} size="extraLarge" />
-                                    <Text variant="hint">{network.name}</Text>
-                                </HStack>
-                            )
-                        }
-                    />
-                    <TradeInfoRow>
-                        <VStack spacing="sp4">
-                            <Text variant="hint">
-                                <Translation id="moduleTrading.exchangeTradePreviewCard.account" />
-                            </Text>
-                            <Text variant="hint" color="textSubdued">
-                                {account?.accountLabel}
-                            </Text>
-                        </VStack>
-                    </TradeInfoRow>
-                </Card>
-
-                <Card noPadding>
-                    <TradeInfoHeader
+            <VStack spacing="sp12">
+                {!!shouldIncreaseLimit && (
+                    <InlineAlertBox
+                        intent="info"
                         title={
-                            <Translation id="moduleTrading.tradingExchangeApprovalScreen.approvalDetailsTitle" />
+                            <Translation id="moduleTrading.tradingExchangeApprovalScreen.lowLimitInfoAlert" />
                         }
                     />
-                    <TradeInfoRow>
-                        <Text variant="hint">
-                            <Translation id="moduleTrading.tradingScreen.provider" />
-                        </Text>
-                        <HStack alignItems="center">
-                            {!!providerInfo?.logo && (
-                                <ProviderLogo logo={providerInfo.logo} size="hint" />
-                            )}
-                            <Text variant="hint" color="textSubdued">
-                                {providerInfo?.companyName}
-                            </Text>
-                        </HStack>
-                    </TradeInfoRow>
-                    <Pressable onPress={showSheet}>
-                        <TradeInfoRow>
-                            <VStack>
-                                <HStack justifyContent="space-between" alignItems="center">
-                                    <Text variant="hint">
-                                        <Translation id="moduleTrading.tradingExchangeApprovalScreen.limitLabel" />
-                                    </Text>
-                                    <HStack alignItems="center">
-                                        {!!network?.symbol && (
-                                            <CryptoIcon
-                                                symbol={network.symbol}
-                                                contractAddress={contractAddress}
-                                                size="extraSmall"
-                                            />
-                                        )}
-                                        <Text variant="hint" color="textSubdued">
-                                            <Translation id="moduleTrading.tradingExchangeApprovalScreen.unlimitedLabel" />
-                                        </Text>
-                                        <Icon name="caretDown" size="medium" />
-                                    </HStack>
-                                </HStack>
-                                <Text variant="hint" color="textSubdued">
-                                    <Translation
-                                        id="moduleTrading.tradingExchangeApprovalScreen.limitInfo"
-                                        values={{
-                                            companyName: providerInfo?.companyName,
-                                            symbol: coinSymbol,
-                                        }}
-                                    />
-                                </Text>
-                            </VStack>
-                        </TradeInfoRow>
-                    </Pressable>
-                    <TradeInfoRow>
-                        <Text variant="hint">
-                            <Translation id="transactions.detail.feeLabel" />
-                        </Text>
-                        <HStack alignItems="center" spacing="sp8">
-                            <Text variant="hint" color="textSubdued">
-                                ≈
-                            </Text>
-                            <BaseCurrencyAmountFormatter
-                                value={asBaseCurrencyAmount(new BigNumber(fee))}
-                                variant="hint"
-                                color="textSubdued"
-                            />
-                            <Icon name="caretDown" size="medium" />
-                        </HStack>
-                    </TradeInfoRow>
-                </Card>
-            </VStack>
+                )}
 
-            <Box paddingTop="sp20">
-                <Button
-                    onPress={() => {
-                        // TODO
-                    }}
-                >
-                    <Translation id="generic.buttons.continue" />
-                </Button>
-            </Box>
-            <ExchangeApprovalLimitSheet isVisible={isSheetVisible} onDismiss={hideSheet} />
+                {!!isRevoked && (
+                    <InlineAlertBox
+                        intent="brand"
+                        title={
+                            <Translation id="moduleTrading.tradingExchangeApprovalScreen.revokeSuccessAlert" />
+                        }
+                    />
+                )}
+
+                <ExchangeApprovalDetails
+                    exchange={quote.exchange}
+                    onApprovalTypeChange={onApprovalTypeChangeWithAnalytics}
+                />
+            </VStack>
         </Screen>
     );
 };
+
+export const TradingExchangeApprovalScreen = (props: TradingExchangeApprovalScreenProps) => (
+    <TradingDeviceConnectionGuard>
+        <TradingExchangeApprovalScreenContent {...props} />
+    </TradingDeviceConnectionGuard>
+);

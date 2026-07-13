@@ -5,7 +5,9 @@ import { getFreePort } from '../getFreePort';
 
 describe('findProcessFromIncomingPort', () => {
     test('start a server on a random free port and try to detect it', async () => {
-        const [port] = await getFreePort();
+        const ports = await getFreePort();
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const [port]: [number] = ports;
 
         const server = net.createServer().listen(port);
         try {
@@ -19,10 +21,15 @@ describe('findProcessFromIncomingPort', () => {
             const processInfo = await findProcessFromIncomingPort(port);
             expect(processInfo).toBeDefined();
 
-            if (process.platform === 'win32') {
-                expect(processInfo?.name).toEqual('Node.js');
-            } else {
-                expect(processInfo?.name).toEqual('node');
+            switch (process.platform) {
+                case 'win32':
+                    expect(processInfo?.name).toEqual('Node.js');
+                    break;
+                case 'darwin':
+                    expect(processInfo?.name).toEqual('node');
+                    break;
+                default:
+                    expect(processInfo?.name).toEqual('MainThread');
             }
         } finally {
             server.close();
@@ -30,7 +37,9 @@ describe('findProcessFromIncomingPort', () => {
     });
 
     test('if there is nothing running on the port, findProcessFromIncomingPort throws', async () => {
-        const [port] = await getFreePort();
+        const ports = await getFreePort();
+        // @ts-expect-error: indexing with noUncheckedIndexedAccess
+        const [port]: [number] = ports;
         await expect(findProcessFromIncomingPort(port)).rejects.toThrow(
             'Command failed with code 1: ',
         );

@@ -1,14 +1,28 @@
+import { asAccountDescriptor } from '@suite-common/wallet-types';
+import { mockAccountKey } from '@suite-common/wallet-types/mocks';
+import { type NativeAnalyticsDep, events } from '@suite-native/analytics';
+import { mockNativeAnalytics } from '@suite-native/analytics/mocks';
+import { RootStackRoutes } from '@suite-native/navigation';
+import { type TestStore, act, renderHookWithStoreProvider } from '@suite-native/test-utils-store';
 import {
-    PreloadedState,
-    TestStore,
-    act,
-    initStore,
-    renderHookWithStoreProviderAsync,
-} from '@suite-native/test-utils';
+    getBtcAccount,
+    getInitializedTradingStateWithQuotes,
+} from '@suite-native/trading-fixtures';
 
-import { getBtcAccount } from '../../../__fixtures__/account';
-import { getInitializedTradingStateWithQuotes } from '../../../__fixtures__/tradingState';
-import { useExchangeFlow } from '../useExchangeFlow';
+import { createTradingTestStore } from '../../../__tests__/tradingTestUtils';
+import { type UseExchangeFlowProps, useExchangeFlow } from '../useExchangeFlow';
+
+const mockNavigate = jest.fn();
+let mockConfirmTradeThunk: jest.Mock;
+let mockSignDataAndConfirmThunk: jest.Mock;
+
+jest.mock('@react-navigation/native', () => ({
+    ...jest.requireActual('@react-navigation/native'),
+    useNavigation: () => ({ navigate: mockNavigate }),
+    useFocusEffect: (callback: () => void) => {
+        require('react').useEffect(callback, []);
+    },
+}));
 
 // Mock TrezorConnect to prevent errors during cleanup
 jest.mock('@trezor/connect', () => ({
@@ -20,93 +34,95 @@ jest.mock('@trezor/connect', () => ({
 jest.mock('@suite-common/trading', () => ({
     ...jest.requireActual('@suite-common/trading'),
     exchangeThunks: {
-        confirmTradeThunk: (payload: unknown) => ({
-            type: 'confirmTradeThunkMock',
-            payload,
-            unwrap: () => Promise.resolve(true),
-        }),
-        sendTransactionThunk: (payload: unknown) => ({
-            type: 'sendTransactionThunkMock',
-            payload,
-            unwrap: () => Promise.resolve(true),
-        }),
+        confirmTradeThunk: (payload: unknown) => mockConfirmTradeThunk(payload),
+        signDataAndConfirmThunk: (payload: unknown) => mockSignDataAndConfirmThunk(payload),
     },
 }));
 
-// Mock the thunks
-jest.mock('../../../thunks', () => ({
-    composeTradingTransactionThunk: (payload: unknown) => ({
-        type: 'composeTradingTransactionThunkMock',
-        payload,
-        unwrap: () => Promise.resolve(true),
-    }),
-    signAndPushSendFormTransactionThunk: (payload: unknown) => ({
-        type: 'signAndPushSendFormTransactionThunkMock',
-        payload,
-        unwrap: () => Promise.resolve(true),
-    }),
-}));
-
-// Mock the wallet-core thunks
-jest.mock('@suite-common/wallet-core', () => ({
-    ...jest.requireActual('@suite-common/wallet-core'),
-    updateFeeInfoThunk: (payload: unknown) => ({
-        type: 'updateFeeInfoThunkMock',
-        payload,
-        unwrap: () => Promise.resolve(true),
-    }),
-}));
+const btc1Account = getBtcAccount({ descriptor: asAccountDescriptor('btc1') });
+const btc2Account = getBtcAccount({ descriptor: asAccountDescriptor('btc2') });
 
 describe('useExchangeFlow', () => {
-    const getMockAccounts = () => [getBtcAccount('btc1'), getBtcAccount('btc2')];
+    const getMockAccounts = () => [btc1Account, btc2Account];
 
-    const getInitializedStore = async () => {
+    const getInitializedStore = ({ withDevice = false }: { withDevice?: boolean } = {}) => {
         const tradingState = getInitializedTradingStateWithQuotes();
-        // Add the required account keys to the exchange state
-        tradingState.exchange.tradingAccountKey = 'btc1';
-        tradingState.exchange.receiveAccountKey = 'btc2';
-        // Set a selected quote so the hook can access selectedQuote.send
+        tradingState.exchange.tradingAccountKey = btc1Account.key;
+        tradingState.exchange.receiveAccountKey = btc2Account.key;
         tradingState.exchange.selectedQuote = tradingState.exchange.quotes[0];
 
-        const preloadedState: PreloadedState = {
-            wallet: {
-                tradingNew: tradingState,
-                accounts: getMockAccounts(),
+        return createTradingTestStore({
+            tradeType: 'exchange',
+            overrides: {
+                wallet: {
+                    trading: tradingState,
+                    accounts: getMockAccounts(),
+                },
+                ...(withDevice && {
+                    device: {
+                        selectedDevice: {
+                            path: 'device-path',
+                            instance: 1,
+                            state: {
+                                staticSessionId: '1@2:3',
+                            },
+                            useEmptyPassphrase: true,
+                        } as any,
+                    },
+                }),
             },
-        };
-
-        return await initStore(preloadedState);
+        });
     };
 
-    const renderUseExchangeFlow = ({ store }: { store: TestStore }) =>
-        renderHookWithStoreProviderAsync(() => useExchangeFlow(), { store });
+    const renderUseExchangeFlow = ({
+        store,
+        flowType,
+    }: {
+        store: TestStore;
+        flowType?: UseExchangeFlowProps['flowType'];
+    }) => {
+        const reportMock = jest.fn();
+        const services: NativeAnalyticsDep = {
+            analytics: mockNativeAnalytics(reportMock),
+        };
+
+        return {
+            reportMock,
+            result: renderHookWithStoreProvider(() => useExchangeFlow({ flowType }), {
+                services,
+                store,
+            }).result,
+        };
+    };
 
     beforeEach(() => {
         jest.clearAllMocks();
+        mockConfirmTradeThunk = jest.fn((payload: unknown) => ({
+            type: 'confirmTradeThunkMock',
+            payload,
+            unwrap: () => Promise.resolve(true),
+        }));
+        mockSignDataAndConfirmThunk = jest.fn((payload: unknown) => ({
+            type: 'signDataAndConfirmThunkMock',
+            payload,
+            unwrap: () => Promise.resolve(true),
+        }));
 
-        // Mock the serializedTx selector to return a proper value
-        jest.spyOn(require('@suite-common/wallet-core'), 'selectSendSerializedTx').mockReturnValue({
-            type: 'bitcoin',
-            txid: 'test-txid',
-            hex: 'test-hex',
-        });
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
     });
 
     describe('confirmTrade', () => {
         it('should call confirmTradeThunk when confirmTrade is called', async () => {
-            const store = await getInitializedStore();
+            const store = getInitializedStore();
             const dispatchSpy = jest.spyOn(store, 'dispatch');
+            const mockNextStep = jest.fn();
 
-            const { result } = await renderUseExchangeFlow({ store });
+            const { result } = renderUseExchangeFlow({ store });
 
             const mockTrade = {
                 exchange: 'test-exchange',
                 orderId: 'test-order',
-            };
-
-            const mockAccount = {
-                key: 'btc1',
-                symbol: 'btc',
             };
 
             await act(async () => {
@@ -114,7 +130,7 @@ describe('useExchangeFlow', () => {
                     receiveAddress: 'test-address',
                     trade: mockTrade,
                     approvalFlow: false,
-                    sendAccount: mockAccount,
+                    nextStep: mockNextStep,
                 });
             });
 
@@ -124,7 +140,7 @@ describe('useExchangeFlow', () => {
                     returnUrl: expect.any(String),
                     receiveAddress: 'test-address',
                     account: expect.objectContaining({
-                        key: 'btc1',
+                        key: btc1Account.key,
                         symbol: 'btc',
                     }),
                     extraField: undefined,
@@ -132,203 +148,312 @@ describe('useExchangeFlow', () => {
                     approvalFlow: false,
                     triggerAnalyticsTradeConfirmation: expect.any(Function),
                     processResponseData: expect.any(Function),
-                    nextStep: expect.any(Function),
+                    nextStep: mockNextStep,
                 },
                 unwrap: expect.any(Function),
             });
         });
-    });
 
-    describe('composeRequest', () => {
-        it('should call composeTradingTransactionThunk with correct parameters', async () => {
-            const store = await getInitializedStore();
-            const dispatchSpy = jest.spyOn(store, 'dispatch');
+        it('should return false when confirmTradeThunk returns false', async () => {
+            const store = getInitializedStore();
 
-            // Mock the networkFeeInfo selector to return proper data
-            const mockNetworkFeeInfo = {
-                feePerUnit: '1000',
-                feeLimit: '21000',
-                estimatedFee: '21000000',
-            };
+            mockConfirmTradeThunk.mockImplementation(() => ({
+                type: 'confirmTradeThunkMock',
+                payload: undefined,
+                unwrap: () => Promise.resolve(false),
+            }));
 
-            // Mock the selectConvertedNetworkFeeInfo selector
-            jest.spyOn(
-                require('@suite-common/wallet-core'),
-                'selectConvertedNetworkFeeInfo',
-            ).mockReturnValue(mockNetworkFeeInfo);
+            const { result } = renderUseExchangeFlow({ store });
 
-            const { result } = await renderUseExchangeFlow({ store });
-
-            await act(async () => {
-                await result.current.composeRequest('high');
-            });
-
-            expect(dispatchSpy).toHaveBeenCalledWith({
-                type: 'composeTradingTransactionThunkMock',
-                payload: {
-                    tradeType: 'exchange',
-                    account: expect.objectContaining({
-                        key: 'btc1',
-                    }),
-                    network: expect.any(Object),
-                    feeInfo: mockNetworkFeeInfo,
-                    selectedFeeLevel: 'high',
-                },
-                unwrap: expect.any(Function),
-            });
-        });
-    });
-
-    describe('fetchFeesAndCompose', () => {
-        it('should call updateFeeInfoThunk and then composeRequest', async () => {
-            const store = await getInitializedStore();
-            const dispatchSpy = jest.spyOn(store, 'dispatch');
-
-            // Mock the networkFeeInfo selector to return proper data
-            const mockNetworkFeeInfo = {
-                feePerUnit: '1000',
-                feeLimit: '21000',
-                estimatedFee: '21000000',
-            };
-
-            jest.spyOn(
-                require('@suite-common/wallet-core'),
-                'selectConvertedNetworkFeeInfo',
-            ).mockReturnValue(mockNetworkFeeInfo);
-
-            const { result } = await renderUseExchangeFlow({ store });
-
-            await act(async () => {
-                await result.current.fetchFeesAndCompose();
-            });
-
-            // Should call updateFeeInfoThunk first
-            expect(dispatchSpy).toHaveBeenCalledWith({
-                type: 'updateFeeInfoThunkMock',
-                payload: {
-                    networkSymbol: 'btc',
-                },
-                unwrap: expect.any(Function),
-            });
-
-            // Then should call composeRequest
-            expect(dispatchSpy).toHaveBeenCalledWith({
-                type: 'composeTradingTransactionThunkMock',
-                payload: {
-                    tradeType: 'exchange',
-                    account: expect.objectContaining({
-                        key: 'btc1',
-                    }),
-                    network: expect.any(Object),
-                    feeInfo: mockNetworkFeeInfo,
-                    selectedFeeLevel: 'normal',
-                },
-                unwrap: expect.any(Function),
-            });
-        });
-    });
-
-    describe('signAndSendTransaction', () => {
-        it('should call sendTransactionThunk with correct parameters', async () => {
-            const store = await getInitializedStore();
-            const dispatchSpy = jest.spyOn(store, 'dispatch');
-
-            const { result } = await renderUseExchangeFlow({ store });
-
-            await act(async () => {
-                await result.current.signAndSendTransaction();
-            });
-
-            expect(dispatchSpy).toHaveBeenCalledWith({
-                type: 'sendTransactionThunkMock',
-                payload: {
-                    account: expect.objectContaining({ key: 'btc1' }),
-                    trade: expect.any(Object),
-                    returnUrl: expect.any(String),
-                    setMaxOutputId: undefined,
-                    decimals: expect.any(Number),
-                    shouldSendInSats: expect.any(Boolean),
-                    isSlip24Active: false,
-                    nextStep: expect.any(Function),
-                    processResponseData: expect.any(Function),
-                    triggerAnalyticsTradeConfirmation: expect.any(Function),
-                    signAndPushSendFormTransaction: expect.any(Function),
-                },
-                unwrap: expect.any(Function),
-            });
-        });
-    });
-
-    describe('resolveConsent', () => {
-        it('should set isConsentRequested to false and resolve the promise', async () => {
-            const store = await getInitializedStore();
-
-            const { result } = await renderUseExchangeFlow({ store });
-
-            // First, trigger the signAndSendTransaction to set up the promise
-            const originalSendTransactionThunk =
-                require('@suite-common/trading').exchangeThunks.sendTransactionThunk;
-            require('@suite-common/trading').exchangeThunks.sendTransactionThunk = () => ({
-                type: 'sendTransactionThunkMock',
-                unwrap: () => Promise.resolve(true),
-            });
-
-            await act(async () => {
-                await result.current.signAndSendTransaction();
-            });
-
-            // Now resolve the push consent
-            act(() => {
-                result.current.resolveConsent(true);
-            });
-
-            expect(result.current.isConsentRequested).toBe(false);
-
-            // Restore the original mock
-            require('@suite-common/trading').exchangeThunks.sendTransactionThunk =
-                originalSendTransactionThunk;
-        });
-    });
-
-    describe('getCommonFunctions', () => {
-        it('should return undefined when no trade is provided and no selectedQuote', async () => {
-            // Mock the selector to return undefined for selectedQuote
-            const modifiedStore = await getInitializedStore();
-            modifiedStore.getState().wallet.tradingNew.exchange.selectedQuote = undefined;
-
-            const { result: modifiedResult } = await renderUseExchangeFlow({
-                store: modifiedStore,
-            });
-
-            // The getCommonFunctions is called internally, but we can test its effect
-            // by calling confirmTrade without a trade parameter
-            const resultValue = await act(() =>
-                modifiedResult.current.confirmTrade({
+            const confirmResult = await act(() =>
+                result.current.confirmTrade({
                     receiveAddress: 'test-address',
-                    trade: undefined,
+                    trade: {
+                        exchange: 'test-exchange',
+                        orderId: 'test-order',
+                    },
                     approvalFlow: false,
-                    sendAccount: { key: 'btc1', symbol: 'btc' },
+                    nextStep: jest.fn(),
                 }),
             );
 
-            expect(resultValue).toBe(false);
+            expect(confirmResult).toBe(false);
+        });
+
+        it('should return false when trade is missing', async () => {
+            const store = getInitializedStore();
+            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementationOnce(() => {});
+
+            const { result } = renderUseExchangeFlow({ store });
+
+            const confirmResult = await act(() =>
+                result.current.confirmTrade({
+                    receiveAddress: 'test-address',
+                    trade: undefined,
+                    approvalFlow: false,
+                    nextStep: jest.fn(),
+                }),
+            );
+
+            expect(confirmResult).toBe(false);
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                'Trade, send account and common functions are required to confirm trade',
+            );
+        });
+
+        it('should return false when sendAccount is missing', async () => {
+            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementationOnce(() => {});
+
+            const tradingState = getInitializedTradingStateWithQuotes();
+            tradingState.exchange.tradingAccountKey = mockAccountKey({
+                symbol: 'btc',
+                descriptor: 'unknownAccount',
+            });
+            tradingState.exchange.receiveAccountKey = btc2Account.key;
+            tradingState.exchange.selectedQuote = tradingState.exchange.quotes[0];
+
+            const store = createTradingTestStore({
+                tradeType: 'exchange',
+                overrides: {
+                    wallet: {
+                        trading: tradingState,
+                        accounts: getMockAccounts(),
+                    },
+                },
+            });
+            const { result } = renderUseExchangeFlow({ store });
+
+            const confirmResult = await act(() =>
+                result.current.confirmTrade({
+                    receiveAddress: 'test-address',
+                    trade: {
+                        exchange: 'test-exchange',
+                        orderId: 'test-order',
+                    },
+                    approvalFlow: false,
+                    nextStep: jest.fn(),
+                }),
+            );
+
+            expect(confirmResult).toBe(false);
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                'Trade, send account and common functions are required to confirm trade',
+            );
         });
     });
 
-    describe('useEffect cleanup', () => {
-        it('should call TrezorConnect.cancel on unmount', async () => {
-            const store = await getInitializedStore();
-            const { unmount } = await renderUseExchangeFlow({ store });
+    describe('signDataAndConfirm', () => {
+        it('should call signDataAndConfirmThunk when signDataAndConfirm is called', async () => {
+            const store = getInitializedStore({ withDevice: true });
+            const dispatchSpy = jest.spyOn(store, 'dispatch');
+            const mockNextStep = jest.fn();
+            const mockOnError = jest.fn();
 
-            // Get the mocked TrezorConnect.cancel function
-            const TrezorConnect = require('@trezor/connect');
-            const mockCancel = TrezorConnect.cancel;
+            const { result } = renderUseExchangeFlow({ store });
 
-            // Unmount the component to trigger the cleanup useEffect
-            unmount();
+            const signResult = await act(() =>
+                result.current.signDataAndConfirm({
+                    nextStep: mockNextStep,
+                    onError: mockOnError,
+                }),
+            );
 
-            // Verify that TrezorConnect.cancel was called
-            expect(mockCancel).toHaveBeenCalled();
+            expect(signResult).toBe(true);
+            expect(mockOnError).not.toHaveBeenCalled();
+            expect(dispatchSpy).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'signDataAndConfirmThunkMock',
+                    payload: {
+                        account: expect.objectContaining({
+                            key: btc1Account.key,
+                            symbol: 'btc',
+                        }),
+                        device: expect.objectContaining({
+                            path: 'device-path',
+                        }),
+                        returnUrl: expect.any(String),
+                        triggerAnalyticsTradeConfirmation: expect.any(Function),
+                        processResponseData: expect.any(Function),
+                        nextStep: mockNextStep,
+                    },
+                }),
+            );
+        });
+
+        it('should return false when device is missing', async () => {
+            const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementationOnce(() => {});
+            const store = getInitializedStore();
+
+            const { result } = renderUseExchangeFlow({ store });
+
+            const signResult = await act(() =>
+                result.current.signDataAndConfirm({
+                    nextStep: jest.fn(),
+                    onError: jest.fn(),
+                }),
+            );
+
+            expect(signResult).toBe(false);
+            expect(mockSignDataAndConfirmThunk).not.toHaveBeenCalled();
+            expect(consoleWarnSpy).toHaveBeenCalledWith(
+                'signDataAndConfirm: missing account, device, or common functions',
+            );
+        });
+
+        it('should call onError and return false when signDataAndConfirmThunk rejects', async () => {
+            const store = getInitializedStore({ withDevice: true });
+            const mockNextStep = jest.fn();
+            const mockOnError = jest.fn();
+            const error = {
+                type: 'sign-tx-error',
+                error: { id: 'TR_TRADING_CANNOT_SEND_TRANSACTION' },
+            };
+
+            mockSignDataAndConfirmThunk.mockImplementation(() => ({
+                type: 'signDataAndConfirmThunkMock',
+                payload: undefined,
+                unwrap: () => Promise.reject(error),
+            }));
+
+            const { result } = renderUseExchangeFlow({ store });
+
+            const signResult = await act(() =>
+                result.current.signDataAndConfirm({
+                    nextStep: mockNextStep,
+                    onError: mockOnError,
+                }),
+            );
+
+            expect(signResult).toBe(false);
+            expect(mockNextStep).not.toHaveBeenCalled();
+            expect(mockOnError).toHaveBeenCalledWith(error);
+        });
+    });
+
+    describe('analytics', () => {
+        it('should call analytics event when confirmTrade is called', async () => {
+            const store = getInitializedStore();
+            const dispatchSpy = jest.spyOn(store, 'dispatch');
+            const mockNextStep = jest.fn();
+
+            const { result, reportMock } = renderUseExchangeFlow({ store });
+
+            const mockTrade = {
+                exchange: 'test-exchange',
+                orderId: 'test-order',
+            };
+
+            await act(async () => {
+                await result.current.confirmTrade({
+                    receiveAddress: 'test-address',
+                    trade: mockTrade,
+                    approvalFlow: false,
+                    nextStep: mockNextStep,
+                });
+            });
+
+            const { triggerAnalyticsTradeConfirmation } = (dispatchSpy.mock.lastCall![0] as any)
+                .payload;
+
+            triggerAnalyticsTradeConfirmation();
+
+            expect(reportMock).toHaveBeenCalledWith({
+                type: events.tradingConfirmTradeEvent.name,
+                payload: {
+                    type: 'exchange',
+                },
+            });
+        });
+    });
+
+    describe('navigation', () => {
+        it('should navigate to TradingConfirming with flowType approve when quoteStatus is APPROVAL_PENDING', () => {
+            const tradingState = getInitializedTradingStateWithQuotes();
+            tradingState.exchange.tradingAccountKey = btc1Account.key;
+            tradingState.exchange.receiveAccountKey = btc2Account.key;
+            tradingState.exchange.selectedQuote = {
+                ...tradingState.exchange.quotes[0],
+                status: 'APPROVAL_PENDING',
+            };
+
+            const store = createTradingTestStore({
+                tradeType: 'exchange',
+                overrides: {
+                    wallet: {
+                        trading: tradingState,
+                        accounts: getMockAccounts(),
+                    },
+                },
+            });
+
+            renderUseExchangeFlow({ store });
+
+            expect(mockNavigate).toHaveBeenCalledWith(RootStackRoutes.TradingConfirming, {
+                flowType: 'approve',
+            });
+        });
+
+        it('should navigate with flowType revoke when quoteStatus is APPROVAL_PENDING and flowType is revoke', () => {
+            const tradingState = getInitializedTradingStateWithQuotes();
+            tradingState.exchange.tradingAccountKey = btc1Account.key;
+            tradingState.exchange.receiveAccountKey = btc2Account.key;
+            tradingState.exchange.selectedQuote = {
+                ...tradingState.exchange.quotes[0],
+                status: 'APPROVAL_PENDING',
+            };
+
+            const store = createTradingTestStore({
+                tradeType: 'exchange',
+                overrides: {
+                    wallet: {
+                        trading: tradingState,
+                        accounts: getMockAccounts(),
+                    },
+                },
+            });
+
+            renderUseExchangeFlow({ store, flowType: 'revoke' });
+
+            expect(mockNavigate).toHaveBeenCalledWith(RootStackRoutes.TradingConfirming, {
+                flowType: 'revoke',
+            });
+        });
+
+        it('should navigate with flowType revoke-and-approve when quoteStatus is APPROVAL_PENDING and flowType is revoke-and-approve', () => {
+            const tradingState = getInitializedTradingStateWithQuotes();
+            tradingState.exchange.tradingAccountKey = btc1Account.key;
+            tradingState.exchange.receiveAccountKey = btc2Account.key;
+            tradingState.exchange.selectedQuote = {
+                ...tradingState.exchange.quotes[0],
+                status: 'APPROVAL_PENDING',
+            };
+
+            const store = createTradingTestStore({
+                tradeType: 'exchange',
+                overrides: {
+                    wallet: {
+                        trading: tradingState,
+                        accounts: getMockAccounts(),
+                    },
+                },
+            });
+
+            renderUseExchangeFlow({ store, flowType: 'revoke-and-approve' });
+
+            expect(mockNavigate).toHaveBeenCalledWith(RootStackRoutes.TradingConfirming, {
+                flowType: 'revoke-and-approve',
+            });
+        });
+
+        it('should not navigate to TradingConfirming when quoteStatus is not APPROVAL_PENDING', () => {
+            const store = getInitializedStore();
+
+            renderUseExchangeFlow({ store });
+
+            expect(mockNavigate).not.toHaveBeenCalledWith(
+                RootStackRoutes.TradingConfirming,
+                expect.anything(),
+            );
         });
     });
 });

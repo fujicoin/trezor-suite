@@ -1,30 +1,32 @@
+import { type PermissionRequest, UnlockPathParams } from '@trezor/connect-common';
+import type { MessagesSchema as PROTO } from '@trezor/protobuf';
 import { Assert } from '@trezor/schema-utils';
 
-import { PROTO } from '../constants';
+import type { MethodMessage } from '../core/AbstractMethod';
 import { AbstractMethod } from '../core/AbstractMethod';
 import { validatePath } from '../utils/pathUtils';
-import { getFirmwareRange } from './common/paramsValidator';
-import { UnlockPathParams } from '../types/api/unlockPath';
 
 export default class UnlockPath extends AbstractMethod<'unlockPath', PROTO.UnlockPath> {
-    init() {
-        this.requiredPermissions = ['read'];
-        this.skipFinalReload = true;
-        this.firmwareRange = getFirmwareRange(this.name, undefined, this.firmwareRange);
-
-        const { payload } = this;
+    constructor(message: MethodMessage<'unlockPath'>) {
+        const { payload } = message;
 
         Assert(UnlockPathParams, payload);
         const path = validatePath(payload.path, 1);
 
-        this.params = {
+        const params = {
             address_n: path,
             mac: payload.mac,
         };
+
+        super(message, params);
+    }
+
+    get requiredPermissions(): PermissionRequest[] {
+        return [{ permission: 'read_xpub' }];
     }
 
     async run() {
-        const cmd = this.device.getCommands();
+        const cmd = this.getDevice().getCommands();
         const { message } = await cmd.unlockPath(this.params);
 
         return {

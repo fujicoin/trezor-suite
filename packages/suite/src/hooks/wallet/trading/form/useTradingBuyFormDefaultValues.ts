@@ -1,90 +1,78 @@
 import { useMemo } from 'react';
 
-import { CryptoId, FiatCurrencyCode } from 'invity-api';
+import { type CryptoId } from 'invity-api';
 
+import { selectTorState } from '@suite/tor';
 import {
     TRADING_DEFAULT_PAYMENT_METHOD,
     type TradingBuyInfoSelector,
-    TradingCountryCode,
-    type TradingPaymentMethodListProps,
-    enabledTradingCurrencies,
+    type TradingCountryCode,
+    buildTradingFiatOption,
     getDefaultCountry,
+    getDefaultCountrySubdivision,
+    getSupportedFiatCurrencyWithFallback,
     regional,
-    selectTradingPrefilledFromAccount,
-    useTradingInfo,
+    selectTradingInfo,
+    useTradingAssets,
 } from '@suite-common/trading';
-import { networks } from '@suite-common/wallet-config';
 import { selectBaseCurrency } from '@suite-common/wallet-core';
-import { isArrayMember, typedObjectValues } from '@trezor/utils';
 
 import { useSelector } from 'src/hooks/suite';
-import { selectTorState } from 'src/selectors/suite/suiteSelectors';
-import { TradingBuyFormDefaultValuesProps } from 'src/types/trading/tradingForm';
-import { Account } from 'src/types/wallet';
-import { buildTradingFiatOption } from 'src/utils/wallet/trading/tradingUtils';
+import { type TradingBuyFormDefaultValuesProps } from 'src/types/trading/tradingForm';
 
 export const useTradingBuyFormDefaultValues = (
-    accountSymbol: Account['symbol'],
+    cryptoId: CryptoId | undefined,
     buyInfo: TradingBuyInfoSelector | undefined,
 ): TradingBuyFormDefaultValuesProps => {
     const { isTorEnabled } = useSelector(selectTorState);
-    const { buildDefaultCryptoOption } = useTradingInfo();
-    const prefilledFromAccount = useSelector(selectTradingPrefilledFromAccount);
-    const cryptoId = prefilledFromAccount.cryptoId ?? networks[accountSymbol]?.tradeCryptoId;
+    const { coins } = useSelector(selectTradingInfo);
+    const { createAssetOptionFromCryptoId } = useTradingAssets();
 
     const country = !isTorEnabled
         ? (buyInfo?.buyInfo?.country as TradingCountryCode | undefined)
         : regional.UNKNOWN_COUNTRY;
     const defaultCountry = useMemo(() => getDefaultCountry(country), [country]);
-    const defaultCrypto = useMemo(
-        () => buildDefaultCryptoOption(cryptoId as CryptoId | undefined),
-        [buildDefaultCryptoOption, cryptoId],
-    );
-    const defaultPaymentMethod: TradingPaymentMethodListProps = useMemo(
-        () => ({
-            value: TRADING_DEFAULT_PAYMENT_METHOD,
-            label: '',
-        }),
-        [],
+
+    const defaultSubdivision = useMemo(
+        () => getDefaultCountrySubdivision(buyInfo?.buyInfo?.subdivision),
+        [buyInfo?.buyInfo?.subdivision],
     );
 
+    const defaultCrypto = useMemo(() => {
+        // coins is read via ref inside createAssetOptionFromCryptoId (stable callback);
+        // referencing it here keeps the linter active while ensuring recompute after API load.
+        void coins;
+
+        return createAssetOptionFromCryptoId(cryptoId);
+    }, [createAssetOptionFromCryptoId, cryptoId, coins]);
+
     const baseCurrencyCode = useSelector(selectBaseCurrency);
-    const isEnabledTradingCurrency = isArrayMember(
-        baseCurrencyCode,
-        typedObjectValues(enabledTradingCurrencies),
-    );
-    const suggestedFiatCurrency = (
-        isEnabledTradingCurrency ? baseCurrencyCode : 'usd'
-    ) as FiatCurrencyCode;
+    const suggestedFiatCurrency = getSupportedFiatCurrencyWithFallback(baseCurrencyCode);
     const defaultCurrency = useMemo(
-        () => buildTradingFiatOption(isEnabledTradingCurrency ? baseCurrencyCode : 'usd'),
-        [isEnabledTradingCurrency, baseCurrencyCode],
+        () => buildTradingFiatOption(suggestedFiatCurrency),
+        [suggestedFiatCurrency],
     );
     const defaultValues = useMemo(
         () => ({
-            fiatInput: buyInfo?.buyInfo.defaultAmountsOfFiatCurrencies.get(suggestedFiatCurrency),
+            fiatInput: undefined,
             cryptoInput: undefined,
             currencySelect: defaultCurrency,
             cryptoSelect: defaultCrypto,
             countrySelect: defaultCountry,
-            paymentMethod: defaultPaymentMethod,
+            countrySubdivisionSelect: defaultSubdivision,
+            paymentMethod: { value: TRADING_DEFAULT_PAYMENT_METHOD, label: '' },
+            provider: undefined,
             amountInCrypto: false,
+            receiveAddress: undefined,
         }),
-        [
-            buyInfo?.buyInfo.defaultAmountsOfFiatCurrencies,
-            defaultCountry,
-            defaultCrypto,
-            defaultCurrency,
-            defaultPaymentMethod,
-            suggestedFiatCurrency,
-        ],
+        [defaultCountry, defaultCrypto, defaultCurrency, defaultSubdivision],
     );
 
     return {
         defaultValues,
         defaultCountry,
+        defaultSubdivision,
         defaultCurrency,
-        defaultPaymentMethod,
         suggestedFiatCurrency,
     };
 };

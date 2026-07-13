@@ -1,53 +1,40 @@
 import React from 'react';
 import {
     PixelRatio,
-    Platform,
     Text as RNText,
-    TextProps as RNTextProps,
-    TextStyle,
+    type TextProps as RNTextProps,
+    type TextStyle,
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-// @ts-expect-error This is not public RN API but it will make Text noticeable faster https://twitter.com/FernandoTheRojo/status/1707769877493121420
-import { NativeText } from 'react-native/Libraries/Text/TextNativeComponent';
-
 import {
-    NativeStyleObject,
+    type NativeStyleObject,
     mergeNativeStyleObjects,
     prepareNativeStyle,
     useNativeStyles,
-} from '@trezor/styles';
-import { Color, NativeTypographyStyle } from '@trezor/theme';
+} from '@trezor/styles-native';
+import { type Color, type NativeTypographyStyle } from '@trezor/theme';
 
-import { TestProps } from './types';
+import { type TestProps } from './types';
 
-// NativeText improves the performance of the text rendering, but unfortunately it does not support iOS Accessibility font enlarging.
-// Since iOS devices have enough computational power and the text optimization is not crucial, the NativeText is used only for Android.
-const DefaultTextComponent: typeof RNText = Platform.select({
-    android: NativeText,
-    ios: RNText,
-});
-
-// NativeText does not support all the props that are supported by the standard `react-native` Text.
-type UnsupportedNativeTextProps =
-    | 'pressRetentionOffset'
-    | 'onLongPress'
-    | 'onPress'
-    | 'onPressIn'
-    | 'onPressOut';
+export const textPriorities = ['primary', 'secondary'] as const;
+export type TextPriority = (typeof textPriorities)[number];
 
 export interface PressableTextProps extends Omit<RNTextProps, 'style'>, TestProps {
     variant?: NativeTypographyStyle;
     color?: Color;
+    priority?: TextPriority;
     textAlign?: TextStyle['textAlign'];
+    alignSelf?: TextStyle['alignSelf'];
     style?: NativeStyleObject;
 }
 
-export type TextProps = Omit<PressableTextProps, UnsupportedNativeTextProps>;
+export type TextProps = PressableTextProps;
 
 type TextStyleProps = {
     variant: NativeTypographyStyle;
     color: Color;
+    priority: TextPriority;
     textAlign: TextStyle['textAlign'];
 };
 
@@ -59,14 +46,14 @@ export const TEXT_MAX_FONT_MULTIPLIER = 2;
  * Our UI design is not prepared for unlimited up-scaling.
  */
 const variantToMaxFontSizeMultiplier = {
-    titleLarge: TITLE_MAX_FONT_MULTIPLIER,
-    titleMedium: TITLE_MAX_FONT_MULTIPLIER,
-    titleSmall: TITLE_MAX_FONT_MULTIPLIER,
-    highlight: TITLE_MAX_FONT_MULTIPLIER,
-    body: TEXT_MAX_FONT_MULTIPLIER,
-    callout: TEXT_MAX_FONT_MULTIPLIER,
-    hint: TEXT_MAX_FONT_MULTIPLIER,
-    label: TEXT_MAX_FONT_MULTIPLIER,
+    'headline-lg': TITLE_MAX_FONT_MULTIPLIER,
+    'headline-md': TITLE_MAX_FONT_MULTIPLIER,
+    'headline-sm': TITLE_MAX_FONT_MULTIPLIER,
+    'body-md-strong': TITLE_MAX_FONT_MULTIPLIER,
+    'body-md': TEXT_MAX_FONT_MULTIPLIER,
+    'body-sm-strong': TEXT_MAX_FONT_MULTIPLIER,
+    'body-sm': TEXT_MAX_FONT_MULTIPLIER,
+    'body-xs': TEXT_MAX_FONT_MULTIPLIER,
 } as const satisfies Record<NativeTypographyStyle, number>;
 
 const getAccessibilityFontScale = (variant?: NativeTypographyStyle) => {
@@ -84,17 +71,27 @@ const getAccessibilityFontScale = (variant?: NativeTypographyStyle) => {
  */
 export const ACCESSIBILITY_FONTSIZE_MULTIPLIER = getAccessibilityFontScale();
 
-const textStyle = prepareNativeStyle<TextStyleProps>((utils, { variant, color, textAlign }) => ({
-    ...utils.typography[variant],
-    color: utils.colors[color],
-    textAlign,
-}));
+const textStyle = prepareNativeStyle<TextStyleProps>(
+    (utils, { variant, color, priority, textAlign }) => ({
+        ...utils.typography[variant],
+        color: utils.colors[color],
+        textAlign,
+
+        extend: {
+            condition: priority === 'secondary',
+            style: {
+                color: utils.transparentize(0.26, utils.colors[color]),
+            },
+        },
+    }),
+);
 
 export const Text = React.forwardRef<RNText, TextProps>(
     (
         {
-            variant = 'body',
-            color = 'textDefault',
+            variant = 'body-md',
+            color = 'contentPrimary',
+            priority = 'primary',
             textAlign = 'left',
             style = {},
             children,
@@ -106,9 +103,9 @@ export const Text = React.forwardRef<RNText, TextProps>(
         const maxFontSizeMultiplier = getAccessibilityFontScale(variant);
 
         return (
-            <DefaultTextComponent
+            <RNText
                 style={mergeNativeStyleObjects([
-                    applyStyle(textStyle, { variant, color, textAlign }),
+                    applyStyle(textStyle, { variant, color, priority, textAlign }),
                     style,
                 ])}
                 maxFontSizeMultiplier={maxFontSizeMultiplier}
@@ -116,7 +113,7 @@ export const Text = React.forwardRef<RNText, TextProps>(
                 ref={ref}
             >
                 {children}
-            </DefaultTextComponent>
+            </RNText>
         );
     },
 );
@@ -124,4 +121,3 @@ export const Text = React.forwardRef<RNText, TextProps>(
 Text.displayName = 'Text';
 
 export const AnimatedText = Animated.createAnimatedComponent(Text);
-AnimatedText.displayName = 'AnimatedText';

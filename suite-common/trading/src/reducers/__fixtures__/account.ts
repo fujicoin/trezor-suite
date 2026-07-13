@@ -1,13 +1,24 @@
-import { Account, WalletAccountTransaction } from '@suite-common/wallet-types';
+import {
+    type Account,
+    type WalletAccountTransaction,
+    asAccountDescriptor,
+} from '@suite-common/wallet-types';
+import { mockAccountKey } from '@suite-common/wallet-types/mocks';
 
 export const accounts: Account[] = [
     {
         deviceState: 'mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@C906E19794613145E3DF45F4:0',
         index: 0,
         path: "m/84'/0'/0'",
-        descriptor:
+        descriptor: asAccountDescriptor(
             'zpub6rszzdAK6RuafeRwyN8z1cgWcXCuKbLmjjfnrW4fWKtcoXQ8787214pNJjnBG5UATyghuNzjn6Lfp5k5xymrLFJnCy46bMYJPyZsbpFGagT',
-        key: 'zpub6rszzdAK6RuafeRwyN8z1cgWcXCuKbLmjjfnrW4fWKtcoXQ8787214pNJjnBG5UATyghuNzjn6Lfp5k5xymrLFJnCy46bMYJPyZsbpFGagT-btc-mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@C906E19794613145E3DF45F4:0',
+        ),
+        key: mockAccountKey({
+            descriptor:
+                'zpub6rszzdAK6RuafeRwyN8z1cgWcXCuKbLmjjfnrW4fWKtcoXQ8787214pNJjnBG5UATyghuNzjn6Lfp5k5xymrLFJnCy46bMYJPyZsbpFGagT',
+            symbol: 'btc',
+            deviceStaticSessionId: 'mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@C906E19794613145E3DF45F4:0',
+        }),
         accountType: 'normal',
         symbol: 'btc',
         empty: false,
@@ -99,9 +110,15 @@ export const accounts: Account[] = [
         deviceState: 'mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@C906E19794613145E3DF45F4:0',
         index: 0,
         path: "m/86'/0'/0'",
-        descriptor:
+        descriptor: asAccountDescriptor(
             "tr([5c9e228d/86'/0'/0']xpub6Bw885JisRbcKmowfBvMmCxaFHodKn1VpmRmctmJJoM8D4DzyP4qJv8ZdD9V9r3SSGjmK2KJEDnvLH6f1Q4HrobEvnCeKydNvf1eir3RHZk/<0;1>/*)",
-        key: "tr([5c9e228d/86'/0'/0']xpub6Bw885JisRbcKmowfBvMmCxaFHodKn1VpmRmctmJJoM8D4DzyP4qJv8ZdD9V9r3SSGjmK2KJEDnvLH6f1Q4HrobEvnCeKydNvf1eir3RHZk/<0;1>/*)-btc-mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@C906E19794613145E3DF45F4:0",
+        ),
+        key: mockAccountKey({
+            descriptor:
+                "tr([5c9e228d/86'/0'/0']xpub6Bw885JisRbcKmowfBvMmCxaFHodKn1VpmRmctmJJoM8D4DzyP4qJv8ZdD9V9r3SSGjmK2KJEDnvLH6f1Q4HrobEvnCeKydNvf1eir3RHZk/<0;1>/*)",
+            symbol: 'btc',
+            deviceStaticSessionId: 'mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@C906E19794613145E3DF45F4:0',
+        }),
         accountType: 'taproot',
         symbol: 'btc',
         empty: false,
@@ -187,8 +204,9 @@ export const transactions: { [key: string]: WalletAccountTransaction[] } = {
     'zpub6rszzdAK6RuafeRwyN8z1cgWcXCuKbLmjjfnrW4fWKtcoXQ8787214pNJjnBG5UATyghuNzjn6Lfp5k5xymrLFJnCy46bMYJPyZsbpFGagT-btc-mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@C906E19794613145E3DF45F4:0':
         [
             {
-                descriptor:
+                descriptor: asAccountDescriptor(
                     'zpub6rszzdAK6RuafeRwyN8z1cgWcXCuKbLmjjfnrW4fWKtcoXQ8787214pNJjnBG5UATyghuNzjn6Lfp5k5xymrLFJnCy46bMYJPyZsbpFGagT',
+                ),
                 deviceState: 'mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@C906E19794613145E3DF45F4:0',
                 symbol: 'btc',
                 type: 'sent',
@@ -237,8 +255,9 @@ export const transactions: { [key: string]: WalletAccountTransaction[] } = {
                 },
             },
             {
-                descriptor:
+                descriptor: asAccountDescriptor(
                     'zpub6rszzdAK6RuafeRwyN8z1cgWcXCuKbLmjjfnrW4fWKtcoXQ8787214pNJjnBG5UATyghuNzjn6Lfp5k5xymrLFJnCy46bMYJPyZsbpFGagT',
+                ),
                 deviceState: 'mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@C906E19794613145E3DF45F4:0',
                 symbol: 'btc',
                 type: 'recv',
@@ -296,8 +315,9 @@ export const transactions: { [key: string]: WalletAccountTransaction[] } = {
     "tr([5c9e228d/86'/0'/0']xpub6Bw885JisRbcKmowfBvMmCxaFHodKn1VpmRmctmJJoM8D4DzyP4qJv8ZdD9V9r3SSGjmK2KJEDnvLH6f1Q4HrobEvnCeKydNvf1eir3RHZk/<0;1>/*)-btc-mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@C906E19794613145E3DF45F4:0":
         [
             {
-                descriptor:
+                descriptor: asAccountDescriptor(
                     "tr([5c9e228d/86'/0'/0']xpub6Bw885JisRbcKmowfBvMmCxaFHodKn1VpmRmctmJJoM8D4DzyP4qJv8ZdD9V9r3SSGjmK2KJEDnvLH6f1Q4HrobEvnCeKydNvf1eir3RHZk/<0;1>/*)",
+                ),
                 deviceState: 'mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@C906E19794613145E3DF45F4:0',
                 symbol: 'btc',
                 type: 'sent',
@@ -367,8 +387,9 @@ export const transactions: { [key: string]: WalletAccountTransaction[] } = {
                 },
             },
             {
-                descriptor:
+                descriptor: asAccountDescriptor(
                     "tr([5c9e228d/86'/0'/0']xpub6Bw885JisRbcKmowfBvMmCxaFHodKn1VpmRmctmJJoM8D4DzyP4qJv8ZdD9V9r3SSGjmK2KJEDnvLH6f1Q4HrobEvnCeKydNvf1eir3RHZk/<0;1>/*)",
+                ),
                 deviceState: 'mvbu1Gdy8SUjTenqerxUaZyYjmveZvt33q@C906E19794613145E3DF45F4:0',
                 symbol: 'btc',
                 type: 'recv',

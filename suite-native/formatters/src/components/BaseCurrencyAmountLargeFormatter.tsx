@@ -1,14 +1,13 @@
 import React from 'react';
 
-import { useFormatters } from '@suite-common/formatters';
-import { BaseCurrencyAmount } from '@suite-common/wallet-utils';
+import { type BaseCurrencyAmount } from '@suite-common/wallet-types';
 import { Box, HStack, Text } from '@suite-native/atoms';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
-import { FormatterProps } from '../types';
+import { type FormatterProps } from '../types';
 import { AmountText } from './AmountText';
 import { EmptyAmountText } from './EmptyAmountText';
-import { parseBalanceAmount } from '../utils';
+import { useFormattedGraphHeaderValues } from '../hooks/useFormattedGraphHeaderValues';
 
 type BalanceFormatterProps = FormatterProps<BaseCurrencyAmount | null> & {
     isForcedDiscreetMode?: boolean;
@@ -27,15 +26,12 @@ export const BaseCurrencyAmountLargeFormatter = ({
     testID,
 }: BalanceFormatterProps) => {
     const { applyStyle } = useNativeStyles();
-    const { BaseCurrencyAmountFormatter: formatter } = useFormatters();
+
+    const { currencySymbol, wholeNumber, decimalNumber } = useFormattedGraphHeaderValues(
+        value?.toString(),
+    );
 
     if (!value) return <EmptyAmountText />;
-
-    const formattedValue = formatter.format(value);
-
-    if (!formattedValue) return <EmptyAmountText />;
-
-    const { currencySymbol, wholeNumber, decimalNumber } = parseBalanceAmount(formattedValue);
 
     const isCrypto =
         currencySymbol?.toLowerCase() === 'sat' || currencySymbol?.toLowerCase() === 'btc';
@@ -44,14 +40,14 @@ export const BaseCurrencyAmountLargeFormatter = ({
         <Box flexDirection="row" alignItems="flex-end" flexShrink={1}>
             <AmountText
                 value={wholeNumber}
-                variant="titleLarge"
+                variant="headline-lg"
                 isDiscreetText
                 isForcedDiscreetMode={isForcedDiscreetMode}
                 style={applyStyle(wholeNumberStyle)}
             />
             <AmountText
                 value={decimalNumber}
-                variant={isCrypto ? 'titleLarge' : 'titleSmall'}
+                variant={isCrypto ? 'headline-lg' : 'headline-sm'}
                 isDiscreetText
                 isForcedDiscreetMode={isForcedDiscreetMode}
                 style={isCrypto ? applyStyle(wholeNumberStyle) : undefined}
@@ -59,12 +55,12 @@ export const BaseCurrencyAmountLargeFormatter = ({
         </Box>
     );
 
-    const currencyElement = <Text variant="titleSmall">{currencySymbol}</Text>;
+    const currencyElement = <Text variant="headline-sm">{currencySymbol}</Text>;
 
     return (
         <Box flexDirection="row" alignItems="flex-end" flexShrink={1} testID={testID}>
             {isCrypto ? (
-                <HStack spacing="sp8" alignItems="center">
+                <HStack spacing="sp8" alignItems="flex-end">
                     {valueElement}
                     {currencyElement}
                 </HStack>

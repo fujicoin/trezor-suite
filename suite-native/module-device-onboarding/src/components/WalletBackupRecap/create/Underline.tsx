@@ -1,6 +1,6 @@
 import { PixelRatio } from 'react-native';
 import {
-    SharedValue,
+    type SharedValue,
     useAnimatedStyle,
     useSharedValue,
     withDelay,
@@ -9,12 +9,12 @@ import {
 import Svg, { Path } from 'react-native-svg';
 
 import { AnimatedBox, Box, useIllustrationColors } from '@suite-native/atoms';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 const containerStyle = prepareNativeStyle(() => ({
     position: 'absolute',
-    bottom: 3,
-    left: 0,
+    bottom: 38,
+    left: 9,
     zIndex: -1,
 }));
 
@@ -22,7 +22,7 @@ const maskStyle = prepareNativeStyle(utils => ({
     width: '100%',
     height: '100%',
     position: 'absolute',
-    backgroundColor: utils.colors.backgroundSurfaceElevation0,
+    backgroundColor: utils.colors.surfaceFillPage,
 }));
 
 type UnderlineProps = {

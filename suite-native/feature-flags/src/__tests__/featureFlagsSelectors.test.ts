@@ -6,11 +6,11 @@ describe('featureFlagsSelectors', () => {
         it('should return correct value', () => {
             const state = featureFlagsReducer(
                 undefined,
-                toggleFeatureFlag({ featureFlag: 'isDeviceConnectEnabled' }),
+                toggleFeatureFlag({ featureFlag: 'areDebugOnlyNetworksEnabled' }),
             );
 
             expect(
-                selectIsFeatureFlagEnabled({ featureFlags: state }, 'isDeviceConnectEnabled'),
+                selectIsFeatureFlagEnabled({ featureFlags: state }, 'areDebugOnlyNetworksEnabled'),
             ).toEqual(true);
         });
     });

@@ -1,37 +1,29 @@
-import * as utils from '../l10n';
+import { getOsLocale } from '../l10n';
 
 describe('utils/suite/l10n', () => {
-    describe('getOsLocale', () => {
+    describe(getOsLocale.name, () => {
         let languagesGetter: any;
         beforeEach(() => {
             languagesGetter = jest.spyOn(window.navigator, 'languages', 'get');
         });
-        it('default lang', () => {
-            expect(utils.getOsLocale()).toBe('en-US');
-            expect(utils.getOsLocale('en-US')).toBe('en-US');
+
+        it('selects the first supported locale', () => {
+            languagesGetter.mockReturnValue(['xx-XX', 'en-US', 'de-AT']);
+            expect(getOsLocale('cs-CZ')).toBe('en-US');
         });
-        it('browser locales', () => {
-            languagesGetter.mockReturnValue(['es-ES', 'de-AT', 'en']);
-            expect(utils.getOsLocale('cs-CZ')).toBe('es-ES');
-            languagesGetter.mockReturnValue(['xx-XX', 'en-US', 'es']);
-            expect(utils.getOsLocale('cs-CZ')).toBe('en-US');
+        it('selects locale whose name is different in OS than in Suite', () => {
+            languagesGetter.mockReturnValue(['zh-Hant-HK', 'zh-Hans-CN']);
+            expect(getOsLocale('cs-CZ')).toBe('zh-TW');
+            languagesGetter.mockReturnValue(['zh-Hans-CN', 'zh-Hant-HK']);
+            expect(getOsLocale('cs-CZ')).toBe('zh-CN');
+        });
+        it('falls back to a language variant if the exact match is not found', () => {
+            languagesGetter.mockReturnValue(['en-GB', 'es-ES']);
+            expect(getOsLocale('cs-CZ')).toBe('en-US');
+        });
+        it('falls back to provided default  if no match is found', () => {
             languagesGetter.mockReturnValue(['aa', 'xx-XX']);
-            expect(utils.getOsLocale('cs-CZ')).toBe('cs-CZ');
-        });
-    });
-
-    it('identifying locale', () => {
-        expect(utils.isLocale('en-US')).toBe(true);
-        expect(utils.isLocale('xx')).toBe(false);
-        expect(utils.isCompletedLocale('en-US')).toBe(true);
-        expect(utils.isCompletedLocale('xx')).toBe(false);
-    });
-
-    describe('ensureLocale', () => {
-        it('ensure if locale is valid or return default', () => {
-            expect(utils.ensureLocale('en-US')).toBe('en-US');
-            expect(utils.ensureLocale('cs-CZ')).toBe('cs-CZ');
-            expect(utils.ensureLocale('xx')).toBe('en-US');
+            expect(getOsLocale('cs-CZ')).toBe('cs-CZ');
         });
     });
 });

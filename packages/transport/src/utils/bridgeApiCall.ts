@@ -1,9 +1,8 @@
 import fetch from 'cross-fetch';
 
 import { PROTOCOL_MALFORMED } from '@trezor/protocol/src/errors';
+import { TRANSPORT_ERROR as ERRORS, error, success, unknownError } from '@trezor/transport-common';
 
-import { error, success, unknownError } from './result';
-import * as ERRORS from '../errors';
 import { applyBridgeApiCallHeaders } from './applyBridgeApiCallHeaders';
 
 export type HttpRequestOptions = {
@@ -63,7 +62,7 @@ export async function bridgeApiCall(options: HttpRequestOptions) {
     try {
         res = await fetch(options.url, fetchOptions);
     } catch (err) {
-        return error({ error: ERRORS.HTTP_ERROR, message: err.message });
+        return error({ code: ERRORS.HTTP_ERROR, message: err.message });
     }
 
     let resParsed: Record<string, unknown> | string;
@@ -71,7 +70,7 @@ export async function bridgeApiCall(options: HttpRequestOptions) {
         resParsed = await res.text();
         resParsed = parseResult(resParsed);
     } catch (err) {
-        return error({ error: ERRORS.HTTP_ERROR, message: err.message });
+        return error({ code: ERRORS.HTTP_ERROR, message: err.message });
     }
 
     const getErrorStr = (err: typeof resParsed) => {
@@ -89,9 +88,9 @@ export async function bridgeApiCall(options: HttpRequestOptions) {
     };
 
     const BRIDGE_ERROR_DEVICE_CLOSED = 'closed device' as const;
-    // https://github.dev/trezor/trezord-go/blob/8f35971d3c36ea8b91ff54810397526ef8e741c5/wire/protobuf.go#L14
+    // https://github.com/trezor/trezord-go/blob/8f35971d3c36ea8b91ff54810397526ef8e741c5/wire/protobuf.go#L14
     const BRIDGE_MALFORMED_PROTOBUF = 'malformed protobuf' as const;
-    // https://github.dev/trezor/trezord-go/blob/8f35971d3c36ea8b91ff54810397526ef8e741c5/wire/v1.go#L72
+    // https://github.com/trezor/trezord-go/blob/8f35971d3c36ea8b91ff54810397526ef8e741c5/wire/v1.go#L72
     const BRIDGE_MALFORMED_WIRE_FORMAT = 'malformed wire format' as const;
 
     // if status is not 200. response should be interpreted as error.
@@ -99,13 +98,13 @@ export async function bridgeApiCall(options: HttpRequestOptions) {
         // this block only changes error messages from old bridge to the same messages returned by new bridge / connect usb stack
         const errStr = getErrorStr(resParsed);
         if (errStr === BRIDGE_ERROR_DEVICE_CLOSED) {
-            return error({ error: ERRORS.INTERFACE_UNABLE_TO_OPEN_DEVICE });
+            return error({ code: ERRORS.INTERFACE_UNABLE_TO_OPEN_DEVICE });
         }
         if (errStr === BRIDGE_MALFORMED_PROTOBUF || errStr === PROTOCOL_MALFORMED) {
-            return error({ error: PROTOCOL_MALFORMED });
+            return error({ code: PROTOCOL_MALFORMED });
         }
         if (errStr === BRIDGE_MALFORMED_WIRE_FORMAT) {
-            return error({ error: PROTOCOL_MALFORMED });
+            return error({ code: PROTOCOL_MALFORMED });
         }
 
         if (
@@ -114,7 +113,7 @@ export async function bridgeApiCall(options: HttpRequestOptions) {
             typeof resParsed.error === 'string'
         ) {
             return error({
-                error: resParsed.error,
+                code: resParsed.error,
                 message:
                     'message' in resParsed && typeof resParsed.message === 'string'
                         ? resParsed.message

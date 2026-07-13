@@ -1,24 +1,53 @@
-import { fireEvent, screen } from '@testing-library/react';
+import '@suite-common/test-utils/src/globalOverrides';
 
-import { AnalyticsState } from '@suite-common/analytics';
-import { TransportInfo } from '@trezor/connect';
-import * as envUtils from '@trezor/env-utils';
-import { DeepPartial } from '@trezor/type-utils';
+import { fireEvent } from '@testing-library/react';
 
-import { DesktopDeviceState } from 'src/actions/device/deviceSlice';
-import { AppState } from 'src/reducers/store';
-import { RouterState } from 'src/reducers/suite/routerReducer';
-import { SuiteState } from 'src/reducers/suite/suiteReducer';
+import { type RouterState } from '@suite/router';
+import { type AnalyticsState } from '@suite-common/analytics-redux';
+import { mockSuiteDevice } from '@suite-common/suite-types/mocks';
+import { type TransportInfo } from '@trezor/connect';
+import { isLinux } from '@trezor/env-utils';
+import { type DeepPartial } from '@trezor/type-utils';
+
+import { type DesktopDeviceState } from 'src/actions/device/deviceSlice';
+import { type AppState } from 'src/reducers/store';
+import { type SuiteState } from 'src/reducers/suite/suiteReducer';
 import { initialAppState } from 'src/support/tests/__fixtures__/defaultAppState';
 import { configureStore } from 'src/support/tests/configureStore';
+import { extraDependenciesDesktopMock } from 'src/support/tests/extraDependenciesDesktop.mock';
 import { findByTestId, renderWithProviders } from 'src/support/tests/hooksHelper';
 
 import { Preloader } from '../Preloader';
-import * as selectShouldDisplayDeviceCompromisedModule from '../selectShouldDisplayDeviceCompromised';
+import { selectShouldDisplayDeviceCompromisedOnRoute } from '../selectShouldDisplayDeviceCompromisedOnRoute';
 
-// render only Translation.id in data-test attribute
-jest.mock('src/components/suite/Translation', () => ({
+jest.mock('@trezor/env-utils', () => ({
+    ...jest.requireActual('@trezor/env-utils'),
+    isLinux: jest.fn(() => true),
+}));
+
+jest.mock('../selectShouldDisplayDeviceCompromisedOnRoute', () => ({
+    ...jest.requireActual('../selectShouldDisplayDeviceCompromisedOnRoute'),
+    selectShouldDisplayDeviceCompromisedOnRoute: jest.fn(
+        jest.requireActual('../selectShouldDisplayDeviceCompromisedOnRoute')
+            .selectShouldDisplayDeviceCompromisedOnRoute,
+    ),
+}));
+
+class ResizeObserverMock {
+    observe = jest.fn();
+    unobserve = jest.fn();
+    disconnect = jest.fn();
+}
+
+window.ResizeObserver = ResizeObserverMock;
+
+// !!! Must be a stable reference, else it will break some hooks / memoization and causes inf. re-renders
+const translationStringMock = (id: string) => id;
+
+jest.mock('@suite/intl', () => ({
+    ...jest.requireActual('@suite/intl'),
     Translation: ({ id }: any) => <span data-testid={id}>{id}</span>,
+    useTranslation: () => ({ translationString: translationStringMock }),
 }));
 
 // @trezor/connect fetching ethereum definitions
@@ -41,18 +70,12 @@ jest.mock('@trezor/suite-desktop-api', () => ({
     },
 }));
 
-jest.mock('@trezor/env-utils', () => ({
-    ...jest.requireActual('@trezor/env-utils'),
-    isLinux: () => true,
-}));
-
 jest.mock('@suite-common/tx-simulation', () => ({}));
 
 const createTransportInfo = (transportInfo: Partial<TransportInfo>): TransportInfo => ({
     type: 'NodeUsbTransport',
     apiType: 'usb',
     version: '',
-    outdated: false,
     ...transportInfo,
 });
 
@@ -74,7 +97,6 @@ const getInitialState = ({
     router: { ...initialAppState.router, ...router } as unknown as RouterState,
     device: { ...initialAppState.device, ...device } as DesktopDeviceState,
     analytics: { ...initialAppState.analytics, ...analytics },
-
     suite: {
         ...initialAppState.suite,
         lifecycle: {
@@ -82,6 +104,11 @@ const getInitialState = ({
         },
         transport: { transports: [] },
         ...suite,
+    },
+    wallet: {
+        ...initialAppState.wallet,
+        selectedAccount: initialAppState.wallet?.selectedAccount ?? { account: null },
+        accounts: initialAppState.wallet?.accounts ?? [],
     },
 });
 
@@ -120,7 +147,11 @@ describe(`${Preloader.name} component`, () => {
                 },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
         expect(findByTestId('@suite/loading')).not.toBeNull();
 
         unmount();
@@ -134,7 +165,11 @@ describe(`${Preloader.name} component`, () => {
                 },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
         expect(findByTestId('@suite/loading')).not.toBeNull();
 
         unmount();
@@ -148,7 +183,11 @@ describe(`${Preloader.name} component`, () => {
                 },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
         expect(findByTestId('@suite/loading')).not.toBeNull();
 
         unmount();
@@ -156,7 +195,11 @@ describe(`${Preloader.name} component`, () => {
 
     it('No transport', () => {
         const store = initStore(getInitialState());
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
         expect(findByTestId('TR_NO_TRANSPORT')).not.toBeNull();
 
@@ -171,7 +214,11 @@ describe(`${Preloader.name} component`, () => {
                 },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
 
@@ -186,7 +233,11 @@ describe(`${Preloader.name} component`, () => {
                 },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
         // expect(findByTestId('web-usb-button')).not.toBeNull();
@@ -195,48 +246,52 @@ describe(`${Preloader.name} component`, () => {
     });
 
     it('Unacquired device', () => {
-        const device: DeepPartial<AppState['device']> = {
-            selectedDevice: {
-                transportSessionOwner: 'foo',
-                type: 'unacquired',
-            },
-        };
-
         const store = initStore(
             getInitialState({
                 suite: {
                     transport: { transports: [createTransportInfo({ type: 'BridgeTransport' })] },
                 },
-                device,
+                device: {
+                    selectedDevice: mockSuiteDevice({
+                        transportSessionOwner: 'foo',
+                        type: 'unacquired',
+                    }),
+                },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
-        fireEvent.click(findByTestId('@onboarding/expand-troubleshooting-tips/toggle'));
-        expect(screen.getAllByText('TR_ACQUIRE_DEVICE_TITLE').length).toBe(2);
+        fireEvent.click(findByTestId('@onboarding/troubleshooting-tips/button'));
+        expect(findByTestId('TR_ACQUIRE_DEVICE_TITLE')).not.toBeNull();
 
         unmount();
     });
 
     it('Unreadable device: webusb HID', () => {
-        const device: DeepPartial<AppState['device']> = {
-            selectedDevice: {
-                type: 'unreadable',
-                error: 'unable to open device',
-                hid: true,
-            },
-        };
-
         const store = initStore(
             getInitialState({
                 suite: {
                     transport: { transports: [createTransportInfo({ type: 'WebUsbTransport' })] },
                 },
-                device,
+                device: {
+                    selectedDevice: mockSuiteDevice({
+                        type: 'unreadable',
+                        error: 'unable to open device',
+                        hid: true,
+                    }),
+                },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
         expect(findByTestId('@connect-device-prompt/unreadable-unknown')).not.toBeNull();
@@ -245,51 +300,55 @@ describe(`${Preloader.name} component`, () => {
     });
 
     it('Unreadable device: missing udev on Linux', () => {
-        jest.spyOn(envUtils, 'isLinux').mockImplementation(() => true);
-
-        const device: DeepPartial<AppState['device']> = {
-            selectedDevice: {
-                type: 'unreadable',
-                error: 'LIBUSB_ERROR_ACCESS',
-            },
-        };
+        (isLinux as jest.Mock).mockImplementation(() => true);
 
         const store = initStore(
             getInitialState({
                 suite: {
                     transport: { transports: [createTransportInfo({ type: 'BridgeTransport' })] },
                 },
-                device,
+                device: {
+                    selectedDevice: mockSuiteDevice({
+                        type: 'unreadable',
+                        error: 'LIBUSB_ERROR_ACCESS',
+                    }),
+                },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
-        fireEvent.click(findByTestId('@onboarding/expand-troubleshooting-tips/toggle'));
+        fireEvent.click(findByTestId('@onboarding/troubleshooting-tips/button'));
         expect(findByTestId('@connect-device-prompt/unreadable-udev')).not.toBeNull();
 
         unmount();
     });
 
     it('Unreadable device: missing udev on non-Linux os (should never happen)', () => {
-        jest.spyOn(envUtils, 'isLinux').mockImplementation(() => false);
-
-        const device: DeepPartial<AppState['device']> = {
-            selectedDevice: {
-                type: 'unreadable',
-                error: 'LIBUSB_ERROR_ACCESS',
-            },
-        };
+        (isLinux as jest.Mock).mockImplementation(() => false);
 
         const store = initStore(
             getInitialState({
                 suite: {
                     transport: { transports: [createTransportInfo({ type: 'BridgeTransport' })] },
                 },
-                device,
+                device: {
+                    selectedDevice: mockSuiteDevice({
+                        type: 'unreadable',
+                        error: 'LIBUSB_ERROR_ACCESS',
+                    }),
+                },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
         expect(findByTestId('@connect-device-prompt/unreadable-unknown')).not.toBeNull();
@@ -298,22 +357,24 @@ describe(`${Preloader.name} component`, () => {
     });
 
     it('Unreadable device: unknown error', () => {
-        const device: DeepPartial<AppState['device']> = {
-            selectedDevice: {
-                type: 'unreadable',
-                error: 'Unexpected error',
-            },
-        };
-
         const store = initStore(
             getInitialState({
                 suite: {
                     transport: { transports: [createTransportInfo({ type: 'BridgeTransport' })] },
                 },
-                device,
+                device: {
+                    selectedDevice: mockSuiteDevice({
+                        type: 'unreadable',
+                        error: 'Unexpected error',
+                    }),
+                },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
         expect(findByTestId('@connect-device-prompt/unreadable-unknown')).not.toBeNull();
@@ -322,74 +383,68 @@ describe(`${Preloader.name} component`, () => {
     });
 
     it('Unknown device (should never happen)', () => {
-        const device: DeepPartial<AppState['device']> = {
-            selectedDevice: {
-                transportSessionOwner: 'foo',
-                features: undefined,
-            },
-        };
-
         const store = initStore(
             getInitialState({
                 suite: {
                     transport: { transports: [createTransportInfo({ type: 'BridgeTransport' })] },
                 },
-                device,
+                device: {
+                    selectedDevice: mockSuiteDevice({
+                        transportSessionOwner: 'foo',
+                        features: undefined,
+                    }),
+                },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
-        fireEvent.click(findByTestId('@onboarding/expand-troubleshooting-tips/toggle'));
+        fireEvent.click(findByTestId('@onboarding/troubleshooting-tips/button'));
         expect(findByTestId(/TR_UNKNOWN_DEVICE/)).not.toBeNull();
 
         unmount();
     });
 
     it('Seedless device', () => {
-        const device: DeepPartial<AppState['device']> = {
-            selectedDevice: {
-                mode: 'seedless',
-                features: {},
-                authenticityChecks: {},
-            },
-        };
-
         const store = initStore(
             getInitialState({
                 suite: {
                     transport: { transports: [createTransportInfo({ type: 'BridgeTransport' })] },
                 },
-                device,
+                device: { selectedDevice: mockSuiteDevice({ mode: 'seedless' }) },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
-        fireEvent.click(findByTestId('@onboarding/expand-troubleshooting-tips/toggle'));
-        expect(findByTestId(/TR_YOUR_DEVICE_IS_SEEDLESS/)).not.toBeNull();
+        fireEvent.click(findByTestId('@onboarding/troubleshooting-tips/button'));
         expect(findByTestId('TR_SEEDLESS_SETUP_IS_NOT_SUPPORTED_TITLE')).not.toBeNull();
 
         unmount();
     });
 
     it('Recovery mode device', () => {
-        const device: DeepPartial<AppState['device']> = {
-            selectedDevice: {
-                features: { recovery_status: 'Recovery' },
-                authenticityChecks: {},
-            },
-        };
-
         const store = initStore(
             getInitialState({
                 suite: {
                     transport: { transports: [createTransportInfo({ type: 'BridgeTransport' })] },
                 },
-                device,
+                device: { selectedDevice: mockSuiteDevice({}, { recovery_status: 'Recovery' }) },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
         expect(findByTestId(/TR_DEVICE_IN_RECOVERY_MODE/)).not.toBeNull();
@@ -399,23 +454,19 @@ describe(`${Preloader.name} component`, () => {
     });
 
     it('Not initialized device', () => {
-        const device: DeepPartial<AppState['device']> = {
-            selectedDevice: {
-                mode: 'initialize',
-                features: {},
-                authenticityChecks: {},
-            },
-        };
-
         const store = initStore(
             getInitialState({
                 suite: {
                     transport: { transports: [createTransportInfo({ type: 'BridgeTransport' })] },
                 },
-                device,
+                device: { selectedDevice: mockSuiteDevice({ mode: 'initialize' }) },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
         expect(findByTestId(/TR_DEVICE_NOT_INITIALIZED/)).not.toBeNull();
@@ -425,49 +476,52 @@ describe(`${Preloader.name} component`, () => {
     });
 
     it('Bootloader device with installed firmware', () => {
-        const device: DeepPartial<AppState['device']> = {
-            selectedDevice: {
-                mode: 'bootloader',
-                features: { firmware_present: true },
-                authenticityChecks: {},
-            },
-        };
-
         const store = initStore(
             getInitialState({
                 suite: {
                     transport: { transports: [createTransportInfo({ type: 'BridgeTransport' })] },
                 },
-                device,
+                device: {
+                    selectedDevice: mockSuiteDevice(
+                        { mode: 'bootloader' },
+                        { firmware_present: true, bootloader_mode: true },
+                    ),
+                },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
-        expect(findByTestId(/TR_DEVICE_IN_BOOTLOADER/)).not.toBeNull();
+        expect(findByTestId('TR_DEVICE_CONNECTED_BOOTLOADER')).not.toBeNull();
+        fireEvent.click(findByTestId('@onboarding/troubleshooting-tips/button'));
         expect(findByTestId('TR_DEVICE_CONNECTED_BOOTLOADER_RECONNECT')).not.toBeNull();
 
         unmount();
     });
 
     it('Bootloader device without firmware', () => {
-        const device: DeepPartial<AppState['device']> = {
-            selectedDevice: {
-                mode: 'bootloader',
-                features: { firmware_present: false },
-                authenticityChecks: {},
-            },
-        };
-
         const store = initStore(
             getInitialState({
                 suite: {
                     transport: { transports: [createTransportInfo({ type: 'BridgeTransport' })] },
                 },
-                device,
+                device: {
+                    selectedDevice: mockSuiteDevice(
+                        { mode: 'bootloader' },
+                        { firmware_present: false, bootloader_mode: true },
+                    ),
+                },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
         expect(findByTestId(/TR_NO_FIRMWARE/)).not.toBeNull();
@@ -477,43 +531,41 @@ describe(`${Preloader.name} component`, () => {
     });
 
     it('displays DeviceCompromised when shouldDisplayDeviceCompromised is true', () => {
-        const spy = jest
-            .spyOn(
-                selectShouldDisplayDeviceCompromisedModule,
-                'selectShouldDisplayDeviceCompromised',
-            )
-            .mockImplementation(() => true);
+        (selectShouldDisplayDeviceCompromisedOnRoute as jest.Mock).mockImplementation(() => true);
 
         const store = initStore(getInitialState());
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
         expect(findByTestId('@device-compromised')).not.toBeNull();
 
         unmount();
-        spy.mockRestore();
+        (selectShouldDisplayDeviceCompromisedOnRoute as jest.Mock).mockImplementation(
+            jest.requireActual('../selectShouldDisplayDeviceCompromisedOnRoute')
+                .selectShouldDisplayDeviceCompromisedOnRoute,
+        );
     });
 
     it('Required FW update device', () => {
-        const device: DeepPartial<AppState['device']> = {
-            selectedDevice: {
-                firmware: 'required',
-                features: {},
-                authenticityChecks: {},
-            },
-        };
-
         const store = initStore(
             getInitialState({
                 suite: {
                     transport: { transports: [createTransportInfo({ type: 'BridgeTransport' })] },
                 },
-                device,
+                device: { selectedDevice: mockSuiteDevice({ firmware: 'required' }) },
             }),
         );
-        const { unmount } = renderWithProviders(store, <Index app={store.getState().router.app} />);
+        const { unmount } = renderWithProviders(
+            store,
+            extraDependenciesDesktopMock.services,
+            <Index app={store.getState().router.app} />,
+        );
 
         expect(findByTestId('@connect-device-prompt')).not.toBeNull();
         expect(findByTestId(/FW_CAPABILITY_UPDATE_REQUIRED/)).not.toBeNull();
-        expect(findByTestId('TR_SEE_DETAILS')).not.toBeNull();
+        expect(findByTestId('TR_JUST_INSTALL')).not.toBeNull();
 
         unmount();
     });

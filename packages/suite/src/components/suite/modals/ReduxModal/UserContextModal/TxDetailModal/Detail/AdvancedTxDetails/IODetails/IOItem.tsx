@@ -1,71 +1,87 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
-import {
-    NetworkSymbolExtended,
-    getExplorerUrl,
-    isNetworkSymbol,
-} from '@suite-common/wallet-config';
+import { selectFullSelectedAccount } from '@suite/account';
+import { Address } from '@suite/address';
+import { useExternalLink } from '@suite/external-links';
+import { type NetworkSymbolExtended, isNetworkSymbol } from '@suite-common/wallet-config';
+import { getExplorerUrl } from '@suite-common/wallet-config/src/getExplorerUrls';
 import { selectExplorer } from '@suite-common/wallet-core';
 import { formatNetworkAmount } from '@suite-common/wallet-utils';
-import { AnonymitySet } from '@trezor/blockchain-link-types';
-import { Column, Row, Text } from '@trezor/components';
-import { spacings } from '@trezor/theme';
+import { type AnonymitySet } from '@trezor/blockchain-link-types';
+import { Column, Link, Row, Text } from '@trezor/components';
 
 import { FormattedCryptoAmount } from 'src/components/suite/FormattedCryptoAmount';
-import { TxAddress } from 'src/components/suite/copy/TxAddress';
 import { UtxoAnonymity } from 'src/components/wallet';
 import { useSelector } from 'src/hooks/suite/useSelector';
+
+const OP_RETURN_REGEX = /^OP_RETURN \(([^)]+)\)/;
 
 type IOItem = {
     anonymitySet?: AnonymitySet;
     symbol?: NetworkSymbolExtended;
     contractAddress?: string;
-    address?: string;
+    value?: string;
     amount?: string | ReactNode;
     isPhishingTransaction?: boolean;
-    hideExplorerLink?: boolean;
 };
 
 export const IOItem = ({
     anonymitySet,
-    address,
+    value,
     symbol,
     contractAddress,
     amount,
     isPhishingTransaction,
-    hideExplorerLink = false,
 }: IOItem) => {
-    const network = useSelector(state => state.wallet.selectedAccount.network);
+    const { network } = useSelector(selectFullSelectedAccount);
     const explorer = useSelector(state => selectExplorer(state, network?.symbol));
-    const anonymity = address && anonymitySet?.[address];
+    const explorerUrl = getExplorerUrl(explorer, 'address');
+    const explorerLink = useExternalLink(`${explorerUrl}${value}${explorer?.queryString ?? ''}`);
+    const anonymity = value && anonymitySet?.[value];
+    const isOpReturn = value?.startsWith('OP_RETURN ');
 
     return (
-        <Column>
-            <TxAddress
-                txAddress={address ?? ''}
-                explorerUrl={hideExplorerLink ? undefined : getExplorerUrl(explorer, 'address')}
-                explorerUrlQueryString={explorer?.queryString}
-                shouldAllowCopy={!isPhishingTransaction}
-            />
-            <Text as="div" variant="tertiary" typographyStyle="label">
-                <Row gap={spacings.xs}>
-                    {anonymity && <UtxoAnonymity anonymity={anonymity} />}
-                    {amount &&
-                        (typeof amount === 'string' && symbol ? (
-                            <FormattedCryptoAmount
-                                value={
-                                    isNetworkSymbol(symbol)
-                                        ? formatNetworkAmount(amount, symbol)
-                                        : amount
-                                }
-                                symbol={symbol}
-                                contractAddress={contractAddress}
-                            />
-                        ) : (
-                            amount
-                        ))}
-                </Row>
-            </Text>
-        </Column>
+        <Text as="div" typographyStyle="body-sm">
+            <Column alignItems="flex-start" overflow="hidden">
+                {!isOpReturn ? (
+                    <>
+                        {value && (
+                            <Link href={explorerLink}>
+                                <Address
+                                    value={value}
+                                    isTruncated
+                                    data-testid="@tx-detail/txid-value"
+                                    isCopyAllowed={!isPhishingTransaction}
+                                />
+                            </Link>
+                        )}
+                        <Row gap={8}>
+                            {anonymity && <UtxoAnonymity anonymity={anonymity} />}
+                            {amount &&
+                                (typeof amount === 'string' && symbol ? (
+                                    <Text intent="neutral" priority="secondary" as="div">
+                                        <FormattedCryptoAmount
+                                            value={
+                                                isNetworkSymbol(symbol)
+                                                    ? formatNetworkAmount(amount, symbol)
+                                                    : amount
+                                            }
+                                            symbol={symbol}
+                                            contractAddress={contractAddress}
+                                        />
+                                    </Text>
+                                ) : (
+                                    amount
+                                ))}
+                        </Row>
+                    </>
+                ) : (
+                    <Column>
+                        <Text>OP_RETURN</Text>
+                        {value?.replace(OP_RETURN_REGEX, '$1') ?? ''}
+                    </Column>
+                )}
+            </Column>
+        </Text>
     );
 };

@@ -1,80 +1,72 @@
+import { expect as detoxExpect } from 'detox';
+
+import CS_TRANSLATIONS from '@suite-native/intl/translations/cs-CZ.json';
+import EN_TRANSLATIONS from '@suite-native/intl/translations/en-US.json';
 import { PROTO } from '@trezor/connect';
 
-import { onboardingCompleted } from '../fixtures/onboardingCompleted';
-import { btcWalletPreloaded } from '../fixtures/walletWithBtcAcc';
+import { onboardingCompletedState } from '../fixtures/onboardingCompletedState';
+import { portfolioTrackerBtcAccountState } from '../fixtures/portfolioTrackerBtcAccountState';
 import { onHome } from '../pageObjects/homeActions';
 import { onSettings } from '../pageObjects/settingsActions';
 import { onTabBar } from '../pageObjects/tabBarActions';
-import { appIsFullyLoaded, openApp, restartApp } from '../utils';
+import { openApp, preparePreloadedReduxState } from '../support/setup';
+import { waitForVisible } from '../support/utils';
 
-describe('App Settings - without device interactions', () => {
-    beforeAll(async () => {
-        await openApp({
-            newInstance: true,
-            args: { preloadedState: { ...btcWalletPreloaded, ...onboardingCompleted } },
-        });
-    });
+const preloadedState = preparePreloadedReduxState(
+    portfolioTrackerBtcAccountState,
+    onboardingCompletedState,
+);
 
+describe('App Settings - without device interactions [@noDevice]', () => {
     beforeEach(async () => {
-        await restartApp();
-        await appIsFullyLoaded();
-    });
-
-    afterAll(async () => {
-        await device.terminateApp();
+        await openApp({ args: { preloadedState } });
+        await onHome.assertIsPortfolioGraphVisible();
+        await onHome.scrollScreenToBottom();
     });
 
     it('Localization - Currency', async () => {
-        await waitFor(
-            element(by.id('@home/portfolio/fiat-balance-header').withDescendant(by.text('$'))),
-        )
-            .toBeVisible()
-            .withTimeout(10000);
-
+        const fiatInUSDRegex = /^.*\$.*$/i;
+        await waitForVisible(by.text(fiatInUSDRegex));
         await onTabBar.navigateToSettings();
-        await onSettings.tapPreferences();
+        await onSettings.openSection('preferences');
         await onSettings.changeLocalizationCurrency('czk');
         await onTabBar.tapBackButton();
         await onTabBar.navigateToHome();
 
-        await waitFor(
-            element(by.id('@home/portfolio/fiat-balance-header').withDescendant(by.text('CZK'))),
-        )
-            .toBeVisible()
-            .withTimeout(10000);
+        await detoxExpect(element(by.text(/^.*CZK.*$/i))).toBeVisible();
     });
 
     it('Localization - Bitcoin Units', async () => {
-        await waitFor(element(by.text('0 BTC')))
-            .toBeVisible()
-            .withTimeout(10000);
-
+        await detoxExpect(element(by.text('0 BTC'))).toBeVisible();
         await onTabBar.navigateToSettings();
-        await onSettings.tapPreferences();
+        await onSettings.openSection('preferences');
         await onSettings.changeBitcoinUnits(PROTO.AmountUnit.SATOSHI);
         await onTabBar.tapBackButton();
         await onTabBar.navigateToHome();
 
-        await waitFor(element(by.text('0 sat')))
-            .toBeVisible()
-            .withTimeout(10000);
+        await detoxExpect(element(by.text('0 sat'))).toBeVisible();
+    });
+
+    it('Localization - Language', async () => {
+        await onTabBar.assertHomeTabBarItemTitle(EN_TRANSLATIONS['navigation.tabs.home']);
+        await onTabBar.navigateToSettings();
+        await onSettings.openSection('preferences');
+        await onSettings.changeLanguage('cs-CZ');
+        await onTabBar.tapBackButton();
+        await onTabBar.navigateToHome();
+
+        await onTabBar.assertHomeTabBarItemTitle(CS_TRANSLATIONS['navigation.tabs.home']);
     });
 
     it('Privacy & Security - Discreet Mode', async () => {
         await onHome.assertIsDiscreetModeDisabled();
 
-        const portfolioHeader = element(by.id('@home/portfolio/fiat-balance-header'));
-        await waitFor(portfolioHeader).toBeVisible().withTimeout(30000);
-        await portfolioHeader.tap();
-
-        await onHome.assertIsDiscreetModeEnabled();
-
         await onTabBar.navigateToSettings();
-        await onSettings.tapPrivacyAndSecurity();
+        await onSettings.openSection('privacy');
         await onSettings.toggleDiscreetMode();
         await onTabBar.tapBackButton();
         await onTabBar.navigateToHome();
 
-        await onHome.assertIsDiscreetModeDisabled();
+        await onHome.assertIsDiscreetModeEnabled();
     });
 });

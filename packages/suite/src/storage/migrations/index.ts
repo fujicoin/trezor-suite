@@ -1,24 +1,28 @@
-import { toWei } from 'web3-utils';
-
 import {
     type NetworkSymbol,
     getNetwork,
     isNetworkSymbol,
     networkSymbolCollection,
 } from '@suite-common/wallet-config';
-import type { BackendSettings, WalletSettings } from '@suite-common/wallet-types';
+import {
+    type AccountKey,
+    type BackendSettings,
+    type WalletSettings,
+    createAccountKey,
+} from '@suite-common/wallet-types';
 import {
     convertAmountUnitsToSubunits,
     formatNetworkAmount,
+    fromGwei,
     networkAmountToSmallestUnit,
 } from '@suite-common/wallet-utils';
 import { parseAsset } from '@trezor/blockchain-link-utils/src/blockfrost';
-import { FirmwareType } from '@trezor/connect';
+import { type DeviceState, FirmwareType } from '@trezor/connect';
 import { DeviceModelInternal } from '@trezor/device-utils';
 import { isDesktop } from '@trezor/env-utils';
 import type { OnUpgradeFunc } from '@trezor/suite-storage';
-import { PartialRecord } from '@trezor/type-utils';
-import { BigNumber } from '@trezor/utils/src/bigNumber';
+import { type PartialRecord } from '@trezor/type-utils';
+import { BigNumber } from '@trezor/utils';
 
 import { migrateToV56 } from 'src/storage/migrations/legacyVersions/migrateToV56';
 import { migrationOfBnbNetwork } from 'src/storage/migrations/networks/bnb';
@@ -101,7 +105,11 @@ export const runLegacyMigrations: OnUpgradeFunc<SuiteDBSchema> = async (
                 outputLabels: {},
                 addressLabels: {},
             };
-            account.key = `${account.descriptor}-${account.symbol}-${account.deviceState}`;
+            account.key = createAccountKey({
+                accountDescriptor: account.descriptor,
+                networkSymbol: account.symbol,
+                deviceStaticSessionId: account.deviceState,
+            });
 
             return account;
         });
@@ -312,7 +320,7 @@ export const runLegacyMigrations: OnUpgradeFunc<SuiteDBSchema> = async (
         accounts.forEach(account => {
             // @ts-expect-error
             account.deviceState = account.deviceState.replace('undefined', '0');
-            account.key = account.key.replace('undefined', '0');
+            account.key = account.key.replace('undefined', '0') as AccountKey;
             accountsStoreNew.add(account);
         });
 
@@ -420,7 +428,7 @@ export const runLegacyMigrations: OnUpgradeFunc<SuiteDBSchema> = async (
                     ethereumSpecific: origTx.ethereumSpecific
                         ? {
                               ...origTx.ethereumSpecific,
-                              gasPrice: toWei(origTx.ethereumSpecific?.gasPrice ?? '0', 'gwei'),
+                              gasPrice: fromGwei(origTx.ethereumSpecific?.gasPrice ?? '0').toWei(),
                           }
                         : undefined,
                     cardanoSpecific: origTx.cardanoSpecific
@@ -453,9 +461,7 @@ export const runLegacyMigrations: OnUpgradeFunc<SuiteDBSchema> = async (
             const { features } = device;
 
             device.firmwareType =
-                features &&
-                features.capabilities &&
-                !features.capabilities.includes('Capability_Bitcoin_like')
+                features?.capabilities && !features.capabilities.includes('Capability_Bitcoin_like')
                     ? FirmwareType.BitcoinOnly
                     : FirmwareType.Universal;
 
@@ -552,7 +558,7 @@ export const runLegacyMigrations: OnUpgradeFunc<SuiteDBSchema> = async (
         // remove trop from backend settings
         const backendSettings = transaction.objectStore('backendSettings');
         // @ts-expect-error
-        backendSettings.delete('trop');
+        await backendSettings.delete('trop');
     }
 
     if (oldVersion < 37) {
@@ -813,7 +819,6 @@ export const runLegacyMigrations: OnUpgradeFunc<SuiteDBSchema> = async (
                         decimals: token.decimals,
                         fingerprint: token.name,
                         policyId,
-                        type: token.type,
                         standard: token.standard,
                     };
                 });
@@ -823,7 +828,7 @@ export const runLegacyMigrations: OnUpgradeFunc<SuiteDBSchema> = async (
         });
 
         await updateAll(transaction, 'txs', tx => {
-            if (['ada', 'tada'].includes(tx.tx.symbol)) {
+            if (tx.tx.symbol === 'ada') {
                 tx.tx.tokens = tx.tx.tokens?.map(token => {
                     const { policyId } = parseAsset(token.contract);
 
@@ -918,7 +923,7 @@ export const runLegacyMigrations: OnUpgradeFunc<SuiteDBSchema> = async (
                 const newAccount = {
                     ...account,
                     symbol: 'pol' as const,
-                    key: account.key.replace('matic', 'pol'),
+                    key: account.key.replace('matic', 'pol') as AccountKey,
                 };
                 await accountsCursor.delete();
                 await accounts.add(newAccount);
@@ -1002,7 +1007,7 @@ export const runLegacyMigrations: OnUpgradeFunc<SuiteDBSchema> = async (
         sendFormDraftsKeysWithMatic.forEach(async key => {
             const draft = await sendFormDrafts.get(key);
             if (draft) {
-                sendFormDrafts.add(draft, key.replace('matic', 'pol'));
+                sendFormDrafts.add(draft, key.replace('matic', 'pol') as AccountKey);
             }
             sendFormDrafts.delete(key);
         });
@@ -1052,9 +1057,10 @@ export const runLegacyMigrations: OnUpgradeFunc<SuiteDBSchema> = async (
         // Migrate device state to new object format
         await updateAll(transaction, 'devices', device => {
             if (typeof device.state === 'string') {
-                if (typeof (device as any)?._state?.staticSessionId === 'string') {
+                const legacyDevice = device as typeof device & { _state?: DeviceState };
+                if (typeof legacyDevice?._state?.staticSessionId === 'string') {
                     // Has _state property, migrate to that
-                    device.state = (device as any)._state;
+                    device.state = legacyDevice._state;
                 } else {
                     // No _state property, create new object
                     device.state = {
@@ -1167,6 +1173,7 @@ export const runLegacyMigrations: OnUpgradeFunc<SuiteDBSchema> = async (
             }
         });
 
+        // @ts-expect-error security no longer exists
         db.createObjectStore('security');
     }
 

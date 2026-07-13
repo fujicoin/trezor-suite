@@ -1,8 +1,7 @@
-import { ChainedTransactions } from '@suite-common/wallet-types';
-import { Banner, Card, Column, Link, Row, Table, Text } from '@trezor/components';
+import { Translation } from '@suite/intl';
+import { type ChainedTransactions } from '@suite-common/wallet-types';
+import { Banner, Card, Column, Row, Table, Text, TextButton } from '@trezor/components';
 import { spacings } from '@trezor/theme';
-
-import { Translation } from 'src/components/suite';
 
 import { AffectedTransactionItem } from './AffectedTransactionItem';
 
@@ -18,25 +17,21 @@ export const AffectedTransactions = ({ chainedTxs, showChained }: AffectedTransa
 
     return (
         <Card
-            fillType="flat"
+            type="contrast"
             paddingType="small"
             header={
                 <Row justifyContent="space-between" alignItems="center">
-                    <Text typographyStyle="body">
+                    <Text typographyStyle="body-md">
                         <Translation id="TR_CHAINED_TXS" />
                     </Text>
-                    <Text variant="primary" typographyStyle="hint">
-                        <Link onClick={showChained} icon="arrowUpRight" variant="nostyle">
-                            <Translation id="TR_SEE_DETAILS" />
-                        </Link>
-                    </Text>
+                    <TextButton onClick={showChained} size="small" isUnderlined>
+                        <Translation id="TR_SEE_DETAILS" />
+                    </TextButton>
                 </Row>
             }
         >
             <Column gap={spacings.md}>
-                <Banner variant="warning">
-                    <Translation id="TR_AFFECTED_TXS" />
-                </Banner>
+                <Banner intent="warning" description={<Translation id="TR_AFFECTED_TXS" />} />
                 <Table>
                     <Table.Body>
                         {chainedTxs.own.map(tx => (

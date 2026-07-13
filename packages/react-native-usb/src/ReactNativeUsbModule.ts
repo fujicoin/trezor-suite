@@ -1,7 +1,7 @@
 import { NativeModule } from 'expo';
 import { requireNativeModule } from 'expo-modules-core';
 
-import { NativeDevice } from './ReactNativeUsb.types';
+import { type NativeDevice } from './ReactNativeUsb.types';
 
 type DeviceEvents = {
     onDeviceConnect: (device: NativeDevice | null) => void;
@@ -9,13 +9,14 @@ type DeviceEvents = {
 };
 
 declare class ReactNativeUsbModuleDeclaration extends NativeModule<DeviceEvents> {
+    getDevices: () => Promise<NativeDevice[]>;
     open: (deviceName: string) => Promise<void>;
     reset: (deviceName: string) => Promise<void>;
     close: (deviceName: string) => Promise<void>;
     claimInterface: (deviceName: string, interfaceNumber: number) => Promise<void>;
     releaseInterface: (deviceName: string, interfaceNumber: number) => Promise<void>;
-    transferIn: (deviceName: string, endpointNumber: number, length: number) => Promise<number[]>;
-    transferOut: (deviceName: string, endpointNumber: number, data: string) => Promise<void>;
+    transferIn: (deviceName: string, endpointNumber: number, length: number) => Promise<Uint8Array>;
+    transferOut: (deviceName: string, endpointNumber: number, data: Uint8Array) => Promise<void>;
     setPriorityMode: (isInPriorityMode: boolean) => void;
 }
 

@@ -1,16 +1,16 @@
 import { combineReducers } from '@reduxjs/toolkit';
 
-import { configureMockStore, extraDependenciesMock } from '@suite-common/test-utils';
+import { configureMockStore, extraDependenciesCommonMock } from '@suite-common/test-utils';
 
 import * as fixtures from '../__fixtures__/messageSystemActions';
 import {
-    MessageSystemState,
+    type MessageSystemState,
     initMessageSystemThunk,
     messageSystemActions,
     prepareMessageSystemReducer,
 } from '../index';
 
-const messageSystemReducer = prepareMessageSystemReducer(extraDependenciesMock);
+const messageSystemReducer = prepareMessageSystemReducer(extraDependenciesCommonMock);
 
 const getInitialState = (state?: MessageSystemState) => ({
     messageSystem: {
@@ -61,10 +61,12 @@ describe('Message system actions', () => {
 
             await store.dispatch(initMessageSystemThunk());
 
-            expect(store.getActions().length).toBe(5);
-            expect(store.getActions()[2].type).toBe(messageSystemActions.fetchSuccessUpdate.type);
-            expect(store.getActions()[2].payload.config).not.toBe(undefined);
-            expect(store.getActions()[2].payload.timestamp).toBe(timestamp);
+            const actions = store.getActions();
+            expect(actions.length).toBe(5);
+            const action = actions[2];
+            expect(action?.type).toBe(messageSystemActions.fetchSuccessUpdate.type);
+            expect(action?.payload.config).not.toBe(undefined);
+            expect(action?.payload.timestamp).toBe(timestamp);
         });
 
         it("does not store the fetched config if it's sequence number is the same as the current one", async () => {
@@ -74,8 +76,9 @@ describe('Message system actions', () => {
 
             await store.dispatch(initMessageSystemThunk());
 
-            expect(store.getActions().length).toBe(5);
-            expect(store.getActions()[2].type).toBe(messageSystemActions.fetchSuccess.type);
+            const actions = store.getActions();
+            expect(actions.length).toBe(5);
+            expect(actions[2]?.type).toBe(messageSystemActions.fetchSuccess.type);
         });
 
         it('raises an error if sequence number of fetched config is lower than the current one', async () => {
@@ -87,8 +90,9 @@ describe('Message system actions', () => {
 
             await store.dispatch(initMessageSystemThunk());
 
-            expect(store.getActions().length).toBe(5);
-            expect(store.getActions()[2].type).toBe(messageSystemActions.fetchError.type);
+            const actions = store.getActions();
+            expect(actions.length).toBe(5);
+            expect(actions[2]?.type).toBe(messageSystemActions.fetchError.type);
             expect(console.error).toHaveBeenCalled();
         });
 
@@ -105,7 +109,7 @@ describe('Message system actions', () => {
             expect(global.fetch).not.toHaveBeenCalled();
         });
 
-        it('fetches local jws if the remote one fails', async () => {
+        it('fetches local jws if the remote one errors', async () => {
             jest.spyOn(console, 'error').mockImplementation(() => {});
 
             global.fetch = jest.fn().mockImplementationOnce(() => undefined);
@@ -116,11 +120,13 @@ describe('Message system actions', () => {
 
             await store.dispatch(initMessageSystemThunk());
 
-            expect(store.getActions().length).toBe(5);
-            expect(store.getActions()[2].type).toBe(messageSystemActions.fetchSuccessUpdate.type);
-            expect(store.getActions()[2].payload.config).not.toBe(undefined);
-            expect(store.getActions()[2].payload.config.sequence).toBe(10);
-            expect(store.getActions()[2].payload.timestamp).toBe(0);
+            const actions = store.getActions();
+            expect(actions.length).toBe(5);
+            const action = actions[2];
+            expect(action?.type).toBe(messageSystemActions.fetchSuccessUpdate.type);
+            expect(action?.payload.config).not.toBe(undefined);
+            expect(action?.payload.config.sequence).toBe(10);
+            expect(action?.payload.timestamp).toBe(0);
 
             expect(console.error).toHaveBeenCalled();
         });
@@ -144,8 +150,9 @@ describe('Message system actions', () => {
 
             await store.dispatch(initMessageSystemThunk());
 
-            expect(store.getActions().length).toBe(5);
-            expect(store.getActions()[2].type).toBe(messageSystemActions.fetchError.type);
+            const actions = store.getActions();
+            expect(actions.length).toBe(5);
+            expect(actions[2]?.type).toBe(messageSystemActions.fetchError.type);
             expect(console.error).toHaveBeenCalled();
         });
 
@@ -162,8 +169,9 @@ describe('Message system actions', () => {
 
             await store.dispatch(initMessageSystemThunk());
 
-            expect(store.getActions().length).toBe(5);
-            expect(store.getActions()[2].type).toBe(messageSystemActions.fetchError.type);
+            const actions = store.getActions();
+            expect(actions.length).toBe(5);
+            expect(actions[2]?.type).toBe(messageSystemActions.fetchError.type);
             expect(console.error).toHaveBeenCalled();
         });
     });

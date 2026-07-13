@@ -7,15 +7,16 @@ on:
 
 jobs:
   update-tor:
-    runs-on: ubuntu-latest
+    if: github.repository == 'trezor/trezor-suite'
+    runs-on: macos-latest
     env:
       UPDATE_FILE: packages/suite-data/files/bin/tor/update.sh
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 20
 
@@ -66,11 +67,16 @@ jobs:
         if: steps.check_crx.outputs.new_crx == 'true' || steps.check_arm.outputs.new_arm == 'true'
         run: |
           if [ "${{ steps.check_crx.outputs.new_crx }}" = "true" ]; then
-            sed -i "s/^CRX_VER=.*/CRX_VER=${{ steps.versions.outputs.crx_next }}/" "$UPDATE_FILE"
+            sed -i '' "s/^CRX_VER=.*/CRX_VER=${{ steps.versions.outputs.crx_next }}/" "$UPDATE_FILE"
           fi
           if [ "${{ steps.check_arm.outputs.new_arm }}" = "true" ]; then
-            sed -i "s/^CRX_LINUX_ARM_VER=.*/CRX_LINUX_ARM_VER=${{ steps.versions.outputs.arm_next }}/" "$UPDATE_FILE"
+            sed -i '' "s/^CRX_LINUX_ARM_VER=.*/CRX_LINUX_ARM_VER=${{ steps.versions.outputs.arm_next }}/" "$UPDATE_FILE"
           fi
+
+      - name: Run update.sh
+        if: steps.check_crx.outputs.new_crx == 'true' || steps.check_arm.outputs.new_arm == 'true'
+        run: |
+          bash "$UPDATE_FILE"
 
       - name: Build PR body
         id: pr_body
@@ -83,6 +89,17 @@ jobs:
           if [ "${{ steps.check_arm.outputs.new_arm }}" = "true" ]; then
             body+="\n- Linux ARM: ${{ steps.versions.outputs.arm_next }} (${{ steps.check_arm.outputs.arm_url }})"
           fi
+          body+="\n\n### :eyes: Review instructions\n\n"
+          body+="Works fully only on macOS\n\`\`\`\n"
+          body+="git fetch origin chore/update-tor-binaries\n"
+          body+="git checkout chore/update-tor-binaries\n"
+          body+="git checkout HEAD~1\n"
+          body+="git restore --source origin/chore/update-tor-binaries packages/suite-data/files/bin/tor/update.sh\n"
+          body+="./packages/suite-data/files/bin/tor/update.sh\n"
+          body+="git reset --soft chore/update-tor-binaries\n"
+          body+="git add .\n"
+          body+="git status -s\n"
+          body+="# should be no diff if binaries match\n\`\`\`"
           echo "body<<EOF" >> $GITHUB_OUTPUT
           echo -e "$body" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -90,20 +107,20 @@ jobs:
       - name: Generate GitHub App token
         if: steps.check_crx.outputs.new_crx == 'true' || steps.check_arm.outputs.new_arm == 'true'
         id: trezor-bot-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
         with:
-          app-id: ${{ secrets.TREZOR_BOT_APP_ID }}
+          client-id: ${{ secrets.TREZOR_BOT_APP_ID }}
           private-key: ${{ secrets.TREZOR_BOT_PRIVATE_KEY }}
 
       - name: Create Pull Request
         if: steps.check_crx.outputs.new_crx == 'true' || steps.check_arm.outputs.new_arm == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
         with:
           token: ${{ steps.trezor-bot-token.outputs.token }}
           commit-message: "chore(suite-data): update TOR binaries"
           branch: chore/update-tor-binaries
           title: "Update TOR binaries"
           body: ${{ steps.pr_body.outputs.body }}
-          base: "develop"
+          base: ${{ github.ref_name }}
           delete-branch: true
           labels: tor, ci

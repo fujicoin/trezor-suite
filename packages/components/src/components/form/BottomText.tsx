@@ -1,25 +1,12 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 import styled, { keyframes } from 'styled-components';
 
 import { spacings } from '@trezor/theme';
 
-import { InputState } from './types';
-import { UIVariant } from '../../config/types';
 import { Row } from '../Flex/Flex';
-import { Icon, IconName, IconVariant } from '../Icon/Icon';
-import { Text, TextVariant } from '../typography/Text/Text';
-
-export const mapInputStateToUIVariant = (inputState: InputState): UIVariant => {
-    const variantMap: Record<InputState, UIVariant> = {
-        error: 'destructive',
-        primary: 'primary',
-        warning: 'warning',
-        default: 'tertiary',
-    };
-
-    return variantMap[inputState];
-};
+import { Icon, type IconComponent, type IconProps } from '../Icon/Icon';
+import { Text } from '../typography/Text/Text';
 
 const slideDown = keyframes`
     from {
@@ -37,37 +24,43 @@ export const Container = styled.div`
 `;
 
 type BottomTextProps = {
-    inputState?: InputState;
+    hasError?: boolean;
     isDisabled?: boolean;
     iconComponent?: ReactNode;
-    iconName?: IconName;
+    icon?: IconComponent;
     children: ReactNode;
     'data-testid'?: string;
 };
 
 export const BottomText = ({
-    inputState = 'default',
+    hasError,
     isDisabled,
     iconComponent,
-    iconName,
+    icon,
     children,
     'data-testid': dataTestId,
 }: BottomTextProps) => {
-    const variant = isDisabled ? 'disabled' : mapInputStateToUIVariant(inputState);
+    const textIntent = hasError ? 'critical' : 'neutral';
+    const textPriority = hasError ? 'primary' : 'secondary';
+    const iconProps: Pick<IconProps, 'intent' | 'priority' | 'isDisabled'> = {
+        intent: textIntent,
+        priority: textPriority,
+        isDisabled,
+    };
 
     return (
         <Container>
             <Row gap={spacings.xxs}>
-                {iconComponent ??
-                    (iconName && (
-                        <Icon name={iconName} size="medium" variant={variant as IconVariant} />
-                    ))}
+                {iconComponent ?? (icon && <Icon as={icon} size={16} {...iconProps} />)}
                 <Text
                     data-testid={dataTestId}
-                    variant={variant as TextVariant}
-                    typographyStyle="hint"
+                    intent={textIntent}
+                    priority={textPriority}
+                    isDisabled={isDisabled}
+                    typographyStyle="body-sm"
                     as="div"
                     flex="auto"
+                    overflowWrap="anywhere"
                 >
                     {children}
                 </Text>

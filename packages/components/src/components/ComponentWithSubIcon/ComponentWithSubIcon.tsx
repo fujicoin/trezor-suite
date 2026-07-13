@@ -1,100 +1,77 @@
-import { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 
-import styled, { useTheme } from 'styled-components';
+import { type SpacingValuesNew, borders } from '@trezor/theme';
 
-import { borders, spacingsPx } from '@trezor/theme';
-
+import { type ComponentWithSubIconIntent } from './types';
+import { mapIntentToBackgroundColor, mapIntentToIconColor } from './utils';
 import {
-    FrameProps,
-    FramePropsKeys,
+    type FrameProps,
+    type FramePropsKeys,
     pickAndPrepareFrameProps,
-    withFrameProps,
 } from '../../utils/frameProps';
-import { TransientProps } from '../../utils/transientProps';
-import {
-    ExclusiveColorOrVariant,
-    Icon,
-    IconProps,
-    getColorForIconVariant,
-    getIconSize,
-} from '../Icon/Icon';
+import { Box } from '../Box/Box';
+import { Row } from '../Flex/Flex';
+import { Icon, type IconComponent } from '../Icon/Icon';
+import { Text } from '../typography/Text/Text';
+
+const SUB_CONTENT_SIZE = 14;
 
 export const allowedComponentWithSubIconFrameProps = ['margin'] as const satisfies FramePropsKeys[];
 type AllowedFrameProps = Pick<FrameProps, (typeof allowedComponentWithSubIconFrameProps)[number]>;
 
-const Container = styled.div<TransientProps<AllowedFrameProps>>`
-    position: relative;
-
-    ${withFrameProps}
-`;
-
-type SubIconWrapperProps = TransientProps<ExclusiveColorOrVariant> & {
-    $subIconColor: string;
-    $subIconSize: number;
+export type ComponentWithSubIconProps = AllowedFrameProps & {
+    icon?: IconComponent;
+    iconSize?: number;
+    children: ReactNode;
+    subContent?: ReactNode;
+    iconPadding?: SpacingValuesNew;
+    iconOffset?: SpacingValuesNew;
+    intent?: ComponentWithSubIconIntent;
 };
 
-const SubIconWrapper = styled.div<SubIconWrapperProps>`
-    width: ${spacingsPx.sm};
-    height: ${spacingsPx.sm};
-
-    display: flex;
-    justify-content: center;
-    align-items: center;
-
-    position: absolute;
-    right: -${({ $subIconSize }) => $subIconSize / 2 + 3}px;
-    top: -${({ $subIconSize }) => $subIconSize / 2 + 3}px;
-
-    background-color: ${({ theme, $variant, $color }) =>
-        getColorForIconVariant({ theme, variant: $variant, color: $color })};
-    border-radius: ${borders.radii.full};
-    border: 1px solid ${({ theme }) => theme['borderElevationNegative']};
-`;
-
-export type ComponentWithSubIconProps = AllowedFrameProps &
-    ExclusiveColorOrVariant & {
-        subIconProps?: IconProps;
-        children: ReactNode;
-    };
-
 export const ComponentWithSubIcon = ({
-    variant,
-    color,
+    intent = 'brand',
+    iconSize = 8,
+    icon,
     children,
-    subIconProps,
+    subContent,
+    iconPadding = 2,
+    iconOffset = 4,
     ...rest
 }: ComponentWithSubIconProps) => {
-    const theme = useTheme();
-    const frameProps = pickAndPrepareFrameProps(rest, allowedComponentWithSubIconFrameProps);
-
-    if (subIconProps === undefined) {
-        return <Container {...frameProps}>{children}</Container>;
-    }
-
-    const backgroundIconColor = getColorForIconVariant({
-        theme,
-        color,
-        variant,
-    });
-
-    const iconColor = getColorForIconVariant({
-        theme,
-        color: subIconProps.color,
-        variant: subIconProps.variant,
-    });
-
-    const subIconSize = getIconSize(subIconProps.size ?? 12);
+    const frameProps = pickAndPrepareFrameProps(rest, allowedComponentWithSubIconFrameProps, false);
+    const hasSubIcon = icon !== undefined || subContent !== undefined;
 
     return (
-        <Container {...frameProps}>
+        <Box width="fit-content" position={{ type: 'relative' }} {...frameProps}>
             {children}
-            <SubIconWrapper
-                $color={backgroundIconColor}
-                $subIconColor={iconColor}
-                $subIconSize={subIconSize}
-            >
-                <Icon {...subIconProps} size={subIconSize} />
-            </SubIconWrapper>
-        </Container>
+            {hasSubIcon && (
+                <Box
+                    position={{ type: 'absolute', top: iconOffset * -1, right: iconOffset * -1 }}
+                    backgroundColor={mapIntentToBackgroundColor(intent)}
+                    borderRadius={borders.radii.full}
+                    padding={icon !== undefined ? iconPadding : undefined}
+                >
+                    {icon !== undefined ? (
+                        <Icon as={icon} size={iconSize} color={mapIntentToIconColor(intent)} />
+                    ) : (
+                        <Row
+                            justifyContent="center"
+                            height={SUB_CONTENT_SIZE}
+                            minWidth={SUB_CONTENT_SIZE}
+                            padding={{ horizontal: 4 }}
+                        >
+                            <Text
+                                typographyStyle="body-xs"
+                                color={mapIntentToIconColor(intent)}
+                                textWrap="nowrap"
+                            >
+                                {subContent}
+                            </Text>
+                        </Row>
+                    )}
+                </Box>
+            )}
+        </Box>
     );
 };

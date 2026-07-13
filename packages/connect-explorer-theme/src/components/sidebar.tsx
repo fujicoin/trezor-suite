@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { createContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import cn from 'clsx';
 import { useRouter } from 'next/router';
@@ -12,14 +12,13 @@ import styled from 'styled-components';
 
 import { variables } from '@trezor/components';
 
-import { useConfig, useMenu } from '../contexts';
-import { renderComponent } from '../utils';
 import { Collapse } from './collapse';
 import { LocaleSwitch } from './locale-switch';
 import { Menu } from './menu';
-
-export const FocusedItemContext = createContext<null | string>(null);
-export const OnFocusItemContext = createContext<null | ((item: string | null) => any)>(null);
+import { useMenu } from '../contexts/menu';
+import { FocusedItemContext, OnFocusItemContext } from '../contexts/sidebar-focus';
+import { useConfig } from '../contexts/useConfig';
+import { renderComponent } from '../utils/render';
 
 const Container = styled.div`
     ${variables.SCREEN_QUERY.ABOVE_TABLET} {

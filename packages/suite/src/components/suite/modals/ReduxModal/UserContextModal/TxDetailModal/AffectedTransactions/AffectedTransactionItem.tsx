@@ -1,9 +1,12 @@
-import { WalletAccountTransaction } from '@suite-common/wallet-types';
-import { Transaction } from '@trezor/blockchain-link-types';
+import { Address } from '@suite/address';
+import { HiddenPlaceholder } from '@suite/discreet-mode';
+import { type WalletAccountTransaction } from '@suite-common/wallet-types';
+import { type Transaction } from '@trezor/blockchain-link-types';
 import { Icon, InfoSegments, Row, Text } from '@trezor/components';
+import { ArrowDownIcon, ArrowUpIcon, ClockIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { Address, FormattedDate, HiddenPlaceholder } from 'src/components/suite';
+import { FormattedDate } from 'src/components/suite/FormattedDate';
 
 type RowIcon = {
     txType: Transaction['type'];
@@ -11,9 +14,9 @@ type RowIcon = {
 };
 
 const RowIcon = ({ txType, isAccountOwned }: RowIcon) => {
-    const iconType = txType === 'recv' ? 'arrowDown' : 'arrowUp';
+    const icon = txType === 'recv' ? ArrowDownIcon : ArrowUpIcon;
 
-    return <Icon size={16} variant="disabled" name={isAccountOwned ? iconType : 'clock'} />;
+    return <Icon size={16} isDisabled={true} as={isAccountOwned ? icon : ClockIcon} />;
 };
 
 type AffectedTransactionItemProps = {
@@ -28,7 +31,7 @@ export const AffectedTransactionItem = ({ tx, isAccountOwned }: AffectedTransact
         <InfoSegments>
             {tx.blockTime && <FormattedDate value={new Date(tx.blockTime * 1000)} date time />}
 
-            <Text typographyStyle="hint" variant="tertiary">
+            <Text typographyStyle="body-sm" intent="neutral" priority="secondary">
                 <HiddenPlaceholder>
                     <Address value={tx.txid} isTruncated />
                 </HiddenPlaceholder>

@@ -1,27 +1,26 @@
 // origin: https://github.com/trezor/connect/blob/develop/src/js/core/methods/tx/refTx.js
 
-import { Assert, Type } from '@trezor/schema-utils';
-import { bufferUtils } from '@trezor/utils';
-import {
-    address as BitcoinJsAddress,
-    payments as BitcoinJsPayments,
-    Transaction as BitcoinJsTransaction,
-    Network,
-} from '@trezor/utxo-lib';
-import type {
-    TxInput as BitcoinJsInput,
-    TxOutput as BitcoinJsOutput,
-} from '@trezor/utxo-lib/src/transaction/base';
-
-import { PROTO } from '../../constants';
-import { TypedError } from '../../constants/errors';
 import type {
     AccountAddresses,
     AccountTransaction,
     BitcoinNetworkInfo,
     CoinInfo,
-} from '../../types';
-import type { RefTransaction, TransactionOptions } from '../../types/api/bitcoin';
+    RefTransaction,
+    TransactionOptions,
+} from '@trezor/connect-common';
+import { TypedError } from '@trezor/connect-common/src/constants/errors';
+import { MessagesSchema as PROTO } from '@trezor/protobuf';
+import { Assert, Type } from '@trezor/schema-utils';
+import { bufferUtils } from '@trezor/utils';
+import {
+    address as BitcoinJsAddress,
+    type TxInput as BitcoinJsInput,
+    type TxOutput as BitcoinJsOutput,
+    payments as BitcoinJsPayments,
+    Transaction as BitcoinJsTransaction,
+    type Network,
+} from '@trezor/utxo-lib';
+
 import { getHDPath, getOutputScriptType, getScriptType } from '../../utils/pathUtils';
 
 // Referenced transactions are not required if:
@@ -37,7 +36,7 @@ export const requireReferencedTransactions = (
     }
     const inputTypes = ['SPENDTAPROOT', 'EXTERNAL'];
 
-    return !!inputs.find(input => !inputTypes.find(t => t === input.script_type));
+    return inputs.some(input => !inputTypes.some(t => t === input.script_type));
 };
 
 // Get array of unique referenced transactions ids
@@ -139,7 +138,6 @@ const transformOrigTransaction = (
             script_type: getScriptType(currentInput.address_n),
             multisig: undefined, // TODO
             amount: currentInput.amount,
-            decred_tree: undefined, // TODO
             witness: tx.getWitness(i)?.toString('hex'),
             ownership_proof: undefined, // TODO
             commitment_data: undefined, // TODO
@@ -340,19 +338,17 @@ export const validateReferencedTransactions = ({
                 prev_index: input.prev_index,
                 script_sig: input.script_sig,
                 sequence: input.sequence,
-                decred_tree: input.decred_tree,
             })),
             bin_outputs: tx.bin_outputs.map(output => ({
                 amount: output.amount,
                 script_pubkey: output.script_pubkey,
-                decred_script_version: output.decred_script_version,
             })),
         };
     });
 
     // check if all required transactions defined by inputs/outputs were provided
     refTxs.concat(origTxs).forEach(hash => {
-        if (!transformedTxs.find(tx => tx.hash === hash)) {
+        if (!transformedTxs.some(tx => tx.hash === hash)) {
             throw TypedError('Method_InvalidParameter', `refTx: ${hash} not provided`);
         }
     });

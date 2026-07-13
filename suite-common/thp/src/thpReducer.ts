@@ -1,23 +1,17 @@
-import { AnyAction, isAnyOf } from '@reduxjs/toolkit';
+import { type AnyAction } from '@reduxjs/toolkit';
 
 import { createReducerWithExtraDeps } from '@suite-common/redux-utils';
-import { ThpSuiteCredentials } from '@suite-common/suite-types';
+import { type ThpSuiteCredentials } from '@suite-common/suite-types';
 import {
     DEVICE,
-    DeviceButtonRequest,
-    DeviceThpCredentialsChanged,
-    UI,
-    UiRequestConfirmation,
-    UiRequestThpPairing,
+    type DeviceThpCredentialsChanged,
+    type DeviceThpPairingStatusChanged,
+    UI_REQUEST,
 } from '@trezor/connect';
+import type { ThpCredentials } from '@trezor/protocol';
 
 import { thpActions } from './thpActions';
-
-export const THP_BUTTON_REQUESTS_NAMES = [
-    'thp_pairing_request',
-    'thp_connection_request',
-    'thp_autoconnect_credential_request',
-] as const;
+import { CONNECTION_COUNTER_LIMIT, type THP_BUTTON_REQUESTS_NAMES } from './thpConstants';
 
 export type THPButtonRequestName = (typeof THP_BUTTON_REQUESTS_NAMES)[number];
 
@@ -30,51 +24,42 @@ export type ThpStep =
     | 'ConfirmOnlyConnection'
     | 'CodeEntry'
     | 'CodeInvalid'
-    | 'AutoconnectInfo'
-    | 'Autoconnect'
     // Currently relevant only for Firmware Update / Custom Firmware & Onboarding Firmware
     | 'BeforeConnectionInfo'
     | null;
 
+export type ThpAutoconnectStep = 'AutoconnectInfo' | 'Autoconnect';
+
 export type ThpState = {
     step: ThpStep;
+    autoconnectStep: ThpAutoconnectStep | null;
     lastThpCode?: string;
     credentials: ThpSuiteCredentials[];
-    // staticKey for the application.
-    // this value is generated at first THP pairing and should never change. will be used for all future pairings
-    staticKey?: string;
+    pairingRequestId?: string;
+    confirmationRequestId?: string;
 };
 
-const initialState: ThpState = {
+export const initialThpState: ThpState = {
     step: null,
+    autoconnectStep: null,
     lastThpCode: undefined,
     credentials: [] as ThpSuiteCredentials[],
 };
 
+const addCredential = (credentials: ThpSuiteCredentials[], credential: ThpCredentials) =>
+    credentials
+        .filter(c => c.trezor_static_public_key !== credential.trezor_static_public_key)
+        .concat([{ ...credential, connectionCounter: 0 }]);
+
 export const prepareThpReducer = createReducerWithExtraDeps<ThpState>(
-    initialState,
+    initialThpState,
     (builder, extra) =>
         builder
-            .addCase(thpActions.invalidCode, state => {
-                state.step = 'CodeInvalid';
-            })
-            .addCase(thpActions.setLastThpCode, (state, { payload }) => {
-                state.lastThpCode = payload.code;
-            })
             .addCase(thpActions.showAutoconnectInfo, state => {
-                state.step = 'AutoconnectInfo';
-            })
-            .addCase(thpActions.incrementCredentialConnectionCounter, (state, { payload }) => {
-                const credentialToUpdate = state.credentials.find(
-                    it => it.credential == payload.credential.credential,
-                );
-
-                if (credentialToUpdate !== undefined) {
-                    credentialToUpdate.connectionCounter = credentialToUpdate.connectionCounter + 1;
-                }
+                state.autoconnectStep = 'AutoconnectInfo';
             })
             .addCase(thpActions.addCredential, (state, { payload }) => {
-                state.credentials.push({ ...payload.credential, connectionCounter: 0 });
+                state.credentials = addCredential(state.credentials, payload.credential);
             })
             .addCase(thpActions.removeCredentials, (state, { payload }) => {
                 state.credentials = state.credentials.filter(
@@ -85,29 +70,66 @@ export const prepareThpReducer = createReducerWithExtraDeps<ThpState>(
                         ),
                 );
             })
-            .addMatcher(isAnyOf(thpActions.finishThpFlow, thpActions.cancelThpFlow), state => {
+            .addCase(thpActions.removeAllCredentials, state => {
+                state.credentials = [];
+            })
+            .addCase(thpActions.finishThpFlow, state => {
                 state.step = null;
             })
+            .addCase(thpActions.finishAutoconnectFlow, state => {
+                state.autoconnectStep = null;
+            })
             .addMatcher(
-                action => action.type === UI.REQUEST_THP_PAIRING,
-                state => {
+                action => action.type === UI_REQUEST.REQUEST_THP_PAIRING,
+                (state, action: { type: string; requestId?: string }) => {
                     state.step = 'CodeEntry';
+                    state.pairingRequestId = action.requestId;
                 },
             )
             .addMatcher(
                 action => action.type === DEVICE.THP_CREDENTIALS_CHANGED,
                 (state, action: DeviceThpCredentialsChanged) => {
-                    const { credentials, staticKey } = action.payload;
+                    const { credentials } = action.payload;
 
-                    state.credentials.push({
-                        ...credentials,
-                        connectionCounter: 0,
-                    });
-                    state.staticKey = staticKey;
+                    state.credentials = addCredential(state.credentials, credentials);
                 },
             )
             .addMatcher(
-                action => action.type === UI.REQUEST_BUTTON,
+                action => action.type === DEVICE.THP_PAIRING_STATUS_CHANGED,
+                (state, action: DeviceThpPairingStatusChanged) => {
+                    const { payload } = action;
+                    if (payload.status === 'finished') {
+                        state.step = null;
+                        state.lastThpCode = undefined;
+
+                        // find credential and increment connectionCounter or set autoconnectStep
+                        const credential = state.credentials.find(stateCredential =>
+                            payload.device.thp?.credentials.some(
+                                deviceCredential =>
+                                    deviceCredential.credential === stateCredential.credential,
+                            ),
+                        );
+                        if (
+                            credential &&
+                            !credential.autoconnect &&
+                            credential.connectionCounter < CONNECTION_COUNTER_LIMIT
+                        ) {
+                            credential.connectionCounter += 1;
+                            if (credential.connectionCounter === CONNECTION_COUNTER_LIMIT) {
+                                state.autoconnectStep = 'AutoconnectInfo';
+                            }
+                        }
+                    } else if (payload.status === 'invalid-tag') {
+                        state.step = 'CodeInvalid';
+                        state.lastThpCode = payload.tag;
+                    } else if (payload.status === 'canceled' || payload.status === 'failed') {
+                        state.step = null;
+                        state.lastThpCode = undefined;
+                    }
+                },
+            )
+            .addMatcher(
+                action => action.type === UI_REQUEST.REQUEST_BUTTON,
                 (state, action: AnyAction) => {
                     const actionName: THPButtonRequestName = action.payload.name;
                     switch (actionName) {
@@ -118,44 +140,25 @@ export const prepareThpReducer = createReducerWithExtraDeps<ThpState>(
                             state.step = 'ConfirmOnlyConnection';
                             break;
                         case 'thp_autoconnect_credential_request':
-                            state.step = 'Autoconnect';
+                            state.autoconnectStep = 'Autoconnect';
                             break;
                     }
                 },
             )
             // This is the THP flow in Firmware Update
-            .addMatcher<DeviceButtonRequest | UiRequestThpPairing | UiRequestConfirmation>(
-                action => action.type === UI.REQUEST_CONFIRMATION || action.type === DEVICE.BUTTON,
-                (state, action) => {
-                    // The THP device is ready for pairing, wait for user action
-                    if (action.type === UI.REQUEST_CONFIRMATION) {
-                        if (action.payload.view === 'thp-pairing-start') {
-                            state.step = 'BeforeConnectionInfo';
-                        }
-                        if (action.payload.view === 'thp-pairing-failed') {
-                            state.step = 'CodeInvalid';
-                        }
+            .addMatcher(
+                action => action.type === UI_REQUEST.REQUEST_CONFIRMATION,
+                (state, action: { type: string; requestId?: string }) => {
+                    if (state.step !== 'CodeInvalid') {
+                        state.step = 'BeforeConnectionInfo';
                     }
-
-                    // Handle button requests in the THP pairing
-                    if (action.type === DEVICE.BUTTON) {
-                        if (action.payload.name === 'thp_pairing_request') {
-                            state.step = 'ConfirmConnectionBeforePairing';
-                        }
-                        if (action.payload.name === 'thp_connection_request') {
-                            state.step = 'ConfirmOnlyConnection';
-                        }
-                        if (action.payload.name === 'thp_autoconnect_credential_request') {
-                            state.step = 'Autoconnect';
-                        }
-                    }
+                    state.confirmationRequestId = action.requestId;
                 },
             )
             .addMatcher(
                 action => action.type === extra.actionTypes.storageLoad,
                 (state, action: AnyAction) => {
                     state.credentials = action.payload.thp?.credentials ?? [];
-                    state.staticKey = action.payload.thp?.staticKey;
                 },
             ),
 );

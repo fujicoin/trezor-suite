@@ -1,23 +1,26 @@
-import { JSX, ReactNode, useCallback, useEffect, useMemo } from 'react';
-
-import { AppUpdateEventStatus, EventType, analytics } from '@trezor/suite-analytics';
-import { desktopApi } from '@trezor/suite-desktop-api';
+import { type JSX, useCallback, useEffect } from 'react';
 
 import {
-    allowPrerelease,
-    available,
-    checking,
-    downloading,
-    error,
-    notAvailable,
-    ready,
-    setAutomaticUpdates,
-    setUpdateModalVisibility,
-} from 'src/actions/suite/desktopUpdateActions';
+    AppUpdateEventStatus,
+    asTypedDesktopAnalytics,
+    events,
+    selectDesktopAnalyticsDep,
+} from '@suite/analytics';
+import {
+    UpdateState,
+    availableThunk,
+    desktopUpdateActions,
+    errorThunk,
+    getAppUpdatePayload,
+    notAvailableThunk,
+    readyThunk,
+    selectDesktopUpdate,
+} from '@suite/desktop-update';
+import { useServices } from '@suite-common/dependency-injection';
+import { desktopApi } from '@trezor/suite-desktop-api';
+import { isArrayMember } from '@trezor/utils';
+
 import { useDispatch, useSelector } from 'src/hooks/suite';
-import { UpdateState, selectDesktopUpdate } from 'src/reducers/suite/desktopUpdateReducer';
-import { ModalContextProvider } from 'src/support/suite/ModalContext';
-import { getAppUpdatePayload } from 'src/utils/suite/analytics';
 
 import { Available } from './DesktopUpdater/Available';
 import { Downloading } from './DesktopUpdater/Downloading';
@@ -26,80 +29,93 @@ import { EarlyAccessEnable } from './DesktopUpdater/EarlyAccessEnable';
 import { JustUpdated } from './DesktopUpdater/JustUpdated';
 import { Ready } from './DesktopUpdater/Ready';
 
-interface DesktopUpdaterProps {
-    children: ReactNode;
-}
+// incidentally the same UI is used, but if they diverge in the future, we can change it here
+const VersionInfoModal = JustUpdated;
 
-export const DesktopUpdater = ({ children }: DesktopUpdaterProps) => {
+const alwaysOpenStates = [
+    // Allow to open Early Access model even after updater error (when desktopUpdate.latest is undefined).
+    UpdateState.EarlyAccessDisable,
+    UpdateState.EarlyAccessEnable,
+    // JustUpdated is also always open, because closing it advances the state
+    UpdateState.JustUpdated,
+] satisfies UpdateState[];
+
+export const DesktopUpdater = () => {
     const dispatch = useDispatch();
     const desktopUpdate = useSelector(selectDesktopUpdate);
-
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const desktopUpdateState = desktopUpdate.state;
 
     useEffect(() => {
-        desktopApi.on('update/allow-prerelease', params => dispatch(allowPrerelease(params)));
+        desktopApi.on('update/allow-prerelease', params =>
+            dispatch(desktopUpdateActions.allowPrerelease(params)),
+        );
         desktopApi.on('update/set-automatic-update-enabled', isEnabled =>
-            dispatch(setAutomaticUpdates({ isEnabled })),
+            dispatch(desktopUpdateActions.setAutomaticUpdates({ isEnabled })),
         );
 
-        if (!desktopUpdate.enabled) {
-            return;
+        let checkForUpdatesInterval: ReturnType<typeof setInterval> | undefined;
+
+        if (desktopUpdate.enabled) {
+            desktopApi.on('update/checking', () => dispatch(desktopUpdateActions.checking()));
+            desktopApi.on('update/available', params => dispatch(availableThunk(params)));
+            desktopApi.on('update/not-available', params => dispatch(notAvailableThunk(params)));
+            desktopApi.on('update/downloaded', params => dispatch(readyThunk(params)));
+            desktopApi.on('update/downloading', params =>
+                dispatch(desktopUpdateActions.downloading(params)),
+            );
+            desktopApi.on('update/error', () => dispatch(errorThunk()));
+
+            // Initial check for updates
+            desktopApi.checkForUpdates({ isManual: false });
+            // Check for updates every hour
+            checkForUpdatesInterval = setInterval(
+                () => {
+                    desktopApi.checkForUpdates({ isManual: false });
+                },
+                60 * 60 * 1000,
+            );
         }
 
-        desktopApi.on('update/checking', () => dispatch(checking()));
-        desktopApi.on('update/available', params => dispatch(available(params)));
-        desktopApi.on('update/not-available', params => dispatch(notAvailable(params)));
-        desktopApi.on('update/downloaded', params => dispatch(ready(params)));
-        desktopApi.on('update/downloading', params => dispatch(downloading(params)));
-        desktopApi.on('update/error', params => dispatch(error(params)));
-
-        // Initial check for updates
-        desktopApi.checkForUpdates({ isManual: false });
-        // Check for updates every hour
-        const checkForUpdatesInterval = setInterval(
-            () => {
-                desktopApi.checkForUpdates({ isManual: false });
-            },
-            60 * 60 * 1000,
-        );
-
-        return () => clearInterval(checkForUpdatesInterval);
+        return () => {
+            clearInterval(checkForUpdatesInterval);
+            desktopApi.removeAllListeners('update/allow-prerelease');
+            desktopApi.removeAllListeners('update/set-automatic-update-enabled');
+            desktopApi.removeAllListeners('update/checking');
+            desktopApi.removeAllListeners('update/available');
+            desktopApi.removeAllListeners('update/not-available');
+            desktopApi.removeAllListeners('update/downloaded');
+            desktopApi.removeAllListeners('update/downloading');
+            desktopApi.removeAllListeners('update/error');
+        };
     }, [desktopUpdate.enabled, dispatch]);
 
     const hideWindow = useCallback(() => {
-        dispatch(setUpdateModalVisibility('hidden'));
+        dispatch(desktopUpdateActions.setIsUpdateModalVisible(false));
 
         const payload = getAppUpdatePayload({
             status: AppUpdateEventStatus.Closed,
             earlyAccessProgram: desktopUpdate.allowPrerelease,
             updateInfo: desktopUpdate.latest,
         });
-        analytics.report({
-            type: EventType.AppUpdate,
+
+        asTypedDesktopAnalytics(analytics).report({
+            type: events.appUpdateEvent.name,
             payload,
         });
-    }, [dispatch, desktopUpdate.allowPrerelease, desktopUpdate.latest]);
+    }, [dispatch, desktopUpdate.allowPrerelease, desktopUpdate.latest, analytics]);
 
-    const isVisible = useMemo(() => {
-        // Not displayed as a modal
-        if (desktopUpdate.modalVisibility !== 'maximized') {
-            return false;
-        }
+    const hideVersionInfoModal = () => {
+        dispatch(desktopUpdateActions.setIsVersionInfoModalVisible(false));
+    };
 
-        // Non visible states
-        if ([UpdateState.Checking, UpdateState.NotAvailable].includes(desktopUpdateState)) {
-            return false;
-        }
+    if (desktopUpdate.isVersionInfoModalVisible) {
+        return <VersionInfoModal onCancel={hideVersionInfoModal} />;
+    }
 
-        const isHackyModalOpen = [
-            UpdateState.EarlyAccessDisable,
-            UpdateState.EarlyAccessEnable,
-            UpdateState.JustUpdated,
-        ].includes(desktopUpdateState);
-
-        // Enable to setup Early Access even after updater error (when desktopUpdate.latest is undefined).
-        return isHackyModalOpen || desktopUpdate.latest !== undefined;
-    }, [desktopUpdate.modalVisibility, desktopUpdateState, desktopUpdate.latest]);
+    const isUpdateInfoAvailable = desktopUpdate.latest !== undefined;
+    const isAlwaysOpenState = isArrayMember(desktopUpdateState, alwaysOpenStates);
+    const isVisible = desktopUpdate.isModalVisible && (isAlwaysOpenState || isUpdateInfoAvailable);
 
     const updateModalMap: Record<UpdateState, JSX.Element | null> = {
         'early-access-disable': <EarlyAccessDisable hideWindow={hideWindow} />,
@@ -112,10 +128,7 @@ export const DesktopUpdater = ({ children }: DesktopUpdaterProps) => {
         ready: <Ready hideWindow={hideWindow} />,
     };
 
-    return (
-        <>
-            {isVisible && updateModalMap[desktopUpdateState]}
-            <ModalContextProvider isDisabled={isVisible}>{children}</ModalContextProvider>
-        </>
-    );
+    if (!isVisible) return null;
+
+    return updateModalMap[desktopUpdateState];
 };

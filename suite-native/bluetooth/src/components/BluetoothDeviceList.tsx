@@ -1,7 +1,7 @@
 import { TitleHeader, VStack } from '@suite-native/atoms';
-import { Translation, TxKeyPath } from '@suite-native/intl';
+import { Translation, type TxKeyPath } from '@suite-native/intl';
 
-import { BluetoothDevice } from '../types';
+import { type BluetoothDevice } from '../types';
 import { BluetoothDeviceCard } from './BluetoothDeviceCard';
 
 type Variant = 'connect' | 'remove';
@@ -41,7 +41,7 @@ export const BluetoothDeviceList = ({
                 <TitleHeader
                     title={<Translation id={title} />}
                     subtitle={<Translation id={subtitle} />}
-                    titleVariant="titleMedium"
+                    titleVariant="headline-md"
                     titleSpacing="sp12"
                 />
                 <VStack spacing="sp16">

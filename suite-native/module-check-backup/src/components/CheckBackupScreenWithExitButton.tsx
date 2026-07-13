@@ -2,18 +2,19 @@ import { useCallback } from 'react';
 
 import { useNavigation, useRoute } from '@react-navigation/native';
 
+import { useServices } from '@suite-common/dependency-injection';
 import { useAlert } from '@suite-native/alerts';
-import { EventType, analytics } from '@suite-native/analytics';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { useTranslate } from '@suite-native/intl';
 import {
-    DeviceCheckBackupStackParamList,
-    DeviceCheckBackupStackRoutes,
-    DeviceSettingsStackParamList,
+    type DeviceCheckBackupStackParamList,
+    type DeviceCheckBackupStackRoutes,
+    type DeviceSettingsStackParamList,
     DeviceSettingsStackRoutes,
     Screen,
     ScreenHeader,
-    ScreenProps,
-    StackToStackCompositeNavigationProps,
+    type ScreenProps,
+    type StackToStackCompositeNavigationProps,
     useOverrideBackNavigation,
 } from '@suite-native/navigation';
 import TrezorConnect from '@trezor/connect';
@@ -31,6 +32,7 @@ type NavigationProps = StackToStackCompositeNavigationProps<
 export const useHandleCheckBackupExitButtonPress = () => {
     const { showAlert } = useAlert();
     const { translate } = useTranslate();
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const navigation = useNavigation<NavigationProps>();
     const route = useRoute();
 
@@ -39,21 +41,21 @@ export const useHandleCheckBackupExitButtonPress = () => {
             title: translate('moduleCheckBackup.cancelAlert.title'),
             description: translate('moduleCheckBackup.cancelAlert.description'),
             primaryButtonTitle: translate('moduleCheckBackup.cancelAlert.primaryButton'),
-            primaryButtonVariant: 'redBold',
+            primaryButtonColorProps: { intent: 'critical', priority: 'primary' },
             secondaryButtonTitle: translate('moduleCheckBackup.cancelAlert.secondaryButton'),
-            secondaryButtonVariant: 'redElevation0',
+            secondaryButtonColorProps: { intent: 'critical', priority: 'secondary' },
             onPressPrimaryButton: () => {
                 analytics.report({
-                    type: EventType.DeviceSettingsCheckBackupExited,
+                    type: events.deviceSettingsCheckBackupExitedEvent.name,
                     payload: {
                         location: route.name,
                     },
                 });
                 TrezorConnect.cancel();
-                navigation.popTo(DeviceSettingsStackRoutes.DeviceSettings);
+                navigation.popTo(DeviceSettingsStackRoutes.DeviceBackupAndPassphrase);
             },
         });
-    }, [navigation, showAlert, translate, route.name]);
+    }, [showAlert, translate, analytics, route.name, navigation]);
 
     return handleExitButtonPress;
 };

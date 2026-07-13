@@ -1,15 +1,17 @@
-import { SkippedHashCheckError } from '@suite-common/firmware-authenticity';
-import { TranslationKey } from '@suite-common/intl-types';
-import { selectWasFwHashCheckOtherErrorLastTime } from '@suite-common/wallet-core';
-import { Card } from '@trezor/components';
-import { FirmwareHashCheckError } from '@trezor/connect';
-
-import { useSelector } from 'src/hooks/suite';
 import {
     selectFirmwareHashCheckErrorIfEnabled,
     selectFirmwareRevisionCheckErrorIfEnabled,
+    selectIsDeviceIdCheckEnabledAndFailed,
+    selectIsDeviceInvariabilityEnabledAndFailed,
     selectIsEntropyCheckEnabledAndFailed,
-} from 'src/selectors/suite/suiteAuthenticityChecksSelectors';
+} from '@suite/authenticity-checks';
+import { type TranslationKey } from '@suite/intl';
+import { selectWasFwHashCheckOtherErrorLastTime } from '@suite-common/device';
+import { type SkippedHashCheckError } from '@suite-common/firmware-authenticity';
+import { Card } from '@trezor/components';
+import { type FirmwareHashCheckError } from '@trezor/connect';
+
+import { useSelector } from 'src/hooks/suite';
 
 import { SecurityCheckFail } from './SecurityCheckFail';
 import { hardFailureChecklistItems, softFailureChecklistItems } from './checklistItems';
@@ -17,6 +19,7 @@ import {
     DismissFwAuthenticityCheckButton,
     EntropyCheckSupportButton,
     FwAuthencityChecksCtas,
+    FwAuthenticityCheckSupportButton,
 } from './deviceCompromisedCtas';
 import { WelcomeLayout } from '../layouts/WelcomeLayout/WelcomeLayout';
 
@@ -30,11 +33,35 @@ const hashCheckSubtitleMap: Record<
 };
 
 const DeviceCompromisedContent = () => {
+    const isIdCheckFailure = useSelector(selectIsDeviceIdCheckEnabledAndFailed);
+    const isInvariabilityCheckFailure = useSelector(selectIsDeviceInvariabilityEnabledAndFailed);
     const revisionCheckError = useSelector(selectFirmwareRevisionCheckErrorIfEnabled);
     const hashCheckError = useSelector(selectFirmwareHashCheckErrorIfEnabled);
     const isEntropyCheckFailed = useSelector(selectIsEntropyCheckEnabledAndFailed);
     const wasHashCheckOtherErrorLastTime = useSelector(selectWasFwHashCheckOtherErrorLastTime);
 
+    // this check is only a precaution, not expected to be seen often. This one cannot be dismissed (need id to register dismissal)
+    if (isIdCheckFailure) {
+        return (
+            <SecurityCheckFail
+                ctaSection={<FwAuthenticityCheckSupportButton />}
+                heading="TR_DEVICE_COMPROMISED_HEADING"
+                text="TR_DEVICE_COMPROMISED_INVALID_ID_TEXT"
+                checklistItems={hardFailureChecklistItems}
+            />
+        );
+    }
+    // this check is only a precaution, not expected to be seen often
+    if (isInvariabilityCheckFailure) {
+        return (
+            <SecurityCheckFail
+                ctaSection={<FwAuthencityChecksCtas />}
+                heading="TR_DEVICE_COMPROMISED_HEADING"
+                text="TR_DEVICE_COMPROMISED_INVARIABILITY_CHECK_FAILED_TEXT"
+                checklistItems={hardFailureChecklistItems}
+            />
+        );
+    }
     if (isEntropyCheckFailed) {
         return (
             <SecurityCheckFail
@@ -96,8 +123,8 @@ const DeviceCompromisedContent = () => {
 };
 
 export const DeviceCompromised = () => (
-    <WelcomeLayout>
-        <Card data-testid="@device-compromised">
+    <WelcomeLayout showAccounts={false}>
+        <Card data-testid="@device-compromised" paddingType="large">
             <DeviceCompromisedContent />
         </Card>
     </WelcomeLayout>

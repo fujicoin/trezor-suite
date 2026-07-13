@@ -2,29 +2,30 @@ import { useState } from 'react';
 
 import { isFulfilled } from '@reduxjs/toolkit';
 
+import { selectDesktopAnalyticsDep } from '@suite/analytics';
+import { useDevice } from '@suite/device';
+import { Translation } from '@suite/intl';
+import { events } from '@suite-common/analytics';
+import { useServices } from '@suite-common/dependency-injection';
 import { wipeDeviceThunk } from '@suite-common/wallet-core';
-import { Card, Column, H3, Modal, Paragraph } from '@trezor/components';
+import { Button, Column, Modal } from '@trezor/components';
 import { isDeviceInBootloaderMode } from '@trezor/device-utils';
-import { EventType, analytics } from '@trezor/suite-analytics';
-import { spacings } from '@trezor/theme';
+import { NewspaperIcon, TrashIcon } from '@trezor/icons';
+import { StepCard } from '@trezor/product-components';
 
-import * as routerActions from 'src/actions/suite/routerActions';
-import { CheckItem, Translation } from 'src/components/suite';
-import { useDevice, useDispatch, useSelector } from 'src/hooks/suite';
-import { selectRouterApp } from 'src/reducers/suite/routerReducer';
+import { useDispatch } from 'src/hooks/suite';
 
 type WipeDeviceModalProps = {
     onCancel: () => void;
 };
 
 export const WipeDeviceModal = ({ onCancel }: WipeDeviceModalProps) => {
-    const [checkbox1, setCheckbox1] = useState(false);
-    const [checkbox2, setCheckbox2] = useState(false);
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
     const [isLoading, setIsLoading] = useState(false);
+    const [isConfirmed, setIsConfirmed] = useState(false);
 
     const { device, isLocked } = useDevice();
     const dispatch = useDispatch();
-    const appRoute = useSelector(selectRouterApp);
 
     const isBootloaderMode = isDeviceInBootloaderMode(device);
 
@@ -34,12 +35,9 @@ export const WipeDeviceModal = ({ onCancel }: WipeDeviceModalProps) => {
 
         if (isFulfilled(response)) {
             analytics.report({
-                type: EventType.SettingsDeviceWipe,
+                type: events.settingsDeviceWipeEvent.name,
             });
-            if (appRoute === 'settings') {
-                // redirect to the index to close the settings and show initial device setup
-                dispatch(routerActions.goto('suite-index'));
-            }
+            onCancel();
         }
 
         setIsLoading(false);
@@ -57,56 +55,70 @@ export const WipeDeviceModal = ({ onCancel }: WipeDeviceModalProps) => {
     return (
         <Modal
             onCancel={handleCancel}
-            variant="destructive"
-            iconName="shieldWarning"
-            size="small"
-            bottomContent={
-                <>
-                    <Modal.Button
-                        variant="destructive"
-                        onClick={handleWipeDevice}
-                        isLoading={isLoading}
-                        isDisabled={isLocked() || !checkbox1 || !checkbox2}
-                        data-testid="@wipe/wipe-button"
-                    >
-                        <Translation id={headingTranslation} />
-                    </Modal.Button>
-                    <Modal.Button variant="tertiary" onClick={handleCancel}>
-                        <Translation id="TR_CANCEL" />
-                    </Modal.Button>
-                </>
-            }
+            heading={<Translation id={headingTranslation} />}
+            description={<Translation id="TR_WIPE_DEVICE_MODAL_PROCEED_WITH_CAUTION" />}
+            intent="critical"
+            width={600}
         >
-            <H3>
-                <Translation id={headingTranslation} />
-            </H3>
-            <Paragraph variant="tertiary" margin={{ top: spacings.xs }}>
-                <Translation
-                    id={
-                        isBootloaderMode
-                            ? 'TR_FACTORY_RESET_MODAL_DESCRIPTION'
-                            : 'TR_WIPE_DEVICE_MODAL_DESCRIPTION'
+            <Column gap={16}>
+                <StepCard
+                    heading={<Translation id="TR_WIPE_DEVICE_ERASE_ALL_DATA" />}
+                    description={<Translation id="TR_WIPE_DEVICE_ERASE_ALL_DATA_DESCRIPTION" />}
+                    actions={
+                        <>
+                            <Button
+                                intent="critical"
+                                onClick={() => setIsConfirmed(true)}
+                                isLoading={isLoading}
+                                isDisabled={isLocked()}
+                                data-testid="@wipe/wipe-button"
+                                size="large"
+                            >
+                                <Translation id="TR_I_UNDERSTAND_THE_RISK" />
+                            </Button>
+
+                            <Button
+                                intent="neutral"
+                                priority="secondary"
+                                size="large"
+                                onClick={handleCancel}
+                            >
+                                <Translation id="TR_GO_BACK" />
+                            </Button>
+                        </>
                     }
+                    icon={TrashIcon}
+                    state={isConfirmed ? 'confirmed' : 'default'}
                 />
-            </Paragraph>
-            <Card margin={{ top: spacings.lg }}>
-                <Column gap={spacings.md} alignItems="center">
-                    <CheckItem
-                        title={<Translation id="TR_WIPE_DEVICE_CHECKBOX_1_TITLE" />}
-                        description={<Translation id="TR_WIPE_DEVICE_CHECKBOX_1_DESCRIPTION" />}
-                        isChecked={checkbox1}
-                        onClick={() => setCheckbox1(!checkbox1)}
-                        data-testid="@wipe/checkbox-1"
-                    />
-                    <CheckItem
-                        title={<Translation id="TR_WIPE_DEVICE_CHECKBOX_2_TITLE" />}
-                        description={<Translation id="TR_WIPE_DEVICE_CHECKBOX_2_DESCRIPTION" />}
-                        isChecked={checkbox2}
-                        onClick={() => setCheckbox2(!checkbox2)}
-                        data-testid="@wipe/checkbox-2"
-                    />
-                </Column>
-            </Card>
+                <StepCard
+                    heading={<Translation id="TR_WIPE_DEVICE_WALLET_BACKUP" />}
+                    description={<Translation id="TR_WIPE_DEVICE_WALLET_BACKUP_DESCRIPTION" />}
+                    actions={
+                        <>
+                            <Button
+                                intent="critical"
+                                onClick={handleWipeDevice}
+                                isLoading={isLoading}
+                                isDisabled={isLocked()}
+                                data-testid="@wipe/wipe-button"
+                                size="large"
+                            >
+                                <Translation id="TR_I_UNDERSTAND_THE_RISK" />
+                            </Button>
+                            <Button
+                                intent="neutral"
+                                priority="secondary"
+                                onClick={() => setIsConfirmed(false)}
+                                size="large"
+                            >
+                                <Translation id="TR_GO_BACK" />
+                            </Button>
+                        </>
+                    }
+                    icon={NewspaperIcon}
+                    state={isConfirmed ? 'default' : 'pending'}
+                />
+            </Column>
         </Modal>
     );
 };

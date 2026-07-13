@@ -7,22 +7,33 @@
     "main": "src/index",
     "scripts": {
         "depcheck": "yarn g:depcheck",
-        "type-check": "yarn g:tsc --build"
+        "type-check": "yarn g:tsc --build",
+        "lint:js": "yarn g:eslint '**/*.{ts,tsx,js}'"
     },
     "dependencies": {
-        "@reduxjs/toolkit": "2.8.2",
-        "@reown/walletkit": "^1.2.8",
+        "@reduxjs/toolkit": "2.12.0",
+        "@reown/walletkit": "^1.5.5",
+        "@scure/base": "^2.0.0",
         "@suite-common/analytics": "workspace:*",
         "@suite-common/connect-popup": "workspace:*",
+        "@suite-common/device": "workspace:*",
+        "@suite-common/mev": "workspace:*",
         "@suite-common/redux-utils": "workspace:*",
+        "@suite-common/suite-utils": "workspace:*",
+        "@suite-common/toast-notifications": "workspace:*",
         "@suite-common/wallet-config": "workspace:*",
+        "@suite-common/wallet-constants": "workspace:*",
         "@suite-common/wallet-core": "workspace:*",
         "@suite-common/wallet-types": "workspace:*",
+        "@suite-common/wallet-utils": "workspace:*",
+        "@trezor/coins-stellar": "workspace:*",
         "@trezor/connect": "workspace:*",
+        "@trezor/connect-common": "workspace:*",
         "@trezor/env-utils": "workspace:*",
+        "@trezor/type-utils": "workspace:^",
         "@trezor/utils": "workspace:*",
-        "@walletconnect/core": "^2.21.5",
-        "@walletconnect/utils": "^2.21.5",
-        "bs58": "^6.0.0"
+        "@walletconnect/core": "^2.23.9",
+        "@walletconnect/types": "^2.23.9",
+        "@walletconnect/utils": "^2.23.9"
     }
 }

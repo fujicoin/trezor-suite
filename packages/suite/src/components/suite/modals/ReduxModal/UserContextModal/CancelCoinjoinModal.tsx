@@ -1,11 +1,12 @@
+import { selectSelectedAccount } from '@suite/account';
+import { stopCoinjoinSession } from '@suite/coinjoin';
+import { Translation } from '@suite/intl';
 import { Column, H3, Modal, Paragraph } from '@trezor/components';
+import { ArrowsInIcon } from '@trezor/icons';
 import { spacings } from '@trezor/theme';
 
-import { stopCoinjoinSession } from 'src/actions/wallet/coinjoinClientActions';
-import { Translation } from 'src/components/suite';
 import { useDispatch } from 'src/hooks/suite';
 import { useSelector } from 'src/hooks/suite/useSelector';
-import { selectSelectedAccount } from 'src/reducers/wallet/selectedAccountReducer';
 
 type CancelCoinjoinModalProps = {
     onClose: () => void;
@@ -23,9 +24,9 @@ export const CancelCoinjoinModal = ({ onClose }: CancelCoinjoinModalProps) => {
     return (
         <Modal
             onCancel={onClose}
-            variant="warning"
-            iconName="arrowsIn"
-            size="small"
+            intent="warning"
+            icon={ArrowsInIcon}
+            width={600}
             bottomContent={
                 <>
                     <Modal.Button
@@ -36,7 +37,7 @@ export const CancelCoinjoinModal = ({ onClose }: CancelCoinjoinModalProps) => {
                     >
                         <Translation id="TR_CANCEL_COINJOIN_YES" />
                     </Modal.Button>
-                    <Modal.Button variant="tertiary" onClick={onClose}>
+                    <Modal.Button intent="neutral" priority="secondary" onClick={onClose}>
                         <Translation id="TR_CANCEL_COINJOIN_NO" />
                     </Modal.Button>
                 </>
@@ -46,7 +47,7 @@ export const CancelCoinjoinModal = ({ onClose }: CancelCoinjoinModalProps) => {
                 <H3>
                     <Translation id="TR_CANCEL_COINJOIN" />
                 </H3>
-                <Paragraph variant="tertiary">
+                <Paragraph intent="neutral" priority="secondary">
                     <Translation id="TR_CANCEL_COINJOIN_QUESTION" />
                 </Paragraph>
             </Column>

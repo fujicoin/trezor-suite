@@ -4,11 +4,11 @@ import { Box, Button, Card, CenteredTitleHeader, TextDivider, VStack } from '@su
 import { EmptyWalletSvg } from '@suite-native/device';
 import { Translation } from '@suite-native/intl';
 import {
-    DeviceOnboardingStackParamList,
+    type DeviceOnboardingStackParamList,
     DeviceOnboardingStackRoutes,
-    StackProps,
+    type StackProps,
 } from '@suite-native/navigation';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { updateOnboardingAnalyticsAtom } from '../../atoms';
 import { DeviceOnboardingScreenWithExitButton } from '../components/DeviceOnboardingScreenWithExitButton';
@@ -16,7 +16,7 @@ import { DeviceOnboardingScreenWithExitButton } from '../components/DeviceOnboar
 const cardStyle = prepareNativeStyle(utils => ({
     flex: 1,
     borderWidth: utils.borders.widths.small,
-    borderColor: utils.colors.borderOnElevation1,
+    borderColor: utils.colors.borderNeutral,
 }));
 
 export const CreateOrRecoverCrossroadsScreen = ({
@@ -53,7 +53,7 @@ export const CreateOrRecoverCrossroadsScreen = ({
                         </Box>
                         <VStack spacing="sp16">
                             <CenteredTitleHeader
-                                titleVariant="highlight"
+                                titleVariant="body-md-strong"
                                 titleSpacing="sp4"
                                 title={
                                     <Translation id="moduleDeviceOnboarding.createOrRecoverCrossroadsScreen.create.title" />
@@ -75,7 +75,7 @@ export const CreateOrRecoverCrossroadsScreen = ({
                     <TextDivider />
                     <VStack spacing="sp16" paddingHorizontal="sp16">
                         <CenteredTitleHeader
-                            titleVariant="highlight"
+                            titleVariant="body-md-strong"
                             titleSpacing="sp4"
                             title={
                                 <Translation id="moduleDeviceOnboarding.createOrRecoverCrossroadsScreen.recover.title" />
@@ -87,7 +87,8 @@ export const CreateOrRecoverCrossroadsScreen = ({
                         <Button
                             onPress={handleRecoverButtonPress}
                             testID="@deviceOnboarding/CreateOrRecoverCrossroadsScreen/recoverWalletBtn"
-                            colorScheme="tertiaryElevation0"
+                            intent="neutral"
+                            priority="secondary"
                         >
                             <Translation id="moduleDeviceOnboarding.createOrRecoverCrossroadsScreen.recover.button" />
                         </Button>

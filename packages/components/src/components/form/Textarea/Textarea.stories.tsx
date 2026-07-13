@@ -1,14 +1,15 @@
-import { ChangeEventHandler } from 'react';
+import { type ChangeEventHandler } from 'react';
 
-import { Meta, StoryObj } from '@storybook/react';
+import { type Meta, type StoryObj } from '@storybook/react';
 import { useArgs } from 'storybook/preview-api';
 
-import { Textarea as TextareaComponent, TextareaProps } from './Textarea';
+import { Textarea as TextareaComponent, allowedTextareaFrameProps } from './Textarea';
+import { getFramePropsStory } from '../../../utils/frameProps';
 
-const meta: Meta = {
-    title: 'Form',
+const meta: Meta<typeof TextareaComponent> = {
+    title: '✏️ Form',
     component: TextareaComponent,
-} as Meta;
+};
 export default meta;
 
 const Component = ({ ...args }) => {
@@ -20,21 +21,22 @@ const Component = ({ ...args }) => {
     return <TextareaComponent value={value} onChange={handleChange} {...args} />;
 };
 
-export const Textarea: StoryObj<TextareaProps> = {
+export const Textarea: StoryObj<typeof meta> = {
     render: Component,
     args: {
         isDisabled: false,
+        hasError: false,
         label: 'Label',
         rows: 5,
         maxLength: 500,
         characterCount: true,
+        ...getFramePropsStory(allowedTextareaFrameProps).args,
     },
     argTypes: {
         isDisabled: {
-            control: {
-                type: 'boolean',
-            },
+            control: 'boolean',
         },
+        hasError: { control: 'boolean' },
         label: {
             control: 'text',
         },
@@ -84,6 +86,6 @@ export const Textarea: StoryObj<TextareaProps> = {
                 },
             },
         },
-        inputState: { control: 'select', options: ['error', 'warning', 'primary'] },
+        ...getFramePropsStory(allowedTextareaFrameProps).argTypes,
     },
 };

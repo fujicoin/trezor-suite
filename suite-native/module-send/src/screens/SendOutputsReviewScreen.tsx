@@ -1,37 +1,31 @@
-import { useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 
-import { useNavigation } from '@react-navigation/native';
-
-import {
-    AccountsRootState,
-    cancelSignSendFormTransactionThunk,
-    selectAccountByKey,
-} from '@suite-common/wallet-core';
+import { type AccountsRootState, selectAccountByKey } from '@suite-common/wallet-core';
 import { Box, VStack } from '@suite-native/atoms';
-import { ConfirmOnTrezorWrapper, useConfirmOnTrezorController } from '@suite-native/device';
+import {
+    ConfirmOnTrezorWrapper,
+    useConfirmOnTrezorController,
+} from '@suite-native/confirm-on-trezor';
 import { Translation } from '@suite-native/intl';
 import {
-    RootStackParamList,
     ScreenHeader,
-    SendStackParamList,
-    SendStackRoutes,
-    StackProps,
-    StackToStackCompositeNavigationProps,
+    type SendStackParamList,
+    type SendStackRoutes,
+    type StackProps,
     useNavigateToInitialScreen,
 } from '@suite-native/navigation';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import {
+    ReviewOutputItemList,
+    TxValidityTimer,
+    selectIsTransactionAlreadySigned,
+    useOutputsReviewBackInterceptor,
+} from '@suite-native/transaction-management';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
 
 import { OutputsReviewFooter } from '../components/OutputsReviewFooter';
-import { ReviewOutputItemList } from '../components/ReviewOutputItemList';
-import { useShowReviewCancellationAlert } from '../hooks/useShowReviewCancellationAlert';
-import { selectIsTransactionAlreadySigned } from '../selectors';
+import { useTxValidityFlow } from '../hooks/useTxValidityFlow';
 
-type NavigationProps = StackToStackCompositeNavigationProps<
-    SendStackParamList,
-    SendStackRoutes.SendOutputsReview,
-    RootStackParamList
->;
 const spacerStyle = prepareNativeStyle(_ => ({
     height: 150,
 }));
@@ -40,13 +34,10 @@ export const SendOutputsReviewScreen = ({
     route,
 }: StackProps<SendStackParamList, SendStackRoutes.SendOutputsReview>) => {
     const { accountKey, tokenContract } = route.params;
-    const navigation = useNavigation<NavigationProps>();
-    const showReviewCancellationAlert = useShowReviewCancellationAlert();
-    const navigateToInitialScreen = useNavigateToInitialScreen();
 
-    const { confirmOnTrezorRef, closeSheet } = useConfirmOnTrezorController();
+    const { confirmOnTrezorRef, closeSheet, revealConfirmOnTrezorSheet } =
+        useConfirmOnTrezorController();
 
-    const dispatch = useDispatch();
     const { applyStyle } = useNativeStyles();
 
     const account = useSelector((state: AccountsRootState) =>
@@ -54,27 +45,20 @@ export const SendOutputsReviewScreen = ({
     );
 
     const isTransactionAlreadySigned = useSelector(selectIsTransactionAlreadySigned);
-
     const showOutputsReviewFooter = isTransactionAlreadySigned && account;
 
-    useEffect(() => {
-        const unsubscribe = navigation.addListener('beforeRemove', async e => {
-            // We want to modify only behavior of back button actions.
+    const [isSendInProgress, setIsSendInProgress] = useState(false);
 
-            if (e.data.action.type !== 'GO_BACK') return;
+    const navigateToInitialScreen = useNavigateToInitialScreen();
+    useOutputsReviewBackInterceptor(navigateToInitialScreen);
 
-            e.preventDefault();
-
-            const { wasReviewCanceled } = await showReviewCancellationAlert();
-
-            if (wasReviewCanceled) {
-                dispatch(cancelSignSendFormTransactionThunk());
-                navigateToInitialScreen();
-            }
+    const { showTimer, secondsLeft, isPastDeadline, isBroadcasting, onRetry, isRetryDisabled } =
+        useTxValidityFlow({
+            accountKey,
+            tokenContract,
+            revealConfirmOnTrezorSheet,
+            isSendInProgress,
         });
-
-        return unsubscribe;
-    });
 
     useEffect(() => {
         if (showOutputsReviewFooter) {
@@ -94,9 +78,30 @@ export const SendOutputsReviewScreen = ({
             }
         >
             <VStack flex={1} spacing="sp16" justifyContent="space-between">
-                <ReviewOutputItemList accountKey={accountKey} tokenContract={tokenContract} />
+                <VStack spacing="sp16">
+                    {showTimer && (
+                        <TxValidityTimer
+                            secondsLeft={secondsLeft}
+                            isPastDeadline={isPastDeadline}
+                            isBroadcasting={isBroadcasting}
+                            onRetry={onRetry}
+                            isRetryDisabled={isRetryDisabled}
+                        />
+                    )}
+                    <ReviewOutputItemList
+                        prefix="send"
+                        accountKey={accountKey}
+                        tokenContract={tokenContract}
+                    />
+                </VStack>
                 {showOutputsReviewFooter ? (
-                    <OutputsReviewFooter accountKey={accountKey} tokenContract={tokenContract} />
+                    <OutputsReviewFooter
+                        accountKey={accountKey}
+                        tokenContract={tokenContract}
+                        isPastDeadline={isPastDeadline}
+                        isSendInProgress={isSendInProgress}
+                        setIsSendInProgress={setIsSendInProgress}
+                    />
                 ) : (
                     <Box style={applyStyle(spacerStyle)} />
                 )}

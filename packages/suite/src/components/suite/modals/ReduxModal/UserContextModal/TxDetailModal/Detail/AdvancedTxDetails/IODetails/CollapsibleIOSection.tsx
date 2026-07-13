@@ -1,8 +1,8 @@
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 import { CollapsibleBox } from '@trezor/components';
 
-import { IOGroup, IOGroupProps } from './IOGroup';
+import { IOGroup, type IOGroupProps } from './IOGroup';
 
 type CollapsibleIOSectionProps = IOGroupProps & {
     heading?: ReactNode;
@@ -29,8 +29,8 @@ export const CollapsibleIOSection = ({
                 tx={tx}
                 inputs={inputs}
                 outputs={outputs}
-                isPhishingTransaction={isPhishingTransaction}
                 isUtxoBased
+                isPhishingTransaction={isPhishingTransaction}
             />
         </CollapsibleBox>
     ) : null;

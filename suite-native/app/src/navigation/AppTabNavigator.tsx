@@ -1,65 +1,36 @@
 import { useSelector } from 'react-redux';
 
-import { BottomTabBarProps, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { type BottomTabBarProps, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
-import { EventType, analytics } from '@suite-native/analytics';
-import { useHandleDeviceRequestsPassphrase } from '@suite-native/device-authorization';
+import { useServices } from '@suite-common/dependency-injection';
+import { selectHasBitcoinOnlyFirmware } from '@suite-common/device';
+import { events, selectNativeAnalyticsDep } from '@suite-native/analytics';
 import { AccountsStackNavigator } from '@suite-native/module-accounts-management';
+import { EarnStackNavigator } from '@suite-native/module-earn';
 import { HomeStackNavigator } from '@suite-native/module-home';
 import { SettingsScreen } from '@suite-native/module-settings';
-import {
-    TradingStackNavigator,
-    selectIsTradingBuyEnabled,
-    selectIsTradingEnabled,
-    selectIsTradingExchangeEnabled,
-    selectIsTradingSellEnabled,
-} from '@suite-native/module-trading';
-import { AppTabsParamList, AppTabsRoutes, TabBar } from '@suite-native/navigation';
+import { TradingStackNavigator } from '@suite-native/module-trading';
+import { type AppTabsParamList, AppTabsRoutes, TabBar } from '@suite-native/navigation';
+import { selectIsTradingEnabled } from '@suite-native/trading-state';
 
-import { rootTabsOptions } from './routes';
+import { rootTabsOptions, rootTabsOptionsWithoutEarn } from './routes';
 
 const Tab = createBottomTabNavigator<AppTabsParamList>();
 
-const getTradingAnalyticsType = (
-    isTradingBuyEnabled: boolean,
-    isTradingExchangeEnabled: boolean,
-    isTradingSellEnabled: boolean,
-) => {
-    if (isTradingBuyEnabled) {
-        return 'buy';
-    }
-    if (isTradingExchangeEnabled) {
-        return 'exchange';
-    }
-    if (isTradingSellEnabled) {
-        return 'sell';
-    }
-
-    return null;
-};
-
 export const AppTabNavigator = () => {
-    useHandleDeviceRequestsPassphrase();
-
+    const { analytics } = useServices(selectNativeAnalyticsDep);
     const isTradingEnabled = useSelector(selectIsTradingEnabled);
-    const isTradingBuyEnabled = useSelector(selectIsTradingBuyEnabled);
-    const isTradingExchangeEnabled = useSelector(selectIsTradingExchangeEnabled);
-    const isTradingSellEnabled = useSelector(selectIsTradingSellEnabled);
+    const isBitcoinOnlyFirmware = useSelector(selectHasBitcoinOnlyFirmware);
+
+    const tabItemOptions = isBitcoinOnlyFirmware ? rootTabsOptionsWithoutEarn : rootTabsOptions;
 
     const handleTradeTabPress = () => {
-        const tradingType = getTradingAnalyticsType(
-            isTradingBuyEnabled,
-            isTradingExchangeEnabled,
-            isTradingSellEnabled,
-        );
-
-        if (!tradingType) return;
-
+        // Buy is the default tab when navigating to the Trading stack
         analytics.report({
-            type: EventType.TradingNavigate,
+            type: events.tradingNavigateEvent.name,
             payload: {
                 action: 'navigate',
-                type: tradingType,
+                type: 'buy',
                 from: 'trade',
             },
         });
@@ -73,7 +44,7 @@ export const AppTabNavigator = () => {
                 popToTopOnBlur: true,
             }}
             tabBar={(props: BottomTabBarProps) => (
-                <TabBar tabItemOptions={rootTabsOptions} {...props} />
+                <TabBar tabItemOptions={tabItemOptions} {...props} />
             )}
         >
             <Tab.Screen name={AppTabsRoutes.HomeStack} component={HomeStackNavigator} />
@@ -87,6 +58,7 @@ export const AppTabNavigator = () => {
                     }}
                 />
             )}
+            <Tab.Screen name={AppTabsRoutes.EarnStack} component={EarnStackNavigator} />
             <Tab.Screen name={AppTabsRoutes.Settings} component={SettingsScreen} />
         </Tab.Navigator>
     );

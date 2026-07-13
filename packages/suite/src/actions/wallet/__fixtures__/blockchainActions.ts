@@ -1,10 +1,10 @@
-import { DeepPartial } from 'react-hook-form';
+import { type DeepPartial } from 'react-hook-form';
 
-import { AnyAction } from '@suite-common/redux-utils';
+import { type AnyAction } from '@suite-common/redux-utils';
 import { notificationsActions } from '@suite-common/toast-notifications';
 import {
-    AccountsState,
-    BlockchainState,
+    type AccountsState,
+    type BlockchainState,
     accountsActions,
     blockchainActions,
     feesActions,
@@ -18,6 +18,7 @@ const DEFAULT_ACCOUNT = {
     networkType: 'bitcoin',
     descriptor: 'xpub',
     key: 'xpub-btc-deviceState',
+    visible: true,
     history: {
         total: 0,
     },
@@ -345,6 +346,28 @@ export const onBlock = analyzeTransactions
             },
             result: [blockchainActions.synced.type],
         },
+        {
+            description: 'external backend network is skipped without a custom backend',
+            block: { coin: { shortcut: 'pol' } },
+            state: {
+                accounts: [{ ...DEFAULT_ACCOUNT, symbol: 'pol', networkType: 'ethereum' }],
+            },
+        },
+        {
+            description: 'external backend network syncs when a custom backend is configured',
+            block: { coin: { shortcut: 'pol' } },
+            state: {
+                accounts: [
+                    { ...DEFAULT_ACCOUNT, symbol: 'pol', networkType: 'ethereum', visible: false },
+                ],
+                blockchain: {
+                    pol: {
+                        backends: { selected: 'blockbook', urls: { blockbook: ['http://url'] } },
+                    },
+                },
+            },
+            result: [blockchainActions.synced.type],
+        },
     ] as any);
 
 const seedBackends = (coins: string[]): DeepPartial<BlockchainState> =>
@@ -470,7 +493,7 @@ export const onConnect = [
         blockchainSubscribe: 1,
     },
     {
-        description: 'successful, blockchainEstimateFee failed',
+        description: 'successful, blockchainEstimateFee errored',
         initialState: {
             accounts: [{ symbol: 'btc', history: {} }],
         },
@@ -485,7 +508,7 @@ export const onConnect = [
         blockchainSubscribe: 1,
     },
     {
-        description: 'successful, ETH blockchainEstimateFee failed',
+        description: 'successful, ETH blockchainEstimateFee errored',
         initialState: {
             accounts: [{ symbol: 'eth', history: {}, deviceState: 'abc' }],
         },
@@ -552,7 +575,7 @@ export const onNotification = [
         getAccountInfo: 0,
     },
     {
-        description: 'pending btc tx, multiple accounts update',
+        description: 'pending btc tx, only matched account refetched',
         initialState: {
             accounts: [
                 DEFAULT_ACCOUNT,
@@ -567,10 +590,10 @@ export const onNotification = [
         actions: [
             { type: notificationsActions.addEvent.type, payload: { formattedAmount: '0.001 BTC' } },
         ],
-        getAccountInfo: 3,
+        getAccountInfo: 1,
     },
     {
-        description: 'pending token tx, one account update',
+        description: 'pending token tx, only matched account refetched',
         initialState: {
             accounts: [
                 { ...DEFAULT_ACCOUNT, symbol: 'eth', networkType: 'ethereum' },
@@ -587,13 +610,13 @@ export const onNotification = [
         actions: [
             {
                 type: notificationsActions.addEvent.type,
-                payload: { formattedAmount: '0.001 ERC20' },
+                payload: { formattedAmount: '0.001 erc20' },
             },
         ],
-        getAccountInfo: 2,
+        getAccountInfo: 1,
     },
     {
-        description: 'sent btc, multiple accounts update',
+        description: 'sent btc, only matched account refetched',
         initialState: {
             accounts: [
                 DEFAULT_ACCOUNT,
@@ -606,10 +629,10 @@ export const onNotification = [
             coin: { shortcut: 'btc' },
         },
         actions: [],
-        getAccountInfo: 3,
+        getAccountInfo: 1,
     },
     {
-        description: 'sent eth, one account update',
+        description: 'sent eth, only matched account refetched',
         initialState: {
             accounts: [
                 { ...DEFAULT_ACCOUNT, symbol: 'eth', networkType: 'ethereum' },
@@ -621,7 +644,7 @@ export const onNotification = [
             coin: { shortcut: 'eth' },
         },
         actions: [],
-        getAccountInfo: 2,
+        getAccountInfo: 1,
     },
     {
         description: 'sent ripple, no account update',

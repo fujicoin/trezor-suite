@@ -1,0 +1,66 @@
+import { type ReactNode } from 'react';
+
+import {
+    Box,
+    Column,
+    RadioCard,
+    Row,
+    Skeleton,
+    TOOLTIP_DELAY_NORMAL,
+    Text,
+    Tooltip,
+} from '@trezor/components';
+import { type FeeLevel } from '@trezor/connect';
+
+export const FEE_CARD_MIN_WIDTH = 170;
+
+type FeeCardProps = {
+    value: FeeLevel['label'];
+    isSelected: boolean;
+    changeFeeLevel: (level: FeeLevel['label']) => void;
+    topLeftChild: ReactNode;
+    topRightChild?: ReactNode;
+    bottomLeftChild: ReactNode;
+    bottomRightChild: ReactNode;
+    tooltipContent?: ReactNode;
+    isLoading?: boolean;
+    'data-testid'?: string;
+};
+
+export const FeeCard = ({
+    value,
+    isSelected,
+    changeFeeLevel,
+    topLeftChild,
+    topRightChild,
+    bottomLeftChild,
+    bottomRightChild,
+    tooltipContent,
+    isLoading,
+    'data-testid': dataTestId,
+}: FeeCardProps) => (
+    <Box
+        data-testid={dataTestId}
+        minWidth={FEE_CARD_MIN_WIDTH}
+        flex={`1 1 ${FEE_CARD_MIN_WIDTH}px`}
+    >
+        <Tooltip content={tooltipContent} delayShow={TOOLTIP_DELAY_NORMAL} display="block">
+            <RadioCard onClick={() => changeFeeLevel(value)} isSelected={isSelected}>
+                <Column>
+                    <Row justifyContent="space-between">
+                        <Text typographyStyle="body-md-strong">{topLeftChild}</Text>
+                        <Text intent="neutral" priority="secondary" typographyStyle="body-sm">
+                            {isLoading ? <Skeleton animate={true} /> : topRightChild}
+                        </Text>
+                    </Row>
+                    <Row justifyContent="space-between" height={24}>
+                        <Text>{isLoading ? <Skeleton animate={true} /> : bottomLeftChild}</Text>
+                        <Text intent="neutral" priority="secondary" typographyStyle="body-sm">
+                            {isLoading ? <Skeleton animate={true} /> : bottomRightChild}
+                        </Text>
+                    </Row>
+                </Column>
+            </RadioCard>
+        </Tooltip>
+    </Box>
+);

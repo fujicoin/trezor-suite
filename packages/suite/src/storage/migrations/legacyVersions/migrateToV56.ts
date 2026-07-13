@@ -1,7 +1,7 @@
-import { CryptoId } from 'invity-api';
+import { type CryptoId } from 'invity-api';
 
-import { TradingTransaction, cryptoIdToNetwork, toTokenCryptoId } from '@suite-common/trading';
-import { NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
+import { type TradingTransaction, cryptoIdToNetwork, toTokenCryptoId } from '@suite-common/trading';
+import { type NetworkSymbol, getNetwork } from '@suite-common/wallet-config';
 import type { Account } from '@suite-common/wallet-types';
 import {
     findAccountsByAddress,
@@ -9,10 +9,10 @@ import {
     findAccountsByNetwork,
     getContractAddressForNetworkSymbol,
 } from '@suite-common/wallet-utils';
-import { OnUpgradeFunc } from '@trezor/suite-storage';
+import { type OnUpgradeFunc } from '@trezor/suite-storage';
 
-import { SuiteDBSchema } from 'src/storage/definitions';
-import { DBWalletAccountTransactionCompatible } from 'src/storage/migrations';
+import { type SuiteDBSchema } from 'src/storage/definitions';
+import { type DBWalletAccountTransactionCompatible } from 'src/storage/migrations';
 
 import { updateAll } from '../utils';
 
@@ -186,7 +186,7 @@ export const migrateToV56: OnUpgradeFunc<SuiteDBSchema> = async (
 
     // refetch also evm txs for version 52+
     if (oldVersion >= 52) {
-        accountsToUpdate.push(...['eth', 'pol', 'bsc', 'base', 'arb', 'op', 'thol', 'tsep']);
+        accountsToUpdate.push(...['eth', 'pol', 'bsc', 'base', 'arb', 'op', 'thod', 'tsep']);
     }
 
     await updateAll<'txs', DBWalletAccountTransactionCompatible>(transaction, 'txs', tx => {

@@ -1,9 +1,10 @@
 /**
  * Window events handler
  */
-import { app, ipcMain } from '../typed-electron';
+import { isWindows } from '@trezor/env-utils';
 
-import type { ModuleInit } from './index';
+import { app, ipcMain } from '../typed-electron';
+import type { ModuleInit } from './module';
 
 export const SERVICE_NAME = 'window-control';
 
@@ -82,7 +83,7 @@ export const init: ModuleInit = ({ mainWindowProxy }) => {
         logger.debug(SERVICE_NAME, 'Focus requested');
         const mainWindow = mainWindowProxy.getInstance();
         mainWindow?.show();
-        mainWindow?.restore();
+        if (mainWindow?.isMinimized()) mainWindow?.restore();
         app.focus({ steal: true });
         mainWindow?.moveTop();
         mainWindow?.focus();
@@ -90,8 +91,16 @@ export const init: ModuleInit = ({ mainWindowProxy }) => {
 
     ipcMain.on('app/hide', () => {
         logger.debug(SERVICE_NAME, 'Hide requested');
-        mainWindowProxy.getInstance()?.hide();
+        if (isWindows()) {
+            mainWindowProxy.getInstance()?.minimize();
+        } else {
+            mainWindowProxy.getInstance()?.hide();
+        }
     });
 
     ipcMain.handle('app/is-visible', () => mainWindowProxy?.getInstance()?.isVisible() ?? false);
+    ipcMain.handle(
+        'app/is-fullscreen',
+        () => mainWindowProxy?.getInstance()?.isFullScreen() ?? false,
+    );
 };

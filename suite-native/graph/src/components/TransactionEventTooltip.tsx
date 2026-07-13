@@ -2,24 +2,24 @@ import { Dimensions } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSelector } from 'react-redux';
 
-import { G, N } from '@mobily/ts-belt';
+import { N } from '@mobily/ts-belt';
 
-import { GroupedBalanceMovementEventPayload } from '@suite-common/graph';
-import { SignValue } from '@suite-common/suite-types';
+import { type GroupedBalanceMovementEventPayload } from '@suite-common/graph';
+import { type SignValue } from '@suite-common/suite-types';
 import { type NetworkSymbol, getNetworkType } from '@suite-common/wallet-config';
-import { AccountKey, TokenAddress } from '@suite-common/wallet-types';
+import { type AccountKey, type TokenAddress } from '@suite-common/wallet-types';
 import { Box, Card, Text } from '@suite-native/atoms';
 import {
     CryptoAmountFormatter,
     SignValueFormatter,
     TokenAmountFormatter,
 } from '@suite-native/formatters';
-import { EventTooltipComponentProps } from '@suite-native/react-native-graph/src/LineGraphProps';
-import { TokensRootState, selectAccountTokenInfo } from '@suite-native/tokens';
-import { prepareNativeStyle, useNativeStyles } from '@trezor/styles';
+import { type EventTooltipComponentProps } from '@suite-native/react-native-graph';
+import { type TokensRootState, selectAccountTokenInfo } from '@suite-native/tokens';
+import { prepareNativeStyle, useNativeStyles } from '@trezor/styles-native';
+import { isNotNullOrUndefined } from '@trezor/utils';
 
-export type TransactionEventTooltipProps =
-    EventTooltipComponentProps<GroupedBalanceMovementEventPayload>;
+type TransactionEventTooltipProps = EventTooltipComponentProps<GroupedBalanceMovementEventPayload>;
 
 type EventTooltipRowProps = {
     title: string;
@@ -79,8 +79,8 @@ const TokenAmountTooltipFormatter = ({
     if (getNetworkType(symbol) === 'ethereum') {
         return (
             <TokenAmountFormatter
-                color="textDefault"
-                variant="label"
+                color="contentPrimary"
+                variant="body-xs"
                 value={value}
                 tokenSymbol={token.symbol}
                 // decimals are already formatted in getAccountHistoryMovementItemETH
@@ -101,15 +101,15 @@ const EventTooltipRow = ({
     accountKey,
 }: EventTooltipRowProps) => (
     <>
-        <Text variant="label" color="textSubdued">
+        <Text variant="body-xs" color="contentSecondary">
             {title}
         </Text>
         <Box flexDirection="row">
-            <SignValueFormatter value={signValue} variant="label" />
+            <SignValueFormatter value={signValue} variant="body-xs" />
             {!tokenAddress ? (
                 <CryptoAmountFormatter
-                    color="textDefault"
-                    variant="label"
+                    color="contentPrimary"
+                    variant="body-xs"
                     value={value}
                     symbol={symbol}
                     isBalance={false}
@@ -173,7 +173,7 @@ export const TransactionEventTooltip = ({
                         accountKey={accountKey}
                     />
                 )}
-                {G.isNotNullable(totalAmount) && (
+                {isNotNullOrUndefined(totalAmount) && (
                     <EventTooltipRow
                         title="In total"
                         signValue={totalAmount}

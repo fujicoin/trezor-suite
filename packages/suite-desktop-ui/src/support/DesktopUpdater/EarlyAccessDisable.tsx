@@ -1,12 +1,13 @@
 import { useCallback, useState } from 'react';
 
+import { events, selectDesktopAnalyticsDep } from '@suite/analytics';
+import { Translation } from '@suite/intl';
+import { useServices } from '@suite-common/dependency-injection';
 import { Column, H3, Modal, Paragraph } from '@trezor/components';
-import { EventType, analytics } from '@trezor/suite-analytics';
+import { StarFourIcon } from '@trezor/icons';
 import { desktopApi } from '@trezor/suite-desktop-api';
 import { spacings } from '@trezor/theme';
 import { SUITE_URL } from '@trezor/urls';
-
-import { Translation, TrezorLink } from 'src/components/suite';
 
 interface EarlyAccessDisableProps {
     hideWindow: () => void;
@@ -14,29 +15,30 @@ interface EarlyAccessDisableProps {
 
 export const EarlyAccessDisable = ({ hideWindow }: EarlyAccessDisableProps) => {
     const [enabled, setEnabled] = useState(true);
+    const { analytics } = useServices(selectDesktopAnalyticsDep);
 
     const allowPrerelease = useCallback(() => {
         analytics.report({
-            type: EventType.SettingsGeneralEarlyAccess,
+            type: events.settingsGeneralEarlyAccessEvent.name,
             payload: {
                 allowPrerelease: false,
             },
         });
         desktopApi.allowPrerelease(false);
         setEnabled(false);
-    }, []);
+    }, [analytics]);
 
     return enabled ? (
         <Modal
-            iconName="starFour"
-            variant="info"
+            icon={StarFourIcon}
+            intent="info"
             onCancel={hideWindow}
             bottomContent={
                 <>
                     <Modal.Button onClick={allowPrerelease}>
                         <Translation id="TR_EARLY_ACCESS_DISABLE" />
                     </Modal.Button>
-                    <Modal.Button onClick={hideWindow} variant="tertiary">
+                    <Modal.Button onClick={hideWindow} intent="neutral" priority="secondary">
                         <Translation id="TR_EARLY_ACCESS_STAY_IN" />
                     </Modal.Button>
                 </>
@@ -46,7 +48,7 @@ export const EarlyAccessDisable = ({ hideWindow }: EarlyAccessDisableProps) => {
                 <H3>
                     <Translation id="TR_EARLY_ACCESS" />
                 </H3>
-                <Paragraph variant="tertiary" typographyStyle="hint">
+                <Paragraph intent="neutral" priority="secondary" typographyStyle="body-sm">
                     <Translation id="TR_EARLY_ACCESS_DISABLE_CONFIRM_TITLE" />
                     <br />
                     <Translation id="TR_EARLY_ACCESS_DISABLE_CONFIRM_DESCRIPTION" />
@@ -55,17 +57,15 @@ export const EarlyAccessDisable = ({ hideWindow }: EarlyAccessDisableProps) => {
         </Modal>
     ) : (
         <Modal
-            iconName="starFour"
-            variant="info"
+            icon={StarFourIcon}
+            intent="info"
             onCancel={hideWindow}
             bottomContent={
                 <>
-                    <TrezorLink variant="nostyle" href={SUITE_URL}>
-                        <Modal.Button icon="arrowUpRight" iconAlignment="end">
-                            <Translation id="TR_EARLY_ACCESS_REINSTALL" />
-                        </Modal.Button>
-                    </TrezorLink>
-                    <Modal.Button onClick={hideWindow} variant="tertiary">
+                    <Modal.Button href={SUITE_URL}>
+                        <Translation id="TR_EARLY_ACCESS_REINSTALL" />
+                    </Modal.Button>
+                    <Modal.Button onClick={hideWindow} intent="neutral" priority="secondary">
                         <Translation id="TR_EARLY_ACCESS_SKIP_REINSTALL" />
                     </Modal.Button>
                 </>
@@ -75,7 +75,7 @@ export const EarlyAccessDisable = ({ hideWindow }: EarlyAccessDisableProps) => {
                 <H3>
                     <Translation id="TR_EARLY_ACCESS" />
                 </H3>
-                <Paragraph variant="tertiary" typographyStyle="hint">
+                <Paragraph intent="neutral" priority="secondary" typographyStyle="body-sm">
                     <Translation id="TR_EARLY_ACCESS_LEFT_TITLE" />
                     <br />
                     <Translation id="TR_EARLY_ACCESS_LEFT_DESCRIPTION" />
